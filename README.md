@@ -178,7 +178,8 @@ shifted so that it starts at 0.
                                          # (default: blinds, plain switches, valves… found in the area)
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
-  names: {script.good_night: Bedtime}    # names for this card only (the editor writes these for entities HA can't rename)
+  names: {script.good_night: Bedtime}    # names for this card only: they replace the entity's name everywhere on
+                                         # the dashboard (the editor writes these for entities HA can't rename)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
@@ -260,7 +261,9 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
   pressure…)
 - **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
-- **car**: `charging`, `power`, `time`, `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`, `status`
+- **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
+  colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
+  `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`
 - **media**:
   - `player`, `speakers`
   - optional screen-time limits: `watch_timer`, `watch_limit`, `limit_select`, `block_switch`, `unblock_switch`

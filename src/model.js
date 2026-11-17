@@ -593,6 +593,7 @@ export function buildModel(cfg = {}, hass) {
     car: {
       charging: CAR.charging || null, power: CAR.power || null, time: CAR.time || null, perCharge: CAR.energy_per_charge || null, costCharge: CAR.cost_per_charge || null,
       month: CAR.energy_month || null, costMonth: CAR.cost_month || null, year: CAR.energy_year || null, costYear: CAR.cost_year || null, parking: CAR.status || null,
+      battery: CAR.battery || null, range: CAR.range || null, name: CAR.name || null, color: CAR.color || null,
     },
     cameras: camList,
     media: {

@@ -17,6 +17,7 @@ const PANELS = [
   ['security', 'Security', 'Alarm, locks, doors and cameras'],
   ['climate', 'Climate', 'Air conditioners, temperatures'],
   ['energy', 'Energy', 'Live power, history (from HA’s Energy settings)'],
+  ['car', 'Electric car', 'Charging, battery, energy and cost (Energy tab)'],
   ['water', 'Water', 'Tank and pumps'],
   ['irrigation', 'Irrigation', 'Valves and schedule'],
   ['media', 'Media', 'TV, speakers'],
@@ -1016,6 +1017,13 @@ class SweetHomeCardEditor extends HTMLElement {
       security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
+      car: [{ name: 'name', selector: { text: {} } }, { name: 'color', selector: { color_rgb: {} } },
+        { name: 'charging', selector: { entity: { domain: ['binary_sensor', 'switch', 'input_boolean', 'sensor'] } } }, { name: 'power', selector: { entity: { domain: 'sensor', device_class: 'power' } } },
+        { name: 'battery', selector: { entity: { domain: 'sensor' } } }, { name: 'range', selector: { entity: { domain: 'sensor' } } },
+        { name: 'status', selector: { entity: { domain: ['sensor', 'device_tracker', 'binary_sensor', 'select'] } } }, { name: 'time', selector: { entity: { domain: 'sensor' } } },
+        { type: 'grid', name: '', schema: [{ name: 'energy_per_charge', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_per_charge', selector: { entity: { domain: 'sensor' } } },
+          { name: 'energy_month', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_month', selector: { entity: { domain: 'sensor' } } },
+          { name: 'energy_year', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_year', selector: { entity: { domain: 'sensor' } } }] }],
       water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
         { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }],
@@ -1040,16 +1048,21 @@ class SweetHomeCardEditor extends HTMLElement {
         const data = { ...cur };
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
+        if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
         det.appendChild(this._form(schemas[k], data, v => {
           const next = { ...(typeof P[k] === 'object' && P[k] ? P[k] : {}) };
           for (const [kk, vv] of Object.entries(v)) {
             let val = vv;
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (k === 'car' && kk === 'color') val = rgb2hex(vv);
             if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
             if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete next[kk]; else next[kk] = val;
           }
           set(k, next);
         }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
+          name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
+          status: 'Status (parked, driving…)', time: 'Charging time / time left', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
+          cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);

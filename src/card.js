@@ -131,14 +131,22 @@ const guestInfo = (states, g) => {
 // Side view of the car: first-generation Kia Niro EV in dark metallic grey, facing right —
 // flat roof with silver roof rails and a small spoiler, three side windows with a chrome surround and a body-coloured
 // C-pillar, black arch / sill cladding, blue accent low on the front bumper, two-tone twin-spoke wheels
-const CAR_SVG = ch => {
+// the car drawing's body gradient for a colour (default: graphite)
+const carGrad = hex => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return ['#7a8089', '#5a5f67', '#3a3e44', '#202327'];
+  const n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255];
+  const mix = f => '#' + c.map(v => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)).toString(16).padStart(2, '0')).join('');
+  return [mix(0.32), mix(0), mix(-0.38), mix(-0.68)];
+};
+const CAR_SVG = (ch, color) => {
+  const g = carGrad(color);
   const wheel = (cx, cy) => `<g transform="translate(${cx} ${cy})"><circle class="tire" r="13.5"/><circle class="rim" r="9.2"/>`
     + [0, 72, 144, 216, 288].map(a => [-7, 7].map(d => `<line class="spoke" x1="0" y1="-3" x2="0" y2="-8.6" transform="rotate(${a + d})"/>`).join('')).join('')
     + `<circle class="lip" r="9.2"/><circle class="hub" r="2.6"/></g>`;
   return `<svg viewBox="0 0 240 92" aria-label="Car">
     <defs>
       <linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
-      <linearGradient id="cbody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a8089"/><stop offset=".28" stop-color="#5a5f67"/><stop offset=".62" stop-color="#3a3e44"/><stop offset="1" stop-color="#202327"/></linearGradient>
+      <linearGradient id="cbody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${g[0]}"/><stop offset=".28" stop-color="${g[1]}"/><stop offset=".62" stop-color="${g[2]}"/><stop offset="1" stop-color="${g[3]}"/></linearGradient>
       <linearGradient id="cglass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset=".55" stop-color="#2c3646"/><stop offset="1" stop-color="#0d1219"/></linearGradient>
     </defs>
     <ellipse cx="120" cy="82.5" rx="106" ry="3.2" fill="rgba(0,0,0,.55)"/>
@@ -261,7 +269,26 @@ export class SweetHomeCard extends HTMLElement {
   _tabOn(k) { return k === 'home' || (TAB_SECS[k] || []).some(id => !this._secOff(id)); }
   _tabList() { return ALL_TABS.filter(([k]) => this._tabOn(k)); }
 
+  // Names given in this card (room `names` / `light_names`, card editor → Entities) replace the entity's name everywhere
+  // on the dashboard: the card reads states through a copy of hass whose friendly_name is changed for those entities.
+  // The renamed states are cached per original state object, so an entity that didn't change is still the same object.
+  _withNames(h) {
+    if (this._nameCfg !== this._config) {
+      this._nameCfg = this._config; this._nameCache = new WeakMap();
+      this._nameMap = Object.assign({}, ...(this._config?.house?.rooms || []).map(r => ({ ...(r.light_names || {}), ...(r.names || {}) })), this._config?.names || {});
+    }
+    const map = this._nameMap, ids = Object.keys(map); if (!h || !ids.length) return h;
+    const states = { ...h.states };
+    for (const id of ids) {
+      const st = states[id]; if (!st || !map[id]) continue;
+      let c = this._nameCache.get(st);
+      if (!c) { c = { ...st, attributes: { ...st.attributes, friendly_name: map[id] } }; this._nameCache.set(st, c); }
+      states[id] = c;
+    }
+    const o = Object.create(h); o.states = states; o._raw = h; return o;
+  }
   set hass(h) {
+    h = this._withNames(h?._raw || h);
     this._hass = h;
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
@@ -493,7 +520,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('ehist'), deps: [], render: () => this._rEHist() },
       { el: $('alerts'), deps: [], render: () => this._rAlerts() },
       { el: $('water'), deps: all(E.water.tank, E.water.quality, E.water.temp, E.water.pumps.map(p => [p.id, p.power, p.info]), E.water.entities.map(e => e.id)), render: () => this._rWater() },
-      { el: $('car'), deps: all(Object.values(E.car)), render: () => this._rCar() },
+      { el: $('car'), deps: all(Object.values(E.car).filter(v => typeof v === 'string' && v.includes('.'))), render: () => this._rCar() },
       { el: $('cams'), deps: all(E.cameras.map(c => [c.person, c.car, c.motion, c.face, c.plate, c.relay, c.door]), E.face), render: () => this._rCams(), after: () => this._refreshCams(true) },
       { el: $('media'), deps: all(E.media.tv, E.media.shield, E.media.echoes, E.media.ytTimer, E.media.ytLimit, E.media.ytBlock, E.media.ytForce, E.media.ytSelect), render: () => this._rMedia() },
       { el: $('mserver'), deps: all(Object.values(E.mserver).map(o => Object.values(o).filter(v => typeof v === 'string')), this._jfPlayers()), render: () => this._rMServer() },
@@ -503,7 +530,7 @@ export class SweetHomeCard extends HTMLElement {
     ];
     const off = {
       security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
-      modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power),
+      modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
       water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
@@ -2143,17 +2170,19 @@ export class SweetHomeCard extends HTMLElement {
   _rCar() {
     const C = E.car; const ch = this.on(C.charging);
     const p = this.n(C.power) ?? 0;
-    return `<div class="ch">${ic('mdi:car-electric')}<h3>Car</h3><span class="pill" style="--c:${ch ? '#34d399' : '#94a3b8'}">${ch ? 'Charging' : esc(this.v(C.parking) || 'Idle')}</span></div>
+    const soc = this.n(C.battery), rng = C.range && this.ok(C.range) ? this.f(C.range, 0) : '';
+    const color = Array.isArray(C.color) ? '#' + C.color.map(v => Number(v).toString(16).padStart(2, '0')).join('') : C.color;
+    const kpi = (id, id2, label, d) => (id || id2 ? `<div data-act="more" data-id="${id || id2}"${id && id2 ? ` data-id2="${id2}"` : ''}><span>${tr(label)}</span><b>${this.f(id, d)}</b><em>${id2 ? this.f(id2, 2) : ''}</em></div>` : '');
+    const kpis = [kpi(C.perCharge, C.costCharge, 'This charge', 1), kpi(C.month, C.costMonth, 'This month', 0), kpi(C.year, C.costYear, 'This year', 0)].filter(Boolean);
+    return `<div class="ch">${ic('mdi:car-electric')}<h3>${esc(C.name || tr('Car'))}</h3><span class="pill" style="--c:${ch ? '#34d399' : '#94a3b8'}" ${C.parking ? `data-act="more" data-id="${C.parking}"` : ''}>${ch ? tr('Charging') : esc(tr(pretty(this.v(C.parking) || 'Idle')))}</span></div>
       <div class="car ${ch ? 'charging' : ''}">
-        <div class="carviz" data-act="more" data-id="${C.power}" data-id2="${C.time}">
-          ${CAR_SVG(ch)}
-          <div class="cpow"><b>${fmtW(p)}</b><span>${ch ? 'charging · ' + esc(this.v(C.time) || '') : 'charger idle'}</span></div>
+        <div class="carviz" data-act="more" data-id="${C.power || C.charging}"${C.time ? ` data-id2="${C.time}"` : ''}>
+          ${CAR_SVG(ch, color)}
+          <div class="cpow"><b>${fmtW(p)}</b><span>${ch ? tr('charging') + (C.time && this.ok(C.time) ? ' · ' + esc(this.v(C.time)) : '') : tr('charger idle')}</span>
+            ${soc != null ? `<div class="csoc" data-act="more" data-id="${C.battery}"${C.range ? ` data-id2="${C.range}"` : ''}><div class="bar"><i style="width:${clamp(soc, 0, 100)}%;background:${soc < 20 ? '#f43f5e' : soc < 40 ? '#fbbf24' : '#34d399'}"></i></div><em>${Math.round(soc)}%${rng ? ` · ${rng}` : ''}</em></div>` : rng ? `<div class="csoc"><em>${rng}</em></div>` : ''}
+          </div>
         </div>
-        <div class="kpis">
-          <div data-act="more" data-id="${C.perCharge}" data-id2="${C.costCharge}"><span>This charge</span><b>${this.f(C.perCharge, 1)}</b><em>${this.f(C.costCharge, 2)}</em></div>
-          <div data-act="more" data-id="${C.month}" data-id2="${C.costMonth}"><span>This month</span><b>${this.f(C.month, 0)}</b><em>${this.f(C.costMonth, 2)}</em></div>
-          <div data-act="more" data-id="${C.year}" data-id2="${C.costYear}"><span>This year</span><b>${this.f(C.year, 0)}</b><em>${this.f(C.costYear, 2)}</em></div>
-        </div>
+        ${kpis.length ? `<div class="kpis">${kpis.join('')}</div>` : ''}
       </div>`;
   }
 
@@ -4175,6 +4204,8 @@ ha-icon.spin{animation:spin 1.2s linear infinite}
 ha-icon.pulse{animation:none;color:var(--teal)}
 
 /* car */
+.csoc{margin-top:8px;cursor:pointer;min-width:110px}.csoc .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}.csoc .bar i{display:block;height:100%;border-radius:3px}
+.csoc em{display:block;font-style:normal;font-size:11.5px;color:var(--mu);margin-top:4px}
 .carviz{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer}
 .carviz svg{width:62%;max-width:270px;flex:none;overflow:visible}
 .carviz .body{fill:url(#cbody);stroke:rgba(255,255,255,.32);stroke-width:.9;transition:stroke .3s}
