@@ -84,7 +84,8 @@ The dashboard is generated for you until you take control of it:
         Duplicate or delete rooms.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
         what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity in Home
-        Assistant (or, for entities Home Assistant can't rename, in this card only). Set how each light is drawn (ceiling
+        Assistant (or, for entities Home Assistant can't rename, in this card only). For an entity that is part of a
+        device, Home Assistant shows "device name + entity name"; this dashboard keeps the name as you typed it. Set how each light is drawn (ceiling
         light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
         whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and

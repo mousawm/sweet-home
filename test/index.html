@@ -41,7 +41,7 @@ states['cover.living_room_blinds'].attributes.current_position = 40;
 const areas = { living_room: { area_id: 'living_room', name: 'Living Room', floor_id: 'ground' }, kitchen: { area_id: 'kitchen', name: 'Kitchen', floor_id: 'ground' }, bedroom: { area_id: 'bedroom', name: 'Bedroom', floor_id: 'ground' }, balcony: { area_id: 'balcony', name: 'Balcony', floor_id: 'ground' }, office: { area_id: 'office', name: 'Office', floor_id: 'first' } };
 const ent = (id, area, extra = {}) => ({ entity_id: id, area_id: area, platform: 'demo', ...extra });
 const entities = Object.fromEntries([
-  ent('light.living_room', 'living_room'), ent('sensor.living_room_temperature', 'living_room'), ent('media_player.living_room_tv', 'living_room'),
+  ent('light.living_room', 'living_room', { device_id: 'lr1', has_entity_name: true }), ent('sensor.living_room_temperature', 'living_room'), ent('media_player.living_room_tv', 'living_room'),
   ent('light.kitchen', 'kitchen'), ent('binary_sensor.kitchen_motion', 'kitchen'), ent('light.bedroom', 'bedroom'), ent('sensor.bedroom_temperature', 'bedroom'),
   ent('sensor.bedroom_humidity', 'bedroom'), ent('climate.bedroom_ac', 'bedroom', { device_id: 'ac1' }), ent('sensor.bedroom_ac_power', 'bedroom', { device_id: 'ac1' }),
   ent('light.bedside_lamp', 'bedroom'), ent('fan.bedroom_fan', 'bedroom'), ent('switch.coffee_machine', 'kitchen'), ent('sensor.fridge_temperature', 'kitchen'),

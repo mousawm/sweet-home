@@ -1673,7 +1673,17 @@ export class SweetHomeCard extends HTMLElement {
     try {
       await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
       this.haptic('success'); this._toast(v ? tr('Renamed to {0}', v) : tr('Back to the default name'));
-    } catch (e) { this.haptic('failure'); this._toast(e?.message || tr('Could not rename it'), true); }
+    } catch (e) { this.haptic('failure'); this._toast(e?.message || tr('Could not rename it'), true); return; }
+    // An entity that is part of a device is shown by Home Assistant as "device name + entity name"; this dashboard
+    // keeps the name as it was typed (room `names`), so "Side light" stays "Side light" here.
+    const r = ROOM[this._sel];
+    if (this._hass.entities?.[id]?.has_entity_name && r?.ci != null) {
+      const cfg = JSON.parse(JSON.stringify(this._config || {})), rc = cfg.house?.rooms?.[r.ci]; if (!rc) return;
+      const names = { ...(rc.names || {}) }; if (v) names[id] = v; else delete names[id];
+      if (rc.light_names?.[id] != null) { delete rc.light_names[id]; if (!Object.keys(rc.light_names).length) delete rc.light_names; }
+      if (Object.keys(names).length) rc.names = names; else delete rc.names;
+      await this._applyConfig(cfg);
+    }
   }
 
   // One row for any entity: lights, switches, fans, covers… toggle; scripts / scenes run; buttons press; locks lock with a

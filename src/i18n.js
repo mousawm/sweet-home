@@ -71,7 +71,7 @@ const AR = {
   'Water temperature': 'حرارة المياه', 'Battery alert below': 'تنبيه البطارية تحت', 'Weak Wi-Fi below': 'ضعف الواي فاي تحت', 'Cloudflare tunnels': 'أنفاق Cloudflare',
   'LED strip on': 'شريط LED على', 'Where there is no wall': 'حيث لا يوجد جدار', 'Keep going': 'يستمر', 'Stop at the gap': 'يتوقف عند الفراغ',
   North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
-  Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant',
+  Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant', 'renamed in Home Assistant and on this dashboard': 'تمت إعادة التسمية في Home Assistant وفي هذه اللوحة',
   'default name': 'الاسم الافتراضي', 'could not rename': 'تعذّرت إعادة التسمية', 'not found': 'غير موجود',
   Parked: 'مركونة', Tree: 'شجرة', Hedge: 'سياج نباتي', Pool: 'مسبح', Sprinkler: 'رشاش مياه', Asphalt: 'أسفلت',
   'Stairs going': 'اتجاه الدرج', 'Up and down': 'صعود ونزول', 'No stairs': 'بدون درج', 'Car sensor (shows the car while it is parked)': 'حساس السيارة (تظهر السيارة عندما تكون مركونة)',

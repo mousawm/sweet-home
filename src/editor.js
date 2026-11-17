@@ -863,8 +863,13 @@ class SweetHomeCardEditor extends HTMLElement {
       this._emit(); say(v ? t('name in this card') : t('default name'));
     };
     if (!inp.dataset.ha) return cardName();
-    try { await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null }); say(v ? t('renamed in Home Assistant') : t('default name')); }
-    catch (e) { say(e?.message || t('could not rename'), true); }
+    try {
+      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
+      // For an entity that is part of a device, Home Assistant shows "device name + entity name" (Side light →
+      // "Living Room Light Side Light"); this dashboard keeps the name as it was typed.
+      if (this._hass.entities?.[id]?.has_entity_name) { cardName(); say(v ? t('renamed in Home Assistant and on this dashboard') : t('default name')); }
+      else say(v ? t('renamed in Home Assistant') : t('default name'));
+    } catch (e) { say(e?.message || t('could not rename'), true); }
   }
   // a plug written as {entity, name, power} keeps its extra settings when the list changes
   _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }
