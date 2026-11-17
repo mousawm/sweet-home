@@ -755,7 +755,7 @@ class SweetHomeCardEditor extends HTMLElement {
       const [ids, own] = lists[key];
       if (!ids.length && !own) continue;
       html.push(`<div class="sh-role" data-role="${key}"><h4><ha-icon icon="${icon}"></ha-icon>${t(title)}<small>${t(own ? 'your list' : 'found in area')}</small>${own ? `<a data-reset="${key}">${t('Back to what the area has')}</a>` : ''}</h4>
-        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : `<div class="sh-hint">${t('None.')}</div>`}</div>`);
+        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : `<div class="sh-hint">${t('None.')}</div>`}${key === 'lights' ? this._stripHtml(r) : ''}</div>`);
     }
     // area entities that aren't shown anywhere yet
     const sugg = (R.byArea[r.area] || []).filter(id => !assigned.has(id));
@@ -781,7 +781,12 @@ class SweetHomeCardEditor extends HTMLElement {
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
       inp.addEventListener('change', () => this._rename(inp));
     });
-    box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); }));
+    box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); this._render(); }));
+    box.querySelectorAll('[data-sside]').forEach(c => c.addEventListener('change', () => {
+      const v = [...box.querySelectorAll('[data-sside]')].filter(x => x.checked).map(x => x.dataset.sside).join('');
+      if (v === 'nesw') delete r.strip_sides; else r.strip_sides = v; this._emit();
+    }));
+    box.querySelector('[data-smode]')?.addEventListener('change', e => { if (e.target.value === 'walls') r.strip_mode = 'walls'; else delete r.strip_mode; this._emit(); });
     box.querySelectorAll('[data-lcol]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lcol, { color: c.checked }); this._emit(); }));
     box.querySelectorAll('[data-lsim]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lsim, { simple: c.checked }); this._emit(); }));
     const det = box.querySelector('[data-free]'), q = det.querySelector('.sh-search'), list = det.querySelector('.sh-freelist');
@@ -794,6 +799,15 @@ class SweetHomeCardEditor extends HTMLElement {
     };
     q.addEventListener('input', () => { this._freeQ = q.value; fill(); });
     fill();
+  }
+  // LED strip of the room (when one of its lights is drawn as a strip): which walls it runs along, and what it does
+  // where a wall is missing (an opening, a door): keep going along the whole side, or stop at the gap
+  _stripHtml(r) {
+    if (!Object.values(r.light_fx || {}).includes('strip')) return '';
+    if (Array.isArray(r.strip_sides)) return `<div class="sh-hint">${t('Strip on more than one rectangle: set its sides in YAML (strip_sides)')}</div>`;
+    const sides = r.strip_sides ?? 'nesw', mode = r.strip_mode === 'walls' ? 'walls' : 'full';
+    return `<div class="sh-ent"><span class="nm">${t('LED strip on')}</span>${[['n', 'North'], ['e', 'East'], ['s', 'South'], ['w', 'West']].map(([k, n]) => `<label><input type="checkbox" data-sside="${k}" ${sides.includes(k) ? 'checked' : ''}>${t(n)}</label>`).join('')}</div>
+      <div class="sh-ent"><span class="nm">${t('Where there is no wall')}</span><select data-smode><option value="full" ${mode === 'full' ? 'selected' : ''}>${t('Keep going')}</option><option value="walls" ${mode === 'walls' ? 'selected' : ''}>${t('Stop at the gap')}</option></select></div>`;
   }
   _entRowHtml(r, key, id) {
     const R = this._reg, ok = !!this._hass.states[id];
@@ -967,24 +981,41 @@ class SweetHomeCardEditor extends HTMLElement {
       security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
-      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } }],
+      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
+        { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }],
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
       media_server: [],
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
-      attention: [{ name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
+      attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
+        { name: 'battery_exclude_devices', selector: { device: { multiple: true } } },
+        { name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
     };
     for (const [k, n, d] of PANELS) {
       const det = document.createElement('details'); det.className = 'sh-panel';
       const on = P[k] !== false;
-      det.innerHTML = `<summary><span><b>${n}</b><br><small>${d}</small></span></summary>`;
+      det.innerHTML = `<summary><span><b>${t(n)}</b><br><small>${d}</small></span></summary>`;
       const sw = document.createElement('ha-switch'); sw.checked = on;
       sw.addEventListener('click', e => e.stopPropagation());
       sw.addEventListener('change', () => { set(k, sw.checked ? undefined : false); this._render(); });
       det.querySelector('summary').appendChild(sw);
       if (on && schemas[k].length) {
-        const data = typeof P[k] === 'object' ? P[k] : {};
-        det.appendChild(this._form(schemas[k], data, v => { const o = {}; for (const [kk, vv] of Object.entries(v)) if (vv !== '' && vv != null && !(Array.isArray(vv) && !vv.length)) o[kk] = vv; set(k, { ...(typeof P[k] === 'object' ? P[k] : {}), ...o }); }));
+        const cur = typeof P[k] === 'object' && P[k] ? P[k] : {};
+        // the form shows plain IDs: pumps written as {entity, power, timer} and devices excluded by name are kept as they are
+        const data = { ...cur };
+        if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
+        if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
+        det.appendChild(this._form(schemas[k], data, v => {
+          const next = { ...(typeof P[k] === 'object' && P[k] ? P[k] : {}) };
+          for (const [kk, vv] of Object.entries(v)) {
+            let val = vv;
+            if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
+            if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete next[kk]; else next[kk] = val;
+          }
+          set(k, next);
+        }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
+          pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
     }

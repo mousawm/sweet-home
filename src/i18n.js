@@ -64,6 +64,13 @@ const AR = {
   'Ceiling light': 'ضوء سقف', Spots: 'سبوتات', 'LED strip': 'شريط LED', 'TV backlight': 'إضاءة خلف التلفاز', Colours: 'الألوان', 'On / off only': 'تشغيل / إيقاف فقط',
   'Air conditioner / thermostat': 'المكيّف / منظم الحرارة', 'Motion & presence': 'الحركة والتواجد', Locks: 'الأقفال', Fan: 'المروحة', 'TV / media player': 'التلفاز / مشغل الوسائط',
   linked: 'مرتبط',
+  'Hide this device here': 'إخفاء هذا الجهاز من هنا', 'Tap again to hide it': 'اضغط مرة أخرى لإخفائه',
+  'Hidden. Show it again in the card editor (Panels → Needs Attention).': 'تم الإخفاء. يمكنك إظهاره مجددًا من محرر البطاقة (اللوحات ← يحتاج انتباهًا).',
+  'Needs Attention': 'يحتاج انتباهًا', 'Hidden devices': 'الأجهزة المخفية', 'Hidden entities': 'الكيانات المخفية', 'Hidden from low batteries only': 'مخفية من البطاريات المنخفضة فقط',
+  Pumps: 'المضخات', 'Other entities (valves, flow, pressure…)': 'كيانات أخرى (صمامات، تدفق، ضغط…)', 'Tank level': 'مستوى الخزان', 'Water quality': 'جودة المياه',
+  'Water temperature': 'حرارة المياه', 'Battery alert below': 'تنبيه البطارية تحت', 'Weak Wi-Fi below': 'ضعف الواي فاي تحت', 'Cloudflare tunnels': 'أنفاق Cloudflare',
+  'LED strip on': 'شريط LED على', 'Where there is no wall': 'حيث لا يوجد جدار', 'Keep going': 'يستمر', 'Stop at the gap': 'يتوقف عند الفراغ',
+  North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',

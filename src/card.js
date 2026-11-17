@@ -446,10 +446,14 @@ export class SweetHomeCard extends HTMLElement {
     this.$ = $;
     this._swipeClose($('drawer'));
     this._swipeTabs(this.shadowRoot.querySelector('main'));
+    this._lockBehindSheet();
+    // listeners on the shadow root are attached once: it outlives a rebuild (each card editor change rebuilds the
+    // card), and attaching them again made one tap count several times (a toggle switched back, a confirm skipped)
+    if (!this._wired) {
+    this._wired = true;
     this._longPress();
     this._spkInput();
     this.shadowRoot.addEventListener('click', e => this._onClick(e));
-    this._lockBehindSheet();
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
     this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
     this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
@@ -458,6 +462,7 @@ export class SweetHomeCard extends HTMLElement {
     this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
     this.shadowRoot.addEventListener('focusout', e => { if (e.target.matches?.('[data-rename]') && this._dragging === e.target) this._dragging = null; });
     this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
+    }
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);
     const roomEnts = ROOMS.map(r => [r.temp, r.hum, r.lights, r.motion, r.climate, r.count, r.fan, r.locks, r.doors, (r.doors || []).map(d => DOOR_INFO[d]?.timeout), (r.plugs || []).map(p => [p.id, p.power]), r.media, (r.entities || []).map(e => e.id), r.furnEnts]);
@@ -476,7 +481,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('energy'), deps: all(E.energy.grid, E.energy.solar, E.energy.current, E.energy.daily, E.energy.monthly, E.energy.yearly, E.energy.imported, E.energy.exported, E.energy.produced, E.energy.dad, E.energy.stored, E.energy.consumers.map(c => c[0]), Object.values(E.forecast)), render: () => this._rEnergy(), after: el => this._afterEnergy(el) },
       { el: $('ehist'), deps: [], render: () => this._rEHist() },
       { el: $('alerts'), deps: [], render: () => this._rAlerts() },
-      { el: $('water'), deps: all(E.water.tank, E.water.quality, E.water.temp, E.water.pumps.map(p => [p.id, p.power, p.info])), render: () => this._rWater() },
+      { el: $('water'), deps: all(E.water.tank, E.water.quality, E.water.temp, E.water.pumps.map(p => [p.id, p.power, p.info]), E.water.entities.map(e => e.id)), render: () => this._rWater() },
       { el: $('car'), deps: all(Object.values(E.car)), render: () => this._rCar() },
       { el: $('cams'), deps: all(E.cameras.map(c => [c.person, c.car, c.motion, c.face, c.plate, c.relay, c.door]), E.face), render: () => this._rCams(), after: () => this._refreshCams(true) },
       { el: $('media'), deps: all(E.media.tv, E.media.shield, E.media.echoes, E.media.ytTimer, E.media.ytLimit, E.media.ytBlock, E.media.ytForce, E.media.ytSelect), render: () => this._rMedia() },
@@ -488,7 +493,7 @@ export class SweetHomeCard extends HTMLElement {
     const off = {
       security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power),
-      water: !(E.water.tank || E.water.pumps.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
+      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
@@ -1130,6 +1135,10 @@ export class SweetHomeCard extends HTMLElement {
         if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
         break;
       }
+      case 'exclude': {
+        if (!this._armConfirm(t, id, tr('Tap again to hide it'))) return;
+        this._excludeDevice(id, t.dataset.kind); break;
+      }
       case 'names': this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
@@ -1267,6 +1276,22 @@ export class SweetHomeCard extends HTMLElement {
     this._three?.select(id);
     this._rerender('drawer');
   }
+  // Leaves a device out of "Needs Attention" (or only out of the low-battery list): saved in the card config
+  async _excludeDevice(id, kind) {
+    const dev = this._hass.entities?.[id]?.device_id;
+    const cfg = JSON.parse(JSON.stringify(this._config || {}));
+    const P = (cfg.panels ||= {}), A = (P.attention = typeof P.attention === 'object' && P.attention ? P.attention : {});
+    const key = dev ? (kind === 'battery' ? 'battery_exclude_devices' : 'exclude_devices') : (kind === 'battery' ? 'battery_exclude' : 'exclude_entities');
+    const list = A[key] = [...(A[key] || [])]; if (!list.includes(dev || id)) list.push(dev || id);
+    if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Hidden. Show it again in the card editor (Panels → Needs Attention).')); }
+  }
+  // a new config for this card: through the open card editor (with undo), else saved into the dashboard
+  async _applyConfig(cfg) {
+    const ed = window.__sweetHomeEditor;
+    if (ed?.isConnected && ed.applyExternal) { ed.applyExternal(cfg); return true; }
+    return this._saveCardConfig(cfg);
+  }
+
   // A piece dragged in the 3D view (arrange mode): moved in the config. While the card editor is open, the move goes
   // through it (with undo); otherwise it is saved straight into this dashboard (storage dashboards, admins).
   async _arrangeMove(f, dx, dz, undo) {
@@ -1276,9 +1301,8 @@ export class SweetHomeCard extends HTMLElement {
     const list = src.house != null ? cfg.house?.furniture : cfg.house?.rooms?.[src.room]?.furniture, piece = list?.[src.i ?? src.house];
     if (!piece) { undo(); this._toast('Could not find this piece in the configuration', true); return; }
     movePiece(piece, dx, dz);
-    const ed = window.__sweetHomeEditor;
-    if (ed?.isConnected && ed.applyExternal) { ed.applyExternal(cfg); this.haptic('light'); return; }
-    if (await this._saveCardConfig(cfg)) { this.haptic('success'); this._toast(tr('Moved')); } else undo();
+    const viaEditor = window.__sweetHomeEditor?.isConnected;
+    if (await this._applyConfig(cfg)) { this.haptic(viaEditor ? 'light' : 'success'); if (!viaEditor) this._toast(tr('Moved')); } else undo();
   }
   // saves a new config for this card into the dashboard it is on (the card must be found there exactly once)
   async _saveCardConfig(cfg) {
@@ -1659,7 +1683,10 @@ export class SweetHomeCard extends HTMLElement {
     const h = this._hass; if (!h) return [];
     const A = E.alerts, lang = h.locale?.language || 'en';
     const devName = id => { const d = h.devices?.[h.entities?.[id]?.device_id]; return d ? (d.name_by_user || d.name || '') : ''; };
-    const exDev = (id, extra = []) => [...A.excludeDevices, ...extra].includes(devName(id));
+    // excluded devices: by device ID (what the card editor writes) or by name
+    const exDev = (id, extra = []) => { const l = [...A.excludeDevices, ...extra]; return l.includes(devName(id)) || l.includes(h.entities?.[id]?.device_id); };
+    // admins get a button on each row to leave that device (or the entity, when it has none) out from now on
+    const hide = (id, kind = '') => (h.user?.is_admin ? `<button class="hbtn" data-act="exclude" data-id="${id}" data-kind="${kind}" title="${esc(tr('Hide this device here'))}" aria-label="${esc(tr('Hide this device here'))}">${ic('mdi:eye-off-outline')}</button>` : '');
     const nm = st => tc(st.attributes.friendly_name || st.entity_id);
     // label = the main device (bold) with the entity under it; just the entity when it has no device
     const lab = (st, name = nm(st)) => {
@@ -1685,24 +1712,24 @@ export class SweetHomeCard extends HTMLElement {
     const unG = new Map();
     for (const st of unRaw) { const dev = h.entities?.[st.entity_id]?.device_id, k = dev || st.entity_id; (unG.get(k) || unG.set(k, []).get(k)).push(st); }
     const un = [...unG.values()].map(g => {
-      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="Offline" data-short="1">Offline · ${agoShort(st.last_changed, lang)}</b></div>`;
+      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="Offline" data-short="1">Offline · ${agoShort(st.last_changed, lang)}</b>${hide(st.entity_id)}</div>`;
       const dn = tc(devName(st.entity_id)), e = h.entities?.[st.entity_id], ar = h.areas?.[e?.area_id || h.devices?.[e?.device_id]?.area_id]?.name;
       const parts = g.map(x => { const n = nm(x); return tc(n.toLowerCase().startsWith(dn.toLowerCase()) ? n.slice(dn.length).replace(/^[\s:·-]+/, '') || n : n); });
       const sub = [parts.length <= 3 ? parts.join(', ') : `${parts.length} parts offline`, ar ? tc(ar) : ''].filter(Boolean).join(' · ');
       const since = g.map(x => x.last_changed).sort()[0];
-      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="Offline" data-short="1">Offline · ${agoShort(since, lang)}</b></div>`;
+      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="Offline" data-short="1">Offline · ${agoShort(since, lang)}</b>${hide(st.entity_id)}</div>`;
     });
     // low batteries
     const seenDev = new Set();
     const bat = all.filter(st => ((st.entity_id.startsWith('sensor.') && st.attributes.device_class === 'battery' && st.attributes.unit_of_measurement === '%' && !h.entities?.[st.entity_id]?.hidden && h.entities?.[st.entity_id]?.platform !== 'mobile_app') || A.batteryExtra[st.entity_id]) && !isNaN(num(st)) && num(st) <= A.batteryMax
       && (() => { const dv = h.entities?.[st.entity_id]?.device_id; if (!dv) return true; if (seenDev.has(dv)) return false; seenDev.add(dv); return true; })()
       && !A.batteryExclude.includes(st.entity_id) && !exDev(st.entity_id, A.batteryExcludeDevices)).sort((a, b) => num(a) - num(b))
-      .map(st => `<div class="mrow open" data-act="more" data-id="${st.entity_id}">${ic('mdi:battery-alert-variant-outline')}${A.batteryExtra[st.entity_id] ? `<span>${esc(A.batteryExtra[st.entity_id])}</span>` : lab(st, nm(st).replace(/\s*Battery\+?$/i, ''))}<b>${Math.round(num(st))}%</b></div>`);
+      .map(st => `<div class="mrow open" data-act="more" data-id="${st.entity_id}">${ic('mdi:battery-alert-variant-outline')}${A.batteryExtra[st.entity_id] ? `<span>${esc(A.batteryExtra[st.entity_id])}</span>` : lab(st, nm(st).replace(/\s*Battery\+?$/i, ''))}<b>${Math.round(num(st))}%</b>${hide(st.entity_id, 'battery')}</div>`);
     // devices with a weak Wi-Fi signal, with their restart button
     const weak = all.filter(st => st.entity_id.startsWith('sensor.') && st.attributes.device_class === 'signal_strength' && /dBm/i.test(st.attributes.unit_of_measurement || '') && !isNaN(num(st)) && num(st) < A.rssiMin && !A.excludeEntities.includes(st.entity_id) && !exDev(st.entity_id))
       .sort((a, b) => num(a) - num(b)).map(st => {
         const dev = h.entities?.[st.entity_id]?.device_id, rb = dev && Object.keys(h.entities || {}).find(e => e.startsWith('button.') && h.entities[e].device_id === dev && h.states[e] && (h.states[e].attributes.device_class === 'restart' || /reboot|restart/.test(e)));
-        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${Math.round(num(st))} dBm</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}Rebooting…</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}Reboot</button>`) : ''}</div>`;
+        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${Math.round(num(st))} dBm</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}Rebooting…</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}Reboot</button>`) : ''}${hide(st.entity_id)}</div>`;
       });
     // pending updates, as on HA's Settings page: update entities that are on, can be installed and are not skipped
     const upd = all.filter(st => st.entity_id.startsWith('update.') && st.state === 'on' && (st.attributes.supported_features & 1)
@@ -2066,7 +2093,8 @@ export class SweetHomeCard extends HTMLElement {
         <div class="wtiles">
           ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) && p.power ? `On · ${this.f(p.power, 0)}` : p.info && this.ok(p.info) ? this.v(p.info) : null, p.power || p.info)).join('')}
         </div>
-      </div>`;
+      </div>
+      ${W.entities.length ? `<div class="wents">${W.entities.map(e => this._entRow(e.id, e)).join('')}</div>` : ''}`;
   }
 
   // Water tag: instead of repeating the level, the trend over the last 2 h and the time left —
@@ -2688,10 +2716,22 @@ class HouseScene {
         const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.globalCompositeOperation = 'lighter';
         const dx = Math.min(80, 256 * 0.6 / (x2 - x1)), dz = Math.min(80, 256 * 0.6 / (z2 - z1)); // v1.20.0: 0.6 m edge, was 0.9 m
         const edge = (ax, ay, bx, by, rx, ry, rw, rh) => { const gr = g.createLinearGradient(ax, ay, bx, by); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(rx, ry, rw, rh); };
-        if (sides.includes('n')) edge(0, 0, 0, dz, 0, 0, 256, dz);
-        if (sides.includes('s')) edge(0, 256, 0, 256 - dz, 0, 256 - dz, 256, dz);
-        if (sides.includes('w')) edge(0, 0, dx, 0, 0, 0, dx, 256);
-        if (sides.includes('e')) edge(256, 0, 256 - dx, 0, 256 - dx, 0, dx, 256);
+        // where along each side the strip runs: the whole side, or (strip_mode: walls) only where there is a wall
+        const runs = sd => {
+          const horiz = sd === 'n' || sd === 's', lo = horiz ? x1 : z1, hi = horiz ? x2 : z2;
+          if (r.stripMode !== 'walls') return [[lo, hi]];
+          const line = { n: z1, s: z2, w: x1, e: x2 }[sd], on = v => Math.abs(v - line) < 0.03;
+          const segs = WALLS.filter(q => (q[5] ?? 0) === r.level && q[4] !== 'rail' && (horiz ? on(q[1]) && on(q[3]) : on(q[0]) && on(q[2])))
+            .map(q => (horiz ? [Math.min(q[0], q[2]), Math.max(q[0], q[2])] : [Math.min(q[1], q[3]), Math.max(q[1], q[3])]))
+            .map(([a, b]) => [Math.max(a, lo), Math.min(b, hi)]).filter(([a, b]) => b - a > 0.05).sort((u, v) => u[0] - v[0]);
+          const out = []; for (const q of segs) { const l = out[out.length - 1]; if (l && q[0] <= l[1] + 0.02) l[1] = Math.max(l[1], q[1]); else out.push([...q]); }
+          return out;
+        };
+        const px256 = (v, a, b) => (v - a) / (b - a) * 256;
+        for (const [a, b] of sides.includes('n') ? runs('n') : []) { const u = px256(a, x1, x2), v = px256(b, x1, x2); edge(0, 0, 0, dz, u, 0, v - u, dz); }
+        for (const [a, b] of sides.includes('s') ? runs('s') : []) { const u = px256(a, x1, x2), v = px256(b, x1, x2); edge(0, 256, 0, 256 - dz, u, 256 - dz, v - u, dz); }
+        for (const [a, b] of sides.includes('w') ? runs('w') : []) { const u = px256(a, z1, z2), v = px256(b, z1, z2); edge(0, 0, dx, 0, 0, u, dx, v - u); }
+        for (const [a, b] of sides.includes('e') ? runs('e') : []) { const u = px256(a, z1, z2), v = px256(b, z1, z2); edge(256, 0, 256 - dx, 0, 256 - dx, u, dx, v - u); }
         const plane = new T.Mesh(new T.PlaneGeometry(x2 - x1 - 0.1, z2 - z1 - 0.1), new T.MeshBasicMaterial({ map: new T.CanvasTexture(c), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
         const [px, pz] = this.w((x1 + x2) / 2, (z1 + z2) / 2); plane.rotation.x = -Math.PI / 2; plane.position.set(px, 0.025, pz); this._at().add(plane); planes.push(plane);
         // the strip itself: thin glowing bars along the inside of the wall tops
@@ -2705,9 +2745,11 @@ class HouseScene {
         // `bar` is kept for reference; lineMat still carries the strip colour for the other parts.
         // v1.20.0 cove look: light washing down the inside of each wall (bright under the strip, fading towards the floor)
         // and a soft halo ribbon around the strip itself, so it reads as a glowing line from above as well
-        for (const sd of sides) {
-          const horiz = sd === 'n' || sd === 's', len = (horiz ? x2 - x1 : z2 - z1) - 2 * i;
-          const lx = sd === 'w' ? x1 + i + 0.02 : sd === 'e' ? x2 - i - 0.02 : (x1 + x2) / 2, lz = sd === 'n' ? z1 + i + 0.02 : sd === 's' ? z2 - i - 0.02 : (z1 + z2) / 2;
+        for (const sd of sides) for (const [ra, rb] of 'nesw'.includes(sd) ? runs(sd) : []) {
+          const horiz = sd === 'n' || sd === 's', lo = horiz ? x1 : z1, hi = horiz ? x2 : z2;
+          const a = ra <= lo + 0.01 ? ra + i : ra, b = rb >= hi - 0.01 ? rb - i : rb, len = b - a; if (len < 0.08) continue;
+          const mid = (a + b) / 2;
+          const lx = sd === 'w' ? x1 + i + 0.02 : sd === 'e' ? x2 - i - 0.02 : mid, lz = sd === 'n' ? z1 + i + 0.02 : sd === 's' ? z2 - i - 0.02 : mid;
           const [wx, wz] = this.w(lx, lz), rotY = { n: 0, s: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 }[sd];
           const wash = new T.Mesh(new T.PlaneGeometry(len, WALL_H - 0.18), new T.MeshBasicMaterial({ map: this._grad('v'), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
           wash.position.set(wx, (WALL_H - 0.18) / 2, wz); wash.rotation.y = rotY; this._at().add(wash); washes.push(wash);
@@ -3920,6 +3962,10 @@ main{scroll-margin-top:84px}
 .rnrow ha-icon{color:var(--mu);grid-row:span 2}.rnrow small{grid-column:2;font-size:10.5px;color:var(--mu);margin:2px 0 0;opacity:.8}
 .rnrow input{font:inherit;font-size:13px;color:var(--tx);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
 .rnrow input:focus{outline:none;border-color:var(--teal);background:rgba(45,212,191,.08)}.rnrow.na{opacity:.6}
+.wents{margin-top:12px}
+.hbtn{flex:none;display:grid;place-items:center;width:32px;height:32px;margin:-6px -6px -6px 2px;border-radius:9px;color:var(--mu);opacity:.65}
+.hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15)}
+@media (pointer:coarse){.hbtn{width:40px;height:40px}}
 .fgrp{border-radius:14px;margin-bottom:8px}.fgrp .lrow:last-child,.fgrp .mrow:last-child{margin-bottom:0}
 .fhd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--mu);margin:2px 2px 6px}.fhd ha-icon{--mdc-icon-size:16px}
 .fgrp.focus{padding:10px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.45);margin-bottom:12px}.fgrp.focus .fhd{color:var(--tx);font-size:13px}.fgrp.focus .fhd ha-icon{color:var(--teal)}

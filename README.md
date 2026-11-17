@@ -84,7 +84,8 @@ The dashboard is generated for you until you take control of it:
         Duplicate or delete rooms.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
         what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
-        light, spots, LED strip, TV backlight), with or without colours. A list shows devices that are in no room yet.
+        light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
+        whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
         **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
@@ -179,6 +180,7 @@ shifted so that it starts at 0.
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
+  strip_mode: walls                      # stop the strip where a wall is missing (doors, openings); default: full side
   ac: {x: 0.2, z: 6, dx: 1, dz: 0}       # where the AC unit hangs and which way it blows
   anchor: [2.5, 7]                       # label position
 ```
@@ -237,7 +239,9 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
-- **water**: `tank`, `quality`, `temperature`, `pumps` (`entity`, `power`, `timer`)
+- **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`; the power
+  sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
+  pressure…)
 - **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
 - **car**: `charging`, `power`, `time`, `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`, `status`
 - **media**:
@@ -250,7 +254,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
   - `unavailable_domains`, `unavailable_integrations`
-  - `exclude_devices`, `exclude_entities`, `battery_exclude`
+  - `exclude_devices` (device IDs or names), `exclude_entities`, `battery_exclude_devices` (only left out of low
+    batteries), `battery_exclude`
+  - In the card, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
+    lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
 
 ## Gestures
 

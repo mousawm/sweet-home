@@ -318,7 +318,7 @@ export function buildModel(cfg = {}, hass) {
       plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: R.name(p), icon: 'mdi:power-socket-eu', power: R.sameDevice(p, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null } : { icon: 'mdi:power-socket-eu', ...p }),
       media: rc.media !== undefined ? rc.media : found.media || null,
       lightFx: lightFx || undefined, lightNames: rc.light_names || rc.lightNames || undefined,
-      motionNames: rc.motion_names || rc.motionNames || undefined, stripSides: rc.strip_sides ?? rc.stripSides,
+      motionNames: rc.motion_names || rc.motionNames || undefined, stripSides: rc.strip_sides ?? rc.stripSides, stripMode: rc.strip_mode || rc.stripMode || 'full',
       tvGlow: rc.tv_glow || rc.tvGlow || undefined, colorLights: arr(rc.color_lights || rc.colorLights),
       simpleLights: arr(rc.simple_lights || rc.simpleLights), labelY: rc.label_height, zoom: rc.zoom,
       ac: rc.ac, auto: !!rc.auto, furniture: rc.furniture,
@@ -523,7 +523,13 @@ export function buildModel(cfg = {}, hass) {
       extra: arr(EN.extra).map(c => ({ id: c.entity, name: c.name || R.name(c.entity), icon: c.icon || 'mdi:flash' })),
       exclude: arr(EN.exclude),
     },
-    water: { tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null, pumps: arr(W2.pumps).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || null, info: p.info || p.timer || null, confirm: p.confirm !== false })) },
+    // pumps: `entity_id` or {entity, name, power, timer}; their power sensor is found on the same device when not given.
+    // entities: anything else for the Water card (valves, flow and pressure sensors, …)
+    water: {
+      tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null,
+      pumps: arr(W2.pumps).map(p => (typeof p === 'string' ? { entity: p } : p)).filter(p => p?.entity).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || R.sameDevice(p.entity, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null, info: p.info || p.timer || null, confirm: p.confirm !== false })),
+      entities: arr(W2.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),
+    },
     car: {
       charging: CAR.charging || null, power: CAR.power || null, time: CAR.time || null, perCharge: CAR.energy_per_charge || null, costCharge: CAR.cost_per_charge || null,
       month: CAR.energy_month || null, costMonth: CAR.cost_month || null, year: CAR.energy_year || null, costYear: CAR.cost_year || null, parking: CAR.status || null,
@@ -561,7 +567,7 @@ export function buildModel(cfg = {}, hass) {
     security: panel('security') && !!(E.alarm || E.locks.length || E.doors.length || E.cameras.length || E.gate.relay),
     climate: panel('climate') && !!(E.acs.length || rooms.some(r => r.temp)),
     energy: panel('energy'),
-    water: !!(E.water.tank || E.water.pumps.length || E.irrigation.valves.length),
+    water: !!(E.water.tank || E.water.pumps.length || E.water.entities.length || E.irrigation.valves.length),
     media: (panel('media') && !!(E.media.tv || E.tvLight.light)) || (panel('media_server') && hasMS),
     system: panel('system'),
   };
