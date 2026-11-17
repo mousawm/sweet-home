@@ -22,14 +22,16 @@ security, climate, energy, water, media and your home lab.
 
 ## Install
 
-### HACS (recommended)
+### Marketplace (recommended)
 
-1. HACS → ⋮ → **Custom repositories** → add this repository's URL, type **Dashboard**.
-2. Search for **Sweet Home** in HACS and download it.
+Home Assistant's **Marketplace** (formerly HACS):
+
+1. **Marketplace** → ⋮ → **Custom repositories**. Add this repository's URL with the type **Dashboard**.
+2. Search the Marketplace for **Sweet Home** and download it.
 3. Reload the browser.
 
-HACS adds the dashboard resource for you. If it doesn't, add `/hacsfiles/sweet-home/sweet-home-card.js` as a
-**JavaScript module** under Settings → Dashboards → ⋮ → Resources.
+The Marketplace adds the dashboard resource for you. If it doesn't, add `/local/community/sweet-home/sweet-home-card.js`
+as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
 
 ### Manual
 
