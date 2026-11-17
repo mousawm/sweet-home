@@ -1,8 +1,8 @@
 # Sweet Home
 
-![Sweet Home demo house](docs/demo-house.png)
+[![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)
 
-<sub>The demo house from the test page, drawn with three.js' SVG renderer. In Home Assistant the card adds shadows, textures and glowing lights.</sub>
+![Sweet Home: the Home tab with the 3D house, At a glance and Modes](docs/screenshots/home.webp)
 
 Your home as an interactive **3D model** in Home Assistant. Tap a room to see and switch what is in it. Tabs cover
 security, climate, energy, water, media and your home lab.
@@ -24,15 +24,25 @@ security, climate, energy, water, media and your home lab.
   - Popups don't scroll the page behind them. Skeleton loaders while data arrives.
   - The 3D view sleeps when nothing moves, to save battery.
 
+## Screenshots
+
+| Security | Climate |
+|---|---|
+| ![Security tab: alarm, locks, doors and live cameras](docs/screenshots/security.webp) | ![Climate tab: room temperatures and one card per AC](docs/screenshots/climate.webp) |
+| **Energy** | **Water & Garden** |
+| ![Energy tab: live power flow, today's chart and the car charger](docs/screenshots/energy.webp) | ![Water & Garden tab: tank trend, pumps and irrigation](docs/screenshots/water.webp) |
+
 ## Install
 
 ### Marketplace (recommended)
 
 Home Assistant's **Marketplace** (formerly HACS):
 
-1. **Marketplace** → ⋮ → **Custom repositories**. Add this repository's URL with the type **Dashboard**.
+[![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)
+
+1. Click the button above. It opens Sweet Home in your Marketplace and offers to add the repository. Or add it by hand: **Marketplace** → ⋮ → **Custom repositories**, this repository's URL, type **Dashboard**.
 2. Search the Marketplace for **Sweet Home** and download it.
-3. Reload the browser.
+3. Reload the browser, then [add the dashboard](#from-add-dashboard-recommended).
 
 The Marketplace adds the dashboard resource for you. If it doesn't, add `/local/community/sweet-home/sweet-home-card.js`
 as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
@@ -42,40 +52,63 @@ as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
 Download `sweet-home-card.js` from the latest release and put it in `/config/www/`. Then add
 `/local/sweet-home-card.js` as a JavaScript module resource.
 
-## Add the dashboard
+## Add it to Home Assistant
 
-The quickest way: **Settings → Dashboards → Add dashboard → Sweet Home** (under *Community dashboards*). It creates a
-full-screen dashboard built from your areas. Use **⋮ → Edit → Take control** to change it with the card editor.
+### From "Add dashboard" (recommended)
 
-## Add the card
+Once Sweet Home is installed, it is listed with the other community dashboards:
 
-Or add the card to any dashboard. It is built to fill the screen, so put it in a view with the **Panel** layout:
+1. Go to **Settings → Dashboards → Add dashboard**.
+2. Under **Community dashboards**, pick **Sweet Home**. Its description reads *"Your home as an interactive 3D model, with
+   tabs for security, climate, energy, media and more. Built from your areas."*
+3. Give the dashboard a name and an icon, then open it from the sidebar.
+
+The dashboard builds itself from your Home Assistant **areas**. Each area becomes a room with its lights, sensors, doors
+and climate devices. The tabs show what Home Assistant has for them: alarm, locks, cameras, energy, media and so on.
+It shows the whole house full screen.
+
+Not listed? Reload the browser after installing (on the phone app: ⋮ → Reload resources), and check that you have
+version 0.1.1 or newer.
+
+### Edit it
+
+The dashboard is generated for you until you take control of it:
+
+1. Open the dashboard and click the **pencil** (or **⋮ → Edit dashboard**) at the top right.
+2. Choose **Take control**. The dashboard becomes a normal one with a single Sweet Home card.
+3. Click **Edit** at the left end of the bar under the card. The ⋮ at its right end only has move, copy and delete.
+4. The Sweet Home editor opens with three steps:
+   1. **Rooms**: a floor plan with four modes. A setup guide walks you through them the first time.
+      - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
+        a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
+        Duplicate or delete rooms.
+      - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
+        what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
+        light, spots, LED strip, TV backlight), with or without colours. A list shows devices that are in no room yet.
+      - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
+        **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
+        lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
+      - **Doors & windows**: drag along a wall to add an animated door, a window or an open passage. Tap to add a lock
+        badge.
+
+      **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
+      rooms without a shape and devices that are in another room's area.
+   2. **Panels**: turn panels on or off and pick their entities.
+   3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
+5. Click **Save**, then **Done**.
+
+Everything the editor doesn't cover can be added in YAML (**Show code editor**, or the dashboard's **⋮ → Raw
+configuration editor**), and the editor keeps it. See [Configuration](#configuration) below.
+
+### As a card on any dashboard
+
+You can also add the card yourself: **Edit dashboard → Add card → Sweet Home**, or in YAML:
 
 ```yaml
 type: custom:sweet-home-card
 ```
 
-You can also pick **Sweet Home** in the card picker. The visual editor has three steps:
-
-1. **Rooms**: a floor plan with four modes. A setup guide walks you through them the first time.
-   - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
-     a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
-     Duplicate or delete rooms.
-   - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
-     what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
-     light, spots, LED strip, TV backlight), with or without colours. A list shows devices that are in no room yet.
-   - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
-     **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
-     lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
-   - **Doors & windows**: drag along a wall to add an animated door, a window or an open passage. Tap to add a lock
-     badge.
-
-   **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
-   rooms without a shape and devices that are in another room's area.
-2. **Panels**: turn panels on or off and pick their entities.
-3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
-
-Everything the editor doesn't cover can be added in YAML, and the editor keeps it.
+It is built to fill the screen, so put it in a view with the **Panel** layout (view settings → View type → Panel).
 
 ## Configuration
 
