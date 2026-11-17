@@ -8,7 +8,8 @@
  * Undo / redo cover every change. Everything it writes is plain YAML, so anything the editor doesn't cover can still be
  * added in the code editor and is kept untouched.
  */
-import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr } from './model.js';
+import { t, setLang, isRTL } from './i18n.js';
+import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel } from './model.js';
 
 const STEPS = [['rooms', 'Rooms', 'mdi:floor-plan'], ['panels', 'Panels', 'mdi:view-dashboard-outline'], ['look', 'Look', 'mdi:palette-outline']];
 const MODES = [['shape', 'Shape', 'mdi:vector-square'], ['entities', 'Entities', 'mdi:devices'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['doors', 'Doors & windows', 'mdi:door']];
@@ -41,12 +42,16 @@ const USEFUL = id => {
 const NEW_PIECE = {
   bed: { width: 1.4, length: 2, head: 'n' }, sofa: { w: 2, d: 0.9, back: 'n' }, table: { w: 1.2, d: 0.8 }, chair: { face: 'n' },
   tv: { w: 1.4, h: 0.8, y: 0.6, facing: 's' }, lamp: { h: 1.5 }, fan: { radius: 0.6 }, marker: { y: 0.9 }, plant: { size: 0.8 },
-  rug: { w: 2, d: 1.4 }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 },
+  rug: { w: 2, d: 1.4 }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 }, vacuum: {},
+  // pieces given by corners: [half width, half depth] around the tap
+  stairs: { _span: [1, 0.5], axis: 'x', steps: 8 }, blinds: { _span: [0.6, 0] },
 };
-const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'marker', 'plant', 'rug', 'box', 'block'];
-const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade' };
+const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'box', 'block', 'stairs'];
+const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
 const DIRS = ['n', 'e', 's', 'w'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
+// option lists are translated when a form is drawn
+const trOpts = schema => schema.map(x => (x.schema ? { ...x, schema: trOpts(x.schema) } : x.selector?.select ? { ...x, selector: { select: { ...x.selector.select, options: x.selector.select.options.map(o => ({ ...o, label: t(o.label) })) } } } : x));
 const num = (o, step = 0.05, min = 0, max = 10, unit = 'm') => ({ number: { min, max, step, mode: 'box', unit_of_measurement: unit } });
 const sel = opts => ({ select: { mode: 'dropdown', options: opts.map(([value, label]) => ({ value, label })) } });
 const PIECE_FIELDS = {
@@ -55,10 +60,10 @@ const PIECE_FIELDS = {
   sofa: [['back', sel(DIR_OPTS)], ['arms', sel([['both', 'Both'], ['start', 'Start'], ['end', 'End'], ['none', 'None']])]],
   bed: [['width', num()], ['length', num()], ['head', sel(DIR_OPTS)]], plant: [['size', num(0, 0.1, 0.2, 3, '×')]],
   tv: [['w', num()], ['h', num()], ['y', num()], ['facing', sel(DIR_OPTS)]], lamp: [['h', num()], ['size', num(0, 0.1, 0.3, 3, '×')]],
-  fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
+  fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], blinds: [['y', num()], ['h', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
   stairs: [['axis', sel([['x', 'Along x'], ['z', 'Along z']])], ['mode', sel([['up', 'Up'], ['down', 'Down'], ['split', 'Split']])], ['steps', num(0, 1, 2, 30, '')]],
 };
-const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' } };
+const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' }, blinds: { domain: 'cover' }, vacuum: { domain: 'vacuum' } };
 const PIECE_LABELS = { w: 'Width', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
 
 const clone = o => JSON.parse(JSON.stringify(o || {}));
@@ -74,12 +79,17 @@ const entityId = e => (typeof e === 'string' ? e : e?.entity || e?.id);
 /* ---------------- furniture geometry on the plan (config coordinates, metres) ---------------- */
 function footprint(f) {
   const t = String(f.type || 'box').toLowerCase();
-  if (f.from && f.to) return { rect: [Math.min(f.from[0], f.to[0]), Math.min(f.from[1], f.to[1]), Math.max(f.from[0], f.to[0]), Math.max(f.from[1], f.to[1])] };
+  if (f.from && f.to) {
+    const r = [Math.min(f.from[0], f.to[0]), Math.min(f.from[1], f.to[1]), Math.max(f.from[0], f.to[0]), Math.max(f.from[1], f.to[1])];
+    if (r[2] - r[0] < 0.1) { r[0] -= 0.06; r[2] += 0.06; } if (r[3] - r[1] < 0.1) { r[1] -= 0.06; r[3] += 0.06; } // a blind: a line along a wall
+    return { rect: r };
+  }
   const x = N(f.x, 0), z = N(f.z, 0);
   const circ = r => ({ circle: [x, z, r] });
   if (t === 'lamp') return circ(0.2 * N(f.size, 1));
   if (t === 'fan') return circ(N(f.radius, 0.6));
   if (t === 'marker') return circ(0.14);
+  if (t === 'vacuum') return { rect: [x - 0.2, z - 0.1, x + 0.2, z + 0.42] };
   if (t === 'plant') return circ(0.4 * N(f.size, 1));
   if (t === 'cylinder' || t === 'ball') return circ(N(f.radius, 0.2));
   let w, d;
@@ -100,8 +110,13 @@ function movePiece(f, dx, dz) {
 function sizePiece(f, x1, z1, x2, z2) {
   const t = String(f.type || 'box'); const w = r2(Math.abs(x2 - x1)), d = r2(Math.abs(z2 - z1)), cx = r2((x1 + x2) / 2), cz = r2((z1 + z2) / 2);
   if (w < 0.1 || d < 0.1) return;
+  if (t === 'blinds' && f.from && f.to) { // a blind stays a line: only its length changes
+    if (Math.abs(f.to[0] - f.from[0]) >= Math.abs(f.to[1] - f.from[1])) { f.from = [r2(Math.min(x1, x2)), f.from[1]]; f.to = [r2(Math.max(x1, x2)), f.from[1]]; }
+    else { f.from = [f.from[0], r2(Math.min(z1, z2))]; f.to = [f.from[0], r2(Math.max(z1, z2))]; }
+    return;
+  }
   if (f.from && f.to) { f.from = [r2(Math.min(x1, x2)), r2(Math.min(z1, z2))]; f.to = [r2(Math.max(x1, x2)), r2(Math.max(z1, z2))]; return; }
-  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger'].includes(t)) return; // fixed size (or set in the form)
+  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger', 'vacuum'].includes(t)) return; // fixed size (or set in the form)
   f.x = cx; f.z = cz;
   if (t === 'bed') { const ew = ['e', 'w'].includes(f.head); f.width = ew ? d : w; f.length = ew ? w : d; }
   else if (t === 'tv') f.w = ['e', 'w'].includes(f.facing) ? d : w;
@@ -125,17 +140,21 @@ class SweetHomeCardEditor extends HTMLElement {
   constructor() {
     super();
     this._step = 'rooms'; this._mode = 'shape'; this._sel = 0; this._grid = 0.5;
-    this._rsel = null; this._fsel = null; this._place = null; this._dtool = 'door'; this._dsel = null;
+    this._rsel = null; this._fsel = null; this._place = null; this._dtool = 'door'; this._dsel = null; this._lvl = 0; this._extraLv = [];
     this._hist = []; this._fut = []; this._last = null; this._lastPush = 0;
     this._guideOff = store.get('sweet-home-guide-off') === '1';
     this.addEventListener('keydown', e => this._keys(e));
   }
+  connectedCallback() { window.__sweetHomeEditor = this; }
+  disconnectedCallback() { if (window.__sweetHomeEditor === this) delete window.__sweetHomeEditor; }
+  // a change made in the card's 3D view (furniture dragged in arrange mode): taken like an edit here, with undo
+  applyExternal(config) { this._config = clone(config); this._emit(); this._render(); }
   setConfig(config) {
     const j = JSON.stringify(config || {});
     if (j === this._last) return; // our own change coming back from Home Assistant: nothing to redraw (keeps the focus while typing)
     this._config = clone(config); this._last = j; this._render();
   }
-  set hass(h) { const first = !this._hass; this._hass = h; this._R = null; if (first) this._render(); else this.querySelectorAll('ha-form').forEach(f => { f.hass = h; }); }
+  set hass(h) { const first = !this._hass; this._hass = h; setLang(this._config?.language || h?.locale?.language || h?.language); this._R = null; if (first) this._render(); else this.querySelectorAll('ha-form').forEach(f => { f.hass = h; }); }
   get _reg() { return (this._R ||= registry(this._hass)); }
 
   /* ---------------- config changes, undo / redo ---------------- */
@@ -183,10 +202,46 @@ class SweetHomeCardEditor extends HTMLElement {
   get _rooms() { const H = this._H; H.rooms = H.rooms || []; return H.rooms; }
   _roomName(r, i) { return r.name || this._hass.areas?.[r.area]?.name || 'Room ' + (i + 1); }
 
+  /* ---------------- floors ---------------- */
+  // rooms, doors, badges carry `level`; window / opening segments carry it as a 5th item. No level = ground floor (0).
+  _lvOf(o) { const v = Array.isArray(o) ? o[4] : o?.level; return v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : 0; }
+  _onLv(o) { return this._lvOf(o) === this._lvl; }
+  _setLv(o, l) { if (Array.isArray(o)) { o.length = 4; if (l) o.push(l); } else if (l) o.level = l; else delete o.level; }
+  _levels() {
+    const H = this._H, set = new Set([0, this._lvl, ...this._rooms.map(r => this._lvOf(r)), ...arr(H.levels).map(l => Number(l.level)), ...this._extraLv]);
+    const fl = floorLevels(this._reg);
+    return [...set].sort((a, b) => a - b).map(l => {
+      const given = arr(H.levels).find(x => Number(x.level) === l)?.name;
+      const ha = Object.values(this._hass.floors || {}).find(f => fl[f.floor_id] === l)?.name;
+      return { level: l, name: given || ha || (l === 0 ? 'Ground floor' : l < 0 ? 'Basement' : `Floor ${l}`), given: !!given };
+    });
+  }
+  _floorBar(slot) {
+    const L = this._levels(), cur = L.find(l => l.level === this._lvl);
+    const bar = document.createElement('div'); bar.className = 'sh-ed'; bar.style.gap = '8px';
+    bar.innerHTML = `<div class="sh-rooms"><span class="sh-hint" style="align-self:center">${t('Floor')}</span>${L.map(l => `<button data-lv="${l.level}" class="${l.level === this._lvl ? 'on' : ''}"><ha-icon icon="mdi:layers-outline"></ha-icon>${esc(l.given ? l.name : l.name.startsWith('Floor ') ? t('Floor {0}', l.level) : t(l.name))} <span class="sh-tag">${this._rooms.filter(r => this._lvOf(r) === l.level).length}</span></button>`).join('')}
+      <button data-addlv title="Add a floor above"><ha-icon icon="mdi:layers-plus"></ha-icon>${t('Add floor')}</button></div>
+      ${L.length > 1 ? `<div class="sh-row"><span class="sh-hint">${t('Name of this floor')}</span><input class="sh-search" style="flex:1;width:auto" data-lvname value="${esc(cur.given ? cur.name : '')}" placeholder="${esc(cur.name)}"></div>` : ''}`;
+    slot.appendChild(bar);
+    bar.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => this._goLevel(Number(b.dataset.lv))));
+    bar.querySelector('[data-addlv]').addEventListener('click', () => { const l = Math.max(...L.map(x => x.level)) + 1; this._extraLv.push(l); this._goLevel(l); });
+    bar.querySelector('[data-lvname]')?.addEventListener('change', e => {
+      const H = this._H, v = e.target.value.trim(), list = arr(H.levels).filter(x => Number(x.level) !== this._lvl);
+      if (v) list.push({ level: this._lvl, name: v });
+      if (list.length) H.levels = list.sort((a, b) => a.level - b.level); else delete H.levels;
+      this._emit(); this._render();
+    });
+  }
+  _goLevel(l) {
+    this._lvl = l; this._rsel = null; this._fsel = null; this._dsel = null;
+    const i = this._rooms.findIndex(r => this._lvOf(r) === l); this._sel = i < 0 ? -1 : i;
+    this._render();
+  }
+
   _form(schema, data, onChange, labels = {}, typing = false) {
     const f = document.createElement('ha-form');
-    f.hass = this._hass; f.data = data; f.schema = schema;
-    f.computeLabel = s => labels[s.name] || s.label || s.name.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+    f.hass = this._hass; f.data = data; f.schema = trOpts(schema);
+    f.computeLabel = s => t(labels[s.name] || s.label || s.name.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase()));
     f.addEventListener('value-changed', e => { e.stopPropagation(); onChange(e.detail.value, typing); });
     return f;
   }
@@ -206,7 +261,7 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
       .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
       .sh-rooms i{width:10px;height:10px;border-radius:3px;display:inline-block}
-      .sh-plan:focus{outline:none}.sh-plan:focus-visible{outline:2px solid var(--primary-color)}
+      .sh-plan{direction:ltr}.sh-plan:focus{outline:none}.sh-plan:focus-visible{outline:2px solid var(--primary-color)}
       .sh-plan{width:100%;touch-action:none;background:var(--secondary-background-color);border-radius:12px;cursor:crosshair;user-select:none;-webkit-user-select:none;display:block}
       .sh-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .sh-row button,.sh-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
@@ -226,6 +281,8 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-role h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}.sh-role h4 ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color)}
       .sh-role h4 small{font-weight:400;color:var(--secondary-text-color)}.sh-role h4 a{font-weight:400;font-size:12px;color:var(--primary-color);cursor:pointer;margin-left:auto}
       .sh-ent{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--secondary-background-color);margin-bottom:6px;flex-wrap:wrap;font-size:13px}
+      .sh-rename{font:inherit;font-size:13px;color:var(--primary-text-color);background:transparent;border:1px solid transparent;border-radius:6px;padding:2px 4px;margin:-3px 0 0 -5px;width:100%;box-sizing:border-box}
+      .sh-rename:hover{border-color:var(--divider-color)}.sh-rename:focus{outline:none;border-color:var(--primary-color);background:var(--card-background-color)}
       .sh-ent .nm{flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis}.sh-ent .nm small{display:block;color:var(--secondary-text-color);font-size:11px}
       .sh-ent.bad .nm small{color:var(--error-color)}
       .sh-ent select{font:inherit;font-size:12px;padding:4px;border-radius:6px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
@@ -238,8 +295,8 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-search{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
       .sh-tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--divider-color);color:var(--secondary-text-color)}
     </style>
-    <div class="sh-ed">
-      <div class="sh-steps">${STEPS.map(([k, n, i]) => `<button data-step="${k}" class="${this._step === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>
+    <div class="sh-ed" dir="${isRTL() ? 'rtl' : 'ltr'}">
+      <div class="sh-steps">${STEPS.map(([k, n, i]) => `<button data-step="${k}" class="${this._step === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>
       <div class="sh-body"></div>
     </div>`;
     this.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => { this._step = b.dataset.step; this._render(); }));
@@ -253,38 +310,49 @@ class SweetHomeCardEditor extends HTMLElement {
   _rRooms(body) {
     const rooms = this._rooms;
     if (this._sel >= rooms.length) this._sel = 0;
+    // the selected room must be on the floor being edited
+    if (rooms[this._sel] && !this._onLv(rooms[this._sel])) {
+      if (this._levelFollowsRoom) this._lvl = this._lvOf(rooms[this._sel]);
+      else { const i = rooms.findIndex(x => this._onLv(x)); this._sel = i < 0 ? -1 : i; }
+    }
+    this._levelFollowsRoom = false;
     const r = rooms[this._sel];
+    const here = rooms.map((x, i) => [x, i]).filter(([x]) => this._onLv(x));
     body.innerHTML = `<div class="sh-ed">
       <div class="sh-guide-slot"></div>
       <div class="sh-warn-slot"></div>
-      <div class="sh-row"><button data-undo title="Undo (Ctrl+Z)"><ha-icon icon="mdi:undo"></ha-icon>Undo</button><button data-redo title="Redo (Ctrl+Shift+Z)"><ha-icon icon="mdi:redo"></ha-icon>Redo</button>
-        <span style="flex:1"></span>${rooms.length ? `<span class="sh-hint">Grid</span><button data-grid title="Snap size">${this._grid} m</button>` : ''}</div>
-      <div class="sh-rooms">${rooms.map((x, i) => `<button data-room="${i}" class="${i === this._sel ? 'on' : ''}"><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(this._roomName(x, i))}</button>`).join('')}
-        <button data-add>+ Add room</button>${this._freeAreas().length ? `<button data-import>${rooms.length ? `+ Add my other areas (${this._freeAreas().length})` : 'Add all my areas'}</button>` : ''}</div>
-      ${rooms.length ? `<div class="sh-modes">${MODES.map(([k, n, i]) => `<button data-mode="${k}" class="${this._mode === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>` : ''}
-      ${rooms.length ? `<div class="sh-hint sh-modehint"></div>` : '<div class="sh-hint">No rooms yet: the card builds a simple house from your Home Assistant areas on its own. Add rooms to draw your real floor plan.</div>'}
-      ${rooms.length && this._mode !== 'entities' ? '<svg class="sh-plan"></svg>' : ''}
+      <div class="sh-row"><button data-undo title="${t('Undo')} (Ctrl+Z)"><ha-icon icon="mdi:undo"></ha-icon>${t('Undo')}</button><button data-redo title="${t('Redo')} (Ctrl+Shift+Z)"><ha-icon icon="mdi:redo"></ha-icon>${t('Redo')}</button>
+        <span style="flex:1"></span>${rooms.length ? `<span class="sh-hint">${t('Grid')}</span><button data-grid title="Snap size">${this._grid} m</button>` : ''}</div>
+      <div class="sh-floors"></div>
+      <div class="sh-rooms">${here.map(([x, i]) => `<button data-room="${i}" class="${i === this._sel ? 'on' : ''}"><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(this._roomName(x, i))}</button>`).join('')}
+        <button data-add>${t('+ Add room')}</button>${this._freeAreas().length ? `<button data-import>${rooms.length ? t('+ Add my other areas ({0})', this._freeAreas().length) : t('Add all my areas')}</button>` : ''}</div>
+      ${rooms.length && !r ? `<div class="sh-hint">${t('No rooms on this floor yet: add one, or add your areas.')}</div>` : ''}
+      ${r ? `<div class="sh-modes">${MODES.map(([k, n, i]) => `<button data-mode="${k}" class="${this._mode === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>` : ''}
+      ${r ? `<div class="sh-hint sh-modehint"></div>` : rooms.length ? '' : '<div class="sh-hint">No rooms yet: the card builds a simple house from your Home Assistant areas on its own. Add rooms to draw your real floor plan.</div>'}
+      ${r && this._mode !== 'entities' ? '<svg class="sh-plan"></svg>' : ''}
       <div class="sh-mode"></div>
     </div>`;
     this._guide(body.querySelector('.sh-guide-slot'));
+    if (rooms.length) this._floorBar(body.querySelector('.sh-floors'));
     this._warnings(body.querySelector('.sh-warn-slot'));
     body.querySelector('[data-undo]').addEventListener('click', () => this._undo());
     body.querySelector('[data-redo]').addEventListener('click', () => this._undo(true));
     this._syncUndo();
     body.querySelector('[data-grid]')?.addEventListener('click', () => { this._grid = this._grid === 0.5 ? 0.25 : this._grid === 0.25 ? 1 : 0.5; this._render(); });
     body.querySelector('[data-add]').addEventListener('click', () => {
-      rooms.push({ name: `Room ${rooms.length + 1}`, rects: [] }); this._sel = rooms.length - 1; this._mode = 'shape'; this._rsel = null; this._emit(); this._render();
+      const nr = { name: `Room ${rooms.length + 1}`, rects: [] }; this._setLv(nr, this._lvl); rooms.push(nr); this._sel = rooms.length - 1; this._mode = 'shape'; this._rsel = null; this._emit(); this._render();
     });
     body.querySelector('[data-import]')?.addEventListener('click', () => this._importAreas());
     body.querySelectorAll('[data-room]').forEach(b => b.addEventListener('click', () => this._pickRoom(+b.dataset.room)));
     body.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { this._mode = b.dataset.mode; this._place = null; this._fsel = null; this._dsel = null; this._rsel = null; if (this._mode === 'entities') this._seenEnt = true; this._render(); }));
     if (!r) return;
     const hint = body.querySelector('.sh-modehint');
+    const rn = this._roomName(r, this._sel);
     hint.textContent = {
-      shape: `Drag on an empty part of the grid to draw ${this._roomName(r, this._sel)} (one square = ${this._grid} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.`,
-      entities: `What ${this._roomName(r, this._sel)} shows in its popup. Devices in its Home Assistant area are found on their own; remove what you don't want or add anything else.`,
-      furniture: this._place ? `Tap the plan where the ${FURN_TYPES[this._place][0].toLowerCase()} goes.` : 'Pick a piece below, then tap the plan to place it. Drag a piece to move it and its corner dot to resize it. Link it to an entity so it can be tapped in the 3D view.',
-      doors: { door: 'Drag along a wall to add a door that swings open with its contact sensor.', window: 'Drag along an outer wall to add a window.', opening: 'Drag along a wall between two rooms to open it (no wall, no doorway).', badge: 'Tap where a small lock badge should float.' }[this._dtool],
+      shape: t('Drag on an empty part of the grid to draw {0} (one square = {1} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.', rn, this._grid),
+      entities: t("What {0} shows in its popup. Devices in its Home Assistant area are found on their own; remove what you don't want or add anything else.", rn),
+      furniture: this._place ? t('Tap the plan where it goes: {0}.', t(FURN_TYPES[this._place][0])) : t('Pick a piece below, then tap the plan to place it. Drag a piece to move it and its corner dot to resize it. Link it to an entity so it can be tapped in the 3D view.'),
+      doors: t({ door: 'Drag along a wall to add a door. Pick its contact sensor to make it swing open in 3D.', window: 'Drag along an outer wall to add a window.', opening: 'Drag along a wall between two rooms to open it (no wall, no doorway).', badge: 'Tap where a small lock badge should float.' }[this._dtool]),
     }[this._mode];
     const svg = body.querySelector('.sh-plan');
     if (svg) { svg.setAttribute('tabindex', '0'); svg.setAttribute('aria-label', 'Floor plan'); this._bounds(); this._drawPlan(svg); this._planInput(svg); }
@@ -301,14 +369,19 @@ class SweetHomeCardEditor extends HTMLElement {
       .sort((a, b) => floorLevel(a.area_id) - floorLevel(b.area_id) || String(a.name).localeCompare(b.name));
   }
   // every area becomes a 4 × 4 m room, in rows next to (or, the first time, instead of) the rooms already drawn
+  // (areas on a Home Assistant floor go to that floor's level; the others to the floor being edited)
   _importAreas() {
     const rooms = this._rooms, free = this._freeAreas(); if (!free.length) return;
-    const all = rooms.flatMap(r => r.rects || []);
-    const ox = all.length ? Math.max(...all.map(q => Math.max(q[0], q[2]))) + 1 : 0;
-    const cols = Math.max(1, Math.ceil(Math.sqrt(free.length * 1.3)));
+    const R = this._reg, byLv = new Map();
+    for (const a of free) { const l = areaLevel(R, a.area_id) ?? this._lvl; (byLv.get(l) || byLv.set(l, []).get(l)).push(a); }
     const first = rooms.length;
-    free.forEach((a, i) => rooms.push({ area: a.area_id, rects: [[ox + (i % cols) * 4, Math.floor(i / cols) * 4, ox + (i % cols) * 4 + 4, Math.floor(i / cols) * 4 + 4]] }));
-    this._sel = first; this._emit(); this._render();
+    for (const [l, list] of byLv) {
+      const all = rooms.filter(r => this._lvOf(r) === l).flatMap(r => r.rects || []);
+      const ox = all.length ? Math.max(...all.map(q => Math.max(q[0], q[2]))) + 1 : 0;
+      const cols = Math.max(1, Math.ceil(Math.sqrt(list.length * 1.3)));
+      list.forEach((a, i) => { const nr = { area: a.area_id, rects: [[ox + (i % cols) * 4, Math.floor(i / cols) * 4, ox + (i % cols) * 4 + 4, Math.floor(i / cols) * 4 + 4]] }; this._setLv(nr, l); rooms.push(nr); });
+    }
+    this._sel = first; this._lvl = this._lvOf(rooms[first]); this._emit(); this._render();
   }
 
   /* ---------------- setup guide ---------------- */
@@ -330,10 +403,10 @@ class SweetHomeCardEditor extends HTMLElement {
     if (this._guideOff && rooms.length) return;
     if (done && !this._guideOpen) return;
     const det = document.createElement('details'); det.className = 'sh-box sh-guide'; det.open = !rooms.length || !this._guideClosed;
-    det.innerHTML = `<summary><b>Setup guide</b><span class="sh-hint">${steps.slice(0, 4).filter(s => s[2]).length} of 4 done</span></summary>
-      <ol>${steps.map(([t, d, ok, btns]) => `<li class="${ok ? 'done' : ''}"><ha-icon icon="${ok ? 'mdi:check-circle' : 'mdi:circle-outline'}"></ha-icon><div><b>${t}</b><span class="sh-hint">${d}</span>
-        ${btns.length ? `<div class="sh-row">${btns.map(([k, i, n, pri]) => `<button class="sh-btn ${pri ? 'pri' : ''}" data-g="${k}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>` : ''}</div></li>`).join('')}</ol>
-      ${rooms.length ? '<div class="sh-row" style="margin-top:8px"><span style="flex:1"></span><button class="sh-btn" data-g="off">Hide the guide</button></div>' : ''}`;
+    det.innerHTML = `<summary><b>${t('Setup guide')}</b><span class="sh-hint">${t('{0} of 4 done', steps.slice(0, 4).filter(x => x[2]).length)}</span></summary>
+      <ol>${steps.map(([title, d, ok, btns]) => `<li class="${ok ? 'done' : ''}"><ha-icon icon="${ok ? 'mdi:check-circle' : 'mdi:circle-outline'}"></ha-icon><div><b>${t(title)}</b><span class="sh-hint">${t(d)}</span>
+        ${btns.length ? `<div class="sh-row">${btns.map(([k, i, n, pri]) => `<button class="sh-btn ${pri ? 'pri' : ''}" data-g="${k}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>` : ''}</div></li>`).join('')}</ol>
+      ${rooms.length ? `<div class="sh-row" style="margin-top:8px"><span style="flex:1"></span><button class="sh-btn" data-g="off">${t('Hide the guide')}</button></div>` : ''}`;
     det.addEventListener('toggle', () => { this._guideClosed = !det.open; });
     slot.appendChild(det);
     det.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
@@ -366,16 +439,16 @@ class SweetHomeCardEditor extends HTMLElement {
       }
       for (const f of arr(r.furniture)) for (const id of furnEntities(f)) if (!has(id)) out.push([i, `${nm}: the ${String(FURN_TYPES[f.type]?.[0] || f.type).toLowerCase()} is linked to ${id}, which was not found.`]);
     });
-    arr(H.doors).forEach(d => { if (!d.entity) out.push([null, 'A door has no contact sensor yet: pick one in Doors & windows.']); else if (!has(d.entity)) out.push([null, `Door sensor ${d.entity} was not found.`]); });
+    arr(H.doors).forEach(d => { if (d.entity && !has(d.entity)) out.push([null, `Door sensor ${d.entity} was not found.`]); });
     arr(H.lock_badges).forEach(b => { const l = b.lock || b.entity; if (!l) out.push([null, 'A lock badge has no lock yet.']); else if (!has(l)) out.push([null, `Lock ${l} was not found.`]); });
     return out;
   }
   _warnings(slot) {
     const list = this._problems(); if (!list.length) return;
     const det = document.createElement('details'); det.className = 'sh-box sh-warn'; det.open = !!this._warnOpen;
-    det.innerHTML = `<summary><b>${list.length} thing${list.length > 1 ? 's' : ''} to check</b><ha-icon icon="mdi:alert-outline"></ha-icon></summary><ul>${list.map(([i, t]) => `<li data-w="${i ?? ''}">${esc(t)}</li>`).join('')}</ul>`;
+    det.innerHTML = `<summary><b>${t(list.length > 1 ? '{0} things to check' : '{0} thing to check', list.length)}</b><ha-icon icon="mdi:alert-outline"></ha-icon></summary><ul>${list.map(([i, t]) => `<li data-w="${i ?? ''}">${esc(t)}</li>`).join('')}</ul>`;
     det.addEventListener('toggle', () => { this._warnOpen = det.open; });
-    det.querySelectorAll('[data-w]').forEach(li => li.addEventListener('click', () => { if (li.dataset.w === '') { this._mode = 'doors'; } else { this._sel = +li.dataset.w; if (/not found|area of/.test(li.textContent)) this._mode = /the \w+ is linked/.test(li.textContent) ? 'furniture' : 'entities'; else this._mode = 'shape'; } this._render(); }));
+    det.querySelectorAll('[data-w]').forEach(li => li.addEventListener('click', () => { if (li.dataset.w === '') { this._mode = 'doors'; } else { this._sel = +li.dataset.w; this._levelFollowsRoom = true; if (/not found|area of/.test(li.textContent)) this._mode = /the \w+ is linked/.test(li.textContent) ? 'furniture' : 'entities'; else this._mode = 'shape'; } this._render(); }));
     slot.appendChild(det);
   }
 
@@ -400,6 +473,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const shape = this._mode === 'shape';
     rooms.forEach((r, i) => (r.rects || []).forEach(([x1, z1, x2, z2], k) => {
       const c = COLORS[i % COLORS.length], on = i === this._sel;
+      if (!this._onLv(r)) { h += `<rect x="${X(Math.min(x1, x2))}" y="${Z(Math.min(z1, z2))}" width="${Math.abs(x2 - x1) * S}" height="${Math.abs(z2 - z1) * S}" fill="none" stroke="var(--secondary-text-color)" stroke-opacity=".45" stroke-dasharray="4 5" pointer-events="none"/>`; return; }
       h += `<rect x="${X(Math.min(x1, x2))}" y="${Z(Math.min(z1, z2))}" width="${Math.abs(x2 - x1) * S}" height="${Math.abs(z2 - z1) * S}" fill="${c}" fill-opacity="${on ? (shape ? 0.42 : 0.28) : 0.14}" stroke="${c}" stroke-width="${on && shape && k === this._rsel ? 4 : on ? 2.5 : 1.2}"/>`;
     }));
     // walls as the card will draw them (dark), windows (blue), railings (dashed)
@@ -407,11 +481,15 @@ class SweetHomeCardEditor extends HTMLElement {
     for (const [x1, z1, x2, z2, t] of wl) h += `<line x1="${X(x1)}" y1="${Z(z1)}" x2="${X(x2)}" y2="${Z(z2)}" stroke="${t === 'win' ? '#38bdf8' : 'var(--primary-text-color)'}" stroke-opacity="${t === 'win' ? 0.9 : 0.55}" stroke-width="${t === 'win' ? 5 : 4}" ${t === 'rail' ? 'stroke-dasharray="6 6"' : ''} stroke-linecap="round" pointer-events="none"/>`;
     // furniture
     const fur = this._mode === 'furniture' || this._mode === 'doors';
-    rooms.forEach((r, i) => arr(r.furniture).forEach((f, k) => {
+    rooms.forEach((r, i) => this._onLv(r) && arr(r.furniture).forEach((f, k) => {
       const fp = footprint(f), on = i === this._sel && k === this._fsel && this._mode === 'furniture', linked = furnEntities(f).length;
       const st = `fill="${linked ? 'var(--primary-color)' : 'var(--primary-text-color)'}" fill-opacity="${on ? 0.5 : fur ? (linked ? 0.32 : 0.16) : 0.08}" stroke="${on ? 'var(--primary-color)' : 'var(--primary-text-color)'}" stroke-opacity="${fur ? 0.7 : 0.25}" stroke-width="${on ? 3 : 1}" ${f.type === 'fan' ? 'stroke-dasharray="5 4"' : ''}`;
       if (fp.circle) h += `<circle cx="${X(fp.circle[0])}" cy="${Z(fp.circle[1])}" r="${fp.circle[2] * S}" ${st}/>`;
       else h += `<rect x="${X(fp.rect[0])}" y="${Z(fp.rect[1])}" width="${(fp.rect[2] - fp.rect[0]) * S}" height="${(fp.rect[3] - fp.rect[1]) * S}" rx="3" ${st}/>`;
+      if (f.type === 'stairs' && fp.rect) { // the steps
+        const [a, b2, c, d] = fp.rect, n = Math.max(2, Math.min(30, N(f.steps, 10))), ax = (f.axis || 'x') === 'x';
+        for (let j = 1; j < n; j++) { const t = j / n; h += ax ? `<line x1="${X(a + (c - a) * t)}" y1="${Z(b2)}" x2="${X(a + (c - a) * t)}" y2="${Z(d)}" stroke="var(--primary-text-color)" stroke-opacity=".45" pointer-events="none"/>` : `<line x1="${X(a)}" y1="${Z(b2 + (d - b2) * t)}" x2="${X(c)}" y2="${Z(b2 + (d - b2) * t)}" stroke="var(--primary-text-color)" stroke-opacity=".45" pointer-events="none"/>`; }
+      }
       if (fur) {
         const b = fpBox(fp), dir = f.head || f.back || f.face || f.facing;
         if (dir && ['bed', 'sofa', 'chair', 'tv'].includes(f.type)) { // a tick on the side the piece's back / head / screen is on
@@ -425,17 +503,17 @@ class SweetHomeCardEditor extends HTMLElement {
     for (const f of arr(H.furniture)) { const b = fpBox(footprint(f)); h += `<rect x="${X(b[0])}" y="${Z(b[1])}" width="${(b[2] - b[0]) * S}" height="${(b[3] - b[1]) * S}" fill="none" stroke="var(--secondary-text-color)" stroke-dasharray="3 3" pointer-events="none"/>`; }
     // doors, openings, badges
     const dsel = this._dsel, dOn = (k, i) => this._mode === 'doors' && dsel && dsel.k === k && dsel.i === i;
-    arr(H.openings).forEach((o, i) => { h += `<line x1="${X(o[0])}" y1="${Z(o[1])}" x2="${X(o[2])}" y2="${Z(o[3])}" stroke="#a3e635" stroke-width="${dOn('opening', i) ? 9 : 6}" stroke-dasharray="4 4" stroke-linecap="round"/>`; });
-    if (Array.isArray(H.windows)) H.windows.forEach((w, i) => { if (dOn('window', i)) h += `<line x1="${X(w[0])}" y1="${Z(w[1])}" x2="${X(w[2])}" y2="${Z(w[3])}" stroke="#38bdf8" stroke-width="10" stroke-opacity=".5" stroke-linecap="round"/>`; });
+    arr(H.openings).forEach((o, i) => { if (this._onLv(o)) h += `<line x1="${X(o[0])}" y1="${Z(o[1])}" x2="${X(o[2])}" y2="${Z(o[3])}" stroke="#a3e635" stroke-width="${dOn('opening', i) ? 9 : 6}" stroke-dasharray="4 4" stroke-linecap="round"/>`; });
+    if (Array.isArray(H.windows)) H.windows.forEach((w, i) => { if (dOn('window', i) && this._onLv(w)) h += `<line x1="${X(w[0])}" y1="${Z(w[1])}" x2="${X(w[2])}" y2="${Z(w[3])}" stroke="#38bdf8" stroke-width="10" stroke-opacity=".5" stroke-linecap="round"/>`; });
     arr(H.doors).forEach((d, i) => {
-      if (!d.from || !d.to) return; const on = dOn('door', i);
-      h += `<line x1="${X(d.from[0])}" y1="${Z(d.from[1])}" x2="${X(d.to[0])}" y2="${Z(d.to[1])}" stroke="#fb923c" stroke-width="${on ? 9 : 6}" stroke-linecap="round"/>`;
+      if (!d.from || !d.to || !this._onLv(d)) return; const on = dOn('door', i);
+      h += `<line x1="${X(d.from[0])}" y1="${Z(d.from[1])}" x2="${X(d.to[0])}" y2="${Z(d.to[1])}" stroke="#fb923c" stroke-width="${on ? 9 : 6}" stroke-linecap="round" ${d.entity ? '' : 'stroke-dasharray="10 4"'}/>`;
       const L = Math.hypot(d.to[0] - d.from[0], d.to[1] - d.from[1]) * S, sw = (d.side ?? 1) > 0 ? 1 : 0;
       h += `<path d="M ${X(d.to[0])} ${Z(d.to[1])} A ${L} ${L} 0 0 ${sw} ${X(d.from[0]) + (Z(d.to[1]) - Z(d.from[1])) * (sw ? -1 : 1)} ${Z(d.from[1]) + (X(d.to[0]) - X(d.from[0])) * (sw ? 1 : -1)}" fill="none" stroke="#fb923c" stroke-opacity=".5" stroke-dasharray="4 4" pointer-events="none"/>`;
     });
-    arr(H.lock_badges).forEach((b, i) => { h += `<circle cx="${X(N(b.x, 0))}" cy="${Z(N(b.z, 0))}" r="${dOn('badge', i) ? 10 : 7}" fill="#34d399" stroke="var(--card-background-color)" stroke-width="2"/>`; });
+    arr(H.lock_badges).forEach((b, i) => { if (this._onLv(b)) h += `<circle cx="${X(N(b.x, 0))}" cy="${Z(N(b.z, 0))}" r="${dOn('badge', i) ? 10 : 7}" fill="#34d399" stroke="var(--card-background-color)" stroke-width="2"/>`; });
     // room names
-    rooms.forEach((r, i) => { const q = (r.rects || [])[0]; if (q) h += `<text x="${X((q[0] + q[2]) / 2)}" y="${Z((q[1] + q[3]) / 2)}" text-anchor="middle" dominant-baseline="middle" font-size="${S * 0.38}" font-weight="${i === this._sel ? 700 : 400}" fill="var(--primary-text-color)" pointer-events="none" paint-order="stroke" stroke="var(--secondary-background-color)" stroke-width="4">${esc(this._roomName(r, i))}</text>`; });
+    rooms.forEach((r, i) => { const q = (r.rects || [])[0]; if (q && this._onLv(r)) h += `<text x="${X((q[0] + q[2]) / 2)}" y="${Z((q[1] + q[3]) / 2)}" text-anchor="middle" dominant-baseline="middle" font-size="${S * 0.38}" font-weight="${i === this._sel ? 700 : 400}" fill="var(--primary-text-color)" pointer-events="none" paint-order="stroke" stroke="var(--secondary-background-color)" stroke-width="4">${esc(this._roomName(r, i))}</text>`; });
     // handles: corners of the selected rectangle (Shape) or piece (Furniture)
     for (const [x, z] of this._handles()) h += `<circle cx="${X(x)}" cy="${Z(z)}" r="8" fill="var(--card-background-color)" stroke="var(--primary-color)" stroke-width="3"/>`;
     // what is being drawn right now
@@ -449,8 +527,10 @@ class SweetHomeCardEditor extends HTMLElement {
   _walls() {
     const H = this._H;
     if (Array.isArray(H.walls) && H.walls.length) return H.walls;
-    const rooms = this._rooms.map((r, i) => ({ id: roomIdOf(r, i, this._hass), rects: arr(r.rects).map(q => q.map(Number)), outdoor: r.outdoor ?? /garden|yard|patio|terrace|balcony|outside|outdoor/i.test(this._roomName(r, i)) })).filter(r => r.rects.length);
-    try { return wallsFromRooms(rooms, H); } catch (e) { return []; }
+    const rooms = this._rooms.map((r, i) => ({ id: roomIdOf(r, i, this._hass), rects: arr(r.rects).map(q => q.map(Number)), outdoor: r.outdoor ?? /garden|yard|patio|terrace|balcony|outside|outdoor/i.test(this._roomName(r, i)), lv: this._lvOf(r) })).filter(r => r.rects.length && r.lv === this._lvl);
+    const doorSegs = arr(H.doors).filter(d => d.from && d.to && this._onLv(d)).map(d => [...d.from, ...d.to]);
+    const wins = Array.isArray(H.windows) ? H.windows.filter(w => this._onLv(w)) : null;
+    try { return wallsFromRooms(rooms, { ...H, doorways: H.doorways ?? 'none', openings: [...arr(H.openings).filter(o => this._onLv(o)), ...doorSegs], windows: wins ? (wins.length ? wins : 'none') : H.windows }); } catch (e) { return []; }
   }
   _handles() {
     const r = this._rooms[this._sel]; if (!r) return [];
@@ -491,7 +571,7 @@ class SweetHomeCardEditor extends HTMLElement {
   _roomAt(p) {
     const rooms = this._rooms;
     if ((rooms[this._sel]?.rects || []).some(q => inBox(p, q))) return this._sel;
-    const i = rooms.findIndex(r => (r.rects || []).some(q => inBox(p, q))); return i < 0 ? null : i;
+    const i = rooms.findIndex(r => this._onLv(r) && (r.rects || []).some(q => inBox(p, q))); return i < 0 ? null : i;
   }
   _startOp(p, tol, snap) {
     const rooms = this._rooms, r = rooms[this._sel], H = this._H;
@@ -554,9 +634,22 @@ class SweetHomeCardEditor extends HTMLElement {
       return { end: () => { if (i != null) this._sel = i; this._fsel = null; return false; } };
     }
     if (this._mode === 'doors') {
+      // an existing door, window, opening or lock badge: select it, drag to move it
       const item = this._doorItemAt(p, tol);
-      if (item) return { end: () => { this._dsel = item; return false; } };
-      if (this._dtool === 'badge') return { end: (moved, m) => { (H.lock_badges ||= []).push({ lock: '', x: snap(m[0]), z: snap(m[1]) }); this._dsel = { k: 'badge', i: H.lock_badges.length - 1 }; return true; } };
+      if (item) {
+        const key = { door: 'doors', window: 'windows', opening: 'openings', badge: 'lock_badges' }[item.k], o = H[key][item.i], start = JSON.stringify(o);
+        const orig = JSON.parse(start);
+        return {
+          move: m => {
+            this._dsel = item; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]);
+            if (item.k === 'badge') { o.x = r2(N(orig.x, 0) + dx); o.z = r2(N(orig.z, 0) + dz); }
+            else if (item.k === 'door') { o.from = [r2(orig.from[0] + dx), r2(orig.from[1] + dz)]; o.to = [r2(orig.to[0] + dx), r2(orig.to[1] + dz)]; }
+            else { o[0] = r2(orig[0] + dx); o[1] = r2(orig[1] + dz); o[2] = r2(orig[2] + dx); o[3] = r2(orig[3] + dz); }
+          },
+          end: () => { this._dsel = item; return JSON.stringify(o) !== start; },
+        };
+      }
+      if (this._dtool === 'badge') return { end: (moved, m) => { const b = { lock: '', x: snap(m[0]), z: snap(m[1]) }; this._setLv(b, this._lvl); (H.lock_badges ||= []).push(b); this._dsel = { k: 'badge', i: H.lock_badges.length - 1 }; return true; } };
       const a = [snap(p[0]), snap(p[1])];
       const seg = m => { const b = [snap(m[0]), snap(m[1])]; return Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? [a[0], a[1], b[0], a[1]] : [a[0], a[1], a[0], b[1]]; };
       return {
@@ -564,9 +657,9 @@ class SweetHomeCardEditor extends HTMLElement {
         end: (moved, m) => {
           if (!moved) { this._dsel = null; return false; }
           const s = seg(m); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
-          if (this._dtool === 'door') { (H.doors ||= []).push({ entity: '', from: [s[0], s[1]], to: [s[2], s[3]] }); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
-          else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
-          else { (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
+          if (this._dtool === 'door') { const d = { from: [s[0], s[1]], to: [s[2], s[3]] }; this._setLv(d, this._lvl); (H.doors ||= []).push(d); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
+          else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; this._setLv(s, this._lvl); H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
+          else { this._setLv(s, this._lvl); (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
           return true;
         },
       };
@@ -574,7 +667,7 @@ class SweetHomeCardEditor extends HTMLElement {
     return null;
   }
   _pieceAt(p, pad) {
-    const rooms = this._rooms, order = [this._sel, ...rooms.keys()].filter((v, i, a) => a.indexOf(v) === i);
+    const rooms = this._rooms, order = [this._sel, ...rooms.keys()].filter((v, i, a) => a.indexOf(v) === i && rooms[v] && this._onLv(rooms[v]));
     for (const ri of order) {
       const list = arr(rooms[ri]?.furniture);
       for (let fi = list.length - 1; fi >= 0; fi--) {
@@ -589,39 +682,46 @@ class SweetHomeCardEditor extends HTMLElement {
   }
   _doorItemAt(p, tol) {
     const H = this._H;
-    for (const [i, b] of arr(H.lock_badges).entries()) if (Math.hypot(p[0] - N(b.x, 0), p[1] - N(b.z, 0)) <= tol) return { k: 'badge', i };
-    for (const [i, d] of arr(H.doors).entries()) if (d.from && d.to && segDist(p, [...d.from, ...d.to]) <= tol * 0.7) return { k: 'door', i };
-    for (const [i, o] of arr(H.openings).entries()) if (segDist(p, o) <= tol * 0.7) return { k: 'opening', i };
-    if (Array.isArray(H.windows)) for (const [i, w] of H.windows.entries()) if (segDist(p, w) <= tol * 0.7) return { k: 'window', i };
+    for (const [i, b] of arr(H.lock_badges).entries()) if (this._onLv(b) && Math.hypot(p[0] - N(b.x, 0), p[1] - N(b.z, 0)) <= tol) return { k: 'badge', i };
+    for (const [i, d] of arr(H.doors).entries()) if (d.from && d.to && this._onLv(d) && segDist(p, [...d.from, ...d.to]) <= tol * 0.7) return { k: 'door', i };
+    for (const [i, o] of arr(H.openings).entries()) if (this._onLv(o) && segDist(p, o) <= tol * 0.7) return { k: 'opening', i };
+    if (Array.isArray(H.windows)) for (const [i, w] of H.windows.entries()) if (this._onLv(w) && segDist(p, w) <= tol * 0.7) return { k: 'window', i };
     return null;
   }
 
   /* ---------------- Shape mode ---------------- */
   _mShape(box, r) {
-    const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor };
+    const L = this._levels();
+    const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: !!r.stairs, level: String(this._lvOf(r)) };
     box.appendChild(this._form([
       { name: 'area', selector: { area: {} } },
       { name: 'name', selector: { text: {} } },
       { type: 'grid', name: '', schema: [
         { name: 'icon', selector: { icon: {} } },
-        { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass']]) },
+        { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass']].map(([v, n]) => [v, t(n)])) },
       ] },
       { name: 'outdoor', selector: { boolean: {} } },
+      { name: 'stairs', selector: { boolean: {} } },
+      ...(L.length > 1 ? [{ name: 'level', selector: sel(L.map(l => [String(l.level), l.name])) }] : []),
     ], data, (v, typing) => {
       const areaChanged = (v.area || '') !== (r.area || '');
       for (const k of ['name', 'area', 'icon', 'floor']) { if (v[k]) r[k] = v[k]; else delete r[k]; }
       if (v.outdoor) r.outdoor = true; else delete r.outdoor;
+      if (v.stairs) r.stairs = true; else delete r.stairs;
+      const lv = Number(v.level ?? this._lvOf(r));
+      if (lv !== this._lvOf(r)) { this._setLv(r, lv); this._lvl = lv; this._emit(); return this._render(); }
       this._emit(typing);
       const chip = this.querySelector(`[data-room="${this._sel}"]`); if (chip) chip.lastChild.textContent = this._roomName(r, this._sel);
       if (areaChanged) this._render();
-    }, { area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)' }, true));
+      if (v.stairs !== data.stairs) { data.stairs = v.stairs; this._emit(); return this._render(); }
+    }, { floor: 'Floor covering', area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)', stairs: 'Stairs (draws a flight of stairs in this room)', level: 'Floor' }, true));
     const row = document.createElement('div'); row.className = 'sh-row'; row.style.marginTop = '10px';
     const q = this._rsel != null ? r.rects?.[this._rsel] : null;
-    row.innerHTML = `<span class="sh-hint">${(r.rects || []).length} rectangle(s)${q ? ` · selected ${r2(q[2] - q[0])} × ${r2(q[3] - q[1])} m` : ''}</span>
-      ${q ? '<button data-delrect class="del"><ha-icon icon="mdi:vector-square-remove"></ha-icon>Delete rectangle</button>' : ''}
+    row.innerHTML = `<span class="sh-hint">${t('{0} rectangle(s)', (r.rects || []).length)}${q ? ` · selected ${r2(q[2] - q[0])} × ${r2(q[3] - q[1])} m` : ''}</span>
+      ${q ? `<button data-delrect class="del"><ha-icon icon="mdi:vector-square-remove"></ha-icon>${t('Delete rectangle')}</button>` : ''}
       <span style="flex:1"></span>
-      <button data-dup><ha-icon icon="mdi:content-copy"></ha-icon>Duplicate room</button>
-      <button class="sh-btn del" data-del><ha-icon icon="mdi:delete-outline"></ha-icon>Delete room</button>`;
+      <button data-dup><ha-icon icon="mdi:content-copy"></ha-icon>${t('Duplicate room')}</button>
+      <button class="sh-btn del" data-del><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete room')}</button>`;
     box.appendChild(row);
     row.querySelector('[data-delrect]')?.addEventListener('click', () => { r.rects.splice(this._rsel, 1); this._rsel = null; this._emit(); this._render(); });
     row.querySelector('[data-dup]').addEventListener('click', () => this._dupRoom());
@@ -654,21 +754,21 @@ class SweetHomeCardEditor extends HTMLElement {
     for (const [key, title, , icon] of ROLES) {
       const [ids, own] = lists[key];
       if (!ids.length && !own) continue;
-      html.push(`<div class="sh-role" data-role="${key}"><h4><ha-icon icon="${icon}"></ha-icon>${title}<small>${own ? 'your list' : 'found in area'}</small>${own ? `<a data-reset="${key}">Back to what the area has</a>` : ''}</h4>
-        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : '<div class="sh-hint">None.</div>'}</div>`);
+      html.push(`<div class="sh-role" data-role="${key}"><h4><ha-icon icon="${icon}"></ha-icon>${t(title)}<small>${t(own ? 'your list' : 'found in area')}</small>${own ? `<a data-reset="${key}">${t('Back to what the area has')}</a>` : ''}</h4>
+        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : `<div class="sh-hint">${t('None.')}</div>`}</div>`);
     }
     // area entities that aren't shown anywhere yet
     const sugg = (R.byArea[r.area] || []).filter(id => !assigned.has(id));
-    html.push(`<div class="sh-role"><h4><ha-icon icon="mdi:plus-circle-outline"></ha-icon>Add</h4>
-      ${sugg.length ? `<div class="sh-hint" style="margin-bottom:6px">Also in this area:</div><div class="sh-sugg">${sugg.slice(0, 30).map(id => `<button class="sh-chip" data-addent="${id}"><ha-icon icon="mdi:plus"></ha-icon>${nm(id)}</button>`).join('')}</div>` : ''}
+    html.push(`<div class="sh-role"><h4><ha-icon icon="mdi:plus-circle-outline"></ha-icon>${t('Add')}</h4>
+      ${sugg.length ? `<div class="sh-hint" style="margin-bottom:6px">${t('Also in this area:')}</div><div class="sh-sugg">${sugg.slice(0, 30).map(id => `<button class="sh-chip" data-addent="${id}"><ha-icon icon="mdi:plus"></ha-icon>${nm(id)}</button>`).join('')}</div>` : ''}
       <div class="sh-anyslot" style="margin-top:8px"></div></div>`);
     // entities in no room at all
     const free = this._unassigned();
-    html.push(`<details class="sh-box" ${this._freeOpen ? 'open' : ''} data-free><summary><b>Not in any room (${free.length})</b><span class="sh-hint">tap to add here</span></summary>
-      <input class="sh-search" type="search" placeholder="Search" value="${esc(this._freeQ || '')}"><div class="sh-sugg sh-freelist" style="margin-top:8px"></div></details>`);
+    html.push(`<details class="sh-box" ${this._freeOpen ? 'open' : ''} data-free> <summary><b>${t('Not in any room ({0})', free.length)}</b><span class="sh-hint">${t('tap to add here')}</span></summary>
+      <input class="sh-search" type="search" placeholder="${t('Search')}" value="${esc(this._freeQ || '')}"><div class="sh-sugg sh-freelist" style="margin-top:8px"></div></details>`);
     box.innerHTML = html.join('');
     // any entity
-    box.querySelector('.sh-anyslot').appendChild(this._form([{ name: 'add', selector: { entity: {} } }], { add: '' }, v => { if (v.add) { this._addEntity(r, v.add, found); } }, { add: 'Any entity' }));
+    box.querySelector('.sh-anyslot').appendChild(this._form([{ name: 'add', selector: { entity: {} } }], { add: '' }, v => { if (v.add) { this._addEntity(r, v.add, found); } }, { add: t('Any entity') }));
     box.querySelectorAll('[data-addent]').forEach(b => b.addEventListener('click', () => this._addEntity(r, b.dataset.addent, found)));
     box.querySelectorAll('[data-reset]').forEach(a => a.addEventListener('click', () => { delete r[a.dataset.reset]; this._emit(); this._render(); }));
     box.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
@@ -677,6 +777,10 @@ class SweetHomeCardEditor extends HTMLElement {
       if (key === 'lights') this._lightOpt(r, id, null);
       this._emit(); this._render();
     }));
+    box.querySelectorAll('[data-rename]').forEach(inp => {
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+      inp.addEventListener('change', () => this._rename(inp));
+    });
     box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); }));
     box.querySelectorAll('[data-lcol]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lcol, { color: c.checked }); this._emit(); }));
     box.querySelectorAll('[data-lsim]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lsim, { simple: c.checked }); this._emit(); }));
@@ -696,11 +800,21 @@ class SweetHomeCardEditor extends HTMLElement {
     let opts = '';
     if (key === 'lights') {
       const fx = (r.light_fx || {})[id] || '', col = arr(r.color_lights).includes(id), simple = arr(r.simple_lights).includes(id);
-      opts = `<select data-lfx="${id}" title="How it is drawn in 3D">${LIGHT_FX.map(([v, n]) => `<option value="${v}" ${v === fx ? 'selected' : ''}>${n}</option>`).join('')}</select>
-        <label><input type="checkbox" data-lcol="${id}" ${col ? 'checked' : ''}>Colours</label><label><input type="checkbox" data-lsim="${id}" ${simple ? 'checked' : ''}>On / off only</label>`;
+      opts = `<select data-lfx="${id}" title="How it is drawn in 3D">${LIGHT_FX.map(([v, n]) => `<option value="${v}" ${v === fx ? 'selected' : ''}>${t(n)}</option>`).join('')}</select>
+        <label><input type="checkbox" data-lcol="${id}" ${col ? 'checked' : ''}>${t('Colours')}</label><label><input type="checkbox" data-lsim="${id}" ${simple ? 'checked' : ''}>${t('On / off only')}</label>`;
     }
-    return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${esc(ok ? R.name(id) : id)}<small>${ok ? esc(id) : 'not found'}</small></span>${opts}
+    // the name can be changed right here: it is saved in Home Assistant (entity registry), so it changes everywhere
+    const canRename = ok && this._hass.entities?.[id] && this._hass.user?.is_admin !== false;
+    const name = canRename ? `<input class="sh-rename" data-rename="${id}" value="${esc(R.name(id))}" title="Rename in Home Assistant" aria-label="Name of ${esc(id)}">` : esc(ok ? R.name(id) : id);
+    return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${name}<small>${ok ? esc(id) : 'not found'}</small></span>${opts}
       <button class="sh-x" data-rm="${id}" data-key="${key}" title="Remove from this room"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
+  }
+  async _rename(inp) {
+    const id = inp.dataset.rename, v = inp.value.trim(), small = inp.parentElement.querySelector('small');
+    try {
+      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
+      if (small) small.textContent = `${id} · ${v ? 'renamed' : 'default name'}`;
+    } catch (e) { if (small) { small.textContent = `${id} · ${e?.message || 'could not rename'}`; small.style.color = 'var(--error-color)'; } }
   }
   // a plug written as {entity, name, power} keeps its extra settings when the list changes
   _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }
@@ -747,7 +861,8 @@ class SweetHomeCardEditor extends HTMLElement {
   }
   _addPiece(i, type, x, z) {
     const list = this._ownFurniture(i);
-    list.push({ type, x, z, ...clone(NEW_PIECE[type] || {}) });
+    const o = clone(NEW_PIECE[type] || {}), span = o._span; delete o._span;
+    list.push(span ? { type, from: [r2(x - span[0]), r2(z - span[1])], to: [r2(x + span[0]), r2(z + span[1])], ...o } : { type, x, z, ...o });
     this._sel = i; this._fsel = list.length - 1;
   }
   _mFurniture(box, r) {
@@ -756,12 +871,12 @@ class SweetHomeCardEditor extends HTMLElement {
     const f = list[this._fsel];
     box.innerHTML = `<div class="sh-ed">
       ${auto ? '<div class="sh-hint">This room uses automatic furniture (from its name). Placing, moving or suggesting a piece turns it into pieces you can change.</div>' : ''}
-      <div class="sh-pal">${PALETTE.map(t => `<button data-pal="${t}" class="${this._place === t ? 'on' : ''}"><ha-icon icon="${FURN_TYPES[t][1]}"></ha-icon>${FURN_TYPES[t][0]}</button>`).join('')}</div>
-      <div class="sh-row"><button data-suggest><ha-icon icon="mdi:auto-fix"></ha-icon>${list.length ? 'Replace with a suggested set' : 'Suggest furniture'}</button>
-        ${list.length ? '<button data-clear class="del"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon>Remove all</button>' : ''}
-        ${r.furniture === false ? '' : '<button data-none title="No furniture at all in this room"><ha-icon icon="mdi:cancel"></ha-icon>No furniture</button>'}</div>
+      <div class="sh-pal">${PALETTE.map(k => `<button data-pal="${k}" class="${this._place === k ? 'on' : ''}"><ha-icon icon="${FURN_TYPES[k][1]}"></ha-icon>${t(FURN_TYPES[k][0])}</button>`).join('')}</div>
+      <div class="sh-row"><button data-suggest><ha-icon icon="mdi:auto-fix"></ha-icon>${t(list.length ? 'Replace with a suggested set' : 'Suggest furniture')}</button>
+        ${list.length ? `<button data-clear class="del"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon>${t('Remove all')}</button>` : ''}
+        ${r.furniture === false ? '' : `<button data-none><ha-icon icon="mdi:cancel"></ha-icon>${t('No furniture')}</button>`}</div>
       <div class="sh-piece"></div>
-      ${list.length ? `<div class="sh-sugg">${list.map((p, k) => `<button class="sh-chip" data-pick="${k}" style="${k === this._fsel ? 'border-color:var(--primary-color)' : ''}"><ha-icon icon="${FURN_TYPES[p.type]?.[1] || 'mdi:shape-outline'}"></ha-icon>${esc(p.name || FURN_TYPES[p.type]?.[0] || p.type)}${furnEntities(p).length ? ' <span class="sh-tag">linked</span>' : ''}</button>`).join('')}</div>` : ''}
+      ${list.length ? `<div class="sh-sugg">${list.map((p, k) => `<button class="sh-chip" data-pick="${k}" style="${k === this._fsel ? 'border-color:var(--primary-color)' : ''}"><ha-icon icon="${FURN_TYPES[p.type]?.[1] || 'mdi:shape-outline'}"></ha-icon>${esc(p.name || t(FURN_TYPES[p.type]?.[0] || p.type))}${furnEntities(p).length ? ` <span class="sh-tag">${t('linked')}</span>` : ''}</button>`).join('')}</div>` : ''}
     </div>`;
     box.querySelectorAll('[data-pal]').forEach(b => b.addEventListener('click', () => { this._place = this._place === b.dataset.pal ? null : b.dataset.pal; this._fsel = null; this._render(); }));
     box.querySelector('[data-suggest]').addEventListener('click', () => { r.furniture = autoFurnitureConfig(r, this._roomName(r, this._sel)); this._fsel = null; this._emit(); this._render(); });
@@ -771,20 +886,20 @@ class SweetHomeCardEditor extends HTMLElement {
     if (f) this._pieceForm(box.querySelector('.sh-piece'), r, f);
   }
   _pieceForm(slot, r, f) {
-    const t = f.type, ck = COLOR_KEY[t] || 'color', fields = PIECE_FIELDS[t] || [];
+    const ty = f.type, ck = COLOR_KEY[ty] || 'color', fields = PIECE_FIELDS[ty] || [];
     const ents = furnEntities(f);
     const data = { name: f.name || '', entities: ents, badge: f.badge !== false, color: hex2rgb(f[ck]) };
     for (const [k] of fields) if (f[k] !== undefined) data[k] = f[k];
     const schema = [
-      { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[t] ? { filter: ENTITY_FILTER[t] } : {}) } } },
+      { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[ty] ? { filter: ENTITY_FILTER[ty] } : {}) } } },
       { name: 'name', selector: { text: {} } },
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
-      ...(['plant', 'stairs', 'charger'].includes(t) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
+      ...(['plant', 'stairs', 'charger', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
       ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
     ];
     const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
-    head.innerHTML = `<b style="flex:1">${esc(FURN_TYPES[t]?.[0] || t)}</b><button data-turn title="Turn a quarter to the right"><ha-icon icon="mdi:rotate-right"></ha-icon>Turn</button>
-      <button data-copy><ha-icon icon="mdi:content-copy"></ha-icon>Duplicate</button><button class="del" data-delp><ha-icon icon="mdi:delete-outline"></ha-icon>Delete</button>`;
+    head.innerHTML = `<b style="flex:1">${esc(t(FURN_TYPES[ty]?.[0] || ty))}</b><button data-turn><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button>
+      <button data-copy><ha-icon icon="mdi:content-copy"></ha-icon>${t('Duplicate')}</button><button class="del" data-delp><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
     slot.appendChild(head);
     head.querySelector('[data-turn]').addEventListener('click', () => { turnPiece(f); this._emit(); this._render(); });
     head.querySelector('[data-copy]').addEventListener('click', () => { const c = clone(f); movePiece(c, this._grid * 2, this._grid * 2); r.furniture.push(c); this._fsel = r.furniture.length - 1; this._emit(); this._render(); });
@@ -805,29 +920,28 @@ class SweetHomeCardEditor extends HTMLElement {
 
   /* ---------------- Doors & windows mode ---------------- */
   _mDoors(box) {
-    const H = this._H, tools = [['door', 'Door', 'mdi:door-open'], ['window', 'Window', 'mdi:window-closed-variant'], ['opening', 'Opening', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
-    box.innerHTML = `<div class="sh-ed"><div class="sh-modes">${tools.map(([k, n, i]) => `<button data-tool="${k}" class="${this._dtool === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>
-      ${Array.isArray(H.windows) ? `<div class="sh-row"><span class="sh-hint" style="flex:1">Automatic windows are off because you placed your own (${H.windows.length}).</span><button data-autowin>Back to automatic windows</button></div>` : '<div class="sh-hint">Windows are placed on long outer walls automatically. Add one to place them yourself.</div>'}
-      <div class="sh-row"><span class="sh-hint">Doorways between rooms:</span><button data-doorways>${H.doorways === 'none' || H.doorways === false ? 'Off: turn on' : 'Automatic: turn off'}</button></div>
+    const H = this._H, tools = [['door', 'Door', 'mdi:door-open'], ['window', 'Window', 'mdi:window-closed-variant'], ['opening', 'Open passage', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
+    box.innerHTML = `<div class="sh-ed"><div class="sh-modes">${tools.map(([k, n, i]) => `<button data-tool="${k}" class="${this._dtool === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>
+      ${Array.isArray(H.windows) ? `<div class="sh-row"><span class="sh-hint" style="flex:1">Automatic windows are off because you placed your own (${H.windows.length}).</span><button data-autowin>${t('Back to automatic windows')}</button></div>` : `<div class="sh-hint">${t('Windows are placed on long outer walls automatically. Add one to place them yourself.')}</div>`}
+      <div class="sh-hint">${t('Rooms are closed by walls: add a door or an opening wherever you can walk between them. Drag a door, window, opening or badge to move it.')}</div>
       <div class="sh-ditem"></div></div>`;
     box.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => { this._dtool = b.dataset.tool; this._dsel = null; this._render(); }));
     box.querySelector('[data-autowin]')?.addEventListener('click', () => { delete H.windows; this._dsel = null; this._emit(); this._render(); });
-    box.querySelector('[data-doorways]').addEventListener('click', () => { if (H.doorways === 'none' || H.doorways === false) delete H.doorways; else H.doorways = 'none'; this._emit(); this._render(); });
     const it = this._dsel, slot = box.querySelector('.sh-ditem'); if (!it) return;
     const head = document.createElement('div'); head.className = 'sh-row';
-    head.innerHTML = `<b style="flex:1">${{ door: 'Door', window: 'Window', opening: 'Opening', badge: 'Lock badge' }[it.k]}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>Delete</button>`;
+    head.innerHTML = `<b style="flex:1">${t({ door: 'Door', window: 'Window', opening: 'Open passage', badge: 'Lock badge' }[it.k])}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
     slot.appendChild(head);
     head.querySelector('[data-deld]').addEventListener('click', () => { this._delDoorItem(); this._emit(); this._render(); });
     if (it.k === 'door') {
       const d = H.doors[it.i];
       slot.appendChild(this._form([
         { name: 'entity', selector: { entity: { domain: 'binary_sensor' } } },
-        { name: 'side', selector: sel([['1', 'Swings one way'], ['-1', 'Swings the other way']]) },
+        { name: 'side', selector: sel([['1', 'Swings one way'], ['-1', 'Swings the other way']].map(([v, n]) => [v, t(n)])) },
         { name: 'main', selector: { boolean: {} } },
       ], { entity: d.entity || '', side: String(d.side ?? 1), main: !!d.main }, v => {
-        d.entity = v.entity || ''; if (v.side === '-1') d.side = -1; else delete d.side; if (v.main) d.main = true; else delete d.main;
+        if (v.entity) d.entity = v.entity; else delete d.entity; if (v.side === '-1') d.side = -1; else delete d.side; if (v.main) d.main = true; else delete d.main;
         this._emit(); const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg);
-      }, { entity: 'Contact sensor (the door opens in 3D while it is open)', main: 'Main entrance' }));
+      }, { entity: 'Contact sensor (optional: the door opens in 3D while it is open)', main: 'Main entrance' }));
     } else if (it.k === 'badge') {
       const b = H.lock_badges[it.i];
       slot.appendChild(this._form([{ name: 'lock', selector: { entity: { domain: 'lock' } } }], { lock: b.lock || b.entity || '' }, v => { b.lock = v.lock || ''; delete b.entity; this._emit(); }, { lock: 'Lock' }));

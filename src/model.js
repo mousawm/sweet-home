@@ -43,6 +43,15 @@ export function registry(hass) {
   return { states, ents, devs, areas, floors, areaOf, dc, name, visible, platform, byArea, sameDevice, ofPlatform };
 }
 
+// the level of each Home Assistant floor (its `level`, or its place in the list when it has none)
+export function floorLevels(R) {
+  const fl = Object.values(R.floors || {});
+  const out = {};
+  fl.slice().sort((a, b) => (a.level ?? 1e9) - (b.level ?? 1e9) || String(a.name).localeCompare(b.name)).forEach((f, i) => { out[f.floor_id] = f.level ?? i; });
+  return out;
+}
+export const areaLevel = (R, a) => { const f = R.areas[a]?.floor_id; return f != null ? floorLevels(R)[f] ?? null : null; };
+
 /* entities of one area, sorted into what a room needs */
 export function discoverRoom(R, areaId) {
   const ids = R.byArea[areaId] || [];
@@ -98,9 +107,9 @@ export const furnEntities = f => arr(f.entities ?? f.entity ?? (f.type === 'char
 export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'], table: ['Table', 'mdi:table-furniture'], chair: ['Chair', 'mdi:chair-rolling'],
   tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
   rug: ['Rug', 'mdi:rug'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
-  charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'] };
+  charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'] };
 
-const ROOM_ICONS = [[/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
+const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
   [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
   [/garage/, 'mdi:garage'], [/garden|yard|patio|terrace|balcony|outside|outdoor/, 'mdi:flower'], [/hall|corridor|entry|entrance|landing/, 'mdi:door-open'],
   [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive']];
@@ -112,27 +121,34 @@ const isOutdoor = n => /garden|yard|patio|terrace|balcony|outside|outdoor/.test(
 /* automatic house: one box per HA area, laid out on a grid             */
 /* ------------------------------------------------------------------ */
 function autoRooms(R, cfg) {
-  const floorLevel = a => R.floors[R.areas[a]?.floor_id]?.level ?? 0;
+  const floorLevel = a => areaLevel(R, a) ?? 0;
   let ids = Object.keys(R.areas);
   if (cfg.areas) ids = arr(cfg.areas).filter(a => R.areas[a]);
   else ids = ids.filter(a => (R.byArea[a] || []).length); // areas with something in them
   ids.sort((a, b) => floorLevel(a) - floorLevel(b) || String(R.areas[a].name).localeCompare(R.areas[b].name));
   if (!ids.length) return [];
-  // separate blocks per floor, side by side
+  // one block per floor, all at the same place: the card shows one floor at a time
   const byFloor = new Map();
   for (const a of ids) { const f = floorLevel(a); (byFloor.get(f) || byFloor.set(f, []).get(f)).push(a); }
-  const rooms = []; let ox = 0;
-  for (const [, list] of byFloor) {
+  const rooms = []; const ox = 0;
+  for (const [level, list] of byFloor) {
     const cols = Math.max(1, Math.ceil(Math.sqrt(list.length * 1.3)));
     const S = 4.5; let maxc = 0;
     list.forEach((a, i) => {
       const c = i % cols, r = Math.floor(i / cols); maxc = Math.max(maxc, c);
       const n = R.areas[a].name;
-      rooms.push({ id: slug(a), name: n, area: a, rects: [[ox + c * S, r * S, ox + (c + 1) * S, (r + 1) * S]], auto: true });
+      rooms.push({ id: slug(a), name: n, area: a, level, rects: [[ox + c * S, r * S, ox + (c + 1) * S, (r + 1) * S]], auto: true });
     });
-    ox += (maxc + 1) * S + 2;
   }
   return rooms;
+}
+
+// a flight of stairs filling a room's first rectangle, climbing along its longer side
+export function stairsFor(room) {
+  const [x1, z1, x2, z2] = room.rects[0], o = typeof room.stairs === 'object' ? room.stairs : {};
+  const alongX = o.axis ? o.axis === 'x' : x2 - x1 >= z2 - z1, len = alongX ? x2 - x1 : z2 - z1;
+  // on an upper floor the stairwell goes down (to the floor below); on the lowest floor it goes up
+  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode: o.mode || ((room.level ?? 0) > 0 ? 'down' : 'up'), steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
 }
 
 /* automatic furniture for automatic / furniture-less rooms, from the room's name */
@@ -168,6 +184,8 @@ export function autoFurniture(room) {
   } else if (/garden|yard|patio|terrace|balcony/.test(n)) {
     f.push({ type: 'plant', room: R, x: x1 + 0.6, z: z1 + 0.6, size: 1 }, { type: 'plant', room: R, x: x2 - 0.6, z: z1 + 0.6, size: 0.9 });
     f.push({ type: 'table', room: R, x: cx, z: cz, w: 0.8, d: 0.8, h: 0.72, top: 0xf1f5f9, leg: 0x94a3b8 });
+  } else if (/stair/.test(n)) {
+    f.push(stairsFor(room));
   } else if (/garage/.test(n)) {
     f.push({ type: 'box', room: R, x: cx, z: cz, w: Math.min(1.8, w * 0.5), d: Math.min(4.2, d * 0.8), h: 1.2, color: 0x334155 });
   }
@@ -289,8 +307,9 @@ export function buildModel(cfg = {}, hass) {
     const found = rc.area ? discoverRoom(R, rc.area) : {};
     const pick = (k, key) => (rc[k] !== undefined ? rc[k] : found[key ?? k]);
     const lightFx = rc.light_fx || rc.lightFx || null;
+    const lvl = rc.level != null && rc.level !== '' && !isNaN(Number(rc.level)) ? Number(rc.level) : 0;
     const r = {
-      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || roomIcon(name),
+      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs || false,
       rects, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
       outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
@@ -324,7 +343,7 @@ export function buildModel(cfg = {}, hass) {
     if (r.ac && typeof r.ac === 'object') r.ac = { ...r.ac, x: sx(r.ac.x), z: sz(r.ac.z) };
   }
   const W = maxx - minx, D = maxz - minz;
-  const roomAt = (x, z) => rooms.find(r => r.rects.some(([a, b, c, d]) => x >= a - 0.05 && x <= c + 0.05 && z >= b - 0.05 && z <= d + 0.05))?.id || null;
+  const roomAt = (x, z, l) => rooms.find(r => (l == null || r.level === l) && r.rects.some(([a, b, c, d]) => x >= a - 0.05 && x <= c + 0.05 && z >= b - 0.05 && z <= d + 0.05))?.id || null;
 
   /* AC units: given position, or on the room's first wall facing in */
   for (const r of rooms) {
@@ -332,23 +351,50 @@ export function buildModel(cfg = {}, hass) {
     if (!r.ac || r.ac === 'auto' || r.ac === true) { const [x1, z1, x2] = r.rects[0]; r.ac = { x: (x1 + x2) / 2, z: z1 + 0.14, dx: 0, dz: 1 }; }
   }
 
-  /* ---------- walls ---------- */
-  const shiftSeg = ([x1, z1, x2, z2, t]) => [sx(x1), sz(z1), sx(x2), sz(z2), t || 'w'];
-  const walls = Array.isArray(house.walls) && house.walls.length
-    ? house.walls.map(shiftSeg)
-    : wallsFromRooms(rooms, {
-      ...house,
-      openings: arr(house.openings).map(([a, b, c, d]) => [sx(a), sz(b), sx(c), sz(d)]),
-      windows: Array.isArray(house.windows) ? house.windows.map(([a, b, c, d]) => [sx(a), sz(b), sx(c), sz(d)]) : house.windows,
-    });
+  /* ---------- floors (levels) ---------- */
+  const levelIds = [...new Set(rooms.map(r => r.level))].sort((x, y) => x - y);
+  if (!levelIds.length) levelIds.push(0);
+  const lvOf = v => (v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : levelIds.includes(0) ? 0 : levelIds[0]);
+  const flv = floorLevels(R);
+  const levels = levelIds.map(l => {
+    const given = arr(house.levels).find(x => Number(x.level) === l);
+    const haFloor = Object.values(R.floors).find(f => flv[f.floor_id] === l && rooms.some(r => r.level === l && R.areas[r.area]?.floor_id === f.floor_id));
+    return { level: l, name: given?.name || haFloor?.name || (l === 0 ? 'Ground floor' : l < 0 ? (l === -1 ? 'Basement' : `Basement ${-l}`) : `Floor ${l}`), icon: given?.icon || haFloor?.icon || null };
+  });
 
-  /* ---------- animated doors ---------- */
+  /* ---------- doors: a leaf that swings open with its contact sensor (or stays shut without one) ---------- */
   const doors = arr(house.doors).map(d => {
     const from = d.from || [d.x, d.z], to = d.to;
+    if (from[0] == null || from[1] == null) return null;
     let axis = d.axis, dir = d.dir, w = d.width ?? d.w;
     if (to) { axis = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]) ? 'x' : 'z'; dir = (axis === 'x' ? to[0] - from[0] : to[1] - from[1]) >= 0 ? 1 : -1; w = Math.hypot(to[0] - from[0], to[1] - from[1]); }
-    return { id: d.entity || d.id, x: sx(from[0]), z: sz(from[1]), axis: axis || 'x', dir: dir ?? 1, w: num(w, 0.9), side: d.side ?? 1, main: !!d.main };
-  }).filter(d => d.id);
+    axis = axis || 'x'; dir = dir ?? 1; w = num(w, 0.9);
+    const x = sx(from[0]), z = sz(from[1]);
+    return { id: d.entity || d.id || null, x, z, axis, dir, w, side: d.side ?? 1, main: !!d.main, level: lvOf(d.level),
+      seg: axis === 'x' ? [x, z, x + dir * w, z] : [x, z, x, z + dir * w] };
+  }).filter(Boolean);
+
+  /* ---------- walls, per floor ---------- */
+  // segments carry their floor as a 5th item: [x1, z1, x2, z2, level]
+  const segLv = q => lvOf(q[4]);
+  const shiftQ = ([a, b2, c, d]) => [sx(a), sz(b2), sx(c), sz(d)];
+  let walls;
+  if (Array.isArray(house.walls) && house.walls.length) walls = house.walls.map(([x1, z1, x2, z2, t, l]) => [sx(x1), sz(z1), sx(x2), sz(z2), t || 'w', lvOf(l)]);
+  else {
+    walls = [];
+    for (const l of levelIds) {
+      const rs = rooms.filter(r => r.level === l); if (!rs.length) continue;
+      const wins = Array.isArray(house.windows) ? house.windows.filter(q => segLv(q) === l).map(shiftQ) : null;
+      walls.push(...wallsFromRooms(rs, {
+        ...house,
+        // between two rooms there is a wall until you add a door or an opening (automatic doorways only for the automatic house)
+        doorways: house.doorways ?? (auto ? 'auto' : 'none'),
+        openings: [...arr(house.openings).filter(q => segLv(q) === l).map(shiftQ), ...doors.filter(d => d.level === l).map(d => d.seg)],
+        windows: wins ? (wins.length ? wins : 'none') : house.windows,
+      }).map(q => [...q, l]));
+    }
+  }
+
   const doorInfo = {};
   for (const d of arr(house.door_info)) if (d.entity) doorInfo[d.entity] = { name: d.name || R.name(d.entity), timeout: d.timeout };
 
@@ -361,20 +407,27 @@ export function buildModel(cfg = {}, hass) {
     if (o.to) { o.x1 = sx(o.to[0]); o.z1 = sz(o.to[1]); }
     // centre + size → extents for the extent-based pieces
     if (['sofa', 'block', 'stairs', 'counter'].includes(o.type) && o.x0 == null && o.x != null) { o.x0 = o.x - num(o.w, 1) / 2; o.x1 = o.x + num(o.w, 1) / 2; o.z0 = o.z - num(o.d, 1) / 2; o.z1 = o.z + num(o.d, 1) / 2; }
-    if (!o.room) { const px = o.x ?? ((o.x0 + o.x1) / 2), pz = o.z ?? ((o.z0 + o.z1) / 2); o.room = roomAt(px, pz); }
+    if (!o.room) { const px = o.x ?? ((o.x0 + o.x1) / 2), pz = o.z ?? ((o.z0 + o.z1) / 2); o.room = roomAt(px, pz, f.level != null ? lvOf(f.level) : null); }
     for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade']) if (o[k] != null) o[k] = toColor(o[k], undefined);
     o.entities = furnEntities(f);
     return o;
   };
-  let furniture = arr(house.furniture).map(shiftF);
+  // `src` says where a piece is in the config (so the 3D view can move it): {house: i} or {room: room index, i}
+  let furniture = arr(house.furniture).map((f, i) => ({ ...shiftF(f), src: { house: i } }));
   for (const r of rooms) {
-    if (Array.isArray(r.furniture)) furniture.push(...r.furniture.map(f => shiftF({ room: r.id, ...f })));
+    if (Array.isArray(r.furniture)) furniture.push(...r.furniture.map((f, i) => ({ ...shiftF({ room: r.id, ...f }), src: r.ci != null ? { room: r.ci, i } : null })));
     else if ((auto || r.auto || house.auto_furniture) && r.furniture !== false) furniture.push(...autoFurniture(r));
+    // stairs: rooms marked `stairs`, or named "Stairs" / "Staircase", get a flight of stairs
+    if (r.furniture !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
   }
-  // every piece gets its index (the 3D view and the popup refer to it) and its linked entities
-  furniture.forEach((f, i) => { f.idx = i; if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
+  // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
+  const lvOfRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
+  // a flight of stairs stays within the wall height (a cut-away house has low walls)
+  const wallH = num(house.wall_height, 1.35);
+  for (const f of furniture) if (f.type === 'stairs' && f.rise == null) f.rise = Math.min(0.13, (wallH * 0.92) / num(f.steps, 10));
+  furniture.forEach((f, i) => { f.idx = i; f.level = f.room ? lvOfRoom[f.room] ?? lvOf(f.level) : lvOf(f.level); if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
   for (const r of rooms) r.furnEnts = furniture.filter(f => f.room === r.id).flatMap(f => f.entities);
-  const badges = arr(house.lock_badges).map(b => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z' })).filter(b => b.lock);
+  const badges = arr(house.lock_badges).map(b => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z', level: lvOf(b.level) })).filter(b => b.lock);
 
   /* ---------- entity map ---------- */
   const P = cfg.panels || {};
@@ -514,7 +567,7 @@ export function buildModel(cfg = {}, hass) {
   };
 
   return {
-    E, rooms, walls, doors, doorInfo, furniture, badges,
+    E, rooms, walls, doors, doorInfo, furniture, badges, levels,
     plan: { W, D, CX: W / 2, CZ: D / 2 },
     wallH: num(house.wall_height, 1.35),
     title: cfg.title || 'My Home', auto, has, hasMS,

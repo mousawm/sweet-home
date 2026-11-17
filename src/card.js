@@ -6,7 +6,8 @@
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { buildModel, toColor, FURN_TYPES } from './model.js';
-import './editor.js';
+import { movePiece } from './editor.js';
+import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
 const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
 
@@ -187,7 +188,7 @@ const pretty = o => {
 const TOGGLE_DOMAINS = ['light', 'switch', 'fan', 'input_boolean', 'siren', 'humidifier', 'cover', 'valve', 'automation', 'remote', 'vacuum'];
 // binary sensor wording by device class: [on, off]
 const BIN_LABEL = { door: ['Open', 'Closed'], window: ['Open', 'Closed'], garage_door: ['Open', 'Closed'], opening: ['Open', 'Closed'], motion: ['Detected', 'Clear'],
-  occupancy: ['Detected', 'Clear'], presence: ['Home', 'Away'], moisture: ['Wet', 'Dry'], smoke: ['Smoke', 'Clear'], gas: ['Gas', 'Clear'], battery: ['Low', 'Normal'],
+  occupancy: ['Detected', 'Clear'], presence: ['At home', 'Away'], moisture: ['Wet', 'Dry'], smoke: ['Smoke', 'Clear'], gas: ['Gas', 'Clear'], battery: ['Low', 'Normal'],
   plug: ['Plugged in', 'Unplugged'], power: ['Power', 'No power'], problem: ['Problem', 'OK'], connectivity: ['Connected', 'Disconnected'], lock: ['Unlocked', 'Locked'], vibration: ['Vibration', 'Still'] };
 const DOM_ICON = { light: ['mdi:lightbulb-on', 'mdi:lightbulb-outline'], switch: ['mdi:toggle-switch', 'mdi:toggle-switch-off-outline'], fan: ['mdi:fan', 'mdi:fan-off'],
   input_boolean: ['mdi:toggle-switch', 'mdi:toggle-switch-off-outline'], cover: ['mdi:window-shutter-open', 'mdi:window-shutter'], valve: ['mdi:valve-open', 'mdi:valve-closed'],
@@ -203,7 +204,7 @@ const domIcon = (d, v, a = {}) => {
   if (a.device_class && DC_ICON[a.device_class]) return DC_ICON[a.device_class];
   return DOM_ICON[d]?.[on ? 0 : 1] || (d === 'sensor' ? 'mdi:eye' : d === 'binary_sensor' ? (on ? 'mdi:checkbox-marked-circle' : 'mdi:checkbox-blank-circle-outline') : 'mdi:shape-outline');
 };
-const furnName = f => f.name || FURN_TYPES[f.type]?.[0] || pretty(f.type);
+const furnName = f => f.name || tr(FURN_TYPES[f.type]?.[0] || pretty(f.type));
 const furnIcon = f => f.icon || FURN_TYPES[f.type]?.[1] || 'mdi:shape-outline';
 const ALL_TABS = [
   ['home', 'Home', 'mdi:home-modern'], ['security', 'Security', 'mdi:shield-home'], ['climate', 'Climate', 'mdi:air-conditioner'],
@@ -262,6 +263,7 @@ export class SweetHomeCard extends HTMLElement {
 
   set hass(h) {
     this._hass = h;
+    setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
     useModel(this._model);
     if (!this._built) this._build();
@@ -378,8 +380,13 @@ export class SweetHomeCard extends HTMLElement {
       l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap';
       document.head.appendChild(l);
     }
+    if (isRTL() && !document.getElementById('h3d-font-ar')) {
+      const l = document.createElement('link'); l.id = 'h3d-font-ar'; l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700&display=swap';
+      document.head.appendChild(l);
+    }
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
-    <div class="app">
+    <div class="app" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
       <header class="top">
         <div class="hello">
@@ -395,16 +402,17 @@ export class SweetHomeCard extends HTMLElement {
        <div class="home-grid">
         <section class="stage card">
           <div class="stage-top">
-            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>Live 3D view · tap a room</span></div></div>
+            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${tr('Live 3D view · tap a room')}</span></div></div>
             <div class="seg" id="modeSeg">
-              <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>Lights</span></button>
-              <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>Climate</span></button>
-              <button data-act="mode" data-mode="presence">${ic('mdi:motion-sensor')}<span>Presence</span></button>
+              <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
+              <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>
+              <button data-act="mode" data-mode="presence">${ic('mdi:motion-sensor')}<span>${tr('Presence')}</span></button>
             </div>
             <div class="tools">
-              <button class="ibtn" data-act="view" data-view="top" title="Top view">${ic('mdi:floor-plan')}</button>
-              <button class="ibtn" data-act="view" data-view="reset" title="3D view">${ic('mdi:rotate-3d-variant')}</button>
-              <button class="ibtn" data-act="spin" id="spinBtn" title="Auto-rotate">${ic('mdi:autorenew')}</button>
+              <button class="ibtn" data-act="view" data-view="top" title="${tr('Top view')}">${ic('mdi:floor-plan')}</button>
+              <button class="ibtn" data-act="view" data-view="reset" title="${tr('3D view')}">${ic('mdi:rotate-3d-variant')}</button>
+              <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
+              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
           </div>
           <div class="viewport" id="viewport">
@@ -412,7 +420,8 @@ export class SweetHomeCard extends HTMLElement {
             <div class="labels" id="labels"></div>
             <div class="legend" id="legend"></div>
             <div class="hint" id="hint" role="note"></div>
-            <div class="loading" id="loading"><div class="spinner"></div><span>Building your home…</span></div>
+            <div class="lvls" id="lvls" role="tablist" aria-label="${tr('Floors')}"></div>
+            <div class="loading" id="loading"><div class="spinner"></div><span>${tr('Building your home…')}</span></div>
             <aside class="drawer" id="drawer"></aside>
           </div>
         </section>
@@ -443,7 +452,12 @@ export class SweetHomeCard extends HTMLElement {
     this._lockBehindSheet();
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
     this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
+    this.shadowRoot.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('[data-rename]')) e.target.blur(); });
+    // a name field being typed in is left alone when the popup redraws
+    this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
+    this.shadowRoot.addEventListener('focusout', e => { if (e.target.matches?.('[data-rename]') && this._dragging === e.target) this._dragging = null; });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);
     const roomEnts = ROOMS.map(r => [r.temp, r.hum, r.lights, r.motion, r.climate, r.count, r.fan, r.locks, r.doors, (r.doors || []).map(d => DOOR_INFO[d]?.timeout), (r.plugs || []).map(p => [p.id, p.power]), r.media, (r.entities || []).map(e => e.id), r.furnEnts]);
@@ -480,9 +494,12 @@ export class SweetHomeCard extends HTMLElement {
     };
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
     this._setTab(MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
+    const L = MODEL.levels || [{ level: 0 }];
+    if (this._level == null || !L.some(l => l.level === this._level)) this._level = L.some(l => l.level === 0) ? 0 : L[0].level;
     this._tick();
     this._init3d();
     this._hintShow();
+    this._renderLevels();
   }
 
   _acExtras(id) { // related switches such as jet mode / display light
@@ -1039,7 +1056,7 @@ export class SweetHomeCard extends HTMLElement {
     put('time', d.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }));
     put('date', d.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' }));
     const hr = d.getHours();
-    const g = hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+    const g = tr(hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening');
     put('greet', `${g}${this.name() ? ', ' + this.name() : ''}`);
     if (d.getSeconds() % 30 === 0) { this._alertCount = null; this._rerender('alerts', 'tabs'); }
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
@@ -1103,10 +1120,17 @@ export class SweetHomeCard extends HTMLElement {
         this._select(t.dataset.room === this._sel ? null : t.dataset.room); break;
       case 'close': this._select(null); break;
       case 'furn': if (performance.now() - (this._cvTap || 0) < 600) break; this._selectFurn(Number(t.dataset.idx)); break;
-      case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(id.startsWith('scene.') ? 'Scene activated' : 'Script started'); break;
-      case 'press': this.call(id.split('.')[0], 'press', { entity_id: id }); this._toast('Pressed'); break;
+      case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(tr(id.startsWith('scene.') ? 'Scene activated' : 'Script started')); break;
+      case 'press': this.call(id.split('.')[0], 'press', { entity_id: id }); this._toast(tr('Pressed')); break;
       case 'dfold': { const k = t.dataset.k; (this._dOpen ||= new Set()).has(k) ? this._dOpen.delete(k) : this._dOpen.add(k); this._rerender('drawer'); break; }
       case 'hintx': this._hintDone(); break;
+      case 'level': this._setLevel(Number(t.dataset.level)); break;
+      case 'arrange': {
+        const on = this._arrange = !this._arrange; if (this._three) this._three.arrange = on; t.classList.toggle('on', on);
+        if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
+        break;
+      }
+      case 'names': this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
@@ -1219,15 +1243,65 @@ export class SweetHomeCard extends HTMLElement {
     this._three?.setMode(m);
     this._renderLegend();
   }
+  // floor buttons on the 3D view (only with more than one floor)
+  _renderLevels() {
+    const el = this.$?.('lvls'), L = MODEL?.levels || []; if (!el) return;
+    if (L.length < 2) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.innerHTML = [...L].reverse().map(l => `<button data-act="level" data-level="${l.level}" role="tab" aria-selected="${l.level === this._level}" class="${l.level === this._level ? 'on' : ''}" title="${esc(tr(l.name, l.level))}">${l.icon ? ic(l.icon) : ''}<span>${esc(l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name))}</span></button>`).join('');
+  }
+  _setLevel(l) {
+    if (l === this._level) return;
+    this._level = l; this._three?.setLevel(l);
+    if (this._sel && ROOM[this._sel]?.level !== l) this._select(null);
+    this._renderLevels(); this._three?.sync();
+  }
   _select(id, keepFurn) {
+    if (id && ROOM[id] && ROOM[id].level !== this._level) this._setLevel(ROOM[id].level);
     if (id !== this._sel) this._acOpen = null;
     if (!keepFurn) this._fsel = null;
+    if (id !== this._sel) this._naming = null;
     if (id) this._hintDone();
     this._sel = id;
     this.$('drawer').classList.toggle('open', !!id);
     this._three?.select(id);
     this._rerender('drawer');
   }
+  // A piece dragged in the 3D view (arrange mode): moved in the config. While the card editor is open, the move goes
+  // through it (with undo); otherwise it is saved straight into this dashboard (storage dashboards, admins).
+  async _arrangeMove(f, dx, dz, undo) {
+    const src = f?.src;
+    if (!src) { undo(); this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); return; }
+    const cfg = JSON.parse(JSON.stringify(this._config || {}));
+    const list = src.house != null ? cfg.house?.furniture : cfg.house?.rooms?.[src.room]?.furniture, piece = list?.[src.i ?? src.house];
+    if (!piece) { undo(); this._toast('Could not find this piece in the configuration', true); return; }
+    movePiece(piece, dx, dz);
+    const ed = window.__sweetHomeEditor;
+    if (ed?.isConnected && ed.applyExternal) { ed.applyExternal(cfg); this.haptic('light'); return; }
+    if (await this._saveCardConfig(cfg)) { this.haptic('success'); this._toast(tr('Moved')); } else undo();
+  }
+  // saves a new config for this card into the dashboard it is on (the card must be found there exactly once)
+  async _saveCardConfig(cfg) {
+    const seg = location.pathname.split('/')[1] || 'lovelace', url_path = seg === 'lovelace' ? null : seg;
+    try {
+      const dash = await this._hass.callWS({ type: 'lovelace/config', url_path });
+      if (dash?.strategy) { this._toast(tr('Take control of this dashboard first (⋮ → Edit dashboard)'), true); return false; }
+      const mine = JSON.stringify(this._config); let hits = 0;
+      const walk = o => {
+        if (Array.isArray(o)) return o.map(walk);
+        if (o && typeof o === 'object') {
+          if (o.type === 'custom:sweet-home-card' && JSON.stringify(o) === mine) { hits++; return JSON.parse(JSON.stringify(cfg)); }
+          return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, walk(v)]));
+        }
+        return o;
+      };
+      const next = walk(dash);
+      if (hits !== 1) { this._toast(tr('Open the card editor to move furniture on this dashboard'), true); return false; }
+      await this._hass.callWS({ type: 'lovelace/config/save', url_path, config: next });
+      this.setConfig(cfg); return true;
+    } catch (e) { this._toast(e?.message || tr('Could not save the dashboard'), true); return false; }
+  }
+
   // a tap on a furniture piece that has entities: open its room with the piece at the top of the popup
   _selectFurn(idx) {
     const f = FURN[idx]; if (!f || !f.entities?.length) return;
@@ -1240,7 +1314,7 @@ export class SweetHomeCard extends HTMLElement {
     let seen = false; try { seen = localStorage.getItem('sweet-home-hint') === '1'; } catch (e) { /* storage blocked */ }
     const el = this.$('hint'); if (!el || seen || this._config?.hint === false) return;
     const pieces = FURN.some(f => f.entities?.length);
-    el.innerHTML = `${ic('mdi:gesture-tap')}<span>Tap a room to see and control what's in it.${pieces ? ' Furniture with a dot can be tapped too.' : ''} Long press any row for details.</span><button class="ibtn" data-act="hintx" aria-label="Close hint">${ic('mdi:close')}</button>`;
+    el.innerHTML = `${ic('mdi:gesture-tap')}<span>${tr("Tap a room to see and control what's in it.")}${pieces ? ' ' + tr('Furniture with a dot can be tapped too.') : ''} ${tr('Long press any row for details.')}</span><button class="ibtn" data-act="hintx" aria-label="${tr('Close hint')}">${ic('mdi:close')}</button>`;
     el.classList.add('on');
   }
   _hintDone() {
@@ -1250,8 +1324,8 @@ export class SweetHomeCard extends HTMLElement {
   _renderLegend() {
     const el = this.$('legend');
     if (this._mode === 'climate') el.innerHTML = `<div class="lg-bar"></div><div class="lg-lbl"><span>16°</span><span>22°</span><span>29°</span></div>`;
-    else if (this._mode === 'presence') el.innerHTML = `<span class="dot pulse teal"></span> occupied <span class="dot gray"></span> empty`;
-    else el.innerHTML = `<span class="dot amber"></span> lights on <span class="dot gray"></span> off`;
+    else if (this._mode === 'presence') el.innerHTML = `<span class="dot pulse teal"></span> ${tr('occupied')} <span class="dot gray"></span> ${tr('empty')}`;
+    else el.innerHTML = `<span class="dot amber"></span> ${tr('lights on')} <span class="dot gray"></span> ${tr('off')}`;
   }
 
   /* ---------- sections ---------- */
@@ -1275,12 +1349,12 @@ export class SweetHomeCard extends HTMLElement {
     const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     return `
       ${wx}
-      ${!E.alarm || this.v(E.alarm) === 'disarmed' ? '' : `<div class="chip" style="--c:${al[2]}" data-act="more" data-id="${E.alarm}">${ic(al[1])}<span>${al[0]}</span></div>`}
-      ${!E.doors.length ? '' : `<div class="chip ${open.length ? 'warn' : 'good'}">${ic(open.length ? 'mdi:door-open' : 'mdi:door-closed-lock')}<span>${open.length ? open.map(d => d.name).join(', ') + ' open' : 'All doors closed'}</span></div>`}
-      ${unlocked.length ? `<div class="chip warn">${ic('mdi:lock-open-variant')}<span>${unlocked.map(l => l.name).join(', ')} unlocked</span></div>` : ''}
-      ${lit ? `<div class="chip" style="--c:${lit ? '#fbbf24' : '#94a3b8'}" data-act="info" data-kind="lights">${ic(lit ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline')}<span>${lit} light${lit === 1 ? '' : 's'} on</span></div>` : ''}
-      ${avg == null ? '' : `<div class="chip" style="--c:${avg != null ? rgb(tempRGB(avg)) : '#94a3b8'}" data-act="info" data-kind="temps">${ic('mdi:home-thermometer')}<span>${avg != null ? avg.toFixed(1) + '° inside' : '—'}</span></div>`}
-      ${!(E.energy.grid || E.energy.solar) ? '' : `<div class="chip" data-act="info" data-kind="power" data-id="${E.energy.grid || E.energy.solar}"${E.energy.solar && E.energy.grid ? ` data-id2="${E.energy.solar}"` : ''} style="--c:#fbbf24">${ic('mdi:flash')}<span>${fmtW(grid + solar).replace(/<\/?small>/g, '')} now</span></div>`}
+      ${!E.alarm || this.v(E.alarm) === 'disarmed' ? '' : `<div class="chip" style="--c:${al[2]}" data-act="more" data-id="${E.alarm}">${ic(al[1])}<span>${tr(al[0])}</span></div>`}
+      ${!E.doors.length ? '' : `<div class="chip ${open.length ? 'warn' : 'good'}">${ic(open.length ? 'mdi:door-open' : 'mdi:door-closed-lock')}<span>${open.length ? tr('{0} open', open.map(d => d.name).join('، ')) : tr('All doors closed')}</span></div>`}
+      ${unlocked.length ? `<div class="chip warn">${ic('mdi:lock-open-variant')}<span>${tr('{0} unlocked', unlocked.map(l => l.name).join(', '))}</span></div>` : ''}
+      ${lit ? `<div class="chip" style="--c:${lit ? '#fbbf24' : '#94a3b8'}" data-act="info" data-kind="lights">${ic(lit ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline')}<span>${lit === 1 ? tr('1 light on') : tr('{0} lights on', lit)}</span></div>` : ''}
+      ${avg == null ? '' : `<div class="chip" style="--c:${avg != null ? rgb(tempRGB(avg)) : '#94a3b8'}" data-act="info" data-kind="temps">${ic('mdi:home-thermometer')}<span>${avg != null ? tr('{0}° inside', avg.toFixed(1)) : '—'}</span></div>`}
+      ${!(E.energy.grid || E.energy.solar) ? '' : `<div class="chip" data-act="info" data-kind="power" data-id="${E.energy.grid || E.energy.solar}"${E.energy.solar && E.energy.grid ? ` data-id2="${E.energy.solar}"` : ''} style="--c:#fbbf24">${ic('mdi:flash')}<span>${tr('{0} now', fmtW(grid + solar).replace(/<\/?small>/g, ''))}</span></div>`}
       <div class="persons">${persons}</div>`;
   }
 
@@ -1323,7 +1397,7 @@ export class SweetHomeCard extends HTMLElement {
     if (this._alertCount == null) this._alertCount = this._alertSections().reduce((n, x) => n + x[3].length, 0);
     if (E.lab.status && this.s(E.lab.status) && !this.on(E.lab.status)) badge.system = ['warn', '!']; else if (this._alertCount) badge.system = ['warn', this._alertCount];
     return this._tabList().map(([k, n, i]) => `<button class="tb ${this._tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}" role="tab" aria-selected="${this._tab === k}">
-      ${ic(i)}<span>${n}</span>${badge[k] ? `<i class="bd ${badge[k][0]}">${badge[k][1]}</i>` : ''}</button>`).join('');
+      ${ic(i)}<span>${tr(n)}</span>${badge[k] ? `<i class="bd ${badge[k][0]}">${badge[k][1]}</i>` : ''}</button>`).join('');
   }
 
   _rGlance() {
@@ -1340,16 +1414,16 @@ export class SweetHomeCard extends HTMLElement {
     const cpu = this.n(E.lab.cpu);
     // each tile opens its tab and scrolls to the card it summarises (data-to = that card's id)
     const tile = (tab, icon, color, label, value, sub, to = tab) => `<button class="gl" data-act="tab" data-tab="${tab}" data-to="${to}" style="--c:${color}">
-      <span class="gi">${ic(icon)}</span><div><span>${tc(label)}</span><b>${value}</b><em>${sub}</em></div></button>`;
-    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>At a glance</h3></div><div class="glance">
-      ${this._secOff('security') ? '' : tile('security', al[1], al[2], 'Security', al[0], open ? `${open} open / unlocked` : 'All closed &amp; locked')}
-      ${this._secOff('climate') ? '' : tile('climate', 'mdi:home-thermometer', '#22d3ee', 'Climate', avg != null ? avg.toFixed(1) + '°' : '—', acOn ? `${acOn} AC running` : 'All ACs off')}
-      ${this._secOff('energy') ? '' : tile('energy', 'mdi:lightning-bolt', '#fbbf24', 'Power now', fmtW(home), `Today ${this._eKwh('d', 1)}`)}
-      ${!E.water.tank ? '' : tile('water', 'mdi:water', '#38bdf8', 'Water Tank', tank != null ? tank.toFixed(0) + '%' : '—', E.water.pumps.some(p => this.on(p.id)) ? 'Pump running' : 'Pumps idle')}
-      ${this._secOff('car') ? '' : tile('energy', 'mdi:car-electric', '#34d399', 'Car', ch ? 'Charging' : esc(this.v(E.car.parking) || '—'), ch ? fmtW(this.n(E.car.power)) : 'Charger idle', 'car')}
-      ${!E.cameras.length ? '' : tile('security', 'mdi:cctv', det ? '#fb7185' : '#94a3b8', 'Cameras', det ? `${det} person${det > 1 ? 's' : ''}` : 'All quiet', `${E.cameras.length} cameras live`, 'cams')}
-      ${!tv ? '' : tile('media', 'mdi:television-play', '#f472b6', 'TV', esc(pretty(tv?.state)), esc(tv?.attributes.app_name || tc(tv?.attributes.friendly_name || '')))}
-      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? 'Online' : 'Offline', 'lab')}
+      <span class="gi">${ic(icon)}</span><div><span>${tr(tc(label))}</span><b>${value}</b><em>${sub}</em></div></button>`;
+    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>${tr('At a glance')}</h3></div><div class="glance">
+      ${this._secOff('security') ? '' : tile('security', al[1], al[2], 'Security', tr(al[0]), open ? tr('{0} open / unlocked', open) : esc(tr('All closed & locked')))}
+      ${this._secOff('climate') ? '' : tile('climate', 'mdi:home-thermometer', '#22d3ee', 'Climate', avg != null ? avg.toFixed(1) + '°' : '—', acOn ? tr('{0} AC running', acOn) : tr('All ACs off'))}
+      ${this._secOff('energy') ? '' : tile('energy', 'mdi:lightning-bolt', '#fbbf24', 'Power now', fmtW(home), tr('Today {0}', this._eKwh('d', 1)))}
+      ${!E.water.tank ? '' : tile('water', 'mdi:water', '#38bdf8', 'Water Tank', tank != null ? tank.toFixed(0) + '%' : '—', E.water.pumps.some(p => this.on(p.id)) ? tr('Pump running') : tr('Pumps idle'))}
+      ${this._secOff('car') ? '' : tile('energy', 'mdi:car-electric', '#34d399', 'Car', ch ? tr('Charging') : esc(this.v(E.car.parking) || '—'), ch ? fmtW(this.n(E.car.power)) : tr('Charger idle'), 'car')}
+      ${!E.cameras.length ? '' : tile('security', 'mdi:cctv', det ? '#fb7185' : '#94a3b8', 'Cameras', det ? (det > 1 ? tr('{0} persons', det) : tr('1 person')) : tr('All quiet'), tr('{0} cameras live', E.cameras.length), 'cams')}
+      ${!tv ? '' : tile('media', 'mdi:television-play', '#f472b6', 'TV', esc(tr(pretty(tv?.state))), esc(tv?.attributes.app_name || tc(tv?.attributes.friendly_name || '')))}
+      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? tr('Online') : tr('Offline'), 'lab')}
     </div>`;
   }
 
@@ -1402,11 +1476,12 @@ export class SweetHomeCard extends HTMLElement {
 
   _rDrawer() {
     const r = ROOM[this._sel]; if (!r) return '';
+    if (this._naming === r.id) return this._rRename(r);
     const t = r.temp ? this.n(r.temp) : null, h = r.hum ? this.n(r.hum) : null;
     const lights = (r.lights || []).filter(l => this.s(l)).map(l => {
       const st = this.s(l); const on = st.state === 'on';
       const simple = r.simpleLights?.includes(l);
-      const br = on && st.attributes.brightness && !simple ? Math.round(st.attributes.brightness / 2.55) + '%' : on ? 'On' : st.state === 'off' ? 'Off' : st.state;
+      const br = on && st.attributes.brightness && !simple ? Math.round(st.attributes.brightness / 2.55) + '%' : on ? tr('On') : st.state === 'off' ? tr('Off') : st.state;
       const dim = l.startsWith('light.') && (st.attributes.supported_color_modes || []).some(m => m !== 'onoff');
       const pct = st.attributes.brightness ? Math.max(1, Math.round(st.attributes.brightness / 2.55)) : 100;
       const fx = r.lightFx?.[l];
@@ -1417,7 +1492,7 @@ export class SweetHomeCard extends HTMLElement {
     });
     const motion = (r.motion || []).filter(m => this.s(m)).map(m => {
       const on = this.v(m) === 'on';
-      return `<div class="mrow ${on ? 'on' : ''}" data-act="more" data-id="${m}">${ic(on ? 'mdi:motion-sensor' : 'mdi:motion-sensor-off')}<span>${esc(r.motionNames?.[m] || tc((this.s(m).attributes.friendly_name || m).replace(/\s*occupancy\s*$/i, '')))}</span><b data-ago="${this.s(m).last_changed}" data-pre="${on ? 'Detected' : 'Clear'}" data-short="1" title="${esc(ago(this.s(m).last_changed, this._hass?.locale?.language))}">${on ? 'Detected' : 'Clear'} · ${agoShort(this.s(m).last_changed, this._hass?.locale?.language)}</b></div>`;
+      return `<div class="mrow ${on ? 'on' : ''}" data-act="more" data-id="${m}">${ic(on ? 'mdi:motion-sensor' : 'mdi:motion-sensor-off')}<span>${esc(r.motionNames?.[m] || tc((this.s(m).attributes.friendly_name || m).replace(/\s*occupancy\s*$/i, '')))}</span><b data-ago="${this.s(m).last_changed}" data-pre="${on ? tr('Detected') : tr('Clear')}" data-short="1" title="${esc(ago(this.s(m).last_changed, this._hass?.locale?.language))}">${on ? tr('Detected') : tr('Clear')} · ${agoShort(this.s(m).last_changed, this._hass?.locale?.language)}</b></div>`;
     });
     const ac = r.climate && this.s(r.climate) ? (() => {
       const st = this.s(r.climate); const on = this.climOn(r.climate);
@@ -1425,7 +1500,7 @@ export class SweetHomeCard extends HTMLElement {
       const open = this._acOpen === r.climate;
       return `<div class="dac ${on ? 'on' : ''} ${open ? 'open' : ''}" style="--c:${HVAC_COLOR[st.state] || '#60a5fa'}">
         <div class="dac-row" data-act="acexp" data-id="${r.climate}" role="button" aria-expanded="${open}">
-          <div class="dac-l">${ic(on ? HVAC_ICON[st.state] || 'mdi:air-conditioner' : 'mdi:air-conditioner')}<b>AC</b><span class="${this._acPend?.[r.climate] ? 'pend' : ''}">${on ? esc(pretty(st.state)) + ' · ' + (this._acT(r.climate) ?? '—') + '°' : 'Off'}</span></div>
+          <div class="dac-l">${ic(on ? HVAC_ICON[st.state] || 'mdi:air-conditioner' : 'mdi:air-conditioner')}<b>${tr('AC')}</b><span class="${this._acPend?.[r.climate] ? 'pend' : ''}">${on ? esc(pretty(st.state)) + ' · ' + (this._acT(r.climate) ?? '—') + '°' : tr('Off')}</span></div>
           <div class="tgt sm"><button class="ibtn" data-act="actemp" data-id="${r.climate}" data-d="-1" aria-label="Lower temperature">${ic('mdi:minus')}</button>
             <button class="pow ${on ? 'on' : ''}" data-act="acpow" data-id="${r.climate}" aria-label="AC power">${ic('mdi:power')}</button>
             <button class="ibtn" data-act="actemp" data-id="${r.climate}" data-d="1" aria-label="Raise temperature">${ic('mdi:plus')}</button>
@@ -1437,22 +1512,22 @@ export class SweetHomeCard extends HTMLElement {
       ...(r.locks || []).filter(l => this.s(l)).map(l => {
         const s = this.v(l); const locked = s === 'locked';
         const nm = E.locks.find(x => x.id === l)?.name || tc(this.s(l).attributes.friendly_name);
-        return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${l}" style="position:relative">${ic(locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock-clock')}<span>${esc(nm)}</span><b>${locked ? 'Locked · tap to unlock' : esc(pretty(s)) + ' · tap to lock'}</b></button>`;
+        return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${l}" style="position:relative">${ic(locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock-clock')}<span>${esc(nm)}</span><b>${locked ? tr('Locked · tap to unlock') : tr('{0} · tap to lock', esc(tr(pretty(s))))}</b></button>`;
       }),
       ...(r.doors || []).filter(d => this.s(d)).map(d => {
         const o = this.v(d) === 'on'; const info = DOOR_INFO[d] || { name: tc(this.s(d)?.attributes.friendly_name || 'Door') };
         const long = info.timeout && this.v(info.timeout) === 'on';
-        return `<div class="mrow ${o ? 'open' : ''}" data-act="more" data-id="${d}"${info.timeout ? ` data-id2="${info.timeout}"` : ''}>${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(info.name)}</span><b>${o ? (long ? 'Open too long' : 'Open') : 'Closed'}</b></div>`;
+        return `<div class="mrow ${o ? 'open' : ''}" data-act="more" data-id="${d}"${info.timeout ? ` data-id2="${info.timeout}"` : ''}>${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(info.name)}</span><b>${o ? (long ? tr('Open too long') : tr('Open')) : tr('Closed')}</b></div>`;
       }),
     ];
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
       const on = this.on(p.id); const w = this.n(p.power); const chg = on && (w ?? 0) > 1.5;
-      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${on ? (chg ? `Charging · ${w.toFixed(1)} W` : 'On · idle') : 'Off'}</b></button>`;
+      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${on ? (chg ? tr('Charging · {0} W', w.toFixed(1)) : tr('On · idle')) : tr('Off')}</b></button>`;
     });
-    if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>People Detected</span><b>${this.v(r.count)}</b></div>`);
+    if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
-    if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? 'On' : 'Off'}</b></button>`);
-    if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(pretty(this.v(r.media)))}</b></div>`);
+    if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? tr('On') : tr('Off')}</b></button>`);
+    if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(tr(pretty(this.v(r.media))))}</b></div>`);
     // furniture with entities: the piece tapped in 3D comes first, highlighted
     // (an entity that already has its own row above — a light, a door, the TV… — is not repeated under Furniture / Other)
     const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum].filter(Boolean));
@@ -1464,16 +1539,16 @@ export class SweetHomeCard extends HTMLElement {
     const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, e));
     // a long list shows its first rows and a "Show more" button
     const fold = (key, rows) => {
-      if (rows.length <= 6 || this._dOpen?.has(r.id + key)) return rows.join('') + (rows.length > 6 ? `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-up')}Show less</button>` : '');
-      return rows.slice(0, 5).join('') + `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-down')}Show ${rows.length - 5} more</button>`;
+      if (rows.length <= 6 || this._dOpen?.has(r.id + key)) return rows.join('') + (rows.length > 6 ? `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-up')}${tr('Show less')}</button>` : '');
+      return rows.slice(0, 5).join('') + `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-down')}${tr('Show {0} more', rows.length - 5)}</button>`;
     };
-    const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${title}</div>${fold(key, rows)}` : '');
+    const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${tr(title)}</div>${fold(key, rows)}` : '');
     const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length;
-    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3><button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
+    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin ? `<button class="ibtn" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
       ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
-        ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>Temperature</span></div>` : ''}
-        ${h != null ? `<div data-act="more" data-id="${r.hum}"><b class="blue">${Math.round(h)}%</b><span>Humidity</span></div>` : ''}
+        ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>${tr('Temperature')}</span></div>` : ''}
+        ${h != null ? `<div data-act="more" data-id="${r.hum}"><b class="blue">${Math.round(h)}%</b><span>${tr('Humidity')}</span></div>` : ''}
       </div>` : ''}
       ${ac}
       ${sec('Lights', 'l', lights)}
@@ -1483,33 +1558,57 @@ export class SweetHomeCard extends HTMLElement {
       ${sec('Devices', 'v', devs)}
       ${sec('Sensors', 's', [...motion, ...extra])}
       ${sec('Other', 'o', other)}
-      ${empty ? `<div class="empty">${ic('mdi:information-outline')} No devices mapped to this room yet. Link it to an area, or add entities in the card editor (Rooms → Entities).</div>` : ''}`;
+      ${empty ? `<div class="empty">${ic('mdi:information-outline')} ${tr('No devices mapped to this room yet. Link it to an area, or add entities in the card editor (Rooms → Entities).')}</div>` : ''}`;
+  }
+
+  // Rename view of the room popup (admins): every entity of the room with its name in a text field. A new name is saved
+  // in Home Assistant itself (entity registry), so it changes everywhere; an empty field goes back to the default name.
+  _rRename(r) {
+    const ids = [...new Set([...(r.lights || []), r.climate, r.temp, r.hum, ...(r.motion || []), ...(r.doors || []), ...(r.locks || []), ...(r.plugs || []).map(p => p.id), r.fan, r.media, ...(r.entities || []).map(e => e.id), ...(r.furnEnts || [])].filter(id => id && this.s(id)))];
+    const rows = ids.map(id => {
+      const st = this.s(id), reg = this._hass.entities?.[id], d = id.split('.')[0];
+      const nm = st.attributes.friendly_name || id;
+      return reg ? `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(nm)}" aria-label="Name of ${esc(id)}" enterkeyhint="done"><small>${esc(id)}</small></label>`
+        : `<div class="rnrow na" title="This entity has no unique ID, so Home Assistant can't rename it">${ic('mdi:pencil-off-outline')}<span>${esc(nm)}</span><small>${esc(id)} · ${tr("can't be renamed")}</small></div>`;
+    }).join('');
+    return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}">${ic('mdi:check')}</button></div>
+      <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change in Home Assistant itself. Clear a name to go back to the default.')}</div>
+      ${rows || `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`}`;
+  }
+  async _rename(id, name) {
+    const st = this.s(id); if (!st) return;
+    const v = name.trim();
+    if (v === (st.attributes.friendly_name || '')) return;
+    try {
+      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
+      this.haptic('success'); this._toast(v ? tr('Renamed to {0}', v) : tr('Back to the default name'));
+    } catch (e) { this.haptic('failure'); this._toast(e?.message || tr('Could not rename it'), true); }
   }
 
   // One row for any entity: lights, switches, fans, covers… toggle; scripts / scenes run; buttons press; locks lock with a
   // second tap to confirm; everything else shows its state and opens more-info. Long press always opens more-info.
   _entRow(id, o = {}) {
     const st = this.s(id);
-    if (!st) return `<div class="mrow na">${ic('mdi:help-circle-outline')}<span>${esc(o.name || id)}</span><b>Not found</b></div>`;
+    if (!st) return `<div class="mrow na">${ic('mdi:help-circle-outline')}<span>${esc(o.name || id)}</span><b>${tr('Not found')}</b></div>`;
     const d = id.split('.')[0], a = st.attributes, v = st.state, bad = BAD.includes(v);
     const name = esc(o.name || tc(a.friendly_name || id));
     const icon = o.icon || a.icon || domIcon(d, v, a);
     if (bad) return `<div class="mrow na" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(pretty(v))}</b></div>`;
     if (TOGGLE_DOMAINS.includes(d)) {
       const on = ['on', 'open', 'opening'].includes(v);
-      const val = d === 'light' && on && a.brightness ? Math.round(a.brightness / 2.55) + '%' : d === 'cover' || d === 'valve' ? pretty(v) : on ? 'On' : 'Off';
+      const val = d === 'light' && on && a.brightness ? Math.round(a.brightness / 2.55) + '%' : d === 'cover' || d === 'valve' ? tr(pretty(v)) : on ? tr('On') : tr('Off');
       return `<button class="lrow ${on ? 'on' : ''} ${d === 'light' ? '' : 'cool'}" data-act="toggle" data-id="${id}">${ic(icon, d === 'fan' && on ? 'spin' : '')}<span>${name}</span><b>${esc(val)}</b></button>`;
     }
     if (d === 'lock') {
       const locked = v === 'locked';
-      return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${id}" style="position:relative">${ic(locked ? 'mdi:lock' : 'mdi:lock-open-variant')}<span>${name}</span><b>${locked ? 'Locked' : esc(pretty(v))}</b></button>`;
+      return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${id}" style="position:relative">${ic(locked ? 'mdi:lock' : 'mdi:lock-open-variant')}<span>${name}</span><b>${locked ? tr('Locked') : esc(tr(pretty(v)))}</b></button>`;
     }
-    if (d === 'script' || d === 'scene') return `<button class="lrow ${v === 'on' ? 'on cool' : ''}" data-act="run" data-id="${id}">${ic(icon)}<span>${name}</span><b>${d === 'scene' ? 'Activate' : v === 'on' ? 'Running' : 'Run'}</b></button>`;
-    if (d === 'button' || d === 'input_button') return `<button class="lrow" data-act="press" data-id="${id}">${ic(icon)}<span>${name}</span><b>Press</b></button>`;
+    if (d === 'script' || d === 'scene') return `<button class="lrow ${v === 'on' ? 'on cool' : ''}" data-act="run" data-id="${id}">${ic(icon)}<span>${name}</span><b>${tr(d === 'scene' ? 'Activate' : v === 'on' ? 'Running' : 'Run')}</b></button>`;
+    if (d === 'button' || d === 'input_button') return `<button class="lrow" data-act="press" data-id="${id}">${ic(icon)}<span>${name}</span><b>${tr('Press')}</b></button>`;
     let val;
-    if (d === 'binary_sensor') val = BIN_LABEL[a.device_class]?.[v === 'on' ? 0 : 1] || (v === 'on' ? 'On' : 'Off');
+    if (d === 'binary_sensor') val = tr(BIN_LABEL[a.device_class]?.[v === 'on' ? 0 : 1] || (v === 'on' ? 'On' : 'Off'));
     else if (!isNaN(parseFloat(v)) && isFinite(v)) { const x = parseFloat(v); val = `${Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 10) / 10}${a.unit_of_measurement ? ' ' + a.unit_of_measurement : ''}`; }
-    else val = pretty(v);
+    else val = tr(pretty(v));
     const active = this.on(id) || (d === 'climate' && this.climOn(id));
     return `<div class="mrow ${active ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(val)}</b></div>`;
   }
@@ -2350,7 +2449,7 @@ export class SweetHomeCard extends HTMLElement {
     let THREE;
     THREE = this._THREE || THREE_LIB; // tests swap in a renderer stub
     let scene;
-    try { scene = new HouseScene(THREE, this); await scene.ready; }
+    try { scene = new HouseScene(THREE, this); scene.arrange = !!this._arrange; await scene.ready; }
     catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.</span>`; return; }
     this._three = scene;
     if (!this.isConnected) scene.pause();
@@ -2379,6 +2478,7 @@ class HouseScene {
     this.cam = new T.PerspectiveCamera(38, 1, 0.1, 200);
     this.mode = 'lights'; this.sel = null; this.hover = null;
     this.rooms = {}; this.pick = []; this.doors = []; this.acs = []; this.stairDots = [];
+    this.lv = {}; this.level = card._level ?? 0; this._cl = 0; // one group per floor; only the shown floor is visible
     // default camera: angled 3D view on a PC (mouse), top-down floor plan on phones / tablets (touch)
     this.vmode = matchMedia('(pointer: fine)').matches && !matchMedia('(pointer: coarse)').matches ? '3d' : 'top';
     this.orbit = { theta: 0, phi: 0.08, radius: 27, target: new T.Vector3(0, 0, 0) };
@@ -2437,6 +2537,18 @@ class HouseScene {
   resume() { this.running = true; this._wake?.(); }
 
   w(x, z) { return [x - CX, z - CZ]; }
+  // the group of the floor that is being built (`_cl`)
+  _at() {
+    const l = this._cl ?? 0; let g = this.lv[l];
+    if (!g) { g = this.lv[l] = new this.T.Group(); g.userData.level = l; g.visible = l === this.level; this.scene.add(g); }
+    return g;
+  }
+  setLevel(l) {
+    this.level = l; for (const k in this.lv) this.lv[k].visible = Number(k) === l;
+    this.hover = null; this.hoverF = null; this.renderer.shadowMap.needsUpdate = true; this._dirty = true;
+  }
+  // a hit counts only when everything above it is shown (the other floors are hidden, not removed)
+  _shown(o) { for (let n = o; n; n = n.parent) if (!n.visible) return false; return true; }
 
   _lights() {
     const T = this.T;
@@ -2503,7 +2615,8 @@ class HouseScene {
     const T = this.T;
     const texCache = {};
     for (const r of ROOMS) {
-      const grp = new T.Group(); this.scene.add(grp);
+      this._cl = r.level;
+      const grp = new T.Group(); this._at().add(grp);
       const mats = [];
       let minx = 1e9, minz = 1e9, maxx = -1e9, maxz = -1e9, area = 0, sx = 0, sz = 0;
       for (const [x1, z1, x2, z2] of (r.floorRects || r.rects)) {
@@ -2580,12 +2693,12 @@ class HouseScene {
         if (sides.includes('w')) edge(0, 0, dx, 0, 0, 0, dx, 256);
         if (sides.includes('e')) edge(256, 0, 256 - dx, 0, 256 - dx, 0, dx, 256);
         const plane = new T.Mesh(new T.PlaneGeometry(x2 - x1 - 0.1, z2 - z1 - 0.1), new T.MeshBasicMaterial({ map: new T.CanvasTexture(c), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
-        const [px, pz] = this.w((x1 + x2) / 2, (z1 + z2) / 2); plane.rotation.x = -Math.PI / 2; plane.position.set(px, 0.025, pz); this.scene.add(plane); planes.push(plane);
+        const [px, pz] = this.w((x1 + x2) / 2, (z1 + z2) / 2); plane.rotation.x = -Math.PI / 2; plane.position.set(px, 0.025, pz); this._at().add(plane); planes.push(plane);
         // the strip itself: thin glowing bars along the inside of the wall tops
         const bar = (ax, az, bx, bz) => {
           const len = Math.hypot(bx - ax, bz - az); const horiz = az === bz;
           const m = new T.Mesh(new T.BoxGeometry(horiz ? len : 0.04, 0.04, horiz ? 0.04 : len), lineMat);
-          const [mx, mz] = this.w((ax + bx) / 2, (az + bz) / 2); m.position.set(mx, WALL_H - 0.12, mz); this.scene.add(m); // v1.21.12: below the wall top (was -0.05)
+          const [mx, mz] = this.w((ax + bx) / 2, (az + bz) / 2); m.position.set(mx, WALL_H - 0.12, mz); this._at().add(m); // v1.21.12: below the wall top (was -0.05)
         };
         const i = 0.1;
         // v1.21.13: the solid strip bars are no longer drawn  — the halo + wall glow show where the strip is.
@@ -2597,13 +2710,13 @@ class HouseScene {
           const lx = sd === 'w' ? x1 + i + 0.02 : sd === 'e' ? x2 - i - 0.02 : (x1 + x2) / 2, lz = sd === 'n' ? z1 + i + 0.02 : sd === 's' ? z2 - i - 0.02 : (z1 + z2) / 2;
           const [wx, wz] = this.w(lx, lz), rotY = { n: 0, s: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 }[sd];
           const wash = new T.Mesh(new T.PlaneGeometry(len, WALL_H - 0.18), new T.MeshBasicMaterial({ map: this._grad('v'), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
-          wash.position.set(wx, (WALL_H - 0.18) / 2, wz); wash.rotation.y = rotY; this.scene.add(wash); washes.push(wash);
+          wash.position.set(wx, (WALL_H - 0.18) / 2, wz); wash.rotation.y = rotY; this._at().add(wash); washes.push(wash);
           const ribbon = new T.Mesh(new T.PlaneGeometry(horiz ? len : 0.36, horiz ? 0.36 : len), new T.MeshBasicMaterial({ map: this._grad(horiz ? 'h' : 'w'), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
           const [rx, rz] = this.w(sd === 'w' ? x1 + i + 0.2 : sd === 'e' ? x2 - i - 0.2 : lx, sd === 'n' ? z1 + i + 0.2 : sd === 's' ? z2 - i - 0.2 : lz);
-          ribbon.rotation.x = -Math.PI / 2; ribbon.position.set(rx, WALL_H - 0.14, rz); this.scene.add(ribbon); ribbons.push(ribbon);
+          ribbon.rotation.x = -Math.PI / 2; ribbon.position.set(rx, WALL_H - 0.14, rz); this._at().add(ribbon); ribbons.push(ribbon);
         }
       });
-      const spl = new T.PointLight(R.stripCol, 0, span * 1.1, 1.2); spl.position.set(R.cx, WALL_H - 0.3, R.cz); this.scene.add(spl);
+      const spl = new T.PointLight(R.stripCol, 0, span * 1.1, 1.2); spl.position.set(R.cx, WALL_H - 0.3, R.cz); this._at().add(spl);
       R.strip = { planes, washes, ribbons, lineMat, pl: spl };
     }
     if (types.includes('spots')) {
@@ -2628,11 +2741,11 @@ class HouseScene {
       const discGeo = new T.CylinderGeometry(0.11, 0.11, 0.03, 20), poolGeo = new T.CircleGeometry(0.75, 28), beamGeo = new T.ConeGeometry(0.55, 2.2, 24, 1, true);
       for (const [x, z] of pts) {
         const [sx, sz] = this.w(x, z);
-        const dsk = new T.Mesh(discGeo, discMat); dsk.position.set(sx, 2.25, sz); this.scene.add(dsk);
-        const pool = new T.Mesh(poolGeo, poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(sx, 0.03, sz); this.scene.add(pool);
-        const beam = new T.Mesh(beamGeo, beamMat); beam.position.set(sx, 1.14, sz); this.scene.add(beam); // apex at the spot, widening to the floor
+        const dsk = new T.Mesh(discGeo, discMat); dsk.position.set(sx, 2.25, sz); this._at().add(dsk);
+        const pool = new T.Mesh(poolGeo, poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(sx, 0.03, sz); this._at().add(pool);
+        const beam = new T.Mesh(beamGeo, beamMat); beam.position.set(sx, 1.14, sz); this._at().add(beam); // apex at the spot, widening to the floor
       }
-      const spotPl = new T.PointLight(0xffd2a0, 0, span * 1.2, 1.1); spotPl.position.set(R.cx, 2.0, R.cz); this.scene.add(spotPl);
+      const spotPl = new T.PointLight(0xffd2a0, 0, span * 1.2, 1.1); spotPl.position.set(R.cx, 2.0, R.cz); this._at().add(spotPl);
       R.spots = { discMat, poolMat, beamMat, pl: spotPl, n: pts.length };
     }
     // TV backlight: a glow on the wall behind the TV plus a little coloured light
@@ -2644,12 +2757,12 @@ class HouseScene {
       for (const [blur, lw, a] of [[60, 18, 0.5], [30, 10, 0.7], [12, 5, 1]]) { tg.globalAlpha = a; tg.shadowBlur = blur; tg.lineWidth = lw; tg.strokeRect(rx, ry, rw, rh); }
       const tvPlane = new T.Mesh(new T.PlaneGeometry(PW, PH), new T.MeshBasicMaterial({ map: new T.CanvasTexture(tc), color: R.tvCol, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide, toneMapped: false }));
       const [tx, tz] = this.w(G.x, G.z), cy = G.y + G.h / 2;
-      tvPlane.position.set(tx, cy, tz + 0.04); this.scene.add(tvPlane);
+      tvPlane.position.set(tx, cy, tz + 0.04); this._at().add(tvPlane);
       const sm = new T.MeshBasicMaterial({ color: R.tvCol, transparent: true, opacity: 0, toneMapped: false });
       const t = 0.03, strips = [[G.w + t, t, 0, G.h / 2], [G.w + t, t, 0, -G.h / 2], [t, G.h, -G.w / 2, 0], [t, G.h, G.w / 2, 0]].map(([w, h, ox, oy]) => {
-        const m = new T.Mesh(new T.BoxGeometry(w, h, 0.02), sm); m.position.set(tx + ox, cy + oy, tz); this.scene.add(m); return m;
+        const m = new T.Mesh(new T.BoxGeometry(w, h, 0.02), sm); m.position.set(tx + ox, cy + oy, tz); this._at().add(m); return m;
       });
-      const tpl = new T.PointLight(R.tvCol, 0, 6, 1.2); tpl.position.set(tx, cy, tz - 0.35); this.scene.add(tpl);
+      const tpl = new T.PointLight(R.tvCol, 0, 6, 1.2); tpl.position.set(tx, cy, tz - 0.35); this._at().add(tpl);
       R.tv = { plane: tvPlane, pl: tpl, sm };
     }
   }
@@ -2665,9 +2778,10 @@ class HouseScene {
       const geo = new T.BoxGeometry(horiz ? len + thick : thick, h, horiz ? thick : len + thick);
       const m = new T.Mesh(geo, mat);
       const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
-      m.position.set(cx, y0 + h / 2, cz); m.castShadow = cast; m.receiveShadow = true; this.scene.add(m); return m;
+      m.position.set(cx, y0 + h / 2, cz); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
     };
-    for (const [x1, z1, x2, z2, type] of WALLS) {
+    for (const [x1, z1, x2, z2, type, lvl] of WALLS) {
+      this._cl = lvl ?? 0;
       const outer = x1 === x2 ? (x1 === 0 || x1 === PLAN_W) : (z1 === 0 || z1 === PLAN_D);
       const t = outer ? 0.22 : 0.12;
       if (type === 'rail') {
@@ -2691,10 +2805,12 @@ class HouseScene {
     const mats = {};
     const M = (c, o = {}) => (mats[c + JSON.stringify(o)] ||= new T.MeshStandardMaterial({ color: c, roughness: o.r ?? 0.75, metalness: o.m ?? 0, emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 0, transparent: !!o.op, opacity: o.op ?? 1 }));
     let cur = null; // the piece being built, when it has entities: its meshes can be tapped
-    const tag = m => { if (cur) { m.userData.furn = cur.idx; cur.meshes.push(m); } return m; };
+    let curIdx = null; // the piece being built (any piece): arrange mode drags it
+    const tag = m => { if (curIdx != null) m.userData.fi = curIdx; if (cur) { m.userData.furn = cur.idx; cur.meshes.push(m); } return m; };
+    this.fmov = {};
     const add = (room, geo, mat, x, y, z, shadow = true) => {
       const m = new T.Mesh(geo, mat); const [cx, cz] = this.w(x, z); m.position.set(cx, y, cz);
-      m.castShadow = shadow; m.receiveShadow = true; m.userData.room = room; this.scene.add(m); this.pick.push(m); return tag(m);
+      m.castShadow = shadow; m.receiveShadow = true; m.userData.room = room; this._at().add(m); this.pick.push(m); return tag(m);
     };
     // axis-aligned box by center
     const box = (room, x, z, w, d, h, color, y = 0, o) => add(room, new T.BoxGeometry(w, h, d), M(color, o), x, y + h / 2, z);
@@ -2758,7 +2874,7 @@ class HouseScene {
         const roof = new T.Mesh(geo, M(0xf5f5f4, { r: 0.6 }));
         roof.position.set(hb.position.x, opts.hbH || 1.0, hb.position.z);
         if (alongX) roof.rotation.y = Math.PI / 2; // headboard runs along z for beds whose head is on an east/west wall
-        roof.castShadow = true; roof.userData.room = room; this.scene.add(roof); this.pick.push(roof); tag(roof);
+        roof.castShadow = true; roof.userData.room = room; this._at().add(roof); this.pick.push(roof); tag(roof);
         (this.roofs ||= []).push(roof);
       }
     };
@@ -2774,17 +2890,19 @@ class HouseScene {
     const plant = (room, x, z, s = 1) => { cyl(room, x, z, 0.2 * s, 0.38 * s, 0xd6cfc4, 0, { r: 0.6 }); ball(room, x, z, 0.32 * s, 0x2f6b3a, 0.62 * s); ball(room, x + 0.12 * s, z - 0.08 * s, 0.22 * s, 0x3f8a4c, 0.85 * s); };
 
     // pieces from the config (house.furniture / room.furniture, or the automatic set for automatic rooms)
-    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = [];
+    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = []; this.blinds = []; this.vacuums = [];
     const N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const C = (v, d) => toColor(v, d);
     const opt = f => ({ r: N(f.roughness, 0.75), m: N(f.metalness, 0), op: f.opacity != null ? N(f.opacity, 1) : undefined, e: f.emissive, ei: f.emissive ? N(f.emissive_intensity, 0.6) : 0 });
     const floorGlow = (x, z, r, color, y = 0.01) => {
       const g = new T.Mesh(new T.CircleGeometry(r, 32), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
-      const [gx, gz] = this.w(x, z); g.rotation.x = -Math.PI / 2; g.position.set(gx, y, gz); this.scene.add(g); return g;
+      const [gx, gz] = this.w(x, z); g.rotation.x = -Math.PI / 2; g.position.set(gx, y, gz); this._at().add(g); return g;
     };
     for (const f of FURN) {
       const rm = f.room || null;
       cur = f.entities?.length ? { idx: f.idx, f, meshes: [] } : null;
+      this._cl = f.level ?? 0; curIdx = f.idx;
+      const before = this._at().children.length;
       try {
         switch (f.type) {
           case 'box': box(rm, N(f.x, 0), N(f.z, 0), N(f.w, 0.5), N(f.d, 0.5), N(f.h, 0.5), C(f.color, 0x8b6b45), N(f.y, 0), opt(f)); break;
@@ -2806,7 +2924,7 @@ class HouseScene {
             const m = box(rm, N(f.x, 0), N(f.z, 0), 0.09, 0.17, 0.015, 0x0b1020, N(f.y, 0.55), { r: 0.2, e: 0x34d399, ei: 0 });
             m.material = m.material.clone();
             const glow = new T.Mesh(new T.CircleGeometry(0.32, 32), new T.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
-            const [gx, gz] = this.w(N(f.x, 0), N(f.z, 0)); glow.rotation.x = -Math.PI / 2; glow.position.set(gx, N(f.y, 0.55) + 0.017, gz); this.scene.add(glow);
+            const [gx, gz] = this.w(N(f.x, 0), N(f.z, 0)); glow.rotation.x = -Math.PI / 2; glow.position.set(gx, N(f.y, 0.55) + 0.017, gz); this._at().add(glow);
             this.chargers.push({ m, glow, plug: f.plug, power: f.power, t: 0 }); break;
           }
           case 'stairs': this._stairs(f); break;
@@ -2822,7 +2940,7 @@ class HouseScene {
           case 'fan': { // ceiling fan: the blades turn while the fan is on
             const x = N(f.x, 0), z = N(f.z, 0), y = N(f.y, 2.1), rad = N(f.radius, 0.6);
             cyl(rm, x, z, 0.07, 0.08, C(f.color, 0xe5e7eb), y, { r: 0.5 });
-            const g = new T.Group(); const [gx, gz] = this.w(x, z); g.position.set(gx, y + 0.03, gz); this.scene.add(g);
+            const g = new T.Group(); const [gx, gz] = this.w(x, z); g.position.set(gx, y + 0.03, gz); this._at().add(g);
             const bm = M(C(f.blade, 0x8b6b45), { r: 0.6 });
             for (let i = 0; i < 4; i++) {
               const a = i * Math.PI / 2, b = new T.Mesh(new T.BoxGeometry(rad, 0.015, 0.12), bm);
@@ -2839,13 +2957,34 @@ class HouseScene {
             this.markers.push({ m, glow: floorGlow(x, z, 0.45, col), entity: f.entities[0] || null, t: 0 });
             break;
           }
+          case 'blinds': { // a blind over a window: rolls down as the cover closes (follows its position)
+            const x0 = N(f.x0, 0), z0 = N(f.z0, 0), x1 = N(f.x1, 1), z1 = N(f.z1, 0), alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
+            const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0), y0 = N(f.y, 0.75), hh = N(f.h, Math.max(0.3, WALL_H - y0 - 0.04));
+            const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+            box(rm, cx, cz, alongX ? len + 0.04 : 0.09, alongX ? 0.09 : len + 0.04, 0.06, C(f.color, 0x475569), y0 + hh, { r: 0.5 });
+            const geo = new T.BoxGeometry(alongX ? len : 0.025, hh, alongX ? 0.025 : len); geo.translate(0, -hh / 2, 0);
+            const m = add(rm, geo, M(C(f.shade, 0xe7e5e4), { r: 0.9 }), cx, y0 + hh, cz, false);
+            m.scale.y = 0.04; this.blinds.push({ m, entity: f.entities[0] || null, t: 0.04, c: 0.04 });
+            break;
+          }
+          case 'vacuum': { // a robot vacuum: drives around its room while it cleans, back to its dock after
+            const x = N(f.x, 0), z = N(f.z, 0);
+            box(rm, x, z, 0.36, 0.14, 0.1, 0x1f2937, 0, { r: 0.4 }); // the dock
+            const g = new T.Group(); const [gx, gz] = this.w(x, z + 0.24); g.position.set(gx, 0, gz); this._at().add(g);
+            const body = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.08, 28), M(C(f.color, 0xe5e7eb), { r: 0.35 })); body.position.y = 0.05; body.castShadow = true;
+            const led = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.02, 16), new T.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x2dd4bf, emissiveIntensity: 0.2 })); led.position.y = 0.1;
+            body.userData.room = rm; led.userData.room = rm; g.add(body, led); this.pick.push(body); tag(body);
+            this.vacuums.push({ g, led, entity: f.entities[0] || null, dock: [gx, gz], room: rm, st: 'docked', goal: null });
+            break;
+          }
           default: console.warn('sweet-home: unknown furniture type', f.type);
         }
       } catch (err) { console.warn('sweet-home: furniture', f, err); }
+      this.fmov[f.idx] = this._at().children.slice(before); curIdx = null;
       if (cur && cur.meshes.length) { // where its badge floats: above the middle of the piece
         const bb = new T.Box3(); for (const m of cur.meshes) { m.updateWorldMatrix(true, false); bb.expandByObject(m); }
         const c = bb.getCenter(new T.Vector3());
-        this.fpieces.push({ ...cur, x: c.x, z: c.z, y: bb.max.y + 0.15 });
+        this.fpieces.push({ ...cur, x: c.x, z: c.z, y: bb.max.y + 0.15, dyn: f.type === 'vacuum' ? this.vacuums[this.vacuums.length - 1]?.g : null });
       }
     }
     this._furnBadges();
@@ -2862,9 +3001,9 @@ class HouseScene {
     const step = (along, a0, a1, y) => { // along: position along the climb; a0..a1: across
       const geo = alongX ? new T.BoxGeometry(run, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, run);
       const s = new T.Mesh(geo, stone); const [cx, cz] = alongX ? this.w(along, (a0 + a1) / 2) : this.w((a0 + a1) / 2, along);
-      s.position.set(cx, y, cz); s.castShadow = s.receiveShadow = true; s.userData.room = room; this.scene.add(s); this.pick.push(s);
+      s.position.set(cx, y, cz); s.castShadow = s.receiveShadow = true; s.userData.room = room; if (f.idx != null) s.userData.fi = f.idx; this._at().add(s); this.pick.push(s);
       const nose = new T.Mesh(alongX ? new T.BoxGeometry(0.03, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, 0.03), edge);
-      nose.position.set(cx - (alongX ? run / 2 : 0), y, cz - (alongX ? 0 : run / 2)); this.scene.add(nose);
+      nose.position.set(cx - (alongX ? run / 2 : 0), y, cz - (alongX ? 0 : run / 2)); this._at().add(nose);
     };
     const a0 = alongX ? z0 : x0, a1 = alongX ? z1 : x1, mid = (a0 + a1) / 2, s0 = alongX ? x0 : z0;
     for (let i = 0; i < n; i++) {
@@ -2874,10 +3013,10 @@ class HouseScene {
     }
     if (mode === 'split') {
       const [hx, hz] = alongX ? this.w(s0 + len / 2, mid) : this.w(mid, s0 + len / 2);
-      const hr = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.05, 0.05) : new T.BoxGeometry(0.05, 0.05, len), rail); hr.position.set(hx, 0.95, hz); this.scene.add(hr);
-      for (let i = 0; i <= 4; i++) { const q = s0 + len * i / 4; const [px, pz] = alongX ? this.w(q, mid) : this.w(mid, q); const pst = new T.Mesh(new T.BoxGeometry(0.04, 0.95, 0.04), rail); pst.position.set(px, 0.475, pz); this.scene.add(pst); }
+      const hr = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.05, 0.05) : new T.BoxGeometry(0.05, 0.05, len), rail); hr.position.set(hx, 0.95, hz); this._at().add(hr);
+      for (let i = 0; i <= 4; i++) { const q = s0 + len * i / 4; const [px, pz] = alongX ? this.w(q, mid) : this.w(mid, q); const pst = new T.Mesh(new T.BoxGeometry(0.04, 0.95, 0.04), rail); pst.position.set(px, 0.475, pz); this._at().add(pst); }
       const voidM = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.02, (a1 - a0) / 2) : new T.BoxGeometry((a1 - a0) / 2, 0.02, len), new T.MeshBasicMaterial({ color: 0x05070c }));
-      const [vx, vz] = alongX ? this.w(s0 + len / 2, (mid + a1) / 2) : this.w((mid + a1) / 2, s0 + len / 2); voidM.position.set(vx, -n * rise - 0.1, vz); this.scene.add(voidM);
+      const [vx, vz] = alongX ? this.w(s0 + len / 2, (mid + a1) / 2) : this.w((mid + a1) / 2, s0 + len / 2); voidM.position.set(vx, -n * rise - 0.1, vz); this._at().add(voidM);
     }
     // motion dots: one per motion sensor of the stairs, spread along the flight
     const motion = f.motion ? [].concat(f.motion) : (ROOM[room]?.motion || []);
@@ -2885,7 +3024,7 @@ class HouseScene {
       const t = (i + 0.5) / motion.length, along = s0 + len * t, y = mode === 'down' ? -t * n * rise : t * n * rise * (mode === 'split' && i % 2 ? -1 : 1);
       const across = mode === 'split' ? (i % 2 ? (mid + a1) / 2 : (a0 + mid) / 2) : mid;
       const m = new T.Mesh(new T.SphereGeometry(0.1, 16, 16), new T.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.15 }));
-      const [cx, cz] = alongX ? this.w(along, across) : this.w(across, along); m.position.set(cx, y + 0.3, cz); this.scene.add(m);
+      const [cx, cz] = alongX ? this.w(along, across) : this.w(across, along); m.position.set(cx, y + 0.3, cz); this._at().add(m);
       this.stairDots.push({ id, m });
     });
   }
@@ -2905,12 +3044,14 @@ class HouseScene {
   _buildDoors() {
     const T = this.T;
     for (const d of DOORS) {
+      this._cl = d.level ?? 0;
       const pivot = new T.Group(); const [px, pz] = this.w(d.x, d.z); pivot.position.set(px, 0, pz);
       const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
-      const geo = d.axis === 'z' ? new T.BoxGeometry(0.06, 1.25, d.w) : new T.BoxGeometry(d.w, 1.25, 0.06);
+      const dh = Math.max(0.5, WALL_H - 0.08);
+      const geo = d.axis === 'z' ? new T.BoxGeometry(0.06, dh, d.w - 0.04) : new T.BoxGeometry(d.w - 0.04, dh, 0.06);
       const panel = new T.Mesh(geo, mat); panel.castShadow = true;
-      if (d.axis === 'z') panel.position.set(0, 0.625, d.dir * d.w / 2); else panel.position.set(d.dir * d.w / 2, 0.625, 0);
-      pivot.add(panel); this.scene.add(pivot);
+      if (d.axis === 'z') panel.position.set(0, dh / 2, d.dir * d.w / 2); else panel.position.set(d.dir * d.w / 2, dh / 2, 0);
+      pivot.add(panel); this._at().add(pivot);
       // open angle: leaf along +z rotates toward +x with +y rotation; leaf along +x rotates toward -z
       const ang = d.axis === 'z' ? 1.35 * d.side * d.dir : -1.35 * d.side * d.dir;
       this.doors.push({ d, pivot, mat, a: 0, ang });
@@ -2918,7 +3059,7 @@ class HouseScene {
     // smart-lock badges (house.lock_badges): green while locked, pulsing red while unlocked
     this.badges = BADGES.map(b => {
       const m = new this.T.Mesh(b.axis === 'x' ? new this.T.BoxGeometry(0.13, 0.22, 0.05) : new this.T.BoxGeometry(0.05, 0.22, 0.13), new this.T.MeshStandardMaterial({ color: 0x111827, roughness: 0.3, metalness: 0.5, emissive: 0x34d399, emissiveIntensity: 0 }));
-      const [bx, bz] = this.w(b.x, b.z); m.position.set(bx, b.y, bz); this.scene.add(m); return { b, m, t: 0 };
+      const [bx, bz] = this.w(b.x, b.z); m.position.set(bx, b.y, bz); this._cl = b.level ?? 0; this._at().add(m); return { b, m, t: 0 };
     });
     // (the floor glow under the badge was removed on request, v1.12.26: the badge alone shows the state)
   }
@@ -2927,14 +3068,15 @@ class HouseScene {
     const T = this.T;
     for (const r of ROOMS) {
       if (!r.ac) continue;
+      this._cl = r.level;
       const { x, z, dx, dz } = r.ac;
       const unit = new T.Mesh(new T.BoxGeometry(dx ? 0.22 : 0.9, 0.28, dx ? 0.9 : 0.22), new T.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4, emissive: 0x60a5fa, emissiveIntensity: 0 }));
-      const [cx, cz] = this.w(x, z); unit.position.set(cx, 1.12, cz); unit.castShadow = true; this.scene.add(unit);
+      const [cx, cz] = this.w(x, z); unit.position.set(cx, 1.12, cz); unit.castShadow = true; this._at().add(unit);
       const N = 60; const pos = new Float32Array(N * 3); const life = new Float32Array(N);
       for (let i = 0; i < N; i++) life[i] = Math.random();
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3));
       const pts = new T.Points(g, new T.PointsMaterial({ color: 0x93c5fd, size: 0.09, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
-      this.scene.add(pts);
+      this._at().add(pts);
       this.acs.push({ r, unit, pts, life, cx, cz, dx, dz, on: 0, onT: 0 });
     }
   }
@@ -2961,13 +3103,45 @@ class HouseScene {
     const ray = new T.Raycaster(); const v2 = new T.Vector2();
     const pickAt = (cx, cy) => {
       const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
-      ray.setFromCamera(v2, this.cam); const hit = ray.intersectObjects(this.pick, false)[0]; return hit?.object.userData.room || null;
+      ray.setFromCamera(v2, this.cam); const hit = ray.intersectObjects(this.pick, false).find(h => this._shown(h.object)); return hit?.object.userData.room || null;
     };
     // a furniture piece with entities under the pointer (its index), or null
     const furnAt = (cx, cy) => {
       const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
-      ray.setFromCamera(v2, this.cam); const u = ray.intersectObjects(this.pick, false)[0]?.object.userData; return u && u.furn != null ? u.furn : null;
+      ray.setFromCamera(v2, this.cam); const u = ray.intersectObjects(this.pick, false).find(h => this._shown(h.object))?.object.userData; return u && u.furn != null ? u.furn : null;
     };
+    // arrange mode: a piece under the finger is dragged across the floor instead of turning the view
+    const fiAt = (cx, cy) => {
+      const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
+      ray.setFromCamera(v2, this.cam); const u = ray.intersectObjects(this.pick, false).find(h => this._shown(h.object))?.object.userData; return u && u.fi != null ? u.fi : null;
+    };
+    const floorPt = (cx, cy) => {
+      const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
+      ray.setFromCamera(v2, this.cam); return ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), new T.Vector3());
+    };
+    let mv = null;
+    el.addEventListener('pointerdown', e => {
+      if (!this.arrange || !e.isPrimary) return;
+      const fi = fiAt(e.clientX, e.clientY), p0 = fi != null && floorPt(e.clientX, e.clientY); if (fi == null || !p0) return;
+      const objs = this.fmov[fi] || [];
+      mv = { fi, p0, objs, orig: objs.map(o => o.position.clone()), dx: 0, dz: 0 };
+      e.stopImmediatePropagation(); try { el.setPointerCapture(e.pointerId); } catch (err) { /* gone */ }
+      el.style.cursor = 'grabbing'; this.lastInput = performance.now();
+    }, true);
+    el.addEventListener('pointermove', e => {
+      if (!mv) return; e.stopImmediatePropagation();
+      const p = floorPt(e.clientX, e.clientY); if (!p) return;
+      const snap = v => Math.round(v / 0.1) * 0.1; mv.dx = snap(p.x - mv.p0.x); mv.dz = snap(p.z - mv.p0.z);
+      mv.objs.forEach((o, i) => { o.position.x = mv.orig[i].x + mv.dx; o.position.z = mv.orig[i].z + mv.dz; });
+      this.renderer.shadowMap.needsUpdate = true; this.lastInput = performance.now(); this._dirty = true;
+    }, true);
+    const mvEnd = e => {
+      if (!mv) return; e.stopImmediatePropagation(); const m = mv; mv = null; el.style.cursor = '';
+      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) return;
+      const undo = () => { m.objs.forEach((o, i) => o.position.copy(m.orig[i])); this.renderer.shadowMap.needsUpdate = true; this._dirty = true; };
+      this.card._arrangeMove(FURN[m.fi], Math.round(m.dx * 100) / 100, Math.round(m.dz * 100) / 100, undo);
+    };
+    el.addEventListener('pointerup', mvEnd, true); el.addEventListener('pointercancel', e => { if (mv) { mv.dx = mv.dz = 0; mvEnd(e); } }, true);
     el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('pointerdown', e => {
       // a new first finger means no other pointer is really down: drop any that never sent pointerup
@@ -2999,6 +3173,7 @@ class HouseScene {
         const now = performance.now(); if (now - (this._lh || 0) < 50) return; this._lh = now;
         const r = pickAt(e.clientX, e.clientY), fi = furnAt(e.clientX, e.clientY);
         if (r !== this.hover || fi !== this.hoverF) { this.hover = r; this.hoverF = fi; el.style.cursor = r || fi != null ? 'pointer' : 'grab'; this.sync(); }
+        if (this.arrange) el.style.cursor = fiAt(e.clientX, e.clientY) != null ? 'move' : 'grab';
       }
     });
     const up = e => {
@@ -3091,6 +3266,9 @@ class HouseScene {
       L.t = on ? (st.attributes.brightness ? 0.35 + 0.65 * st.attributes.brightness / 255 : 1) : 0;
       const rc = st?.attributes.rgb_color; L.col.setRGB(...(rc ? rc.map(x => x / 255) : [1, 0.76, 0.48]));
     }
+    // blinds: how far down (0 open … 1 closed); robot vacuums: what they are doing
+    for (const B of this.blinds || []) { const st = c.s(B.entity); if (!st) continue; const p = st.attributes.current_position; B.t = Math.max(0.04, p != null ? 1 - p / 100 : st.state === 'closed' ? 1 : st.state === 'closing' ? 0.6 : 0.04); }
+    for (const V of this.vacuums || []) V.st = c.v(V.entity) || 'docked';
     for (const F of this.fans || []) { const st = c.s(F.entity); F.on = st?.state === 'on' ? 1 : 0; F.sp = F.on ? 0.5 + 1.5 * ((st.attributes.percentage ?? 60) / 100) : 0; }
     for (const P of this.markers || []) { const v = c.v(P.entity); P.t = BAD.includes(v ?? '') ? -1 : c.on(P.entity) || (P.entity.startsWith('climate.') && c.climOn(P.entity)) ? 1 : 0; }
     // furniture badges: a dot; the entity's icon while it is on, its room is open or the pointer is over it
@@ -3110,7 +3288,7 @@ class HouseScene {
     const dv = day.toFixed(2); if (this._dayV !== dv) { this._dayV = dv; this.vp.style.setProperty('--day', dv); }
     // battery: HA pushes state changes all the time; redraw only when something the scene shows changed
     const sg = [Object.values(this.rooms).map(R => [R.litT, R.stripT || 0, R.spotT || 0, R.tvT || 0, R.stripCol ? R.stripCol.getHex() : 0, R.tvCol ? R.tvCol.getHex() : 0, R.motion, R.anyLit, R.temp]),
-      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
+      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
     if (sg !== this._syncSig) { this._syncSig = sg; this._dirty = true; }
   }
 
@@ -3259,6 +3437,22 @@ class HouseScene {
       L.glow.material.opacity = (L.m.material.emissiveIntensity / 1.6) * 0.32 * (this.mode === 'lights' ? 1 : 0.55);
     }
     for (const F of this.fans || []) { if (F.sp) { F.g.rotation.y -= dt * F.sp * 6; anim = true; } }
+    for (const B of this.blinds || []) { const d = B.t - B.c; if (Math.abs(d) > 0.002) { B.c += d * Math.min(1, dt * 3); B.m.scale.y = B.c; mv += Math.abs(d); } }
+    for (const V of this.vacuums || []) {
+      const p = V.g.position, cleaning = V.st === 'cleaning';
+      if (cleaning) { // wander: a new random spot in the room each time it gets there
+        if (!V.goal || Math.hypot(V.goal[0] - p.x, V.goal[1] - p.z) < 0.05) {
+          const rs = ROOM[V.room]?.rects || [[0, 0, 1, 1]], q = rs[Math.floor(Math.random() * rs.length)];
+          V.goal = this.w(q[0] + 0.3 + Math.random() * Math.max(0, q[2] - q[0] - 0.6), q[1] + 0.3 + Math.random() * Math.max(0, q[3] - q[1] - 0.6));
+        }
+      } else V.goal = V.st === 'returning' || Math.hypot(V.dock[0] - p.x, V.dock[1] - p.z) > 0.02 ? V.dock : null;
+      if (V.goal) {
+        const dx = V.goal[0] - p.x, dz = V.goal[1] - p.z, d = Math.hypot(dx, dz), step = Math.min(d, dt * 0.45);
+        if (d > 0.001) { p.x += dx / d * step; p.z += dz / d * step; V.g.rotation.y = Math.atan2(dx, dz); anim = true; mv += step; }
+      }
+      V.led.material.emissive.setHex(cleaning ? 0x2dd4bf : V.st === 'error' ? 0xf43f5e : V.st === 'returning' ? 0xfbbf24 : 0x64748b);
+      V.led.material.emissiveIntensity = cleaning ? 1 + 0.6 * Math.sin(tt * 4) : 0.5; if (cleaning) anim = true;
+    }
     for (const P of this.markers || []) {
       const t = P.t === 1 ? 1.1 + 0.4 * Math.sin(tt * 3) : P.t === -1 ? 0 : 0.15;
       P.m.material.emissiveIntensity += (t - P.m.material.emissiveIntensity) * Math.min(1, dt * 5);
@@ -3274,14 +3468,15 @@ class HouseScene {
     for (const id in this.rooms) {
       const R = this.rooms[id]; const el = this.lbls[id];
       v.set(R.cx, R.r.labelY ?? 1.75, R.cz).project(this.cam);
-      if (v.z > 1) { el.style.display = 'none'; continue; }
+      if (v.z > 1 || R.r.level !== this.level) { el.style.display = 'none'; continue; }
       el.style.display = '';
       el.style.transform = `translate(-50%,-100%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
     }
     for (const P of this.fpieces || []) {
       if (!P.el) continue;
-      v.set(P.x, P.y, P.z).project(this.cam);
-      if (v.z > 1) { P.el.style.display = 'none'; continue; }
+      if (P.dyn) v.set(P.dyn.position.x, P.y, P.dyn.position.z); else v.set(P.x, P.y, P.z);
+      v.project(this.cam);
+      if (v.z > 1 || (P.f.level ?? 0) !== this.level) { P.el.style.display = 'none'; continue; }
       P.el.style.display = '';
       P.el.style.transform = `translate(-50%,-50%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
     }
@@ -3710,8 +3905,21 @@ main{scroll-margin-top:84px}
 .fb.big{width:26px;height:26px;background:rgba(8,12,24,.8);border:1px solid rgba(255,255,255,.18)}.fb ha-icon{--mdc-icon-size:15px;color:var(--mu)}
 .fb.on{background:var(--amber);box-shadow:0 0 12px -2px var(--amber)}.fb.on.big{background:rgba(251,191,36,.22);border-color:rgba(251,191,36,.7)}.fb.on ha-icon{color:var(--amber)}
 .fb.na{background:var(--rose)}.fb.na.big{background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.6)}.fb.na ha-icon{color:var(--rose)}
+[dir=rtl] .drawer{right:auto;left:12px;transform:translateX(calc(-100% - 20px));box-shadow:20px 0 50px -20px rgba(0,0,0,.6)}[dir=rtl] .drawer.open{transform:none}
+[dir=rtl] .lvls{right:auto;left:12px}[dir=rtl] .legend{left:auto;right:12px}[dir=rtl] .lrow,[dir=rtl] .mrow{text-align:right}
+[dir=rtl] #cv,[dir=rtl] .labels{direction:ltr}[dir=rtl] .lbl,[dir=rtl] .fb{direction:rtl}
+[dir=rtl]{font-family:'Noto Kufi Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
+.lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}
+.lvls button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--mu);min-height:36px}
+.lvls button.on{background:rgba(45,212,191,.2);color:var(--teal)}.lvls ha-icon{--mdc-icon-size:16px}
+.viewport:has(.drawer.open) .lvls{display:none}
+@media (pointer:coarse){.lvls button{min-height:44px}}
 .hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-radius:14px;background:rgba(8,12,24,.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
 .hint.on{display:flex;opacity:1;transform:translate(-50%,0)}.hint>ha-icon{color:var(--teal);flex:none}.hint span{flex:1}.hint .ibtn{flex:none;width:32px;height:32px}
+.rnrow{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px}
+.rnrow ha-icon{color:var(--mu);grid-row:span 2}.rnrow small{grid-column:2;font-size:10.5px;color:var(--mu);margin:2px 0 0;opacity:.8}
+.rnrow input{font:inherit;font-size:13px;color:var(--tx);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
+.rnrow input:focus{outline:none;border-color:var(--teal);background:rgba(45,212,191,.08)}.rnrow.na{opacity:.6}
 .fgrp{border-radius:14px;margin-bottom:8px}.fgrp .lrow:last-child,.fgrp .mrow:last-child{margin-bottom:0}
 .fhd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--mu);margin:2px 2px 6px}.fhd ha-icon{--mdc-icon-size:16px}
 .fgrp.focus{padding:10px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.45);margin-bottom:12px}.fgrp.focus .fhd{color:var(--tx);font-size:13px}.fgrp.focus .fhd ha-icon{color:var(--teal)}

@@ -88,8 +88,13 @@ The dashboard is generated for you until you take control of it:
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
         **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
-      - **Doors & windows**: drag along a wall to add an animated door, a window or an open passage. Tap to add a lock
-        badge.
+      - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
+        (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
+        Drag any of them to move it.
+
+      **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
+      so you can line them up. Areas on a Home Assistant floor are added to that floor. In Entities mode, edit a
+      name to rename the entity in Home Assistant itself.
 
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
@@ -121,6 +126,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `modes` | Switches or input booleans shown as mode buttons (`entity`, `name`, `icon`) |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
+| `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
 
@@ -128,16 +134,18 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 
 | Option | Description |
 |---|---|
-| `rooms` | List of rooms, described below. Leave it out to build the house from your areas. |
+| `rooms` | List of rooms, described below. Leave it out to build the house from your areas (one floor per Home Assistant floor). |
+| `levels` | Floor names: `[{level: 0, name: Downstairs}, {level: 1, name: Upstairs}]` (default: the Home Assistant floor names) |
+| `doorways` | `auto` puts a doorway in every wall between two rooms. By default walls stay closed until you add `doors` or `openings`. (The house built from your areas always gets doorways.) |
 | `areas` | With automatic rooms: only these area ids |
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
-| `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]` |
-| `windows` | Window segments on the automatic outer walls |
-| `doors` | Animated doors: `entity` (contact sensor), `from: [x, z]`, `to: [x, z]`, `side` (1 / −1: which way it swings), `main` |
+| `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
+| `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
+| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall. |
 | `door_info` | Names and timeout sensors for doors in the room popup (`entity`, `name`, `timeout`) |
-| `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis` |
+| `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level` |
 | `furniture` | Furniture anywhere in the house (the same pieces as in rooms) |
 | `type: gltf`, `url`, `scale`, `rotation`, `offset`, `mesh_rooms` | Use your own 3D file instead of the drawn walls. See [examples/gltf.yaml](examples/gltf.yaml). |
 
@@ -153,6 +161,8 @@ shifted so that it starts at 0.
   icon: mdi:bed
   floor: carpet               # wood, tile, marble, carpet, stone, grass
   outdoor: false
+  level: 1                    # the floor (default 0, the ground floor)
+  stairs: true                # draw a flight of stairs (automatic for rooms named "Stairs")
   furniture: [...]            # or `false` for none
   # overrides for what was discovered:
   lights: [light.bedroom]
@@ -207,7 +217,13 @@ furniture:
 | `lamp` | `x z h size color shade entity`: the shade glows in the light's colour and brightness |
 | `fan` | `x z y radius color blade entity`: a ceiling fan whose blades turn at the fan's speed |
 | `marker` | `x z y color entity`: a device with no furniture (a sensor, a plug): a dot that lights up while it is on |
+| `blinds` | `from to y h color shade entity`: a blind along a window that rolls down with the cover's position |
+| `vacuum` | `x z color entity`: a dock and a robot that drives around the room while it cleans and goes back after |
 | all types | `entity` / `entities`, `name`, `badge` |
+
+**Move furniture in 3D**: admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
+While the card editor is open, each move goes through it (with undo). Otherwise it is saved straight into the
+dashboard. Pieces from the automatic set can be moved once their room has its own furniture (card editor → Furniture).
 
 ### `panels`
 
@@ -246,6 +262,8 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | Swipe sideways | Next or previous tab |
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
 | 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
+| Floors | The floor buttons on the 3D view switch floors; opening a room on another floor switches to it |
+| Rename | Admins: the pencil in a room's popup renames its devices in Home Assistant |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 
@@ -255,6 +273,7 @@ Locks, gate relays and other risky switches need a second tap to confirm.
 npm install
 npm run build      # → dist/sweet-home-card.js (three.js is bundled)
 npm run check      # build + module evaluation test
+npm test           # check + model tests + browser tests (npx playwright install chromium once)
 python3 -m http.server 8799   # then open http://127.0.0.1:8799/test/?config=demo
 ```
 
