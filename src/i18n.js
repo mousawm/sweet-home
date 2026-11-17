@@ -73,6 +73,9 @@ const AR = {
   North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
   Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant',
   'default name': 'الاسم الافتراضي', 'could not rename': 'تعذّرت إعادة التسمية', 'not found': 'غير موجود',
+  Parked: 'مركونة', Car: 'سيارة', Tree: 'شجرة', Hedge: 'سياج نباتي', Pool: 'مسبح', Sprinkler: 'رشاش مياه', Asphalt: 'أسفلت',
+  'Stairs going': 'اتجاه الدرج', 'Up and down': 'صعود ونزول', 'No stairs': 'بدون درج', 'Car sensor (shows the car while it is parked)': 'حساس السيارة (تظهر السيارة عندما تكون مركونة)',
+  'Valve or switch (sprays water while it is on)': 'صمام أو مفتاح (يرش الماء أثناء التشغيل)', 'Parking (asphalt)': 'موقف سيارات (أسفلت)', 'Trunk colour': 'لون الجذع',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',

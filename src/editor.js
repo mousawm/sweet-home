@@ -43,10 +43,12 @@ const NEW_PIECE = {
   bed: { width: 1.4, length: 2, head: 'n' }, sofa: { w: 2, d: 0.9, back: 'n' }, table: { w: 1.2, d: 0.8 }, chair: { face: 'n' },
   tv: { w: 1.4, h: 0.8, y: 0.6, facing: 's' }, lamp: { h: 1.5 }, fan: { radius: 0.6 }, marker: { y: 0.9 }, plant: { size: 0.8 },
   rug: { w: 2, d: 1.4 }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 }, vacuum: {},
+  car: { facing: 'n', color: '#2563eb' }, tree: { size: 1 }, sprinkler: { radius: 2 },
+  hedge: { _span: [1, 0.2], h: 0.9 }, pool: { _span: [1.5, 1] },
   // pieces given by corners: [half width, half depth] around the tap
   stairs: { _span: [1, 0.5], axis: 'x', steps: 8 }, blinds: { _span: [0.6, 0] },
 };
-const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'box', 'block', 'stairs'];
+const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
 const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
 const DIRS = ['n', 'e', 's', 'w'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
@@ -60,11 +62,13 @@ const PIECE_FIELDS = {
   sofa: [['back', sel(DIR_OPTS)], ['arms', sel([['both', 'Both'], ['start', 'Start'], ['end', 'End'], ['none', 'None']])]],
   bed: [['width', num()], ['length', num()], ['head', sel(DIR_OPTS)]], plant: [['size', num(0, 0.1, 0.2, 3, '×')]],
   tv: [['w', num()], ['h', num()], ['y', num()], ['facing', sel(DIR_OPTS)]], lamp: [['h', num()], ['size', num(0, 0.1, 0.3, 3, '×')]],
-  fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], blinds: [['y', num()], ['h', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
+  fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], blinds: [['y', num()], ['h', num()]],
+  car: [['facing', sel(DIR_OPTS)], ['length', num()], ['width', num()]], tree: [['size', num(0, 0.1, 0.3, 4, '×')]], hedge: [['h', num()]], sprinkler: [['radius', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
   stairs: [['axis', sel([['x', 'Along x'], ['z', 'Along z']])], ['mode', sel([['up', 'Up'], ['down', 'Down'], ['split', 'Split']])], ['steps', num(0, 1, 2, 30, '')]],
 };
-const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' }, blinds: { domain: 'cover' }, vacuum: { domain: 'vacuum' } };
-const PIECE_LABELS = { w: 'Width', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
+const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' }, blinds: { domain: 'cover' }, vacuum: { domain: 'vacuum' },
+  car: { domain: ['binary_sensor', 'device_tracker', 'person', 'sensor', 'input_boolean'] }, sprinkler: { domain: ['valve', 'switch', 'input_boolean'] } };
+const PIECE_LABELS = { trunk: 'Trunk colour', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
 
 const clone = o => JSON.parse(JSON.stringify(o || {}));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -90,6 +94,9 @@ function footprint(f) {
   if (t === 'fan') return circ(N(f.radius, 0.6));
   if (t === 'marker') return circ(0.14);
   if (t === 'vacuum') return { rect: [x - 0.2, z - 0.1, x + 0.2, z + 0.42] };
+  if (t === 'tree') return circ(0.8 * N(f.size, 1));
+  if (t === 'sprinkler') return circ(0.15);
+  if (t === 'car') { const L = N(f.length, 4.3), W = N(f.width, 1.8), ew = ['e', 'w'].includes(f.facing); return { rect: ew ? [x - L / 2, z - W / 2, x + L / 2, z + W / 2] : [x - W / 2, z - L / 2, x + W / 2, z + L / 2] }; }
   if (t === 'plant') return circ(0.4 * N(f.size, 1));
   if (t === 'cylinder' || t === 'ball') return circ(N(f.radius, 0.2));
   let w, d;
@@ -116,7 +123,8 @@ function sizePiece(f, x1, z1, x2, z2) {
     return;
   }
   if (f.from && f.to) { f.from = [r2(Math.min(x1, x2)), r2(Math.min(z1, z2))]; f.to = [r2(Math.max(x1, x2)), r2(Math.max(z1, z2))]; return; }
-  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger', 'vacuum'].includes(t)) return; // fixed size (or set in the form)
+  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger', 'vacuum', 'tree', 'sprinkler'].includes(t)) return;
+  if (t === 'car') { const ew = ['e', 'w'].includes(f.facing); f.x = cx; f.z = cz; f.length = ew ? w : d; f.width = ew ? d : w; return; } // fixed size (or set in the form)
   f.x = cx; f.z = cz;
   if (t === 'bed') { const ew = ['e', 'w'].includes(f.head); f.width = ew ? d : w; f.length = ew ? w : d; }
   else if (t === 'tv') f.w = ['e', 'w'].includes(f.facing) ? d : w;
@@ -125,7 +133,7 @@ function sizePiece(f, x1, z1, x2, z2) {
 // turn a piece a quarter to the right
 function turnPiece(f) {
   const next = v => DIRS[(DIRS.indexOf(v || 'n') + 1) % 4];
-  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && f.type === 'bed') || (k === 'back' && f.type === 'sofa') || (k === 'face' && f.type === 'chair') || (k === 'facing' && f.type === 'tv')) f[k] = next(f[k]);
+  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && f.type === 'bed') || (k === 'back' && f.type === 'sofa') || (k === 'face' && f.type === 'chair') || (k === 'facing' && (f.type === 'tv' || f.type === 'car'))) f[k] = next(f[k]);
   if (f.from && f.to) {
     const [a, b, c, d] = footprint(f).rect, cx = (a + c) / 2, cz = (b + d) / 2, hw = (c - a) / 2, hd = (d - b) / 2;
     f.from = [r2(cx - hd), r2(cz - hw)]; f.to = [r2(cx + hd), r2(cz + hw)];
@@ -485,6 +493,7 @@ class SweetHomeCardEditor extends HTMLElement {
     rooms.forEach((r, i) => this._onLv(r) && arr(r.furniture).forEach((f, k) => {
       const fp = footprint(f), on = i === this._sel && k === this._fsel && this._mode === 'furniture', linked = furnEntities(f).length;
       const st = `fill="${linked ? 'var(--primary-color)' : 'var(--primary-text-color)'}" fill-opacity="${on ? 0.5 : fur ? (linked ? 0.32 : 0.16) : 0.08}" stroke="${on ? 'var(--primary-color)' : 'var(--primary-text-color)'}" stroke-opacity="${fur ? 0.7 : 0.25}" stroke-width="${on ? 3 : 1}" ${f.type === 'fan' ? 'stroke-dasharray="5 4"' : ''}`;
+      if (f.type === 'sprinkler') h += `<circle cx="${X(fp.circle[0])}" cy="${Z(fp.circle[1])}" r="${N(f.radius, 2) * S}" fill="#38bdf8" fill-opacity=".08" stroke="#38bdf8" stroke-opacity=".5" stroke-dasharray="4 4" pointer-events="none"/>`;
       if (fp.circle) h += `<circle cx="${X(fp.circle[0])}" cy="${Z(fp.circle[1])}" r="${fp.circle[2] * S}" ${st}/>`;
       else h += `<rect x="${X(fp.rect[0])}" y="${Z(fp.rect[1])}" width="${(fp.rect[2] - fp.rect[0]) * S}" height="${(fp.rect[3] - fp.rect[1]) * S}" rx="3" ${st}/>`;
       if (f.type === 'stairs' && fp.rect) { // the steps
@@ -493,8 +502,8 @@ class SweetHomeCardEditor extends HTMLElement {
       }
       if (fur) {
         const b = fpBox(fp), dir = f.head || f.back || f.face || f.facing;
-        if (dir && ['bed', 'sofa', 'chair', 'tv'].includes(f.type)) { // a tick on the side the piece's back / head / screen is on
-          const [cx, cz] = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], e = { n: [cx, b[1]], s: [cx, b[3]], e: [b[2], cz], w: [b[0], cz] }[f.type === 'tv' ? { n: 's', s: 'n', e: 'w', w: 'e' }[dir] : dir];
+        if ((dir || f.type === 'car') && ['bed', 'sofa', 'chair', 'tv', 'car'].includes(f.type)) { // a tick on the side the piece's back / head / screen / front is on
+          const [cx, cz] = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], e = { n: [cx, b[1]], s: [cx, b[3]], e: [b[2], cz], w: [b[0], cz] }[f.type === 'tv' ? { n: 's', s: 'n', e: 'w', w: 'e' }[dir] : dir || 'n'];
           if (e) h += `<circle cx="${X(e[0])}" cy="${Z(e[1])}" r="4" fill="var(--primary-text-color)" fill-opacity=".7" pointer-events="none"/>`;
         }
         if (linked) h += `<circle cx="${X(b[2])}" cy="${Z(b[1])}" r="5" fill="var(--primary-color)" stroke="var(--card-background-color)" stroke-width="1.5" pointer-events="none"/>`;
@@ -706,29 +715,30 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ---------------- Shape mode ---------------- */
   _mShape(box, r) {
     const L = this._levels();
-    const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: !!r.stairs, level: String(this._lvOf(r)) };
+    const stairsNow = r.stairs === true || r.stairs === 'both' ? 'both' : ['up', 'down'].includes(r.stairs) ? r.stairs : r.stairs && typeof r.stairs === 'object' ? 'both' : '';
+    const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: stairsNow, level: String(this._lvOf(r)) };
     box.appendChild(this._form([
       { name: 'area', selector: { area: {} } },
       { name: 'name', selector: { text: {} } },
       { type: 'grid', name: '', schema: [
         { name: 'icon', selector: { icon: {} } },
-        { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass']].map(([v, n]) => [v, t(n)])) },
+        { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass'], ['asphalt', 'Parking (asphalt)']].map(([v, n]) => [v, t(n)])) },
       ] },
       { name: 'outdoor', selector: { boolean: {} } },
-      { name: 'stairs', selector: { boolean: {} } },
+      { name: 'stairs', selector: sel([['', 'No stairs'], ['both', 'Up and down'], ['up', 'Up'], ['down', 'Down']]) },
       ...(L.length > 1 ? [{ name: 'level', selector: sel(L.map(l => [String(l.level), l.name])) }] : []),
     ], data, (v, typing) => {
       const areaChanged = (v.area || '') !== (r.area || '');
       for (const k of ['name', 'area', 'icon', 'floor']) { if (v[k]) r[k] = v[k]; else delete r[k]; }
       if (v.outdoor) r.outdoor = true; else delete r.outdoor;
-      if (v.stairs) r.stairs = true; else delete r.stairs;
+      if (v.stairs && v.stairs !== stairsNow) r.stairs = v.stairs; else if (!v.stairs) delete r.stairs;
       const lv = Number(v.level ?? this._lvOf(r));
       if (lv !== this._lvOf(r)) { this._setLv(r, lv); this._lvl = lv; this._emit(); return this._render(); }
       this._emit(typing);
       const chip = this.querySelector(`[data-room="${this._sel}"]`); if (chip) chip.lastChild.textContent = this._roomName(r, this._sel);
       if (areaChanged) this._render();
       if (v.stairs !== data.stairs) { data.stairs = v.stairs; this._emit(); return this._render(); }
-    }, { floor: 'Floor covering', area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)', stairs: 'Stairs (draws a flight of stairs in this room)', level: 'Floor' }, true));
+    }, { floor: 'Floor covering', area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)', stairs: 'Stairs going', level: 'Floor' }, true));
     const row = document.createElement('div'); row.className = 'sh-row'; row.style.marginTop = '10px';
     const q = this._rsel != null ? r.rects?.[this._rsel] : null;
     row.innerHTML = `<span class="sh-hint">${t('{0} rectangle(s)', (r.rects || []).length)}${q ? ` · selected ${r2(q[2] - q[0])} × ${r2(q[3] - q[1])} m` : ''}</span>
@@ -954,7 +964,7 @@ class SweetHomeCardEditor extends HTMLElement {
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
-    }, { ...PIECE_LABELS, entities: 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: 'Colour' }, true));
+    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: 'Colour' }, true));
   }
 
   /* ---------------- Doors & windows mode ---------------- */
