@@ -83,9 +83,8 @@ The dashboard is generated for you until you take control of it:
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
-        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity in Home
-        Assistant (or, for entities Home Assistant can't rename, in this card only). For an entity that is part of a
-        device, Home Assistant shows "device name + entity name"; this dashboard keeps the name as you typed it. Set how each light is drawn (ceiling
+        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity on this
+        dashboard (Home Assistant is not changed). Set how each light is drawn (ceiling
         light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
         whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
@@ -180,7 +179,7 @@ shifted so that it starts at 0.
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
   names: {script.good_night: Bedtime}    # names for this card only: they replace the entity's name everywhere on
-                                         # the dashboard (the editor writes these for entities HA can't rename)
+                                         # the dashboard (renaming in the card editor or the popup writes these)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
@@ -291,7 +290,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
 | 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
 | Floors | The floor buttons on the 3D view switch floors; opening a room on another floor switches to it |
-| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices in Home Assistant |
+| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices on this dashboard (✓ saves; Home Assistant is not changed) |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 

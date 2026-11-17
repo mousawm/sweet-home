@@ -842,34 +842,23 @@ class SweetHomeCardEditor extends HTMLElement {
       opts = `<select data-lfx="${id}" title="How it is drawn in 3D">${LIGHT_FX.map(([v, n]) => `<option value="${v}" ${v === fx ? 'selected' : ''}>${t(n)}</option>`).join('')}</select>
         <label><input type="checkbox" data-lcol="${id}" ${col ? 'checked' : ''}>${t('Colours')}</label><label><input type="checkbox" data-lsim="${id}" ${simple ? 'checked' : ''}>${t('On / off only')}</label>`;
     }
-    // The name can be changed right here. Entities Home Assistant can rename (they have a unique ID) are renamed there,
-    // so the name changes everywhere; the others get a name for this card only (room `names`).
-    const inHA = ok && !!this._hass.entities?.[id] && this._hass.user?.is_admin !== false;
+    // The name can be changed right here, for this dashboard only (room `names`); Home Assistant is not changed.
     const own = (r.names || {})[id] ?? (key === 'lights' ? (r.light_names || {})[id] : undefined);
     const cur = own ?? (ok ? R.name(id) : id);
-    const name = `<label class="sh-namebox"><ha-icon icon="mdi:pencil-outline"></ha-icon><input class="sh-rename" data-rename="${id}" data-ha="${inHA && own == null ? 1 : ''}" value="${esc(cur)}" placeholder="${esc(ok ? R.name(id) : id)}" title="${esc(t('Rename'))}" aria-label="${esc(t('Name of {0}', id))}"></label>`;
-    const note = !ok ? t('not found') : own != null ? `${esc(id)} · ${t('name in this card')}` : inHA ? esc(id) : `${esc(id)} · ${t('can only be renamed in this card')}`;
+    const name = `<label class="sh-namebox"><ha-icon icon="mdi:pencil-outline"></ha-icon><input class="sh-rename" data-rename="${id}" value="${esc(cur)}" placeholder="${esc(ok ? R.name(id) : id)}" title="${esc(t('Rename'))}" aria-label="${esc(t('Name of {0}', id))}"></label>`;
+    const note = !ok ? t('not found') : own != null ? `${esc(id)} · ${t('name on this dashboard')}` : esc(id);
     return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${name}<small>${note}</small></span>${opts}
       <button class="sh-x" data-rm="${id}" data-key="${key}" title="Remove from this room"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
   }
-  async _rename(inp, r) {
+  // a name for this dashboard only (room `names`); an empty field, or the entity's own name, removes it
+  _rename(inp, r) {
     const id = inp.dataset.rename, v = inp.value.trim(), small = inp.closest('.nm')?.querySelector('small');
-    const say = (txt, bad) => { if (small) { small.textContent = `${id} · ${txt}`; small.style.color = bad ? 'var(--error-color)' : 'var(--success-color, #43a047)'; } };
-    // a name for this card only (an entity Home Assistant can't rename, or one that already has one here)
-    const cardName = () => {
-      const names = { ...(r.names || {}) }; if (v) names[id] = v; else delete names[id];
-      if (r.light_names?.[id] != null) { const ln = { ...r.light_names }; delete ln[id]; if (Object.keys(ln).length) r.light_names = ln; else delete r.light_names; }
-      if (Object.keys(names).length) r.names = names; else delete r.names;
-      this._emit(); say(v ? t('name in this card') : t('default name'));
-    };
-    if (!inp.dataset.ha) return cardName();
-    try {
-      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
-      // For an entity that is part of a device, Home Assistant shows "device name + entity name" (Side light →
-      // "Living Room Light Side Light"); this dashboard keeps the name as it was typed.
-      if (this._hass.entities?.[id]?.has_entity_name) { cardName(); say(v ? t('renamed in Home Assistant and on this dashboard') : t('default name')); }
-      else say(v ? t('renamed in Home Assistant') : t('default name'));
-    } catch (e) { say(e?.message || t('could not rename'), true); }
+    const names = { ...(r.names || {}) };
+    if (!v || v === this._reg.name(id)) delete names[id]; else names[id] = v;
+    if (r.light_names?.[id] != null) { const ln = { ...r.light_names }; delete ln[id]; if (Object.keys(ln).length) r.light_names = ln; else delete r.light_names; }
+    if (Object.keys(names).length) r.names = names; else delete r.names;
+    this._emit();
+    if (small) { small.textContent = `${id} · ${t(names[id] ? 'name on this dashboard' : 'default name')}`; small.style.color = 'var(--success-color, #43a047)'; }
   }
   // a plug written as {entity, name, power} keeps its extra settings when the list changes
   _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }

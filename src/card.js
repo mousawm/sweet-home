@@ -276,7 +276,7 @@ export class SweetHomeCard extends HTMLElement {
     this._editing = e; this.toggleAttribute('editing', e);
     if (!e) { // left edit mode: stop moving furniture and renaming
       if (this._arrange) { this._arrange = false; if (this._three) this._three.arrange = false; this.$?.('arrBtn')?.classList.remove('on'); }
-      if (this._naming) this._naming = null;
+      if (this._naming) { this._naming = null; this._pendNames = null; }
     }
     if (this._sections?.length) this._rerender('drawer');
   }
@@ -570,6 +570,8 @@ export class SweetHomeCard extends HTMLElement {
     this._init3d();
     this._hintShow();
     this._renderLevels();
+    if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
+    this._reselect = null;
   }
 
   _acExtras(id) { // related switches such as jet mode / display light
@@ -1205,7 +1207,12 @@ export class SweetHomeCard extends HTMLElement {
         if (!this._armConfirm(t, id, tr('Tap again to hide it'))) return;
         this._excludeDevice(id, t.dataset.kind); break;
       }
-      case 'names': if (!this._editing) break; this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
+      case 'names': {
+        if (!this._editing) break;
+        if (this._naming === this._sel) { this._naming = null; this._rerender('drawer'); this._saveNames(ROOM[this._sel]); } // ✓ Done
+        else { this._naming = this._sel; this._pendNames = null; this._rerender('drawer'); }
+        break;
+      }
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
@@ -1654,36 +1661,38 @@ export class SweetHomeCard extends HTMLElement {
 
   // Rename view of the room popup (admins): every entity of the room with its name in a text field. A new name is saved
   // in Home Assistant itself (entity registry), so it changes everywhere; an empty field goes back to the default name.
+  // Rename view of the room popup (edit mode): every entity of the room with its name in a text field. Names are for
+  // this dashboard only (room `names`, or the card's `names` for the house built from areas); Home Assistant is not
+  // changed. They are saved together with ✓ (Done); an empty field goes back to the entity's own name.
   _rRename(r) {
     const ids = [...new Set([...(r.lights || []), r.climate, r.temp, r.hum, ...(r.motion || []), ...(r.doors || []), ...(r.locks || []), ...(r.plugs || []).map(p => p.id), r.fan, r.media, ...(r.entities || []).map(e => e.id), ...(r.furnEnts || [])].filter(id => id && this.s(id)))];
+    const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = ids.map(id => {
-      const st = this.s(id), reg = this._hass.entities?.[id], d = id.split('.')[0];
-      const nm = st.attributes.friendly_name || id;
-      return reg ? `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(nm)}" aria-label="Name of ${esc(id)}" enterkeyhint="done"><small>${esc(id)}</small></label>`
-        : `<div class="rnrow na" title="This entity has no unique ID, so Home Assistant can't rename it">${ic('mdi:pencil-off-outline')}<span>${esc(nm)}</span><small>${esc(id)} · ${tr("can't be renamed")}</small></div>`;
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id;
+      const cur = pend[id] ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
-    return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}">${ic('mdi:check')}</button></div>
-      <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change in Home Assistant itself. Clear a name to go back to the default.')}</div>
+    return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}" aria-label="${tr('Done')}">${ic('mdi:check')}</button></div>
+      <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change on this dashboard only. Clear a name to go back to the default.')}</div>
       ${rows || `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`}`;
   }
-  async _rename(id, name) {
-    const st = this.s(id); if (!st) return;
-    const v = name.trim();
-    if (v === (st.attributes.friendly_name || '')) return;
-    try {
-      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
-      this.haptic('success'); this._toast(v ? tr('Renamed to {0}', v) : tr('Back to the default name'));
-    } catch (e) { this.haptic('failure'); this._toast(e?.message || tr('Could not rename it'), true); return; }
-    // An entity that is part of a device is shown by Home Assistant as "device name + entity name"; this dashboard
-    // keeps the name as it was typed (room `names`), so "Side light" stays "Side light" here.
-    const r = ROOM[this._sel];
-    if (this._hass.entities?.[id]?.has_entity_name && r?.ci != null) {
-      const cfg = JSON.parse(JSON.stringify(this._config || {})), rc = cfg.house?.rooms?.[r.ci]; if (!rc) return;
-      const names = { ...(rc.names || {}) }; if (v) names[id] = v; else delete names[id];
-      if (rc.light_names?.[id] != null) { delete rc.light_names[id]; if (!Object.keys(rc.light_names).length) delete rc.light_names; }
-      if (Object.keys(names).length) rc.names = names; else delete rc.names;
-      await this._applyConfig(cfg);
+  // a name typed in the rename view: kept until ✓ (Done)
+  _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
+  async _saveNames(r) {
+    const pend = this._pendNames || {}; this._pendNames = null;
+    const ids = Object.keys(pend); if (!ids.length) return;
+    const raw = this._hass._raw || this._hass, cfg = JSON.parse(JSON.stringify(this._config || {}));
+    const rc = r.ci != null ? cfg.house?.rooms?.[r.ci] : null, holder = rc || cfg;
+    const names = { ...(holder.names || {}) };
+    for (const id of ids) {
+      const v = pend[id];
+      if (!v || v === raw.states[id]?.attributes.friendly_name) delete names[id]; else names[id] = v;
+      if (holder.light_names?.[id] != null) { delete holder.light_names[id]; if (!Object.keys(holder.light_names).length) delete holder.light_names; }
     }
+    if (Object.keys(names).length) holder.names = names; else delete holder.names;
+    if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
+    this._reselect = r.id; // open the room again after the card is rebuilt with the new names
+    if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); } else this._reselect = null;
   }
 
   // One row for any entity: lights, switches, fans, covers… toggle; scripts / scenes run; buttons press; locks lock with a

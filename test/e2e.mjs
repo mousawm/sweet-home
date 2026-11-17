@@ -46,7 +46,8 @@ try {
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click());
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling'; i.dispatchEvent(new Event('change', { bubbles: true })); });
   await p.waitForTimeout(100);
-  check('renaming from the popup', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling')));
+  await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click()); await p.waitForTimeout(150);
+  check('renaming from the popup saves a dashboard name, not a Home Assistant name', await p.evaluate(() => !(window.ws || []).some(m => m.type === 'config/entity_registry/update') && (window.ws || []).some(m => m.type === 'lovelace/config')));
   await p.evaluate(() => { card.editMode = false; }); await p.waitForTimeout(100);
   check('leaving edit mode closes renaming', await p.evaluate(() => !card.shadowRoot.querySelector('[data-rename]') && !card._naming));
   check('edit mode is also found from Home Assistant\'s edit wrapper around the card', await p.evaluate(async () => {
@@ -116,13 +117,16 @@ try {
   await p.evaluate(() => { editor._goLevel(0); editor._sel = 0; editor._mode = 'entities'; editor._render(); });
   await p.evaluate(() => { const i = editor.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); });
   await p.waitForTimeout(100);
-  check('renaming in the editor list (Home Assistant)', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling strip')));
-  check('…a device entity keeps the typed name on this dashboard (not "device name + name")', await p.evaluate(() => editor._config.house.rooms[0].names?.['light.living_room'] === 'Ceiling strip'));
+  check('renaming in the editor list: a name on this dashboard only', await p.evaluate(() => editor._config.house.rooms[0].names?.['light.living_room'] === 'Ceiling strip' && !(window.ws || []).some(m => m.type === 'config/entity_registry/update')));
   await p.evaluate(() => { const i = editor.querySelector('[data-rename="script.movie_night"]'); i.value = 'Cinema'; i.dispatchEvent(new Event('change')); });
   check('renaming an entity Home Assistant can\'t rename: a name in this card', await p.evaluate(() => editor._config.house.rooms[0].names?.['script.movie_night'] === 'Cinema'));
   await p.waitForTimeout(1500);
   await p.evaluate(() => card._select('living_room')); await p.waitForTimeout(200);
   check('the popup uses the card name', await p.evaluate(() => card.shadowRoot.getElementById('drawer').textContent.includes('Cinema')));
+  await p.evaluate(() => { card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
+  await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="sensor.living_room_temperature"]'); i.value = 'Room Temp'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
+  await p.waitForTimeout(400);
+  check('renaming from the popup (editor open): saved with Done, the room opens again', await p.evaluate(() => editor._config.house.rooms[0].names?.['sensor.living_room_temperature'] === 'Room Temp' && card._sel === 'living_room' && card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Room Temp'));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

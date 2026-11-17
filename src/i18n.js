@@ -80,6 +80,8 @@ const AR = {
   'Charging (on while it charges)': 'الشحن (يعمل أثناء الشحن)', 'Charging power': 'قدرة الشحن', 'Battery level': 'مستوى البطارية', Range: 'المدى',
   'Status (parked, driving…)': 'الحالة (مركونة، تسير…)', 'Charging time / time left': 'مدة الشحن / الوقت المتبقي', 'This charge: energy': 'هذا الشحن: الطاقة', 'This charge: cost': 'هذا الشحن: التكلفة',
   'This month: energy': 'هذا الشهر: الطاقة', 'This month: cost': 'هذا الشهر: التكلفة', 'This year: energy': 'هذا العام: الطاقة', 'This year: cost': 'هذا العام: التكلفة',
+  'Names change on this dashboard only. Clear a name to go back to the default.': 'تتغير الأسماء في هذه اللوحة فقط. امسح الاسم للعودة إلى الاسم الافتراضي.',
+  'Names saved': 'تم حفظ الأسماء', 'name on this dashboard': 'اسم في هذه اللوحة',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',
