@@ -70,7 +70,7 @@ const demo = { title: 'Demo Home', panels: { car: { name: 'Model Y', color: '#dc
     { type: 'rug', x: 3, z: 6.4, w: 3, d: 1.5, color: '#a5a9b2' }] },
   { area: 'balcony', rects: [[6, 5, 10, 9]], outdoor: true, furniture: [
     { type: 'marker', name: 'Balcony door sensor', x: 6.3, z: 6, entity: 'binary_sensor.balcony_door' }, { type: 'plant', x: 9.4, z: 8.4 }] },
-  { name: 'Stairs', rects: [[10, 0, 12, 5]] },
+  { name: 'Stairs', stairs: 'both', rects: [[10, 0, 12, 5]] },
   { name: 'Driveway', rects: [[12, 0, 16, 6]], furniture: [{ type: 'car', name: 'Family car', x: 14, z: 3, facing: 'n', color: '#dc2626', entity: 'binary_sensor.car_parked' }] },
   { name: 'Garden', rects: [[0, 9, 12, 14]], floor: 'grass', furniture: [
     { type: 'tree', x: 1.5, z: 10.5, size: 1.1 }, { type: 'hedge', from: [0.2, 13.4], to: [11.8, 13.8] },

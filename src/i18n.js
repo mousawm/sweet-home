@@ -82,6 +82,7 @@ const AR = {
   'This month: energy': 'هذا الشهر: الطاقة', 'This month: cost': 'هذا الشهر: التكلفة', 'This year: energy': 'هذا العام: الطاقة', 'This year: cost': 'هذا العام: التكلفة',
   'Names change on this dashboard only. Clear a name to go back to the default.': 'تتغير الأسماء في هذه اللوحة فقط. امسح الاسم للعودة إلى الاسم الافتراضي.',
   'Names saved': 'تم حفظ الأسماء', 'name on this dashboard': 'اسم في هذه اللوحة',
+  'Only if the room is named Stairs': 'فقط إذا كان اسم الغرفة درج', 'Yes, by the floors': 'نعم، حسب الطوابق',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',

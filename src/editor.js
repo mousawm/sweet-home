@@ -716,7 +716,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ---------------- Shape mode ---------------- */
   _mShape(box, r) {
     const L = this._levels();
-    const stairsNow = r.stairs === true || r.stairs === 'both' ? 'both' : ['up', 'down'].includes(r.stairs) ? r.stairs : r.stairs && typeof r.stairs === 'object' ? 'both' : '';
+    const stairsNow = r.stairs === true || (r.stairs && typeof r.stairs === 'object') ? 'auto' : r.stairs === false ? 'none' : ['both', 'up', 'down'].includes(r.stairs) ? r.stairs : '';
     const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: stairsNow, level: String(this._lvOf(r)) };
     box.appendChild(this._form([
       { name: 'area', selector: { area: {} } },
@@ -726,13 +726,13 @@ class SweetHomeCardEditor extends HTMLElement {
         { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass'], ['asphalt', 'Parking (asphalt)']].map(([v, n]) => [v, t(n)])) },
       ] },
       { name: 'outdoor', selector: { boolean: {} } },
-      { name: 'stairs', selector: sel([['', 'No stairs'], ['both', 'Up and down'], ['up', 'Up'], ['down', 'Down']]) },
+      { name: 'stairs', selector: sel([['', 'Only if the room is named Stairs'], ['auto', 'Yes, by the floors'], ['both', 'Up and down'], ['up', 'Up'], ['down', 'Down'], ['none', 'No stairs']]) },
       ...(L.length > 1 ? [{ name: 'level', selector: sel(L.map(l => [String(l.level), l.name])) }] : []),
     ], data, (v, typing) => {
       const areaChanged = (v.area || '') !== (r.area || '');
       for (const k of ['name', 'area', 'icon', 'floor']) { if (v[k]) r[k] = v[k]; else delete r[k]; }
       if (v.outdoor) r.outdoor = true; else delete r.outdoor;
-      if (v.stairs && v.stairs !== stairsNow) r.stairs = v.stairs; else if (!v.stairs) delete r.stairs;
+      if ((v.stairs ?? '') !== stairsNow) { if (!v.stairs) delete r.stairs; else r.stairs = v.stairs === 'auto' ? true : v.stairs === 'none' ? false : v.stairs; }
       const lv = Number(v.level ?? this._lvOf(r));
       if (lv !== this._lvOf(r)) { this._setLv(r, lv); this._lvl = lv; this._emit(); return this._render(); }
       this._emit(typing);

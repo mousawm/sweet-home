@@ -146,11 +146,12 @@ function autoRooms(R, cfg) {
 
 // a flight of stairs filling a room's first rectangle, climbing along its longer side
 export function stairsFor(room) {
-  const [x1, z1, x2, z2] = room.rects[0], o = typeof room.stairs === 'object' ? room.stairs : {};
+  const [x1, z1, x2, z2] = room.rects[0], o = room.stairs && typeof room.stairs === 'object' ? room.stairs : {};
   const alongX = o.axis ? o.axis === 'x' : x2 - x1 >= z2 - z1, len = alongX ? x2 - x1 : z2 - z1;
   // `stairs: up | down | both` (or {mode, axis, steps}); by default both: one flight up, one down
-  const mode = { up: 'up', down: 'down', both: 'split', split: 'split' }[o.mode || room.stairs] || 'split';
-  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode, steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
+  const chosen = { up: 'up', down: 'down', both: 'split', split: 'split' }[o.mode || room.stairs];
+  // not chosen: set by the floors (see buildModel): up on the lowest floor, down on the top one, both in between
+  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode: chosen || 'split', byFloors: !chosen, steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
 }
 
 /* automatic furniture for automatic / furniture-less rooms, from the room's name */
@@ -190,7 +191,7 @@ export function autoFurniture(room) {
   } else if (/patio|terrace|balcony/.test(n)) {
     f.push({ type: 'plant', room: R, x: x1 + 0.6, z: z1 + 0.6, size: 1 }, { type: 'plant', room: R, x: x2 - 0.6, z: z1 + 0.6, size: 0.9 });
     f.push({ type: 'table', room: R, x: cx, z: cz, w: 0.8, d: 0.8, h: 0.72, top: 0xf1f5f9, leg: 0x94a3b8 });
-  } else if (/stair/.test(n)) {
+  } else if (/stair/.test(n) && room.stairs !== false) {
     f.push(stairsFor(room));
   } else if (/garage|parking|carport|driveway/.test(n)) {
     f.push({ type: 'car', room: R, x: cx, z: cz, facing: d >= w ? 'n' : 'e', color: 0x2563eb });
@@ -333,7 +334,7 @@ export function buildModel(cfg = {}, hass) {
     const lightFx = rc.light_fx || rc.lightFx || null;
     const lvl = rc.level != null && rc.level !== '' && !isNaN(Number(rc.level)) ? Number(rc.level) : 0;
     const r = {
-      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs || false,
+      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs ?? null,
       rects, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
       outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
@@ -461,7 +462,7 @@ export function buildModel(cfg = {}, hass) {
     if (Array.isArray(r.furniture)) furniture.push(...r.furniture.map((f, i) => ({ ...shiftF({ room: r.id, ...f }), src: r.ci != null ? { room: r.ci, i } : null })));
     else if ((auto || r.auto || house.auto_furniture) && r.furniture !== false) furniture.push(...autoFurniture(r));
     // stairs: rooms marked `stairs`, or named "Stairs" / "Staircase", get a flight of stairs
-    if (r.furniture !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
+    if (r.furniture !== false && r.stairs !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
   }
   // a flight going down needs a hole in the floor: the room's floor leaves out the stairwell
   const minus = ([a, b, c, d], [p, q, u, v]) => {
@@ -471,6 +472,15 @@ export function buildModel(cfg = {}, hass) {
     if (p > a) out.push([a, qq, p, vv]); if (u < c) out.push([u, qq, c, vv]);
     return out.filter(([x1, z1, x2, z2]) => x2 - x1 > 0.02 && z2 - z1 > 0.02);
   };
+  // stairs and the floors: with one floor there is nowhere to go down (no stairwell); otherwise stairs not set by
+  // hand go up from the lowest floor, down from the top one, and both ways in between
+  const lvRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
+  for (const f of furniture) {
+    if (f.type !== 'stairs') continue;
+    const l = lvRoom[f.room] ?? lvOf(f.level);
+    if (levelIds.length < 2) f.mode = 'up';
+    else if (f.byFloors) f.mode = l <= levelIds[0] ? 'up' : l >= levelIds[levelIds.length - 1] ? 'down' : 'split';
+  }
   for (const f of furniture) {
     if (f.type !== 'stairs' || !['down', 'split'].includes(f.mode) || !f.room) continue;
     const r = rooms.find(x => x.id === f.room); if (!r) continue;

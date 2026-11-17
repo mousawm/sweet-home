@@ -163,8 +163,9 @@ shifted so that it starts at 0.
   floor: carpet               # wood, tile, marble, carpet, stone, grass, asphalt (parking)
   outdoor: false
   level: 1                    # the floor (default 0, the ground floor)
-  stairs: both                # a flight of stairs: both (one up, one down into a stairwell), up or down
-                              # (automatic, both ways, for rooms named "Stairs")
+  stairs: true                # a flight of stairs, set by the floors: up from the lowest floor, down from the top
+                              # one, both ways in between (one up, one down into a stairwell). Or: both, up, down;
+                              # false: none. Rooms named "Stairs" get them on their own. With one floor they only go up.
   furniture: [...]            # or `false` for none
   # overrides for what was discovered:
   lights: [light.bedroom]
