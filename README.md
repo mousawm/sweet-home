@@ -1,5 +1,7 @@
 # Sweet Home
 
+[![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)
+
 ![Sweet Home: the Home tab with the 3D house, At a glance and Modes](docs/screenshots/home.webp)
 
 Your home as an interactive **3D model** in Home Assistant. Tap a room to see and switch what is in it. Tabs cover
@@ -36,7 +38,9 @@ security, climate, energy, water, media and your home lab.
 
 Home Assistant's **Marketplace** (formerly HACS):
 
-1. **Marketplace** → ⋮ → **Custom repositories**. Add this repository's URL with the type **Dashboard**.
+[![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)
+
+1. Click the button above. It opens Sweet Home in your Marketplace and offers to add the repository. Or add it by hand: **Marketplace** → ⋮ → **Custom repositories**, this repository's URL, type **Dashboard**.
 2. Search the Marketplace for **Sweet Home** and download it.
 3. Reload the browser, then [add the dashboard](#from-add-dashboard-recommended).
 
