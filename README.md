@@ -32,7 +32,7 @@ Home Assistant's **Marketplace** (formerly HACS):
 
 1. **Marketplace** → ⋮ → **Custom repositories**. Add this repository's URL with the type **Dashboard**.
 2. Search the Marketplace for **Sweet Home** and download it.
-3. Reload the browser.
+3. Reload the browser, then [add the dashboard](#from-add-dashboard-recommended).
 
 The Marketplace adds the dashboard resource for you. If it doesn't, add `/local/community/sweet-home/sweet-home-card.js`
 as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
@@ -42,26 +42,49 @@ as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
 Download `sweet-home-card.js` from the latest release and put it in `/config/www/`. Then add
 `/local/sweet-home-card.js` as a JavaScript module resource.
 
-## Add the dashboard
+## Add it to Home Assistant
 
-The quickest way: **Settings → Dashboards → Add dashboard → Sweet Home** (under *Community dashboards*). It creates a
-full-screen dashboard built from your areas. Use **⋮ → Edit → Take control** to change it with the card editor.
+### From "Add dashboard" (recommended)
 
-## Add the card
+Once Sweet Home is installed, it is listed with the other community dashboards:
 
-Or add the card to any dashboard. It is built to fill the screen, so put it in a view with the **Panel** layout:
+1. Go to **Settings → Dashboards → Add dashboard**.
+2. Under **Community dashboards**, pick **Sweet Home**. Its description reads *"Your home as an interactive 3D model, with
+   tabs for security, climate, energy, media and more. Built from your areas."*
+3. Give the dashboard a name and an icon, then open it from the sidebar.
+
+The dashboard builds itself from your Home Assistant **areas**. Each area becomes a room with its lights, sensors, doors
+and climate devices. The tabs show what Home Assistant has for them: alarm, locks, cameras, energy, media and so on.
+It shows the whole house full screen.
+
+Not listed? Reload the browser after installing (on the phone app: ⋮ → Reload resources), and check that you have
+version 0.1.1 or newer.
+
+### Edit it
+
+The dashboard is generated for you until you take control of it:
+
+1. Open the dashboard and click the **pencil** (or **⋮ → Edit dashboard**) at the top right.
+2. Choose **Take control**. The dashboard becomes a normal one with a single Sweet Home card.
+3. Click **Edit** at the left end of the bar under the card. The ⋮ at its right end only has move, copy and delete.
+4. The Sweet Home editor opens with three steps:
+   1. **Rooms**: link rooms to areas, then draw each room by dragging on a grid. Draw more than one rectangle for an L-shaped room.
+   2. **Panels**: turn panels on or off and pick their entities.
+   3. **Look**: title, weather, start tab, wall height, automatic furniture, or a 3D file.
+5. Click **Save**, then **Done**.
+
+Everything the editor doesn't cover can be added in YAML (**Show code editor**, or the dashboard's **⋮ → Raw
+configuration editor**), and the editor keeps it. See [Configuration](#configuration) below.
+
+### As a card on any dashboard
+
+You can also add the card yourself: **Edit dashboard → Add card → Sweet Home**, or in YAML:
 
 ```yaml
 type: custom:sweet-home-card
 ```
 
-You can also pick **Sweet Home** in the card picker. The visual editor has three steps:
-
-1. **Rooms**: link rooms to areas, then draw each room by dragging on a grid. Draw more than one rectangle for an L-shaped room.
-2. **Panels**: turn panels on or off and pick their entities.
-3. **Look**: title, weather, start tab, wall height, automatic furniture, or a 3D file.
-
-Everything the editor doesn't cover can be added in YAML, and the editor keeps it.
+It is built to fill the screen, so put it in a view with the **Panel** layout (view settings → View type → Panel).
 
 ## Configuration
 
