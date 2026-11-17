@@ -30,7 +30,11 @@ const S = [
   st('binary_sensor.balcony_door', 'off', { device_class: 'door', friendly_name: 'Balcony Door' }),
   st('vacuum.robo', 'cleaning', { friendly_name: 'Robo' }),
   st('switch.well_pump', 'on', { friendly_name: 'Well Pump' }), st('sensor.well_pump_power', '420', { device_class: 'power', unit_of_measurement: 'W' }),
-  st('sensor.water_flow', '12.5', { friendly_name: 'Water Flow', unit_of_measurement: 'L/min' }), st('valve.garden', 'closed', { friendly_name: 'Garden Valve' }), st('light.office', 'on', { friendly_name: 'Office Light', brightness: 255 }),
+  st('sensor.water_flow', '12.5', { friendly_name: 'Water Flow', unit_of_measurement: 'L/min' }), st('valve.garden', 'open', { friendly_name: 'Garden Valve' }),
+  st('switch.ev_charger', 'on', { friendly_name: 'EV Charger' }), st('sensor.ev_power', '7200', { device_class: 'power', unit_of_measurement: 'W' }),
+  st('sensor.ev_battery', '64', { device_class: 'battery', unit_of_measurement: '%' }), st('sensor.ev_range', '310', { unit_of_measurement: 'km' }),
+  st('sensor.ev_charge_energy', '12.4', { unit_of_measurement: 'kWh' }), st('sensor.ev_month_energy', '186', { unit_of_measurement: 'kWh' }), st('sensor.ev_status', 'parked'),
+  st('binary_sensor.car_parked', 'on', { friendly_name: 'Car Parked', device_class: 'occupancy' }), st('light.office', 'on', { friendly_name: 'Office Light', brightness: 255 }),
 ];
 const states = Object.fromEntries(S.map(s => [s.entity_id, s]));
 states['cover.living_room_blinds'].attributes.current_position = 40;
@@ -49,8 +53,9 @@ const lang = new URLSearchParams(location.search).get('lang') || 'en';
 const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC' }, ds1: { id: 'ds1', name: 'Door Sensor' }, pump1: { id: 'pump1', name: 'Well Pump' } }, areas, floors, locale: { language: lang }, language: lang, user: { name: 'Test', is_admin: true }, themes: { darkMode: true },
   callService: async () => {}, callWS: async m => { (window.ws ||= []).push(m); return m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []; }, callApi: async () => [],
   connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} }, formatEntityState: s => s.state };
-const demo = { title: 'Demo Home', panels: { water: { pumps: ['switch.well_pump'], entities: ['sensor.water_flow', 'valve.garden'] } }, house: { auto_furniture: true, rooms: [
-  { area: 'living_room', rects: [[0, 0, 6, 5]], light_fx: { 'light.living_room': 'strip' }, strip_mode: 'walls', entities: ['script.movie_night', 'cover.living_room_blinds'], furniture: [
+const demo = { title: 'Demo Home', panels: { car: { name: 'Model Y', color: '#dc2626', charging: 'switch.ev_charger', power: 'sensor.ev_power', battery: 'sensor.ev_battery', range: 'sensor.ev_range',
+  status: 'sensor.ev_status', energy_per_charge: 'sensor.ev_charge_energy', energy_month: 'sensor.ev_month_energy' }, water: { pumps: ['switch.well_pump'], entities: ['sensor.water_flow', 'valve.garden'] } }, house: { auto_furniture: true, rooms: [
+  { area: 'living_room', rects: [[0, 0, 6, 5]], names: { 'sensor.living_room_temperature': 'Lounge Temp' }, light_fx: { 'light.living_room': 'strip' }, strip_mode: 'walls', entities: ['script.movie_night', 'cover.living_room_blinds'], furniture: [
     { type: 'sofa', from: [0.9, 0.15], to: [5.1, 1.1], back: 'n' }, { type: 'tv', x: 3, z: 4.8, w: 1.6, h: 0.9, y: 0.6, entity: 'media_player.living_room_tv' },
     { type: 'blinds', from: [0.8, 0], to: [2.6, 0], entity: 'cover.living_room_blinds' }, { type: 'vacuum', x: 5.4, z: 4.6, entity: 'vacuum.robo' }] },
   { area: 'kitchen', rects: [[6, 0, 10, 5]], furniture: [
@@ -66,6 +71,10 @@ const demo = { title: 'Demo Home', panels: { water: { pumps: ['switch.well_pump'
   { area: 'balcony', rects: [[6, 5, 10, 9]], outdoor: true, furniture: [
     { type: 'marker', name: 'Balcony door sensor', x: 6.3, z: 6, entity: 'binary_sensor.balcony_door' }, { type: 'plant', x: 9.4, z: 8.4 }] },
   { name: 'Stairs', rects: [[10, 0, 12, 5]] },
+  { name: 'Driveway', rects: [[12, 0, 16, 6]], furniture: [{ type: 'car', name: 'Family car', x: 14, z: 3, facing: 'n', color: '#dc2626', entity: 'binary_sensor.car_parked' }] },
+  { name: 'Garden', rects: [[0, 9, 12, 14]], floor: 'grass', furniture: [
+    { type: 'tree', x: 1.5, z: 10.5, size: 1.1 }, { type: 'hedge', from: [0.2, 13.4], to: [11.8, 13.8] },
+    { type: 'pool', from: [6.5, 10], to: [10.5, 12.5] }, { type: 'sprinkler', x: 3.5, z: 11.5, radius: 2, entity: 'valve.garden' }] },
   { area: 'office', level: 1, rects: [[0, 0, 6, 5]] }, { name: 'Landing', level: 1, rects: [[6, 0, 12, 5]], stairs: true }],
   doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }, { from: [6, 2], to: [6, 3] }, { from: [3, 5], to: [4, 5] }, { from: [10, 3], to: [10, 4] }, { from: [6, 2], to: [6, 3], level: 1 }, { from: [6.5, 4.8], to: [7.5, 4.8] }],
   openings: [[8, 5, 9, 5]], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };

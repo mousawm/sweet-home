@@ -107,15 +107,16 @@ export const furnEntities = f => arr(f.entities ?? f.entity ?? (f.type === 'char
 export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'], table: ['Table', 'mdi:table-furniture'], chair: ['Chair', 'mdi:chair-rolling'],
   tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
   rug: ['Rug', 'mdi:rug'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
-  charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'] };
+  charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'],
+  car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'] };
 
-const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
+const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/parking|carport|driveway/, 'mdi:car'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
   [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
   [/garage/, 'mdi:garage'], [/garden|yard|patio|terrace|balcony|outside|outdoor/, 'mdi:flower'], [/hall|corridor|entry|entrance|landing/, 'mdi:door-open'],
   [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive']];
 const roomIcon = n => (ROOM_ICONS.find(([re]) => re.test(String(n).toLowerCase())) || [0, 'mdi:home-outline'])[1];
-const roomFloor = n => /bath|toilet|wc|shower|kitchen|laundry/.test(n) ? 'tile' : /bed|kid|nursery/.test(n) ? 'carpet' : /garage|garden|yard|patio|terrace|balcony|outside|outdoor/.test(n) ? 'stone' : /living|dining|lounge|office|study/.test(n) ? 'wood' : 'marble';
-const isOutdoor = n => /garden|yard|patio|terrace|balcony|outside|outdoor/.test(String(n).toLowerCase());
+const roomFloor = n => /bath|toilet|wc|shower|kitchen|laundry/.test(n) ? 'tile' : /bed|kid|nursery/.test(n) ? 'carpet' : /garage|parking|carport|driveway/.test(n) ? 'asphalt' : /garden|yard|patio|terrace|balcony|outside|outdoor/.test(n) ? 'stone' : /living|dining|lounge|office|study/.test(n) ? 'wood' : 'marble';
+const isOutdoor = n => /garden|yard|patio|terrace|balcony|outside|outdoor|driveway|carport|parking/.test(String(n).toLowerCase());
 
 /* ------------------------------------------------------------------ */
 /* automatic house: one box per HA area, laid out on a grid             */
@@ -147,8 +148,9 @@ function autoRooms(R, cfg) {
 export function stairsFor(room) {
   const [x1, z1, x2, z2] = room.rects[0], o = typeof room.stairs === 'object' ? room.stairs : {};
   const alongX = o.axis ? o.axis === 'x' : x2 - x1 >= z2 - z1, len = alongX ? x2 - x1 : z2 - z1;
-  // on an upper floor the stairwell goes down (to the floor below); on the lowest floor it goes up
-  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode: o.mode || ((room.level ?? 0) > 0 ? 'down' : 'up'), steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
+  // `stairs: up | down | both` (or {mode, axis, steps}); by default both: one flight up, one down
+  const mode = { up: 'up', down: 'down', both: 'split', split: 'split' }[o.mode || room.stairs] || 'split';
+  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode, steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
 }
 
 /* automatic furniture for automatic / furniture-less rooms, from the room's name */
@@ -181,13 +183,17 @@ export function autoFurniture(room) {
   } else if (/office|study|work/.test(n)) {
     f.push({ type: 'box', room: R, x: cx, z: z1 + 0.4, w: 1.4, d: 0.65, h: 0.75, color: 0x111111 });
     f.push({ type: 'chair', room: R, x: cx, z: z1 + 1.05, face: 'n', color: 0x334155 });
-  } else if (/garden|yard|patio|terrace|balcony/.test(n)) {
+  } else if (/garden|yard/.test(n)) {
+    f.push({ type: 'tree', room: R, x: x1 + Math.min(1.2, w * 0.25), z: z1 + Math.min(1.2, d * 0.25), size: 1 });
+    f.push({ type: 'hedge', room: R, x0: x1 + 0.15, z0: z2 - 0.55, x1: x2 - 0.15, z1: z2 - 0.15, h: 0.8 });
+    f.push({ type: 'table', room: R, x: cx, z: cz, w: 0.8, d: 0.8, h: 0.72, top: 0xf1f5f9, leg: 0x94a3b8 });
+  } else if (/patio|terrace|balcony/.test(n)) {
     f.push({ type: 'plant', room: R, x: x1 + 0.6, z: z1 + 0.6, size: 1 }, { type: 'plant', room: R, x: x2 - 0.6, z: z1 + 0.6, size: 0.9 });
     f.push({ type: 'table', room: R, x: cx, z: cz, w: 0.8, d: 0.8, h: 0.72, top: 0xf1f5f9, leg: 0x94a3b8 });
   } else if (/stair/.test(n)) {
     f.push(stairsFor(room));
-  } else if (/garage/.test(n)) {
-    f.push({ type: 'box', room: R, x: cx, z: cz, w: Math.min(1.8, w * 0.5), d: Math.min(4.2, d * 0.8), h: 1.2, color: 0x334155 });
+  } else if (/garage|parking|carport|driveway/.test(n)) {
+    f.push({ type: 'car', room: R, x: cx, z: cz, facing: d >= w ? 'n' : 'e', color: 0x2563eb });
   }
   return f;
 }
@@ -457,6 +463,23 @@ export function buildModel(cfg = {}, hass) {
     // stairs: rooms marked `stairs`, or named "Stairs" / "Staircase", get a flight of stairs
     if (r.furniture !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
   }
+  // a flight going down needs a hole in the floor: the room's floor leaves out the stairwell
+  const minus = ([a, b, c, d], [p, q, u, v]) => {
+    if (u <= a || p >= c || v <= b || q >= d) return [[a, b, c, d]];
+    const out = [], qq = Math.max(b, q), vv = Math.min(d, v);
+    if (q > b) out.push([a, b, c, q]); if (v < d) out.push([a, v, c, d]);
+    if (p > a) out.push([a, qq, p, vv]); if (u < c) out.push([u, qq, c, vv]);
+    return out.filter(([x1, z1, x2, z2]) => x2 - x1 > 0.02 && z2 - z1 > 0.02);
+  };
+  for (const f of furniture) {
+    if (f.type !== 'stairs' || !['down', 'split'].includes(f.mode) || !f.room) continue;
+    const r = rooms.find(x => x.id === f.room); if (!r) continue;
+    const x0 = num(f.x0, 0), z0 = num(f.z0, 0), x1 = num(f.x1, 2), z1 = num(f.z1, 1), alongX = (f.axis || 'x') === 'x';
+    // split: the second half across the flight goes down
+    const well = f.mode === 'down' ? [x0, z0, x1, z1] : alongX ? [x0, (z0 + z1) / 2, x1, z1] : [(x0 + x1) / 2, z0, x1, z1];
+    r.floorRects = (r.floorRects || r.rects).flatMap(q => minus(q, well));
+    f.well = well;
+  }
   // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
   const lvOfRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
   // a flight of stairs stays within the wall height (a cut-away house has low walls)
@@ -570,6 +593,7 @@ export function buildModel(cfg = {}, hass) {
     car: {
       charging: CAR.charging || null, power: CAR.power || null, time: CAR.time || null, perCharge: CAR.energy_per_charge || null, costCharge: CAR.cost_per_charge || null,
       month: CAR.energy_month || null, costMonth: CAR.cost_month || null, year: CAR.energy_year || null, costYear: CAR.cost_year || null, parking: CAR.status || null,
+      battery: CAR.battery || null, range: CAR.range || null, name: CAR.name || null, color: CAR.color || null,
     },
     cameras: camList,
     media: {

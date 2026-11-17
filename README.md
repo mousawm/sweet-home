@@ -160,10 +160,11 @@ shifted so that it starts at 0.
   name: Main Bedroom          # default: the area name
   rects: [[0, 5, 5, 9]]       # one or more [x1, z1, x2, z2]
   icon: mdi:bed
-  floor: carpet               # wood, tile, marble, carpet, stone, grass
+  floor: carpet               # wood, tile, marble, carpet, stone, grass, asphalt (parking)
   outdoor: false
   level: 1                    # the floor (default 0, the ground floor)
-  stairs: true                # draw a flight of stairs (automatic for rooms named "Stairs")
+  stairs: both                # a flight of stairs: both (one up, one down into a stairwell), up or down
+                              # (automatic, both ways, for rooms named "Stairs")
   furniture: [...]            # or `false` for none
   # overrides for what was discovered:
   lights: [light.bedroom]
@@ -177,7 +178,8 @@ shifted so that it starts at 0.
                                          # (default: blinds, plain switches, valves… found in the area)
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
-  names: {script.good_night: Bedtime}    # names for this card only (the editor writes these for entities HA can't rename)
+  names: {script.good_night: Bedtime}    # names for this card only: they replace the entity's name everywhere on
+                                         # the dashboard (the editor writes these for entities HA can't rename)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
@@ -222,11 +224,26 @@ furniture:
 | `marker` | `x z y color entity`: a device with no furniture (a sensor, a plug): a dot that lights up while it is on |
 | `blinds` | `from to y h color shade entity`: a blind along a window that rolls down with the cover's position |
 | `vacuum` | `x z color entity`: a dock and a robot that drives around the room while it cleans and goes back after |
+| `car` | `x z facing (n/e/s/w: where its front points) color length width entity parked_state`: a car in a painted bay. With a sensor it is there only while it is parked, and drives in / off when that changes: a binary sensor that is on, a tracker or person at `home`, or a state like `parked` (`parked_state` sets the exact state). |
+| `tree` | `x z size color trunk` |
+| `hedge` | `from to h color` |
+| `pool` | `from to color` |
+| `sprinkler` | `x z radius entity`: sprays water in 3D while its valve or switch is on |
 | all types | `entity` / `entities`, `name`, `badge` |
 
 **Move furniture in 3D**: admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
 While the card editor is open, each move goes through it (with undo). Otherwise it is saved straight into the
 dashboard. Pieces from the automatic set can be moved once their room has its own furniture (card editor → Furniture).
+
+### Parking and garden
+
+- **Parking**: a room named Garage, Parking, Carport or Driveway gets an asphalt floor (or pick *Parking (asphalt)*
+  as its floor). Add a **Car** in the card editor (Furniture), pick its colour, and link the sensor that says the car
+  is home: an occupancy or presence binary sensor from a camera, a `device_tracker` of the car, or a template sensor.
+- **Garden**: draw a room for it, tick *Outdoor* and pick the *Grass* floor (rooms named Garden or Yard do this on
+  their own). Add trees, hedges, a pool, plants and **sprinklers** in the card editor. Link each sprinkler to its
+  irrigation valve or switch: it sprays water in 3D while the valve is open. The valves, their schedule and the water
+  tank are on the **Water & Garden** tab (Panels → Irrigation and Water in the card editor).
 
 ### `panels`
 
@@ -244,7 +261,9 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
   pressure…)
 - **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
-- **car**: `charging`, `power`, `time`, `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`, `status`
+- **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
+  colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
+  `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`
 - **media**:
   - `player`, `speakers`
   - optional screen-time limits: `watch_timer`, `watch_limit`, `limit_select`, `block_switch`, `unblock_switch`

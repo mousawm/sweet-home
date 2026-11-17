@@ -52,6 +52,20 @@ try {
   await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(300);
   check('needs attention rows have a hide button', await p.evaluate(() => !!card.shadowRoot.querySelector('#alerts [data-act=exclude][data-id="sensor.door_sensor_battery"]')));
   await p.evaluate(() => card._setTab('home'));
+  check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
+  await p.evaluate(() => { const h = window.hassObj; h.states['binary_sensor.car_parked'] = { ...h.states['binary_sensor.car_parked'], state: 'off' }; card.hass = { ...h, states: { ...h.states } }; });
+  check('the car drives off when its sensor says it left', await p.waitForFunction(() => !card._three.cars[0].g.visible, null, { timeout: 8000 }).then(() => true, () => false));
+  await p.evaluate(() => card._selectFurn(card._model.furniture.find(f => f.type === 'car').idx));
+  check('the car in the popup: Away', await p.evaluate(() => card.shadowRoot.querySelector('.fgrp.focus')?.textContent.includes('Away')));
+  await p.evaluate(() => card._select(null));
+  check('stairs going up and down, with a stairwell', await p.evaluate(() => card._model.furniture.find(f => f.room === 'stairs' && f.type === 'stairs')?.mode === 'split' && !!card._model.rooms.find(r => r.id === 'stairs').floorRects));
+  check('a name given in the card replaces the entity name everywhere on the dashboard', await p.evaluate(() => card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Lounge Temp' && window.hassObj.states['sensor.living_room_temperature'].attributes.friendly_name !== 'Lounge Temp'));
+  await p.evaluate(() => card._setTab('energy')); await p.waitForTimeout(300);
+  check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
+    const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
+    return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
+  }));
+  await p.evaluate(() => card._setTab('home'));
   check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 5));
   check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors.at(-1); return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < 7.4 && Math.max(w[0], w[2]) > 6.6); }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));

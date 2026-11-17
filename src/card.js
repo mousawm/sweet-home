@@ -131,14 +131,22 @@ const guestInfo = (states, g) => {
 // Side view of the car: first-generation Kia Niro EV in dark metallic grey, facing right —
 // flat roof with silver roof rails and a small spoiler, three side windows with a chrome surround and a body-coloured
 // C-pillar, black arch / sill cladding, blue accent low on the front bumper, two-tone twin-spoke wheels
-const CAR_SVG = ch => {
+// the car drawing's body gradient for a colour (default: graphite)
+const carGrad = hex => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return ['#7a8089', '#5a5f67', '#3a3e44', '#202327'];
+  const n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255];
+  const mix = f => '#' + c.map(v => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)).toString(16).padStart(2, '0')).join('');
+  return [mix(0.32), mix(0), mix(-0.38), mix(-0.68)];
+};
+const CAR_SVG = (ch, color) => {
+  const g = carGrad(color);
   const wheel = (cx, cy) => `<g transform="translate(${cx} ${cy})"><circle class="tire" r="13.5"/><circle class="rim" r="9.2"/>`
     + [0, 72, 144, 216, 288].map(a => [-7, 7].map(d => `<line class="spoke" x1="0" y1="-3" x2="0" y2="-8.6" transform="rotate(${a + d})"/>`).join('')).join('')
     + `<circle class="lip" r="9.2"/><circle class="hub" r="2.6"/></g>`;
   return `<svg viewBox="0 0 240 92" aria-label="Car">
     <defs>
       <linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
-      <linearGradient id="cbody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a8089"/><stop offset=".28" stop-color="#5a5f67"/><stop offset=".62" stop-color="#3a3e44"/><stop offset="1" stop-color="#202327"/></linearGradient>
+      <linearGradient id="cbody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${g[0]}"/><stop offset=".28" stop-color="${g[1]}"/><stop offset=".62" stop-color="${g[2]}"/><stop offset="1" stop-color="${g[3]}"/></linearGradient>
       <linearGradient id="cglass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset=".55" stop-color="#2c3646"/><stop offset="1" stop-color="#0d1219"/></linearGradient>
     </defs>
     <ellipse cx="120" cy="82.5" rx="106" ry="3.2" fill="rgba(0,0,0,.55)"/>
@@ -261,7 +269,26 @@ export class SweetHomeCard extends HTMLElement {
   _tabOn(k) { return k === 'home' || (TAB_SECS[k] || []).some(id => !this._secOff(id)); }
   _tabList() { return ALL_TABS.filter(([k]) => this._tabOn(k)); }
 
+  // Names given in this card (room `names` / `light_names`, card editor → Entities) replace the entity's name everywhere
+  // on the dashboard: the card reads states through a copy of hass whose friendly_name is changed for those entities.
+  // The renamed states are cached per original state object, so an entity that didn't change is still the same object.
+  _withNames(h) {
+    if (this._nameCfg !== this._config) {
+      this._nameCfg = this._config; this._nameCache = new WeakMap();
+      this._nameMap = Object.assign({}, ...(this._config?.house?.rooms || []).map(r => ({ ...(r.light_names || {}), ...(r.names || {}) })), this._config?.names || {});
+    }
+    const map = this._nameMap, ids = Object.keys(map); if (!h || !ids.length) return h;
+    const states = { ...h.states };
+    for (const id of ids) {
+      const st = states[id]; if (!st || !map[id]) continue;
+      let c = this._nameCache.get(st);
+      if (!c) { c = { ...st, attributes: { ...st.attributes, friendly_name: map[id] } }; this._nameCache.set(st, c); }
+      states[id] = c;
+    }
+    const o = Object.create(h); o.states = states; o._raw = h; return o;
+  }
   set hass(h) {
+    h = this._withNames(h?._raw || h);
     this._hass = h;
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
@@ -311,6 +338,17 @@ export class SweetHomeCard extends HTMLElement {
   ok(id) { const v = this.v(id); return v !== undefined && !BAD.includes(v); }
   climOn(id) { const v = this.v(id); return v && v !== 'off' && !BAD.includes(v); }
   doorOpen(d) { const v = this.v(d.id); return d.open ? String(v || '').toLowerCase() === d.open.toLowerCase() : v === 'on'; }
+  // a car is parked when its sensor says so: binary sensor on, tracker / person home, or a state like "parked"
+  // (`parked_state` sets the exact state); no sensor: always parked
+  carParked(id, want) {
+    if (!id) return true;
+    const v = String(this.v(id) ?? ''), d = id.split('.')[0];
+    if (BAD.includes(v)) return true;
+    if (want != null) return v.toLowerCase() === String(want).toLowerCase();
+    if (d === 'binary_sensor' || d === 'input_boolean' || d === 'switch') return v === 'on';
+    if (d === 'device_tracker' || d === 'person') return v === 'home';
+    return ['on', 'home', 'parked', 'present', 'occupied', 'detected', 'true', 'yes'].includes(v.toLowerCase()) || (!isNaN(parseFloat(v)) && parseFloat(v) > 0);
+  }
   roomLit(r) { return (r.lights || []).some(l => this.v(l) === 'on'); }
   roomMotion(r) { return (r.motion || []).some(m => this.v(m) === 'on'); }
   name() { return (this._hass?.user?.name || '').split(' ')[0]; }
@@ -482,7 +520,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('ehist'), deps: [], render: () => this._rEHist() },
       { el: $('alerts'), deps: [], render: () => this._rAlerts() },
       { el: $('water'), deps: all(E.water.tank, E.water.quality, E.water.temp, E.water.pumps.map(p => [p.id, p.power, p.info]), E.water.entities.map(e => e.id)), render: () => this._rWater() },
-      { el: $('car'), deps: all(Object.values(E.car)), render: () => this._rCar() },
+      { el: $('car'), deps: all(Object.values(E.car).filter(v => typeof v === 'string' && v.includes('.'))), render: () => this._rCar() },
       { el: $('cams'), deps: all(E.cameras.map(c => [c.person, c.car, c.motion, c.face, c.plate, c.relay, c.door]), E.face), render: () => this._rCams(), after: () => this._refreshCams(true) },
       { el: $('media'), deps: all(E.media.tv, E.media.shield, E.media.echoes, E.media.ytTimer, E.media.ytLimit, E.media.ytBlock, E.media.ytForce, E.media.ytSelect), render: () => this._rMedia() },
       { el: $('mserver'), deps: all(Object.values(E.mserver).map(o => Object.values(o).filter(v => typeof v === 'string')), this._jfPlayers()), render: () => this._rMServer() },
@@ -492,7 +530,7 @@ export class SweetHomeCard extends HTMLElement {
     ];
     const off = {
       security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
-      modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power),
+      modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
       water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
@@ -1557,7 +1595,8 @@ export class SweetHomeCard extends HTMLElement {
     const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum].filter(Boolean));
     const pieces = FURN.filter(f => f.room === r.id && f.entities?.length);
     const focus = pieces.find(f => f.idx === this._fsel);
-    const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id, { name: r.names?.[id] })).join('')}</div>`;
+    const carVal = (f, id) => (f.type === 'car' ? (this.carParked(id, f.parked_state) ? { val: tr('Parked'), on: true, icon: 'mdi:car' } : { val: tr('Away'), icon: 'mdi:car-off' }) : {});
+    const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id, { name: r.names?.[id], ...carVal(f, id) })).join('')}</div>`;
     const furn = pieces.filter(f => f !== focus).map(f => [f, f.entities.filter(id => !shown.has(id))]).filter(([, ids]) => ids.length).map(([f, ids]) => piece(f, ids));
     const inFurn = new Set(pieces.flatMap(f => f.entities));
     const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, { ...e, name: e.name || r.names?.[e.id] }));
@@ -1617,6 +1656,7 @@ export class SweetHomeCard extends HTMLElement {
     const d = id.split('.')[0], a = st.attributes, v = st.state, bad = BAD.includes(v);
     const name = esc(o.name || tc(a.friendly_name || id));
     const icon = o.icon || a.icon || domIcon(d, v, a);
+    if (o.val != null) return `<div class="mrow ${o.on ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(o.val)}</b></div>`;
     if (bad) return `<div class="mrow na" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(pretty(v))}</b></div>`;
     if (TOGGLE_DOMAINS.includes(d)) {
       const on = ['on', 'open', 'opening'].includes(v);
@@ -2130,17 +2170,19 @@ export class SweetHomeCard extends HTMLElement {
   _rCar() {
     const C = E.car; const ch = this.on(C.charging);
     const p = this.n(C.power) ?? 0;
-    return `<div class="ch">${ic('mdi:car-electric')}<h3>Car</h3><span class="pill" style="--c:${ch ? '#34d399' : '#94a3b8'}">${ch ? 'Charging' : esc(this.v(C.parking) || 'Idle')}</span></div>
+    const soc = this.n(C.battery), rng = C.range && this.ok(C.range) ? this.f(C.range, 0) : '';
+    const color = Array.isArray(C.color) ? '#' + C.color.map(v => Number(v).toString(16).padStart(2, '0')).join('') : C.color;
+    const kpi = (id, id2, label, d) => (id || id2 ? `<div data-act="more" data-id="${id || id2}"${id && id2 ? ` data-id2="${id2}"` : ''}><span>${tr(label)}</span><b>${this.f(id, d)}</b><em>${id2 ? this.f(id2, 2) : ''}</em></div>` : '');
+    const kpis = [kpi(C.perCharge, C.costCharge, 'This charge', 1), kpi(C.month, C.costMonth, 'This month', 0), kpi(C.year, C.costYear, 'This year', 0)].filter(Boolean);
+    return `<div class="ch">${ic('mdi:car-electric')}<h3>${esc(C.name || tr('Car'))}</h3><span class="pill" style="--c:${ch ? '#34d399' : '#94a3b8'}" ${C.parking ? `data-act="more" data-id="${C.parking}"` : ''}>${ch ? tr('Charging') : esc(tr(pretty(this.v(C.parking) || 'Idle')))}</span></div>
       <div class="car ${ch ? 'charging' : ''}">
-        <div class="carviz" data-act="more" data-id="${C.power}" data-id2="${C.time}">
-          ${CAR_SVG(ch)}
-          <div class="cpow"><b>${fmtW(p)}</b><span>${ch ? 'charging · ' + esc(this.v(C.time) || '') : 'charger idle'}</span></div>
+        <div class="carviz" data-act="more" data-id="${C.power || C.charging}"${C.time ? ` data-id2="${C.time}"` : ''}>
+          ${CAR_SVG(ch, color)}
+          <div class="cpow"><b>${fmtW(p)}</b><span>${ch ? tr('charging') + (C.time && this.ok(C.time) ? ' · ' + esc(this.v(C.time)) : '') : tr('charger idle')}</span>
+            ${soc != null ? `<div class="csoc" data-act="more" data-id="${C.battery}"${C.range ? ` data-id2="${C.range}"` : ''}><div class="bar"><i style="width:${clamp(soc, 0, 100)}%;background:${soc < 20 ? '#f43f5e' : soc < 40 ? '#fbbf24' : '#34d399'}"></i></div><em>${Math.round(soc)}%${rng ? ` · ${rng}` : ''}</em></div>` : rng ? `<div class="csoc"><em>${rng}</em></div>` : ''}
+          </div>
         </div>
-        <div class="kpis">
-          <div data-act="more" data-id="${C.perCharge}" data-id2="${C.costCharge}"><span>This charge</span><b>${this.f(C.perCharge, 1)}</b><em>${this.f(C.costCharge, 2)}</em></div>
-          <div data-act="more" data-id="${C.month}" data-id2="${C.costMonth}"><span>This month</span><b>${this.f(C.month, 0)}</b><em>${this.f(C.costMonth, 2)}</em></div>
-          <div data-act="more" data-id="${C.year}" data-id2="${C.costYear}"><span>This year</span><b>${this.f(C.year, 0)}</b><em>${this.f(C.costYear, 2)}</em></div>
-        </div>
+        ${kpis.length ? `<div class="kpis">${kpis.join('')}</div>` : ''}
       </div>`;
   }
 
@@ -2607,6 +2649,9 @@ class HouseScene {
     } else if (kind === 'grass') {
       g.fillStyle = '#4d7c3a'; g.fillRect(0, 0, 256, 256);
       for (let i = 0; i < 7000; i++) { g.fillStyle = `rgba(${rnd(40, 110) | 0},${rnd(110, 170) | 0},${rnd(30, 70) | 0},.45)`; g.fillRect(rnd(0, 256), rnd(0, 256), 1.2, rnd(2, 5)); }
+    } else if (kind === 'asphalt') {
+      g.fillStyle = '#3a3f47'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 9000; i++) { const v = rnd(40, 95) | 0; g.fillStyle = `rgba(${v},${v + 2},${v + 6},.5)`; g.fillRect(rnd(0, 256), rnd(0, 256), 1.4, 1.4); }
     } else if (kind === 'tile') {
       g.fillStyle = '#eef2f6'; g.fillRect(0, 0, 256, 256); g.strokeStyle = 'rgba(100,116,139,.25)'; g.lineWidth = 2;
       for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke(); }
@@ -2630,12 +2675,13 @@ class HouseScene {
     g.globalCompositeOperation = 'destination-out'; g.fillStyle = mask; g.fillRect(0, 0, 512, 512);
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
     const m = new T.Mesh(new T.PlaneGeometry(Math.max(64, SPAN * 4), Math.max(64, SPAN * 4)), new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.y = -0.25; this.scene.add(m);
-    // base slab
-    const slab = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.6, 0.5, PLAN_D + 0.6), new T.MeshStandardMaterial({ color: 0x1b2337, roughness: 0.9 }));
-    slab.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); slab.receiveShadow = true; this.scene.add(slab);
+    m.rotation.x = -Math.PI / 2; m.position.y = -0.25; m.renderOrder = -3; this.scene.add(m);
+    // base slab: drawn first and without depth, so a stairwell going down below the floor shows through it
+    const slab = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.6, 0.5, PLAN_D + 0.6), new T.MeshStandardMaterial({ color: 0x1b2337, roughness: 0.9, depthWrite: false }));
+    slab.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); slab.receiveShadow = true; slab.renderOrder = -2; this.scene.add(slab);
     // shadow catcher
     const sc = new T.Mesh(new T.PlaneGeometry(PLAN_W + 24, PLAN_D + 24), new T.ShadowMaterial({ opacity: 0.35 }));
+    sc.material.depthWrite = false; sc.renderOrder = -1;
     sc.rotation.x = -Math.PI / 2; sc.position.y = -0.02; sc.receiveShadow = true; this.scene.add(sc);
   }
 
@@ -2651,9 +2697,9 @@ class HouseScene {
         const w = x2 - x1, d = z2 - z1;
         texCache[r.floor] = texCache[r.floor] || this._tex(r.floor);
         const map = texCache[r.floor].clone(); map.needsUpdate = true;
-        const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : 2.5;
+        const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : r.floor === 'asphalt' ? 4 : 2.5;
         map.repeat.set(w / rep, d / rep);
-        const mat = new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : 0.95, metalness: 0.0, emissive: 0x000000 });
+        const mat = new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : r.floor === 'asphalt' ? 0.85 : 0.95, metalness: 0.0, emissive: 0x000000 });
         const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
         const yOff = r.id === 'stairs' ? 0 : 0;
         const m = new T.Mesh(new T.BoxGeometry(w - 0.02, 0.1, d - 0.02), mat);
@@ -2932,7 +2978,7 @@ class HouseScene {
     const plant = (room, x, z, s = 1) => { cyl(room, x, z, 0.2 * s, 0.38 * s, 0xd6cfc4, 0, { r: 0.6 }); ball(room, x, z, 0.32 * s, 0x2f6b3a, 0.62 * s); ball(room, x + 0.12 * s, z - 0.08 * s, 0.22 * s, 0x3f8a4c, 0.85 * s); };
 
     // pieces from the config (house.furniture / room.furniture, or the automatic set for automatic rooms)
-    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = []; this.blinds = []; this.vacuums = [];
+    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = []; this.blinds = []; this.vacuums = []; this.cars = []; this.pools = []; this.sprinklers = [];
     const N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const C = (v, d) => toColor(v, d);
     const opt = f => ({ r: N(f.roughness, 0.75), m: N(f.metalness, 0), op: f.opacity != null ? N(f.opacity, 1) : undefined, e: f.emissive, ei: f.emissive ? N(f.emissive_intensity, 0.6) : 0 });
@@ -3019,6 +3065,57 @@ class HouseScene {
             this.vacuums.push({ g, led, entity: f.entities[0] || null, dock: [gx, gz], room: rm, st: 'docked', goal: null });
             break;
           }
+          case 'car': { // a parked car in its painted bay; with a sensor it is there only while the car is parked
+            const x = N(f.x, 0), z = N(f.z, 0), L = N(f.length, 4.3), Wd = N(f.width, 1.8), face = f.facing || 'n';
+            const ang = { n: 0, w: Math.PI / 2, s: Math.PI, e: -Math.PI / 2 }[face] ?? 0;
+            // the bay: painted lines on the floor, always there
+            const bay = new T.Group(); const [bx, bz] = this.w(x, z); bay.position.set(bx, 0.012, bz); bay.rotation.y = ang; this._at().add(bay);
+            const paint = M(0xe2e8f0, { r: 0.9 }), bw = Wd + 0.9, bl = L + 0.9;
+            for (const [px, pz, sw, sd] of [[-bw / 2, 0, 0.08, bl], [bw / 2, 0, 0.08, bl], [0, bl / 2, bw + 0.08, 0.08]]) { const pm = new T.Mesh(new T.BoxGeometry(sw, 0.01, sd), paint); pm.position.set(px, 0, pz); pm.receiveShadow = true; bay.add(pm); }
+            // the car, built facing -z (north) and turned
+            const car = new T.Group(); car.position.set(bx, 0, bz); car.rotation.y = ang; this._at().add(car);
+            const body = M(C(f.color, 0x2563eb), { r: 0.35, m: 0.45 }), glass = M(0x0f172a, { r: 0.1, m: 0.6 }), tyre = M(0x111827, { r: 0.9 });
+            const part = (geo, mat, px, py, pz) => { const m = new T.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; m.userData.room = rm; car.add(m); this.pick.push(m); tag(m); return m; };
+            part(new T.BoxGeometry(Wd, 0.5, L), body, 0, 0.5, 0);
+            part(new T.BoxGeometry(Wd * 0.86, 0.42, L * 0.48), glass, 0, 0.96, L * 0.06);
+            part(new T.BoxGeometry(Wd * 0.88, 0.05, L * 0.5), body, 0, 1.19, L * 0.06);
+            for (const sx2 of [-1, 1]) for (const sz2 of [-1, 1]) { const w = part(new T.CylinderGeometry(0.33, 0.33, 0.22, 20), tyre, sx2 * (Wd / 2 - 0.05), 0.33, sz2 * L * 0.32); w.rotation.z = Math.PI / 2; }
+            const lamps = [];
+            for (const sx2 of [-1, 1]) {
+              lamps.push(part(new T.BoxGeometry(0.34, 0.1, 0.04), new T.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xfff7d6, emissiveIntensity: 0.4 }), sx2 * Wd * 0.32, 0.6, -L / 2 - 0.01));
+              part(new T.BoxGeometry(0.34, 0.1, 0.04), new T.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xef4444, emissiveIntensity: 0.5 }), sx2 * Wd * 0.32, 0.6, L / 2 + 0.01);
+            }
+            this.cars.push({ g: car, entity: f.entities[0] || null, state: f.parked_state, t: 1, c: null, slide: 0, dir: [Math.sin(ang), Math.cos(ang)], base: [bx, bz] });
+            break;
+          }
+          case 'tree': { // trunk and a round crown
+            const x = N(f.x, 0), z = N(f.z, 0), sc = N(f.size, 1);
+            cyl(rm, x, z, 0.1 * sc, 1.1 * sc, C(f.trunk, 0x6b4a2b), 0, { r: 0.9 });
+            ball(rm, x, z, 0.75 * sc, C(f.color, 0x2f6b3a), 1.55 * sc);
+            ball(rm, x + 0.35 * sc, z - 0.2 * sc, 0.5 * sc, 0x3f8a4c, 1.35 * sc);
+            ball(rm, x - 0.3 * sc, z + 0.25 * sc, 0.45 * sc, 0x356f40, 1.25 * sc);
+            break;
+          }
+          case 'hedge': ext(rm, N(f.x0, 0), N(f.z0, 0), N(f.x1, 1), N(f.z1, 0.4), N(f.h, 0.9), C(f.color, 0x2f6b3a), 0, { r: 1 }); break;
+          case 'pool': { // water with a white edge
+            const x0 = N(f.x0, 0), z0 = N(f.z0, 0), x1 = N(f.x1, 3), z1 = N(f.z1, 2), e = 0.18;
+            for (const [a, b, c, d] of [[x0, z0, x1, z0 + e], [x0, z1 - e, x1, z1], [x0, z0 + e, x0 + e, z1 - e], [x1 - e, z0 + e, x1, z1 - e]]) ext(rm, a, b, c, d, 0.08, 0xf1f5f9, 0, { r: 0.5 });
+            const water = ext(rm, x0 + e, z0 + e, x1 - e, z1 - e, 0.05, C(f.color, 0x22d3ee), 0, { r: 0.08, m: 0.1, op: 0.85, e: 0x0e7490, ei: 0.35 });
+            water.castShadow = false; this.pools.push(water);
+            break;
+          }
+          case 'sprinkler': { // a garden sprinkler: sprays water while its valve / switch is on
+            const x = N(f.x, 0), z = N(f.z, 0), rad = N(f.radius, 2);
+            cyl(rm, x, z, 0.06, 0.18, 0x334155, 0, { r: 0.5, m: 0.4 });
+            const NP = 140, pos = new Float32Array(NP * 3), life = new Float32Array(NP), ang2 = new Float32Array(NP);
+            for (let i = 0; i < NP; i++) { life[i] = Math.random(); ang2[i] = Math.random() * Math.PI * 2; }
+            const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+            const pts = new T.Points(geo, new T.PointsMaterial({ color: 0x7dd3fc, size: 0.07, transparent: true, opacity: 0, depthWrite: false }));
+            this._at().add(pts);
+            const [cx2, cz2] = this.w(x, z);
+            this.sprinklers.push({ pts, life, ang: ang2, cx: cx2, cz: cz2, rad, entity: f.entities[0] || null, on: 0, onT: 0 });
+            break;
+          }
           default: console.warn('sweet-home: unknown furniture type', f.type);
         }
       } catch (err) { console.warn('sweet-home: furniture', f, err); }
@@ -3060,6 +3157,26 @@ class HouseScene {
       const voidM = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.02, (a1 - a0) / 2) : new T.BoxGeometry((a1 - a0) / 2, 0.02, len), new T.MeshBasicMaterial({ color: 0x05070c }));
       const [vx, vz] = alongX ? this.w(s0 + len / 2, (mid + a1) / 2) : this.w((mid + a1) / 2, s0 + len / 2); voidM.position.set(vx, -n * rise - 0.1, vz); this._at().add(voidM);
     }
+    // the stairwell of a flight going down: an open dark shaft under the hole in the floor
+    if (f.well) {
+      const [wx0, wz0, wx1, wz1] = f.well, depth = n * rise + 0.25;
+      const shaft = new T.Mesh(new T.BoxGeometry(wx1 - wx0, depth, wz1 - wz0), new T.MeshStandardMaterial({ color: 0x0b1020, roughness: 1, side: T.BackSide }));
+      const [sxw, szw] = this.w((wx0 + wx1) / 2, (wz0 + wz1) / 2); shaft.position.set(sxw, -depth / 2, szw); shaft.userData.room = room; if (f.idx != null) shaft.userData.fi = f.idx;
+      this._at().add(shaft);
+    }
+    // arrows on the flights: teal going up, amber going down
+    const arrow = (across, y, up) => {
+      const sh = new T.Shape(); sh.moveTo(0, 0.22); sh.lineTo(0.16, -0.06); sh.lineTo(0.06, -0.06); sh.lineTo(0.06, -0.22); sh.lineTo(-0.06, -0.22); sh.lineTo(-0.06, -0.06); sh.lineTo(-0.16, -0.06); sh.closePath();
+      const m = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: up ? 0x2dd4bf : 0xfbbf24, transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide }));
+      const along = s0 + len / 2, [ax, az] = alongX ? this.w(along, across) : this.w(across, along);
+      m.rotation.x = -Math.PI / 2; // lying flat; the shape's +y points along -z
+      // both point the way you walk: up the rising flight, down the sinking one (both run along +x / +z)
+      m.rotation.z = alongX ? -Math.PI / 2 : Math.PI;
+      m.position.set(ax, y + 0.1, az); m.renderOrder = 2; this._at().add(m);
+    };
+    const midY = (n / 2) * rise;
+    if (mode === 'split') { arrow((a0 + mid) / 2, 0.08 + midY, true); arrow((mid + a1) / 2, -0.08 - midY, false); }
+    else arrow(mid, mode === 'down' ? -0.08 - midY : 0.08 + midY, mode !== 'down');
     // motion dots: one per motion sensor of the stairs, spread along the flight
     const motion = f.motion ? [].concat(f.motion) : (ROOM[room]?.motion || []);
     motion.forEach((id, i) => {
@@ -3311,14 +3428,18 @@ class HouseScene {
     // blinds: how far down (0 open … 1 closed); robot vacuums: what they are doing
     for (const B of this.blinds || []) { const st = c.s(B.entity); if (!st) continue; const p = st.attributes.current_position; B.t = Math.max(0.04, p != null ? 1 - p / 100 : st.state === 'closed' ? 1 : st.state === 'closing' ? 0.6 : 0.04); }
     for (const V of this.vacuums || []) V.st = c.v(V.entity) || 'docked';
+    for (const K of this.cars || []) { K.t = c.carParked(K.entity, K.state) ? 1 : 0; if (K.c == null) { K.c = K.t; K.g.visible = !!K.t; } }
+    for (const S of this.sprinklers || []) S.onT = S.entity && ['on', 'open', 'opening'].includes(c.v(S.entity)) ? 1 : 0;
     for (const F of this.fans || []) { const st = c.s(F.entity); F.on = st?.state === 'on' ? 1 : 0; F.sp = F.on ? 0.5 + 1.5 * ((st.attributes.percentage ?? 60) / 100) : 0; }
     for (const P of this.markers || []) { const v = c.v(P.entity); P.t = BAD.includes(v ?? '') ? -1 : c.on(P.entity) || (P.entity.startsWith('climate.') && c.climOn(P.entity)) ? 1 : 0; }
+    const ids0 = P => P.f.entities[0];
     // furniture badges: a dot; the entity's icon while it is on, its room is open or the pointer is over it
     for (const P of this.fpieces || []) {
       if (!P.el) continue;
-      const ids = P.f.entities, act = ids.some(id => c.on(id) || (id.startsWith('climate.') && c.climOn(id))), na = ids.every(id => BAD.includes(c.v(id) ?? ''));
+      const car = P.f.type === 'car', parked = car && c.carParked(ids0(P), P.f.parked_state);
+      const ids = P.f.entities, act = car ? parked : ids.some(id => c.on(id) || (id.startsWith('climate.') && c.climOn(id))), na = ids.every(id => BAD.includes(c.v(id) ?? ''));
       const big = act || this.sel === P.f.room || this.hoverF === P.idx;
-      const st = c.s(ids[0]), icon = P.f.icon || (st ? st.attributes.icon || domIcon(ids[0].split('.')[0], st.state, st.attributes) : furnIcon(P.f));
+      const st = c.s(ids[0]), icon = P.f.icon || (car ? (parked ? 'mdi:car' : 'mdi:car-off') : st ? st.attributes.icon || domIcon(ids[0].split('.')[0], st.state, st.attributes) : furnIcon(P.f));
       const sig = [act, na, big, icon].join('|');
       if (P.el._sig !== sig) { P.el._sig = sig; P.el.className = `fb ${act ? 'on' : ''} ${na ? 'na' : ''} ${big ? 'big' : ''}`; P.el.innerHTML = big ? ic(icon) : ''; }
     }
@@ -3330,7 +3451,7 @@ class HouseScene {
     const dv = day.toFixed(2); if (this._dayV !== dv) { this._dayV = dv; this.vp.style.setProperty('--day', dv); }
     // battery: HA pushes state changes all the time; redraw only when something the scene shows changed
     const sg = [Object.values(this.rooms).map(R => [R.litT, R.stripT || 0, R.spotT || 0, R.tvT || 0, R.stripCol ? R.stripCol.getHex() : 0, R.tvCol ? R.tvCol.getHex() : 0, R.motion, R.anyLit, R.temp]),
-      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
+      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), (this.cars || []).map(K => K.t), (this.sprinklers || []).map(S => S.onT), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
     if (sg !== this._syncSig) { this._syncSig = sg; this._dirty = true; }
   }
 
@@ -3479,6 +3600,26 @@ class HouseScene {
       L.glow.material.opacity = (L.m.material.emissiveIntensity / 1.6) * 0.32 * (this.mode === 'lights' ? 1 : 0.55);
     }
     for (const F of this.fans || []) { if (F.sp) { F.g.rotation.y -= dt * F.sp * 6; anim = true; } }
+    for (const K of this.cars || []) { // a car arriving drives into its bay from behind; one leaving drives off forwards
+      if (K.c == null) { K.c = K.t; K.g.visible = !!K.t; K.slide = 0; } // the first state: no animation
+      else if (K.t !== K.c) { K.c = K.t; K.slide = K.t ? 3.5 : 0; K.g.visible = true; }
+      if (K.c && K.slide > 0.002) { K.slide += -K.slide * Math.min(1, dt * 2.5); anim = true; mv += 0.05; }
+      else if (!K.c && K.g.visible) { K.slide += dt * 4; anim = true; mv += 0.05; if (K.slide > 3.5) K.g.visible = false; }
+      const off = K.c ? K.slide : -K.slide; // + behind the car, − in front of it
+      K.g.position.x = K.base[0] + K.dir[0] * off; K.g.position.z = K.base[1] + K.dir[1] * off;
+    }
+    for (const S of this.sprinklers || []) {
+      S.on += (S.onT - S.on) * Math.min(1, dt * 3); S.pts.material.opacity = S.on * 0.85;
+      if (S.on > 0.01) {
+        anim = true; const p = S.pts.geometry.attributes.position.array;
+        for (let i = 0; i < S.life.length; i++) {
+          S.life[i] += dt * 0.7; if (S.life[i] > 1) { S.life[i] -= 1; S.ang[i] = Math.random() * Math.PI * 2; }
+          const l = S.life[i], r = l * S.rad;
+          p[i * 3] = S.cx + Math.cos(S.ang[i]) * r; p[i * 3 + 1] = 0.2 + Math.sin(l * Math.PI) * 0.7; p[i * 3 + 2] = S.cz + Math.sin(S.ang[i]) * r;
+        }
+        S.pts.geometry.attributes.position.needsUpdate = true;
+      }
+    }
     for (const B of this.blinds || []) { const d = B.t - B.c; if (Math.abs(d) > 0.002) { B.c += d * Math.min(1, dt * 3); B.m.scale.y = B.c; mv += Math.abs(d); } }
     for (const V of this.vacuums || []) {
       const p = V.g.position, cleaning = V.st === 'cleaning';
@@ -4063,6 +4204,8 @@ ha-icon.spin{animation:spin 1.2s linear infinite}
 ha-icon.pulse{animation:none;color:var(--teal)}
 
 /* car */
+.csoc{margin-top:8px;cursor:pointer;min-width:110px}.csoc .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}.csoc .bar i{display:block;height:100%;border-radius:3px}
+.csoc em{display:block;font-style:normal;font-size:11.5px;color:var(--mu);margin-top:4px}
 .carviz{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer}
 .carviz svg{width:62%;max-width:270px;flex:none;overflow:visible}
 .carviz .body{fill:url(#cbody);stroke:rgba(255,255,255,.32);stroke-width:.9;transition:stroke .3s}

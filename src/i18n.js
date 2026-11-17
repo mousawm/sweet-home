@@ -73,6 +73,13 @@ const AR = {
   North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
   Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant',
   'default name': 'الاسم الافتراضي', 'could not rename': 'تعذّرت إعادة التسمية', 'not found': 'غير موجود',
+  Parked: 'مركونة', Tree: 'شجرة', Hedge: 'سياج نباتي', Pool: 'مسبح', Sprinkler: 'رشاش مياه', Asphalt: 'أسفلت',
+  'Stairs going': 'اتجاه الدرج', 'Up and down': 'صعود ونزول', 'No stairs': 'بدون درج', 'Car sensor (shows the car while it is parked)': 'حساس السيارة (تظهر السيارة عندما تكون مركونة)',
+  'Valve or switch (sprays water while it is on)': 'صمام أو مفتاح (يرش الماء أثناء التشغيل)', 'Parking (asphalt)': 'موقف سيارات (أسفلت)', 'Trunk colour': 'لون الجذع',
+  'Electric car': 'السيارة الكهربائية', 'This charge': 'هذا الشحن', 'This month': 'هذا الشهر', 'This year': 'هذا العام', charging: 'تشحن', 'charger idle': 'الشاحن متوقف',
+  'Charging (on while it charges)': 'الشحن (يعمل أثناء الشحن)', 'Charging power': 'قدرة الشحن', 'Battery level': 'مستوى البطارية', Range: 'المدى',
+  'Status (parked, driving…)': 'الحالة (مركونة، تسير…)', 'Charging time / time left': 'مدة الشحن / الوقت المتبقي', 'This charge: energy': 'هذا الشحن: الطاقة', 'This charge: cost': 'هذا الشحن: التكلفة',
+  'This month: energy': 'هذا الشهر: الطاقة', 'This month: cost': 'هذا الشهر: التكلفة', 'This year: energy': 'هذا العام: الطاقة', 'This year: cost': 'هذا العام: التكلفة',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',
