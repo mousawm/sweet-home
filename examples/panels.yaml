@@ -1,0 +1,43 @@
+# Panels: everything is optional. `false` hides a panel; an object picks the entities yourself.
+type: custom:sweet-home-card
+title: Home
+start_tab: home
+panels:
+  security:
+    alarm: alarm_control_panel.home
+    locks: [lock.front_door, lock.garage]
+    cameras:
+      - entity: camera.driveway
+        person: binary_sensor.driveway_person_occupancy
+  climate:
+    entities: [climate.bedroom, climate.living_room]
+  energy:                       # live power comes from HA's Energy settings unless set here
+    month_sensor: sensor.energy_this_month
+    exclude: [sensor.ev_charger_energy]
+  water:
+    tank: sensor.water_tank_level
+    pumps:
+      - entity: switch.well_pump
+        power: sensor.well_pump_power
+  irrigation:
+    zones:
+      - entity: switch.garden_valve_1
+        name: Front Lawn
+        duration: number.garden_valve_1_duration
+    tomorrow: input_boolean.water_tomorrow
+  media:
+    player: media_player.living_room_tv
+    speakers: [media_player.kitchen_speaker]
+  media_server:
+    jellyfin_tv:                # optional: start Jellyfin on an Android TV before playing
+      name: Living Room TV
+      session: SHIELD           # part of the Jellyfin session's name
+      app_player: media_player.android_tv
+  homelab:
+    pinned:
+      - key: qemu_homeassistant_100
+        name: Home Assistant
+  attention:
+    battery_threshold: 15
+    wifi_threshold: -75
+  car: false

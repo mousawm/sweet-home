@@ -1,0 +1,6 @@
+{
+  "name": "Sweet Home",
+  "filename": "sweet-home-card.js",
+  "render_readme": true,
+  "homeassistant": "2024.8.0"
+}

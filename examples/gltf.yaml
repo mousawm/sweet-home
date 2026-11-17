@@ -1,0 +1,17 @@
+# Your own 3D model (.glb exported from Blender, Sweet Home 3D, SketchUp…) placed in /config/www.
+# Name each room's mesh after the room id (or list them under mesh_rooms) so taps open the right room.
+type: custom:sweet-home-card
+house:
+  type: gltf
+  url: /local/home.glb
+  scale: 1
+  rotation: 0                  # degrees around the vertical axis
+  offset: [0, 0, 0]
+  mesh_rooms:
+    LivingRoomFloor: living_room
+    KitchenFloor: kitchen
+  rooms:                       # rectangles still place labels, light glows and tap areas
+    - area: living_room
+      rects: [[0, 0, 6, 5]]
+    - area: kitchen
+      rects: [[6, 0, 10, 5]]

@@ -1,0 +1,57 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#0b1020;color:#fff;font-family:sans-serif">
+<script type="module">
+// Test page with a made-up home (no real devices): `npm run build`, serve this folder (python3 -m http.server 8799), open /test/.
+// ?config=demo uses examples-style rooms; default = automatic house from areas. Service calls are recorded in window.calls.
+import '../dist/sweet-home-card.js';
+const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes: { friendly_name: entity_id.split('.')[1].replace(/_/g, ' '), ...attributes }, last_changed: new Date().toISOString(), last_updated: new Date().toISOString() });
+const S = [
+  st('weather.home', 'sunny', { temperature: 24, humidity: 40, friendly_name: 'Home' }), st('sun.sun', 'above_horizon', { next_setting: new Date(Date.now() + 3e6).toISOString(), next_rising: new Date(Date.now() + 5e7).toISOString() }),
+  st('alarm_control_panel.home', 'disarmed', { friendly_name: 'Home Alarm', code_format: null }),
+  st('lock.front_door', 'locked', { friendly_name: 'Front Door' }), st('binary_sensor.front_door', 'off', { device_class: 'door', friendly_name: 'Front Door' }),
+  st('light.living_room', 'on', { brightness: 200, friendly_name: 'Living Room Light', supported_color_modes: ['brightness'], color_mode: 'brightness' }),
+  st('light.kitchen', 'off', { friendly_name: 'Kitchen Light', supported_color_modes: ['onoff'] }), st('light.bedroom', 'off', { friendly_name: 'Bedroom Lamp', supported_color_modes: ['brightness'] }),
+  st('sensor.living_room_temperature', '23.4', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'Living Room Temperature' }),
+  st('sensor.bedroom_temperature', '21.1', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'Bedroom Temperature' }),
+  st('sensor.bedroom_humidity', '48', { device_class: 'humidity', unit_of_measurement: '%' }),
+  st('binary_sensor.kitchen_motion', 'on', { device_class: 'motion', friendly_name: 'Kitchen Motion' }),
+  st('climate.bedroom_ac', 'cool', { friendly_name: 'Bedroom AC', temperature: 22, current_temperature: 23, hvac_modes: ['off', 'cool', 'heat', 'auto'], fan_modes: ['auto', 'low', 'high'], fan_mode: 'auto', min_temp: 16, max_temp: 30 }),
+  st('sensor.bedroom_ac_power', '640', { device_class: 'power', unit_of_measurement: 'W' }),
+  st('media_player.living_room_tv', 'playing', { device_class: 'tv', friendly_name: 'Living Room TV', app_name: 'Netflix', volume_level: 0.3 }),
+  st('camera.driveway', 'idle', { friendly_name: 'Driveway', entity_picture: '' }),
+  st('sensor.grid_power', '1250', { device_class: 'power', unit_of_measurement: 'W' }), st('sensor.solar_power', '2100', { device_class: 'power', unit_of_measurement: 'W' }),
+  st('sensor.door_sensor_battery', '4', { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Door Sensor Battery' }),
+  st('person.alex', 'home', { friendly_name: 'Alex' }),
+];
+const states = Object.fromEntries(S.map(s => [s.entity_id, s]));
+const areas = { living_room: { area_id: 'living_room', name: 'Living Room' }, kitchen: { area_id: 'kitchen', name: 'Kitchen' }, bedroom: { area_id: 'bedroom', name: 'Bedroom' }, balcony: { area_id: 'balcony', name: 'Balcony' } };
+const ent = (id, area, extra = {}) => ({ entity_id: id, area_id: area, platform: 'demo', ...extra });
+const entities = Object.fromEntries([
+  ent('light.living_room', 'living_room'), ent('sensor.living_room_temperature', 'living_room'), ent('media_player.living_room_tv', 'living_room'),
+  ent('light.kitchen', 'kitchen'), ent('binary_sensor.kitchen_motion', 'kitchen'), ent('light.bedroom', 'bedroom'), ent('sensor.bedroom_temperature', 'bedroom'),
+  ent('sensor.bedroom_humidity', 'bedroom'), ent('climate.bedroom_ac', 'bedroom', { device_id: 'ac1' }), ent('sensor.bedroom_ac_power', 'bedroom', { device_id: 'ac1' }),
+  ent('lock.front_door', 'living_room'), ent('binary_sensor.front_door', 'living_room'), ent('sensor.door_sensor_battery', null, { device_id: 'ds1' }),
+].map(e => [e.entity_id, e]));
+const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC' }, ds1: { id: 'ds1', name: 'Door Sensor' } }, areas, floors: {}, locale: { language: 'en' }, user: { name: 'Test' }, themes: { darkMode: true },
+  callService: async () => {}, callWS: async m => (m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []), callApi: async () => [],
+  connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} }, formatEntityState: s => s.state };
+const demo = { title: 'Demo Home', house: { auto_furniture: true, rooms: [
+  { area: 'living_room', rects: [[0, 0, 6, 5]] }, { area: 'kitchen', rects: [[6, 0, 10, 5]] },
+  { area: 'bedroom', rects: [[0, 5, 6, 9]] }, { area: 'balcony', rects: [[6, 5, 10, 9]], outdoor: true }],
+  doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };
+const C = customElements.get('sweet-home-card');
+// no WebGL in headless test browsers: a renderer stub lets the whole scene build run (nothing is drawn)
+class FakeRenderer { constructor(o) { this.domElement = o.canvas; this.shadowMap = {}; this.info = { render: {} }; this.capabilities = { isWebGL2: true }; }
+  setPixelRatio() {} setSize() {} render() { window.frames3d = (window.frames3d || 0) + 1; } compileAsync() { return Promise.resolve(); } compile() {} dispose() {} getPixelRatio() { return 1; } setClearColor() {} }
+const fake = new URLSearchParams(location.search).get('gl') !== 'real';
+class TC extends C { constructor() { super(); if (fake) this._THREE = { ...C.THREE, WebGLRenderer: FakeRenderer }; } call(...a) { (window.calls ||= []).push(a); return Promise.resolve(true); } }
+customElements.define('t-card', TC);
+const q = new URLSearchParams(location.search).get('config');
+let cfg = q === 'demo' ? demo : {};
+if (q === 'real') { // local only: a states dump + a config that are both git-ignored
+  const list = await (await fetch('states.json')).json(); for (const k in states) delete states[k]; for (const s of list) states[s.entity_id] = s;
+  for (const k in entities) delete entities[k]; for (const k in areas) delete areas[k]; cfg = await (await fetch('myconfig.json')).json();
+}
+const el = new TC(); el.setConfig(cfg); document.body.appendChild(el); el.hass = hass;
+window.card = el; window.hassObj = hass; window.ready = true;
+</script></body>

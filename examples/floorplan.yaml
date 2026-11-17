@@ -1,0 +1,36 @@
+# A drawn floor plan: rooms are rectangles in metres (x to the east, z to the south).
+# Link each room to a Home Assistant area and its lights, sensors, doors and climate are found automatically.
+type: custom:sweet-home-card
+title: Our Flat
+house:
+  auto_furniture: true          # beds, sofas, tables… picked from the room names
+  rooms:
+    - area: living_room
+      rects: [[0, 0, 6, 5]]
+      light_fx:                 # how a light is drawn in 3D: center | spots | strip | tv
+        light.living_room_ceiling: center
+        light.living_room_led: strip
+      strip_sides: nes          # LED strip on the north, east and south walls
+    - area: kitchen
+      rects: [[6, 0, 10, 4]]
+    - area: hallway
+      rects: [[6, 4, 10, 5.5]]
+    - area: bedroom
+      rects: [[0, 5, 5, 9]]
+      climate: climate.bedroom_ac   # override what was discovered
+    - area: bathroom
+      rects: [[5, 5.5, 7.5, 9]]
+    - name: Balcony
+      rects: [[7.5, 5.5, 10, 9]]
+      outdoor: true
+  openings:                     # gaps in shared walls (open-plan passages)
+    - [6, 4, 6, 5]
+  doors:                        # door leaves that swing open with a contact sensor
+    - entity: binary_sensor.front_door_contact
+      from: [8, 5.5]
+      to: [9, 5.5]
+      main: true
+  lock_badges:
+    - lock: lock.front_door
+      x: 9.2
+      z: 5.4

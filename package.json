@@ -1,0 +1,16 @@
+{
+  "name": "sweet-home-card",
+  "version": "0.1.0",
+  "description": "Sweet Home: an interactive 3D home dashboard card for Home Assistant",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs && node test/evalcheck.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "three": "0.170.0"
+  }
+}
