@@ -7,6 +7,7 @@ import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { buildModel, toColor } from './model.js';
 import './editor.js';
+import './strategy.js';
 const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
 
 /* ------------------------------------------------------------------ */
@@ -3720,5 +3721,5 @@ for (const [cls, own] of [[SweetHomeCard, o => o._model], [HouseScene, o => o.ca
 }
 if (!customElements.get('sweet-home-card')) customElements.define('sweet-home-card', SweetHomeCard);
 window.customCards = window.customCards || [];
-if (!window.customCards.find(c => c.type === 'sweet-home-card')) window.customCards.push({ type: 'sweet-home-card', name: 'Sweet Home', description: 'Your home as an interactive 3D model, with tabs for security, climate, energy, media and more', preview: true, documentationURL: 'https://github.com/' });
+if (!window.customCards.find(c => c.type === 'sweet-home-card')) window.customCards.push({ type: 'sweet-home-card', name: 'Sweet Home', description: 'Your home as an interactive 3D model, with tabs for security, climate, energy, media and more', preview: true, documentationURL: 'https://github.com/mousawm/sweet-home' });
 console.info(`%c SWEET HOME %c v${VERSION} `, 'background:#2dd4bf;color:#04342c;font-weight:700;border-radius:4px 0 0 4px;padding:2px 6px', 'background:#1e293b;color:#e2e8f0;border-radius:0 4px 4px 0;padding:2px 6px');

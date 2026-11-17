@@ -42,9 +42,14 @@ as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
 Download `sweet-home-card.js` from the latest release and put it in `/config/www/`. Then add
 `/local/sweet-home-card.js` as a JavaScript module resource.
 
+## Add the dashboard
+
+The quickest way: **Settings → Dashboards → Add dashboard → Sweet Home** (under *Community dashboards*). It creates a
+full-screen dashboard built from your areas. Use **⋮ → Edit → Take control** to change it with the card editor.
+
 ## Add the card
 
-The card is built to fill the screen. Create a view with the **Panel** layout and add the card:
+Or add the card to any dashboard. It is built to fill the screen, so put it in a view with the **Panel** layout:
 
 ```yaml
 type: custom:sweet-home-card
