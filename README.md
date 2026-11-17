@@ -231,7 +231,7 @@ furniture:
 | `sprinkler` | `x z radius entity`: sprays water in 3D while its valve or switch is on |
 | all types | `entity` / `entities`, `name`, `badge` |
 
-**Move furniture in 3D**: admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
+**Move furniture in 3D**: while the dashboard is in edit mode, admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
 While the card editor is open, each move goes through it (with undo). Otherwise it is saved straight into the
 dashboard. Pieces from the automatic set can be moved once their room has its own furniture (card editor → Furniture).
 
@@ -290,7 +290,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
 | 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
 | Floors | The floor buttons on the 3D view switch floors; opening a room on another floor switches to it |
-| Rename | Admins: the pencil in a room's popup renames its devices in Home Assistant |
+| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices in Home Assistant |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 

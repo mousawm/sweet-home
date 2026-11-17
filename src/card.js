@@ -255,6 +255,31 @@ export class SweetHomeCard extends HTMLElement {
     if (this._built && prev !== this._cfgJSON) this._rebuild();
   }
   getCardSize() { return 20; }
+  // Renaming devices and moving furniture are for editing the dashboard: their buttons show only while it is in edit
+  // mode (Home Assistant sets `editMode` / `preview` on cards), while the card editor is open, or when the card sits in
+  // Home Assistant's edit-mode wrappers. Leaving edit mode turns them off.
+  set editMode(v) { this._editModeProp = !!v; this._syncEditing(); }
+  get editMode() { return !!this._editModeProp; }
+  set preview(v) { this._previewProp = !!v; this._syncEditing(); }
+  get preview() { return !!this._previewProp; }
+  _isEditing() {
+    if (this._editModeProp || this._previewProp || window.__sweetHomeEditor?.isConnected) return true;
+    if (/[?&]edit=1\b/.test(location.search)) return true;
+    for (let n = this.parentNode, i = 0; n && i < 60; i++) {
+      if (/^(hui-card-options|hui-card-edit-mode|hui-card-preview|hui-dialog-edit-card|hui-section-edit-mode)$/i.test(n.tagName || '')) return true;
+      n = n.host || n.parentNode; // up through shadow roots
+    }
+    return false;
+  }
+  _syncEditing() {
+    const e = this._isEditing(); if (e === this._editing) return;
+    this._editing = e; this.toggleAttribute('editing', e);
+    if (!e) { // left edit mode: stop moving furniture and renaming
+      if (this._arrange) { this._arrange = false; if (this._three) this._three.arrange = false; this.$?.('arrBtn')?.classList.remove('on'); }
+      if (this._naming) this._naming = null;
+    }
+    if (this._sections?.length) this._rerender('drawer');
+  }
   static getConfigElement() { return document.createElement('sweet-home-card-editor'); }
   static getStubConfig() { return { title: 'My Home' }; }
   // a new config (card editor): throw the old house away and build again
@@ -290,6 +315,7 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
+    this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
     useModel(this._model);
@@ -305,6 +331,7 @@ export class SweetHomeCard extends HTMLElement {
   get hass() { return this._hass; }
 
   connectedCallback() {
+    this._syncEditing(); setTimeout(() => this._syncEditing(), 300); // the edit-mode wrappers can arrive just after
     this._clockT = setInterval(() => this._tick(), 1000);
     this._camT = setInterval(() => this._refreshCams(), 4000);
     if (!this._visH) {
@@ -450,7 +477,7 @@ export class SweetHomeCard extends HTMLElement {
               <button class="ibtn" data-act="view" data-view="top" title="${tr('Top view')}">${ic('mdi:floor-plan')}</button>
               <button class="ibtn" data-act="view" data-view="reset" title="${tr('3D view')}">${ic('mdi:rotate-3d-variant')}</button>
               <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
-              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
+              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
           </div>
           <div class="viewport" id="viewport">
@@ -1169,6 +1196,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'hintx': this._hintDone(); break;
       case 'level': this._setLevel(Number(t.dataset.level)); break;
       case 'arrange': {
+        if (!this._editing && !this._arrange) break;
         const on = this._arrange = !this._arrange; if (this._three) this._three.arrange = on; t.classList.toggle('on', on);
         if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
         break;
@@ -1177,7 +1205,7 @@ export class SweetHomeCard extends HTMLElement {
         if (!this._armConfirm(t, id, tr('Tap again to hide it'))) return;
         this._excludeDevice(id, t.dataset.kind); break;
       }
-      case 'names': this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
+      case 'names': if (!this._editing) break; this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
@@ -1538,7 +1566,7 @@ export class SweetHomeCard extends HTMLElement {
 
   _rDrawer() {
     const r = ROOM[this._sel]; if (!r) return '';
-    if (this._naming === r.id) return this._rRename(r);
+    if (this._naming === r.id && this._editing) return this._rRename(r);
     const t = r.temp ? this.n(r.temp) : null, h = r.hum ? this.n(r.hum) : null;
     const lights = (r.lights || []).filter(l => this.s(l)).map(l => {
       const st = this.s(l); const on = st.state === 'on';
@@ -1607,7 +1635,7 @@ export class SweetHomeCard extends HTMLElement {
     };
     const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${tr(title)}</div>${fold(key, rows)}` : '');
     const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length;
-    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin ? `<button class="ibtn" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
+    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin && this._editing ? `<button class="ibtn edit-only" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
       ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
         ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>${tr('Temperature')}</span></div>` : ''}
@@ -4104,6 +4132,7 @@ main{scroll-margin-top:84px}
 .rnrow input{font:inherit;font-size:13px;color:var(--tx);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
 .rnrow input:focus{outline:none;border-color:var(--teal);background:rgba(45,212,191,.08)}.rnrow.na{opacity:.6}
 .wents{margin-top:12px}
+:host(:not([editing])) .edit-only{display:none!important}
 .hbtn{flex:none;display:grid;place-items:center;width:32px;height:32px;margin:-6px -6px -6px 2px;border-radius:9px;color:var(--mu);opacity:.65}
 .hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15)}
 @media (pointer:coarse){.hbtn{width:40px;height:40px}}

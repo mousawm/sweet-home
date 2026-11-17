@@ -40,10 +40,20 @@ try {
   await p.evaluate(() => card._select('living_room'));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=run]').click());
   check('scripts run from the popup', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'homeassistant' && c[2].entity_id === 'script.movie_night')));
+  check('rename and move are hidden outside edit mode', await p.evaluate(() => !card.shadowRoot.querySelector('#drawer [data-act=names]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display === 'none'));
+  await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(100);
+  check('…and shown while the dashboard is edited', await p.evaluate(() => !!card.shadowRoot.querySelector('#drawer [data-act=names]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display !== 'none'));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click());
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling'; i.dispatchEvent(new Event('change', { bubbles: true })); });
   await p.waitForTimeout(100);
   check('renaming from the popup', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling')));
+  await p.evaluate(() => { card.editMode = false; }); await p.waitForTimeout(100);
+  check('leaving edit mode closes renaming', await p.evaluate(() => !card.shadowRoot.querySelector('[data-rename]') && !card._naming));
+  check('edit mode is also found from Home Assistant\'s edit wrapper around the card', await p.evaluate(async () => {
+    const w = document.createElement('hui-card-options'); card.before(w); w.appendChild(card); await new Promise(r => setTimeout(r, 50));
+    const inside = card.hasAttribute('editing'); w.before(card); w.remove(); await new Promise(r => setTimeout(r, 50));
+    return inside && !card.hasAttribute('editing');
+  }));
   check('LED strip stops where a wall is missing (doors on two sides)', await p.evaluate(() => card._three.rooms.living_room.strip.washes.length === 6));
   await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(200);
   check('water card: pumps with their power sensor, and other entities', await p.evaluate(() => {
