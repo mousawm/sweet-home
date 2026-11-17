@@ -52,7 +52,8 @@ try {
   await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(300);
   check('needs attention rows have a hide button', await p.evaluate(() => !!card.shadowRoot.querySelector('#alerts [data-act=exclude][data-id="sensor.door_sensor_battery"]')));
   await p.evaluate(() => card._setTab('home'));
-  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 4));
+  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 5));
+  check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors.at(-1); return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < 7.4 && Math.max(w[0], w[2]) > 6.6); }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -87,7 +88,16 @@ try {
   await p.evaluate(() => editor._goLevel(1));
   check('first floor shows its own rooms', await p.evaluate(() => [...editor.querySelectorAll('[data-room]')].map(b => b.textContent.trim()).join() === 'Office,Landing'));
   await p.waitForTimeout(1500);
-  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 6));
+  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 7));
+  await p.evaluate(() => { editor._goLevel(0); editor._sel = 0; editor._mode = 'entities'; editor._render(); });
+  await p.evaluate(() => { const i = editor.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); });
+  await p.waitForTimeout(100);
+  check('renaming in the editor list (Home Assistant)', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling strip')));
+  await p.evaluate(() => { const i = editor.querySelector('[data-rename="script.movie_night"]'); i.value = 'Cinema'; i.dispatchEvent(new Event('change')); });
+  check('renaming an entity Home Assistant can\'t rename: a name in this card', await p.evaluate(() => editor._config.house.rooms[0].names?.['script.movie_night'] === 'Cinema'));
+  await p.waitForTimeout(1500);
+  await p.evaluate(() => card._select('living_room')); await p.waitForTimeout(200);
+  check('the popup uses the card name', await p.evaluate(() => card.shadowRoot.getElementById('drawer').textContent.includes('Cinema')));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

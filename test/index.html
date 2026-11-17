@@ -67,7 +67,7 @@ const demo = { title: 'Demo Home', panels: { water: { pumps: ['switch.well_pump'
     { type: 'marker', name: 'Balcony door sensor', x: 6.3, z: 6, entity: 'binary_sensor.balcony_door' }, { type: 'plant', x: 9.4, z: 8.4 }] },
   { name: 'Stairs', rects: [[10, 0, 12, 5]] },
   { area: 'office', level: 1, rects: [[0, 0, 6, 5]] }, { name: 'Landing', level: 1, rects: [[6, 0, 12, 5]], stairs: true }],
-  doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }, { from: [6, 2], to: [6, 3] }, { from: [3, 5], to: [4, 5] }, { from: [10, 3], to: [10, 4] }, { from: [6, 2], to: [6, 3], level: 1 }],
+  doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }, { from: [6, 2], to: [6, 3] }, { from: [3, 5], to: [4, 5] }, { from: [10, 3], to: [10, 4] }, { from: [6, 2], to: [6, 3], level: 1 }, { from: [6.5, 4.8], to: [7.5, 4.8] }],
   openings: [[8, 5, 9, 5]], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };
 const C = customElements.get('sweet-home-card');
 // no WebGL in headless test browsers: a renderer stub lets the whole scene build run (nothing is drawn)

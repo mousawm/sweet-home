@@ -1535,11 +1535,11 @@ export class SweetHomeCard extends HTMLElement {
     const entry = [
       ...(r.locks || []).filter(l => this.s(l)).map(l => {
         const s = this.v(l); const locked = s === 'locked';
-        const nm = E.locks.find(x => x.id === l)?.name || tc(this.s(l).attributes.friendly_name);
+        const nm = r.names?.[l] || E.locks.find(x => x.id === l)?.name || tc(this.s(l).attributes.friendly_name);
         return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${l}" style="position:relative">${ic(locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock-clock')}<span>${esc(nm)}</span><b>${locked ? tr('Locked · tap to unlock') : tr('{0} · tap to lock', esc(tr(pretty(s))))}</b></button>`;
       }),
       ...(r.doors || []).filter(d => this.s(d)).map(d => {
-        const o = this.v(d) === 'on'; const info = DOOR_INFO[d] || { name: tc(this.s(d)?.attributes.friendly_name || 'Door') };
+        const o = this.v(d) === 'on'; const info = DOOR_INFO[d] || { name: r.names?.[d] || tc(this.s(d)?.attributes.friendly_name || 'Door') };
         const long = info.timeout && this.v(info.timeout) === 'on';
         return `<div class="mrow ${o ? 'open' : ''}" data-act="more" data-id="${d}"${info.timeout ? ` data-id2="${info.timeout}"` : ''}>${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(info.name)}</span><b>${o ? (long ? tr('Open too long') : tr('Open')) : tr('Closed')}</b></div>`;
       }),
@@ -1550,17 +1550,17 @@ export class SweetHomeCard extends HTMLElement {
     });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
-    if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? tr('On') : tr('Off')}</b></button>`);
+    if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(r.names?.[r.fan] || tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? tr('On') : tr('Off')}</b></button>`);
     if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(tr(pretty(this.v(r.media))))}</b></div>`);
     // furniture with entities: the piece tapped in 3D comes first, highlighted
     // (an entity that already has its own row above — a light, a door, the TV… — is not repeated under Furniture / Other)
     const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum].filter(Boolean));
     const pieces = FURN.filter(f => f.room === r.id && f.entities?.length);
     const focus = pieces.find(f => f.idx === this._fsel);
-    const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id)).join('')}</div>`;
+    const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id, { name: r.names?.[id] })).join('')}</div>`;
     const furn = pieces.filter(f => f !== focus).map(f => [f, f.entities.filter(id => !shown.has(id))]).filter(([, ids]) => ids.length).map(([f, ids]) => piece(f, ids));
     const inFurn = new Set(pieces.flatMap(f => f.entities));
-    const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, e));
+    const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, { ...e, name: e.name || r.names?.[e.id] }));
     // a long list shows its first rows and a "Show more" button
     const fold = (key, rows) => {
       if (rows.length <= 6 || this._dOpen?.has(r.id + key)) return rows.join('') + (rows.length > 6 ? `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-up')}${tr('Show less')}</button>` : '');

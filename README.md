@@ -83,7 +83,8 @@ The dashboard is generated for you until you take control of it:
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
-        what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
+        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity in Home
+        Assistant (or, for entities Home Assistant can't rename, in this card only). Set how each light is drawn (ceiling
         light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
         whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
@@ -94,8 +95,7 @@ The dashboard is generated for you until you take control of it:
         Drag any of them to move it.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
-      so you can line them up. Areas on a Home Assistant floor are added to that floor. In Entities mode, edit a
-      name to rename the entity in Home Assistant itself.
+      so you can line them up. Areas on a Home Assistant floor are added to that floor.
 
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
@@ -144,7 +144,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
-| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall. |
+| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
 | `door_info` | Names and timeout sensors for doors in the room popup (`entity`, `name`, `timeout`) |
 | `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level` |
 | `furniture` | Furniture anywhere in the house (the same pieces as in rooms) |
@@ -177,6 +177,7 @@ shifted so that it starts at 0.
                                          # (default: blinds, plain switches, valves… found in the area)
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
+  names: {script.good_night: Bedtime}    # names for this card only (the editor writes these for entities HA can't rename)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
