@@ -1,8 +1,6 @@
 # Sweet Home
 
-![Sweet Home demo house](docs/demo-house.png)
-
-<sub>The demo house from the test page, drawn with three.js' SVG renderer. In Home Assistant the card adds shadows, textures and glowing lights.</sub>
+![Sweet Home: the Home tab with the 3D house, At a glance and Modes](docs/screenshots/home.webp)
 
 Your home as an interactive **3D model** in Home Assistant. Tap a room to see and switch what is in it. Tabs cover
 security, climate, energy, water, media and your home lab.
@@ -23,6 +21,14 @@ security, climate, energy, water, media and your home lab.
   - Swipe between tabs. Haptics. Long press opens more-info; double tap opens the second entity.
   - Popups don't scroll the page behind them. Skeleton loaders while data arrives.
   - The 3D view sleeps when nothing moves, to save battery.
+
+## Screenshots
+
+| Security | Climate |
+|---|---|
+| ![Security tab: alarm, locks, doors and live cameras](docs/screenshots/security.webp) | ![Climate tab: room temperatures and one card per AC](docs/screenshots/climate.webp) |
+| **Energy** | **Water & Garden** |
+| ![Energy tab: live power flow, today's chart and the car charger](docs/screenshots/energy.webp) | ![Water & Garden tab: tank trend, pumps and irrigation](docs/screenshots/water.webp) |
 
 ## Install
 
