@@ -6,8 +6,8 @@
  */
 
 const BAD = ['unavailable', 'unknown', 'none', 'None', ''];
-const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'room';
-const arr = v => (v == null ? [] : Array.isArray(v) ? v : [v]);
+export const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'room';
+export const arr = v => (v == null ? [] : Array.isArray(v) ? v : [v]);
 const num = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
 export const toColor = (c, d) => {
   if (c == null || c === '') return d;
@@ -44,7 +44,7 @@ export function registry(hass) {
 }
 
 /* entities of one area, sorted into what a room needs */
-function discoverRoom(R, areaId) {
+export function discoverRoom(R, areaId) {
   const ids = R.byArea[areaId] || [];
   const d = id => id.split('.')[0];
   const lc = id => R.name(id).toLowerCase();
@@ -65,8 +65,40 @@ function discoverRoom(R, areaId) {
     fan: ids.find(id => d(id) === 'fan') || null,
     plugs,
     media: ids.find(id => d(id) === 'media_player') || null,
+    // everything else worth a button in the room popup: blinds, plain switches, valves, vacuums…
+    entities: ids.filter(id => OTHER_DOMAINS.includes(d(id)) && !(d(id) === 'switch' && R.dc(id) === 'outlet')),
   };
 }
+const OTHER_DOMAINS = ['cover', 'switch', 'valve', 'vacuum', 'humidifier', 'siren', 'water_heater'];
+
+// Which room setting an entity belongs to (the YAML key of the room). Anything else is shown under "Other" (`entities`).
+// Single-value keys hold one entity; the others hold lists.
+export const ROLE_KEYS = ['lights', 'climate', 'temperature', 'humidity', 'motion', 'doors', 'locks', 'fan', 'plugs', 'media', 'entities'];
+export const SINGLE_ROLES = ['climate', 'temperature', 'humidity', 'fan', 'media'];
+export function roleOf(R, id) {
+  const d = String(id).split('.')[0], dc = R.dc(id);
+  if (d === 'light') return 'lights';
+  if (d === 'climate') return 'climate';
+  if (d === 'sensor' && dc === 'temperature') return 'temperature';
+  if (d === 'sensor' && dc === 'humidity') return 'humidity';
+  if (d === 'binary_sensor' && ['motion', 'occupancy', 'presence'].includes(dc)) return 'motion';
+  if (d === 'binary_sensor' && ['door', 'garage_door', 'opening'].includes(dc)) return 'doors';
+  if (d === 'lock') return 'locks';
+  if (d === 'fan') return 'fan';
+  if (d === 'switch' && dc === 'outlet') return 'plugs';
+  if (d === 'media_player') return 'media';
+  return 'entities';
+}
+// the same room id the model gives a room config
+export const roomIdOf = (rc, i, R) => String(rc.id || slug(rc.area || rc.name || R?.areas?.[rc.area]?.name || `Room ${i + 1}`));
+// entities one furniture piece is linked to (`entity`, `entities`, or a charger's plug)
+export const furnEntities = f => arr(f.entities ?? f.entity ?? (f.type === 'charger' ? f.plug : null)).map(e => (typeof e === 'string' ? e : e?.entity || e?.id)).filter(Boolean);
+
+// furniture types: [name, icon] (the card's popup and the card editor's palette)
+export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'], table: ['Table', 'mdi:table-furniture'], chair: ['Chair', 'mdi:chair-rolling'],
+  tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
+  rug: ['Rug', 'mdi:rug'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
+  charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'] };
 
 const ROOM_ICONS = [[/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
   [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
@@ -104,7 +136,7 @@ function autoRooms(R, cfg) {
 }
 
 /* automatic furniture for automatic / furniture-less rooms, from the room's name */
-function autoFurniture(room) {
+export function autoFurniture(room) {
   const [x1, z1, x2, z2] = room.rects[0], w = x2 - x1, d = z2 - z1, cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
   const n = String(room.name).toLowerCase(), f = [];
   const R = room.id;
@@ -140,6 +172,24 @@ function autoFurniture(room) {
     f.push({ type: 'box', room: R, x: cx, z: cz, w: Math.min(1.8, w * 0.5), d: Math.min(4.2, d * 0.8), h: 1.2, color: 0x334155 });
   }
   return f;
+}
+
+// The automatic set for one room config, written the way YAML writes furniture (from / to corners, #hex colours),
+// so the card editor can turn it into pieces the user can move and change.
+export function autoFurnitureConfig(rc, name) {
+  const rects = arr(rc.rects || (rc.rect ? [rc.rect] : [])); if (!rects.length) return [];
+  const r2 = x => Math.round(x * 100) / 100;
+  const hex = c => '#' + Number(c).toString(16).padStart(6, '0');
+  return autoFurniture({ id: 'x', name: name || rc.name || rc.area || '', rects, media: typeof rc.media === 'string' ? rc.media : null }).map(f => {
+    const o = {};
+    for (const [k, v] of Object.entries(f)) {
+      if (k === 'room' || v === undefined) continue;
+      if (['x0', 'z0', 'x1', 'z1'].includes(k)) continue;
+      o[k] = typeof v === 'number' && ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat'].includes(k) ? hex(v) : typeof v === 'number' ? r2(v) : v;
+    }
+    if (f.x0 != null) { o.from = [r2(f.x0), r2(f.z0)]; o.to = [r2(f.x1), r2(f.z1)]; }
+    return o;
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -240,7 +290,7 @@ export function buildModel(cfg = {}, hass) {
     const pick = (k, key) => (rc[k] !== undefined ? rc[k] : found[key ?? k]);
     const lightFx = rc.light_fx || rc.lightFx || null;
     const r = {
-      id: String(rc.id || slug(rc.area || name)), name, area: rc.area || null, icon: rc.icon || roomIcon(name),
+      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || roomIcon(name),
       rects, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
       outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
@@ -253,6 +303,8 @@ export function buildModel(cfg = {}, hass) {
       tvGlow: rc.tv_glow || rc.tvGlow || undefined, colorLights: arr(rc.color_lights || rc.colorLights),
       simpleLights: arr(rc.simple_lights || rc.simpleLights), labelY: rc.label_height, zoom: rc.zoom,
       ac: rc.ac, auto: !!rc.auto, furniture: rc.furniture,
+      // anything else to show in the room popup ("Other"): `entity_id` or {entity, name, icon}
+      entities: arr(rc.entities !== undefined ? rc.entities : found.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),
     };
     return r;
   }).filter(r => r.rects.length);
@@ -310,7 +362,8 @@ export function buildModel(cfg = {}, hass) {
     // centre + size → extents for the extent-based pieces
     if (['sofa', 'block', 'stairs', 'counter'].includes(o.type) && o.x0 == null && o.x != null) { o.x0 = o.x - num(o.w, 1) / 2; o.x1 = o.x + num(o.w, 1) / 2; o.z0 = o.z - num(o.d, 1) / 2; o.z1 = o.z + num(o.d, 1) / 2; }
     if (!o.room) { const px = o.x ?? ((o.x0 + o.x1) / 2), pz = o.z ?? ((o.z0 + o.z1) / 2); o.room = roomAt(px, pz); }
-    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive']) if (o[k] != null) o[k] = toColor(o[k], undefined);
+    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade']) if (o[k] != null) o[k] = toColor(o[k], undefined);
+    o.entities = furnEntities(f);
     return o;
   };
   let furniture = arr(house.furniture).map(shiftF);
@@ -318,6 +371,9 @@ export function buildModel(cfg = {}, hass) {
     if (Array.isArray(r.furniture)) furniture.push(...r.furniture.map(f => shiftF({ room: r.id, ...f })));
     else if ((auto || r.auto || house.auto_furniture) && r.furniture !== false) furniture.push(...autoFurniture(r));
   }
+  // every piece gets its index (the 3D view and the popup refer to it) and its linked entities
+  furniture.forEach((f, i) => { f.idx = i; if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
+  for (const r of rooms) r.furnEnts = furniture.filter(f => f.room === r.id).flatMap(f => f.entities);
   const badges = arr(house.lock_badges).map(b => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z' })).filter(b => b.lock);
 
   /* ---------- entity map ---------- */

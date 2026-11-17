@@ -1,0 +1,20 @@
+# Furniture linked to entities: tap a piece in the 3D view to control what it is linked to.
+# All of this can also be done in the card editor: Rooms → Furniture.
+type: custom:sweet-home-card
+house:
+  rooms:
+    - area: bedroom
+      rects: [[0, 0, 5, 4]]
+      entities: [cover.bedroom_blinds, script.good_night]   # extra rows in the room popup ("Other")
+      furniture:
+        - type: bed
+          x: 2.5
+          z: 2.9
+          head: s
+          width: 1.8
+          entities: [light.bedside_left, light.bedside_right]
+        - { type: lamp, x: 0.6, z: 3.5, h: 1.4, entity: light.reading_lamp }   # glows in the light's colour
+        - { type: fan, x: 2.5, z: 1.6, entity: fan.bedroom_ceiling }           # blades turn with the fan's speed
+        - { type: tv, x: 2.5, z: 0.15, w: 1.2, h: 0.7, y: 0.8, facing: s, entity: media_player.bedroom_tv }
+        - { type: marker, name: Window sensor, x: 4.8, z: 2, y: 1, entity: binary_sensor.bedroom_window }
+        - { type: rug, x: 2.5, z: 1.8, w: 2.6, d: 1.4, color: '#a5a9b2' }    # not linked: decoration only

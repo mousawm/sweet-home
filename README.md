@@ -57,9 +57,23 @@ type: custom:sweet-home-card
 
 You can also pick **Sweet Home** in the card picker. The visual editor has three steps:
 
-1. **Rooms**: link rooms to areas, then draw each room by dragging on a grid. Draw more than one rectangle for an L-shaped room.
+1. **Rooms**: a floor plan with four modes. A setup guide walks you through them the first time.
+   - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
+     a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
+     Duplicate or delete rooms.
+   - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
+     what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
+     light, spots, LED strip, TV backlight), with or without colours. A list shows devices that are in no room yet.
+   - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
+     **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
+     lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
+   - **Doors & windows**: drag along a wall to add an animated door, a window or an open passage. Tap to add a lock
+     badge.
+
+   **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
+   rooms without a shape and devices that are in another room's area.
 2. **Panels**: turn panels on or off and pick their entities.
-3. **Look**: title, weather, start tab, wall height, automatic furniture, or a 3D file.
+3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
 
 Everything the editor doesn't cover can be added in YAML, and the editor keeps it.
 
@@ -73,6 +87,7 @@ Everything the editor doesn't cover can be added in YAML, and the editor keeps i
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `modes` | Switches or input booleans shown as mode buttons (`entity`, `name`, `icon`) |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
+| `hint` | `false` hides the "tap a room" tip shown on first use |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
 
@@ -114,6 +129,8 @@ shifted so that it starts at 0.
   climate: climate.bedroom_ac
   media: media_player.bedroom_tv
   plugs: [switch.bedside_plug]
+  entities: [cover.bedroom_blinds, script.good_night]   # anything else, under "Other"
+                                         # (default: blinds, plain switches, valves… found in the area)
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
   color_lights: [light.bedroom_led]      # show colour swatches
@@ -126,6 +143,19 @@ shifted so that it starts at 0.
 ### Furniture
 
 Each piece has a `type` plus a position. `x`, `z` give the centre; `from` and `to` give the corners. Colours are `#hex`.
+
+Any piece can be linked to entities with `entity` (or `entities` for several), plus an optional `name`. A linked
+piece can be tapped in the 3D view: its room opens with the piece and its entities at the top. It also gets a small
+badge, which shows the entity's icon while it is on or while its room is open. `badge: false` hides the badge.
+
+```yaml
+furniture:
+  - { type: bed, x: 3, z: 7.8, head: s, entities: [light.bedside_left, light.bedside_right] }
+  - { type: lamp, x: 1.6, z: 8.5, entity: light.reading_lamp }
+  - { type: fan, x: 3, z: 6.8, entity: fan.bedroom }
+  - { type: marker, name: Window sensor, x: 0.3, z: 6, entity: binary_sensor.bedroom_window }
+  - { type: box, name: Coffee corner, x: 9.4, z: 1.4, w: 0.8, d: 0.6, h: 0.9, entity: switch.coffee_machine }
+```
 
 | type | Options |
 |---|---|
@@ -141,6 +171,10 @@ Each piece has a `type` plus a position. `x`, `z` give the centre; `from` and `t
 | `tv` | `x z w h y facing entity`: the screen flickers while the player plays |
 | `charger` | `x z y plug power`: a phone that glows while charging |
 | `stairs` | `from to axis (x/z) mode (up/down/split) steps motion` |
+| `lamp` | `x z h size color shade entity`: the shade glows in the light's colour and brightness |
+| `fan` | `x z y radius color blade entity`: a ceiling fan whose blades turn at the fan's speed |
+| `marker` | `x z y color entity`: a device with no furniture (a sensor, a plug): a dot that lights up while it is on |
+| all types | `entity` / `entities`, `name`, `badge` |
 
 ### `panels`
 
@@ -178,6 +212,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | Long press | More-info of the button's own entity |
 | Swipe sideways | Next or previous tab |
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
+| 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 
@@ -190,7 +225,8 @@ npm run check      # build + module evaluation test
 python3 -m http.server 8799   # then open http://127.0.0.1:8799/test/?config=demo
 ```
 
-The test page uses a made-up home and records service calls instead of sending them.
+The test page uses a made-up home and records service calls instead of sending them. Add `&editor=1` to open the
+card editor next to the card, with a simple stand-in for Home Assistant's form fields.
 
 ## License
 

@@ -1,9 +1,17 @@
 /*
  * Sweet Home — visual card editor.
- * Steps: Rooms (areas + a drawing grid for the floor plan) → Panels → Look. Everything it writes is plain YAML, so
- * anything the editor doesn't cover can still be added in the code editor and is kept untouched.
+ * Steps: Rooms → Panels → Look. The Rooms step has four modes on one floor plan:
+ *   Shape      draw rooms (drag on the grid), move and resize their rectangles
+ *   Entities   what each room shows: found from its Home Assistant area, plus anything you add
+ *   Furniture  place, move, resize and turn pieces, and link them to entities
+ *   Doors      animated doors, windows, open passages and lock badges
+ * Undo / redo cover every change. Everything it writes is plain YAML, so anything the editor doesn't cover can still be
+ * added in the code editor and is kept untouched.
  */
+import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr } from './model.js';
+
 const STEPS = [['rooms', 'Rooms', 'mdi:floor-plan'], ['panels', 'Panels', 'mdi:view-dashboard-outline'], ['look', 'Look', 'mdi:palette-outline']];
+const MODES = [['shape', 'Shape', 'mdi:vector-square'], ['entities', 'Entities', 'mdi:devices'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['doors', 'Doors & windows', 'mdi:door']];
 const PANELS = [
   ['security', 'Security', 'Alarm, locks, doors and cameras'],
   ['climate', 'Climate', 'Air conditioners, temperatures'],
@@ -15,49 +23,220 @@ const PANELS = [
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
 ];
+// room settings that hold entities, as the Entities mode shows them: [YAML key, title, key in the discovered set, icon]
+const ROLES = [
+  ['lights', 'Lights', 'lights', 'mdi:lightbulb-group'], ['climate', 'Air conditioner / thermostat', 'climate', 'mdi:air-conditioner'],
+  ['temperature', 'Temperature', 'temp', 'mdi:thermometer'], ['humidity', 'Humidity', 'hum', 'mdi:water-percent'],
+  ['motion', 'Motion & presence', 'motion', 'mdi:motion-sensor'], ['doors', 'Doors', 'doors', 'mdi:door'], ['locks', 'Locks', 'locks', 'mdi:lock'],
+  ['plugs', 'Plugs', 'plugs', 'mdi:power-socket-eu'], ['fan', 'Fan', 'fan', 'mdi:fan'], ['media', 'TV / media player', 'media', 'mdi:television'],
+  ['entities', 'Other', 'entities', 'mdi:dots-horizontal-circle-outline'],
+];
+const LIGHT_FX = [['', 'Ceiling light'], ['spots', 'Spots'], ['strip', 'LED strip'], ['tv', 'TV backlight']];
+// entities worth offering in the "not in any room" list
+const USEFUL = id => {
+  const d = id.split('.')[0];
+  return ['light', 'switch', 'fan', 'cover', 'climate', 'lock', 'media_player', 'script', 'scene', 'vacuum', 'valve', 'humidifier', 'input_boolean', 'button', 'camera'].includes(d) || d === 'sensor' || d === 'binary_sensor';
+};
+// furniture: defaults for a new piece, the colour key, and the fields of its form
+const NEW_PIECE = {
+  bed: { width: 1.4, length: 2, head: 'n' }, sofa: { w: 2, d: 0.9, back: 'n' }, table: { w: 1.2, d: 0.8 }, chair: { face: 'n' },
+  tv: { w: 1.4, h: 0.8, y: 0.6, facing: 's' }, lamp: { h: 1.5 }, fan: { radius: 0.6 }, marker: { y: 0.9 }, plant: { size: 0.8 },
+  rug: { w: 2, d: 1.4 }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 },
+};
+const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'marker', 'plant', 'rug', 'box', 'block'];
+const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade' };
+const DIRS = ['n', 'e', 's', 'w'];
+const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
+const num = (o, step = 0.05, min = 0, max = 10, unit = 'm') => ({ number: { min, max, step, mode: 'box', unit_of_measurement: unit } });
+const sel = opts => ({ select: { mode: 'dropdown', options: opts.map(([value, label]) => ({ value, label })) } });
+const PIECE_FIELDS = {
+  box: [['w', num()], ['d', num()], ['h', num()], ['y', num()]], block: [['h', num()], ['y', num()]], rug: [['w', num()], ['d', num()]],
+  table: [['w', num()], ['d', num()], ['h', num()]], chair: [['face', sel(DIR_OPTS)]],
+  sofa: [['back', sel(DIR_OPTS)], ['arms', sel([['both', 'Both'], ['start', 'Start'], ['end', 'End'], ['none', 'None']])]],
+  bed: [['width', num()], ['length', num()], ['head', sel(DIR_OPTS)]], plant: [['size', num(0, 0.1, 0.2, 3, '×')]],
+  tv: [['w', num()], ['h', num()], ['y', num()], ['facing', sel(DIR_OPTS)]], lamp: [['h', num()], ['size', num(0, 0.1, 0.3, 3, '×')]],
+  fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
+  stairs: [['axis', sel([['x', 'Along x'], ['z', 'Along z']])], ['mode', sel([['up', 'Up'], ['down', 'Down'], ['split', 'Split']])], ['steps', num(0, 1, 2, 30, '')]],
+};
+const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' } };
+const PIECE_LABELS = { w: 'Width', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
+
 const clone = o => JSON.parse(JSON.stringify(o || {}));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const r2 = v => Math.round(v * 100) / 100;
+const N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
 const COLORS = ['#2dd4bf', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#34d399', '#fb923c', '#f87171', '#38bdf8', '#c084fc'];
+const hex2rgb = h => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); if (!m) return undefined; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+const rgb2hex = a => (Array.isArray(a) ? '#' + a.map(x => Math.round(x).toString(16).padStart(2, '0')).join('') : undefined);
+const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* blocked */ } } };
+const entityId = e => (typeof e === 'string' ? e : e?.entity || e?.id);
+
+/* ---------------- furniture geometry on the plan (config coordinates, metres) ---------------- */
+function footprint(f) {
+  const t = String(f.type || 'box').toLowerCase();
+  if (f.from && f.to) return { rect: [Math.min(f.from[0], f.to[0]), Math.min(f.from[1], f.to[1]), Math.max(f.from[0], f.to[0]), Math.max(f.from[1], f.to[1])] };
+  const x = N(f.x, 0), z = N(f.z, 0);
+  const circ = r => ({ circle: [x, z, r] });
+  if (t === 'lamp') return circ(0.2 * N(f.size, 1));
+  if (t === 'fan') return circ(N(f.radius, 0.6));
+  if (t === 'marker') return circ(0.14);
+  if (t === 'plant') return circ(0.4 * N(f.size, 1));
+  if (t === 'cylinder' || t === 'ball') return circ(N(f.radius, 0.2));
+  let w, d;
+  if (t === 'bed') { const across = N(f.width, 1.4), along = N(f.length, 2); [w, d] = ['e', 'w'].includes(f.head) ? [along, across] : [across, along]; }
+  else if (t === 'chair') { w = d = 0.46; }
+  else if (t === 'tv') { const s = N(f.w, 1.6); [w, d] = ['e', 'w'].includes(f.facing) ? [0.1, s] : [s, 0.1]; }
+  else if (t === 'charger') { w = 0.1; d = 0.17; }
+  else { const D = { table: [1.2, 0.8], rug: [2, 1.5], sofa: [2, 0.9] }[t] || [t === 'box' ? 0.5 : 1, t === 'box' ? 0.5 : 1]; w = N(f.w, D[0]); d = N(f.d, D[1]); }
+  return { rect: [x - w / 2, z - d / 2, x + w / 2, z + d / 2] };
+}
+const fpBox = fp => fp.rect || [fp.circle[0] - fp.circle[2], fp.circle[1] - fp.circle[2], fp.circle[0] + fp.circle[2], fp.circle[1] + fp.circle[2]];
+const inBox = ([x, z], [a, b, c, d], pad = 0) => x >= a - pad && x <= c + pad && z >= b - pad && z <= d + pad;
+function movePiece(f, dx, dz) {
+  if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
+  else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
+}
+// resize a piece to the rectangle x1,z1 – x2,z2 (or, for round pieces, to the distance from its centre)
+function sizePiece(f, x1, z1, x2, z2) {
+  const t = String(f.type || 'box'); const w = r2(Math.abs(x2 - x1)), d = r2(Math.abs(z2 - z1)), cx = r2((x1 + x2) / 2), cz = r2((z1 + z2) / 2);
+  if (w < 0.1 || d < 0.1) return;
+  if (f.from && f.to) { f.from = [r2(Math.min(x1, x2)), r2(Math.min(z1, z2))]; f.to = [r2(Math.max(x1, x2)), r2(Math.max(z1, z2))]; return; }
+  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger'].includes(t)) return; // fixed size (or set in the form)
+  f.x = cx; f.z = cz;
+  if (t === 'bed') { const ew = ['e', 'w'].includes(f.head); f.width = ew ? d : w; f.length = ew ? w : d; }
+  else if (t === 'tv') f.w = ['e', 'w'].includes(f.facing) ? d : w;
+  else { f.w = w; f.d = d; }
+}
+// turn a piece a quarter to the right
+function turnPiece(f) {
+  const next = v => DIRS[(DIRS.indexOf(v || 'n') + 1) % 4];
+  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && f.type === 'bed') || (k === 'back' && f.type === 'sofa') || (k === 'face' && f.type === 'chair') || (k === 'facing' && f.type === 'tv')) f[k] = next(f[k]);
+  if (f.from && f.to) {
+    const [a, b, c, d] = footprint(f).rect, cx = (a + c) / 2, cz = (b + d) / 2, hw = (c - a) / 2, hd = (d - b) / 2;
+    f.from = [r2(cx - hd), r2(cz - hw)]; f.to = [r2(cx + hd), r2(cz + hw)];
+  } else if (['box', 'table', 'rug', 'block', 'sofa'].includes(f.type) && (f.w != null || f.d != null)) { const w = f.w; f.w = f.d; f.d = w; }
+}
+const segDist = ([px, pz], [x1, z1, x2, z2]) => {
+  const dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz; let t = L ? ((px - x1) * dx + (pz - z1) * dz) / L : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
+};
 
 class SweetHomeCardEditor extends HTMLElement {
-  constructor() { super(); this._step = 'rooms'; this._sel = 0; this._grid = 0.5; }
-  setConfig(config) { this._config = clone(config); this._render(); }
-  set hass(h) { const first = !this._hass; this._hass = h; if (first) this._render(); else this.querySelectorAll('ha-form').forEach(f => { f.hass = h; }); }
-
-  _emit() {
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: clone(this._config) }, bubbles: true, composed: true }));
+  constructor() {
+    super();
+    this._step = 'rooms'; this._mode = 'shape'; this._sel = 0; this._grid = 0.5;
+    this._rsel = null; this._fsel = null; this._place = null; this._dtool = 'door'; this._dsel = null;
+    this._hist = []; this._fut = []; this._last = null; this._lastPush = 0;
+    this._guideOff = store.get('sweet-home-guide-off') === '1';
+    this.addEventListener('keydown', e => this._keys(e));
   }
-  get _rooms() { this._config.house = this._config.house || {}; this._config.house.rooms = this._config.house.rooms || []; return this._config.house.rooms; }
+  setConfig(config) {
+    const j = JSON.stringify(config || {});
+    if (j === this._last) return; // our own change coming back from Home Assistant: nothing to redraw (keeps the focus while typing)
+    this._config = clone(config); this._last = j; this._render();
+  }
+  set hass(h) { const first = !this._hass; this._hass = h; this._R = null; if (first) this._render(); else this.querySelectorAll('ha-form').forEach(f => { f.hass = h; }); }
+  get _reg() { return (this._R ||= registry(this._hass)); }
 
-  _form(schema, data, onChange, labels = {}) {
+  /* ---------------- config changes, undo / redo ---------------- */
+  // `typing`: a change from a text field; changes within 0.8 s are one undo step
+  _emit(typing) {
+    const H = this._config.house;
+    if (H && Array.isArray(H.rooms) && !H.rooms.length) delete H.rooms;
+    if (H && !Object.keys(H).length) delete this._config.house;
+    const j = JSON.stringify(this._config);
+    if (j === this._last) return;
+    const now = performance.now();
+    if (!(typing && this._typing && now - this._lastPush < 800)) { this._hist.push(this._last); if (this._hist.length > 80) this._hist.shift(); }
+    this._typing = !!typing; this._lastPush = now; this._fut = []; this._last = j;
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: clone(this._config) }, bubbles: true, composed: true }));
+    this._syncUndo();
+  }
+  _undo(redo) {
+    const from = redo ? this._fut : this._hist, to = redo ? this._hist : this._fut;
+    if (!from.length) return;
+    to.push(this._last); const j = from.pop();
+    this._config = JSON.parse(j || '{}'); this._last = j; this._typing = false;
+    this._rsel = null; this._fsel = null; this._dsel = null;
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: clone(this._config) }, bubbles: true, composed: true }));
+    this._render();
+  }
+  _syncUndo() {
+    const u = this.querySelector('[data-undo]'), r = this.querySelector('[data-redo]');
+    if (u) u.disabled = !this._hist.length; if (r) r.disabled = !this._fut.length;
+  }
+  _keys(e) {
+    const t = e.composedPath()[0]; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const mod = e.ctrlKey || e.metaKey; if (!mod) { if ((e.key === 'Delete' || e.key === 'Backspace') && this._step === 'rooms') this._deleteSelected(e); return; }
+    if (e.key.toLowerCase() === 'z') { e.preventDefault(); this._undo(e.shiftKey); } else if (e.key.toLowerCase() === 'y') { e.preventDefault(); this._undo(true); }
+  }
+  _deleteSelected(e) {
+    const r = this._rooms[this._sel]; if (!r) return;
+    if (this._mode === 'furniture' && this._fsel != null && Array.isArray(r.furniture)) { e.preventDefault(); r.furniture.splice(this._fsel, 1); this._fsel = null; }
+    else if (this._mode === 'shape' && this._rsel != null) { e.preventDefault(); r.rects.splice(this._rsel, 1); this._rsel = null; }
+    else if (this._mode === 'doors' && this._dsel) { e.preventDefault(); this._delDoorItem(); }
+    else return;
+    this._emit(); this._render();
+  }
+
+  get _H() { return (this._config.house ||= {}); }
+  get _rooms() { const H = this._H; H.rooms = H.rooms || []; return H.rooms; }
+  _roomName(r, i) { return r.name || this._hass.areas?.[r.area]?.name || 'Room ' + (i + 1); }
+
+  _form(schema, data, onChange, labels = {}, typing = false) {
     const f = document.createElement('ha-form');
     f.hass = this._hass; f.data = data; f.schema = schema;
     f.computeLabel = s => labels[s.name] || s.label || s.name.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
-    f.addEventListener('value-changed', e => { e.stopPropagation(); onChange(e.detail.value); });
+    f.addEventListener('value-changed', e => { e.stopPropagation(); onChange(e.detail.value, typing); });
     return f;
   }
 
   _render() {
     if (!this._config || !this._hass) return;
+    this._R = null;
     this.innerHTML = `<style>
       .sh-ed{display:flex;flex-direction:column;gap:14px}
-      .sh-steps{display:flex;gap:6px;flex-wrap:wrap}
-      .sh-steps button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;cursor:pointer}
-      .sh-steps button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
-      .sh-steps ha-icon{--mdc-icon-size:18px}
+      .sh-steps,.sh-modes{display:flex;gap:6px;flex-wrap:wrap}
+      .sh-steps button,.sh-modes button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;cursor:pointer;min-height:40px}
+      .sh-modes button{font-size:13px;padding:7px 8px;white-space:nowrap}
+      .sh-steps button.on,.sh-modes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
+      .sh-steps ha-icon,.sh-modes ha-icon{--mdc-icon-size:18px}
       .sh-hint{font-size:13px;color:var(--secondary-text-color);line-height:1.45}
       .sh-rooms{display:flex;flex-wrap:wrap;gap:6px}
-      .sh-rooms button{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+      .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
       .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
       .sh-rooms i{width:10px;height:10px;border-radius:3px;display:inline-block}
-      .sh-plan{width:100%;touch-action:none;background:var(--secondary-background-color);border-radius:12px;cursor:crosshair;user-select:none}
+      .sh-plan:focus{outline:none}.sh-plan:focus-visible{outline:2px solid var(--primary-color)}
+      .sh-plan{width:100%;touch-action:none;background:var(--secondary-background-color);border-radius:12px;cursor:crosshair;user-select:none;-webkit-user-select:none;display:block}
       .sh-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-      .sh-row button,.sh-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer}
-      .sh-btn.del{color:var(--error-color)}
-      .sh-panel{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px}
-      .sh-panel summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;list-style:none}
+      .sh-row button,.sh-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+      .sh-row button:disabled,.sh-btn:disabled{opacity:.4;cursor:default}
+      .sh-btn ha-icon,.sh-row button ha-icon{--mdc-icon-size:18px}
+      .sh-btn.del{color:var(--error-color)}.sh-btn.pri{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
+      .sh-panel,.sh-box{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px}
+      .sh-panel summary,.sh-box summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;list-style:none}
       .sh-panel summary small{color:var(--secondary-text-color)}
-      .sh-panel[open] summary{margin-bottom:8px}
+      .sh-panel[open] summary,.sh-box[open] summary{margin-bottom:8px}
+      .sh-warn{border-color:var(--warning-color,#ffa600);background:color-mix(in srgb,var(--warning-color,#ffa600) 8%,transparent)}
+      .sh-warn li{margin:4px 0;cursor:pointer}.sh-warn ul{margin:0;padding-left:18px;font-size:13px}
+      .sh-guide ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+      .sh-guide li{display:flex;gap:10px;align-items:flex-start;font-size:13px}.sh-guide li>ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color);flex:none}
+      .sh-guide li.done>ha-icon{color:var(--success-color,#43a047)}.sh-guide li b{display:block}.sh-guide li .sh-row{margin-top:6px}
+      .sh-role{border-top:1px solid var(--divider-color);padding-top:10px}
+      .sh-role h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}.sh-role h4 ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color)}
+      .sh-role h4 small{font-weight:400;color:var(--secondary-text-color)}.sh-role h4 a{font-weight:400;font-size:12px;color:var(--primary-color);cursor:pointer;margin-left:auto}
+      .sh-ent{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--secondary-background-color);margin-bottom:6px;flex-wrap:wrap;font-size:13px}
+      .sh-ent .nm{flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis}.sh-ent .nm small{display:block;color:var(--secondary-text-color);font-size:11px}
+      .sh-ent.bad .nm small{color:var(--error-color)}
+      .sh-ent select{font:inherit;font-size:12px;padding:4px;border-radius:6px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
+      .sh-ent label{font-size:12px;display:flex;align-items:center;gap:3px;color:var(--secondary-text-color)}
+      .sh-x{border:0;background:none;color:var(--secondary-text-color);cursor:pointer;padding:6px;border-radius:50%;display:inline-flex}.sh-x ha-icon{--mdc-icon-size:18px}
+      .sh-sugg{display:flex;flex-wrap:wrap;gap:6px}.sh-sugg .sh-chip ha-icon{--mdc-icon-size:16px}
+      .sh-pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+      .sh-pal button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:12px;cursor:pointer}
+      .sh-pal button.on{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 14%,transparent)}
+      .sh-search{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
+      .sh-tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--divider-color);color:var(--secondary-text-color)}
     </style>
     <div class="sh-ed">
       <div class="sh-steps">${STEPS.map(([k, n, i]) => `<button data-step="${k}" class="${this._step === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>
@@ -68,84 +247,603 @@ class SweetHomeCardEditor extends HTMLElement {
     ({ rooms: () => this._rRooms(body), panels: () => this._rPanels(body), look: () => this._rLook(body) })[this._step]();
   }
 
-  /* ---------------- rooms + floor plan drawing ---------------- */
+  /* ================================================================ */
+  /* Rooms step                                                        */
+  /* ================================================================ */
   _rRooms(body) {
     const rooms = this._rooms;
-    body.innerHTML = `<div class="sh-ed">
-      <div class="sh-hint">${rooms.length ? 'Pick a room, then drag on the grid to draw it (one square = ' + this._grid + ' m). Drag again to add another rectangle to the same room (L-shapes). Its lights, sensors, doors and climate come from the linked Home Assistant area.' : 'No rooms yet: the card builds a simple house from your Home Assistant areas. Add rooms to draw your real floor plan.'}</div>
-      <div class="sh-rooms">${rooms.map((r, i) => `<button data-room="${i}" class="${i === this._sel ? 'on' : ''}"><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(r.name || this._hass.areas?.[r.area]?.name || 'Room ' + (i + 1))}</button>`).join('')}
-        <button data-add>+ Add room</button>${rooms.length ? '' : '<button data-import>Add all my areas</button>'}</div>
-      ${rooms.length ? '<svg class="sh-plan"></svg>' : ''}
-      <div class="sh-room"></div>
-    </div>`;
-    body.querySelector('[data-add]').addEventListener('click', () => { rooms.push({ name: `Room ${rooms.length + 1}`, rects: [] }); this._sel = rooms.length - 1; this._emit(); this._render(); });
-    body.querySelector('[data-import]')?.addEventListener('click', () => {
-      const areas = Object.values(this._hass.areas || {});
-      areas.forEach((a, i) => rooms.push({ area: a.area_id, rects: [[(i % 3) * 4, Math.floor(i / 3) * 4, (i % 3) * 4 + 4, Math.floor(i / 3) * 4 + 4]] }));
-      this._sel = 0; this._emit(); this._render();
-    });
-    body.querySelectorAll('[data-room]').forEach(b => b.addEventListener('click', () => { this._sel = +b.dataset.room; this._render(); }));
-    if (!rooms.length) return;
     if (this._sel >= rooms.length) this._sel = 0;
-    this._plan(body.querySelector('.sh-plan'));
-    const r = rooms[this._sel], box = body.querySelector('.sh-room');
+    const r = rooms[this._sel];
+    body.innerHTML = `<div class="sh-ed">
+      <div class="sh-guide-slot"></div>
+      <div class="sh-warn-slot"></div>
+      <div class="sh-row"><button data-undo title="Undo (Ctrl+Z)"><ha-icon icon="mdi:undo"></ha-icon>Undo</button><button data-redo title="Redo (Ctrl+Shift+Z)"><ha-icon icon="mdi:redo"></ha-icon>Redo</button>
+        <span style="flex:1"></span>${rooms.length ? `<span class="sh-hint">Grid</span><button data-grid title="Snap size">${this._grid} m</button>` : ''}</div>
+      <div class="sh-rooms">${rooms.map((x, i) => `<button data-room="${i}" class="${i === this._sel ? 'on' : ''}"><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(this._roomName(x, i))}</button>`).join('')}
+        <button data-add>+ Add room</button>${this._freeAreas().length ? `<button data-import>${rooms.length ? `+ Add my other areas (${this._freeAreas().length})` : 'Add all my areas'}</button>` : ''}</div>
+      ${rooms.length ? `<div class="sh-modes">${MODES.map(([k, n, i]) => `<button data-mode="${k}" class="${this._mode === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>` : ''}
+      ${rooms.length ? `<div class="sh-hint sh-modehint"></div>` : '<div class="sh-hint">No rooms yet: the card builds a simple house from your Home Assistant areas on its own. Add rooms to draw your real floor plan.</div>'}
+      ${rooms.length && this._mode !== 'entities' ? '<svg class="sh-plan"></svg>' : ''}
+      <div class="sh-mode"></div>
+    </div>`;
+    this._guide(body.querySelector('.sh-guide-slot'));
+    this._warnings(body.querySelector('.sh-warn-slot'));
+    body.querySelector('[data-undo]').addEventListener('click', () => this._undo());
+    body.querySelector('[data-redo]').addEventListener('click', () => this._undo(true));
+    this._syncUndo();
+    body.querySelector('[data-grid]')?.addEventListener('click', () => { this._grid = this._grid === 0.5 ? 0.25 : this._grid === 0.25 ? 1 : 0.5; this._render(); });
+    body.querySelector('[data-add]').addEventListener('click', () => {
+      rooms.push({ name: `Room ${rooms.length + 1}`, rects: [] }); this._sel = rooms.length - 1; this._mode = 'shape'; this._rsel = null; this._emit(); this._render();
+    });
+    body.querySelector('[data-import]')?.addEventListener('click', () => this._importAreas());
+    body.querySelectorAll('[data-room]').forEach(b => b.addEventListener('click', () => this._pickRoom(+b.dataset.room)));
+    body.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { this._mode = b.dataset.mode; this._place = null; this._fsel = null; this._dsel = null; this._rsel = null; if (this._mode === 'entities') this._seenEnt = true; this._render(); }));
+    if (!r) return;
+    const hint = body.querySelector('.sh-modehint');
+    hint.textContent = {
+      shape: `Drag on an empty part of the grid to draw ${this._roomName(r, this._sel)} (one square = ${this._grid} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.`,
+      entities: `What ${this._roomName(r, this._sel)} shows in its popup. Devices in its Home Assistant area are found on their own; remove what you don't want or add anything else.`,
+      furniture: this._place ? `Tap the plan where the ${FURN_TYPES[this._place][0].toLowerCase()} goes.` : 'Pick a piece below, then tap the plan to place it. Drag a piece to move it and its corner dot to resize it. Link it to an entity so it can be tapped in the 3D view.',
+      doors: { door: 'Drag along a wall to add a door that swings open with its contact sensor.', window: 'Drag along an outer wall to add a window.', opening: 'Drag along a wall between two rooms to open it (no wall, no doorway).', badge: 'Tap where a small lock badge should float.' }[this._dtool],
+    }[this._mode];
+    const svg = body.querySelector('.sh-plan');
+    if (svg) { svg.setAttribute('tabindex', '0'); svg.setAttribute('aria-label', 'Floor plan'); this._bounds(); this._drawPlan(svg); this._planInput(svg); }
+    const box = body.querySelector('.sh-mode');
+    ({ shape: () => this._mShape(box, r), entities: () => this._mEntities(box, r), furniture: () => this._mFurniture(box, r), doors: () => this._mDoors(box) })[this._mode]();
+  }
+  _pickRoom(i) { if (i !== this._sel) { this._sel = i; this._rsel = null; this._fsel = null; } this._render(); }
+
+  // areas that are not linked to a room yet
+  _freeAreas() {
+    const used = new Set(this._rooms.map(r => r.area).filter(Boolean));
+    const floorLevel = a => this._hass.floors?.[this._hass.areas[a]?.floor_id]?.level ?? 0;
+    return Object.values(this._hass.areas || {}).filter(a => !used.has(a.area_id))
+      .sort((a, b) => floorLevel(a.area_id) - floorLevel(b.area_id) || String(a.name).localeCompare(b.name));
+  }
+  // every area becomes a 4 × 4 m room, in rows next to (or, the first time, instead of) the rooms already drawn
+  _importAreas() {
+    const rooms = this._rooms, free = this._freeAreas(); if (!free.length) return;
+    const all = rooms.flatMap(r => r.rects || []);
+    const ox = all.length ? Math.max(...all.map(q => Math.max(q[0], q[2]))) + 1 : 0;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(free.length * 1.3)));
+    const first = rooms.length;
+    free.forEach((a, i) => rooms.push({ area: a.area_id, rects: [[ox + (i % cols) * 4, Math.floor(i / cols) * 4, ox + (i % cols) * 4 + 4, Math.floor(i / cols) * 4 + 4]] }));
+    this._sel = first; this._emit(); this._render();
+  }
+
+  /* ---------------- setup guide ---------------- */
+  _guide(slot) {
+    const rooms = this._rooms, H = this._H;
+    if (this._mode === 'shape' && rooms.length) this._seenShape = true;
+    const steps = [
+      ['Add your rooms', 'One room per Home Assistant area is quickest. Each becomes a 4 × 4 m square you can reshape.', rooms.length > 0,
+        this._freeAreas().length && !rooms.length ? [['import', 'mdi:import', 'Add all my areas', true]] : []],
+      ['Draw each room', 'In Shape mode, move and resize the squares into your floor plan. Draw more rectangles for L-shaped rooms.', rooms.length > 0 && rooms.every(r => (r.rects || []).length) && this._seenShape,
+        [['go-shape', 'mdi:vector-square', 'Open Shape']]],
+      ['Check each room’s devices', 'Entities mode shows what every room found in its area. Remove extras, add what is missing.', !!this._seenEnt,
+        [['go-ent', 'mdi:devices', 'Open Entities']]],
+      ['Add furniture', 'Suggest a set from the room names, then move pieces and link lamps, TVs or fans to their entities.', rooms.some(r => Array.isArray(r.furniture) && r.furniture.length) || !!H.auto_furniture,
+        [['suggest-all', 'mdi:auto-fix', 'Suggest furniture for all rooms', true], ['go-furn', 'mdi:sofa-outline', 'Open Furniture']]],
+      ['Try it', 'The preview next to this editor updates as you go: tap a room or a piece there to see its popup.', false, []],
+    ];
+    const done = steps.slice(0, 4).every(s => s[2]);
+    if (this._guideOff && rooms.length) return;
+    if (done && !this._guideOpen) return;
+    const det = document.createElement('details'); det.className = 'sh-box sh-guide'; det.open = !rooms.length || !this._guideClosed;
+    det.innerHTML = `<summary><b>Setup guide</b><span class="sh-hint">${steps.slice(0, 4).filter(s => s[2]).length} of 4 done</span></summary>
+      <ol>${steps.map(([t, d, ok, btns]) => `<li class="${ok ? 'done' : ''}"><ha-icon icon="${ok ? 'mdi:check-circle' : 'mdi:circle-outline'}"></ha-icon><div><b>${t}</b><span class="sh-hint">${d}</span>
+        ${btns.length ? `<div class="sh-row">${btns.map(([k, i, n, pri]) => `<button class="sh-btn ${pri ? 'pri' : ''}" data-g="${k}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>` : ''}</div></li>`).join('')}</ol>
+      ${rooms.length ? '<div class="sh-row" style="margin-top:8px"><span style="flex:1"></span><button class="sh-btn" data-g="off">Hide the guide</button></div>' : ''}`;
+    det.addEventListener('toggle', () => { this._guideClosed = !det.open; });
+    slot.appendChild(det);
+    det.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.g;
+      if (k === 'import') return this._importAreas();
+      if (k === 'off') { this._guideOff = true; store.set('sweet-home-guide-off', '1'); return this._render(); }
+      if (k === 'suggest-all') { for (const [i, x] of rooms.entries()) if (!Array.isArray(x.furniture) && (x.rects || []).length) x.furniture = autoFurnitureConfig(x, this._roomName(x, i)); this._emit(); this._mode = 'furniture'; return this._render(); }
+      this._mode = { 'go-shape': 'shape', 'go-ent': 'entities', 'go-furn': 'furniture' }[k];
+      if (this._mode === 'entities') this._seenEnt = true;
+      this._render();
+    }));
+  }
+
+  /* ---------------- warnings ---------------- */
+  _problems() {
+    const R = this._reg, rooms = this._rooms, H = this._H, out = [];
+    const has = id => !!this._hass.states[id];
+    const areaRoom = {}; rooms.forEach((r, i) => { if (r.area) areaRoom[r.area] = i; });
+    rooms.forEach((r, i) => {
+      const nm = this._roomName(r, i);
+      if (!(r.rects || []).length) out.push([i, `${nm} has no shape yet: draw it in Shape mode, or it won't show.`]);
+      if (r.area && !this._hass.areas?.[r.area]) out.push([i, `${nm} is linked to an area that no longer exists (${r.area}).`]);
+      for (const [key] of ROLES) {
+        if (r[key] === undefined || r[key] === null) continue;
+        for (const e of arr(r[key])) {
+          const id = entityId(e); if (!id) continue;
+          if (!has(id)) { out.push([i, `${nm}: ${id} was not found.`]); continue; }
+          const a = R.areaOf(id); if (a && r.area && a !== r.area && areaRoom[a] != null) out.push([i, `${nm}: ${R.name(id)} is in the area of ${this._roomName(rooms[areaRoom[a]], areaRoom[a])}.`]);
+        }
+      }
+      for (const f of arr(r.furniture)) for (const id of furnEntities(f)) if (!has(id)) out.push([i, `${nm}: the ${String(FURN_TYPES[f.type]?.[0] || f.type).toLowerCase()} is linked to ${id}, which was not found.`]);
+    });
+    arr(H.doors).forEach(d => { if (!d.entity) out.push([null, 'A door has no contact sensor yet: pick one in Doors & windows.']); else if (!has(d.entity)) out.push([null, `Door sensor ${d.entity} was not found.`]); });
+    arr(H.lock_badges).forEach(b => { const l = b.lock || b.entity; if (!l) out.push([null, 'A lock badge has no lock yet.']); else if (!has(l)) out.push([null, `Lock ${l} was not found.`]); });
+    return out;
+  }
+  _warnings(slot) {
+    const list = this._problems(); if (!list.length) return;
+    const det = document.createElement('details'); det.className = 'sh-box sh-warn'; det.open = !!this._warnOpen;
+    det.innerHTML = `<summary><b>${list.length} thing${list.length > 1 ? 's' : ''} to check</b><ha-icon icon="mdi:alert-outline"></ha-icon></summary><ul>${list.map(([i, t]) => `<li data-w="${i ?? ''}">${esc(t)}</li>`).join('')}</ul>`;
+    det.addEventListener('toggle', () => { this._warnOpen = det.open; });
+    det.querySelectorAll('[data-w]').forEach(li => li.addEventListener('click', () => { if (li.dataset.w === '') { this._mode = 'doors'; } else { this._sel = +li.dataset.w; if (/not found|area of/.test(li.textContent)) this._mode = /the \w+ is linked/.test(li.textContent) ? 'furniture' : 'entities'; else this._mode = 'shape'; } this._render(); }));
+    slot.appendChild(det);
+  }
+
+  /* ---------------- the floor plan ---------------- */
+  _bounds() {
+    const H = this._H, xs = [0, 12], zs = [0, 9];
+    for (const r of this._rooms) {
+      for (const q of r.rects || []) { xs.push(q[0], q[2]); zs.push(q[1], q[3]); }
+      for (const f of arr(r.furniture)) { const b = fpBox(footprint(f)); xs.push(b[0], b[2]); zs.push(b[1], b[3]); }
+    }
+    for (const d of arr(H.doors)) for (const p of [d.from, d.to]) if (p) { xs.push(p[0]); zs.push(p[1]); }
+    this._B = { minX: Math.min(...xs) - 1, minZ: Math.min(...zs) - 1, maxX: Math.max(...xs) + 2, maxZ: Math.max(...zs) + 2, S: 40 };
+  }
+  _drawPlan(svg) {
+    const B = this._B, S = B.S, H = this._H, rooms = this._rooms, g = this._grid;
+    const X = x => r2((x - B.minX) * S), Z = z => r2((z - B.minZ) * S);
+    svg.setAttribute('viewBox', `0 0 ${(B.maxX - B.minX) * S} ${(B.maxZ - B.minZ) * S}`);
+    let h = '';
+    const x0 = Math.ceil(B.minX / g) * g, z0 = Math.ceil(B.minZ / g) * g;
+    for (let x = x0; x <= B.maxX + 1e-6; x += g) h += `<line x1="${X(x)}" y1="0" x2="${X(x)}" y2="${Z(B.maxZ)}" stroke="var(--divider-color)" stroke-width="${Math.abs(x - Math.round(x)) < 1e-6 ? 1.2 : 0.4}"/>`;
+    for (let z = z0; z <= B.maxZ + 1e-6; z += g) h += `<line x1="0" y1="${Z(z)}" x2="${X(B.maxX)}" y2="${Z(z)}" stroke="var(--divider-color)" stroke-width="${Math.abs(z - Math.round(z)) < 1e-6 ? 1.2 : 0.4}"/>`;
+    const shape = this._mode === 'shape';
+    rooms.forEach((r, i) => (r.rects || []).forEach(([x1, z1, x2, z2], k) => {
+      const c = COLORS[i % COLORS.length], on = i === this._sel;
+      h += `<rect x="${X(Math.min(x1, x2))}" y="${Z(Math.min(z1, z2))}" width="${Math.abs(x2 - x1) * S}" height="${Math.abs(z2 - z1) * S}" fill="${c}" fill-opacity="${on ? (shape ? 0.42 : 0.28) : 0.14}" stroke="${c}" stroke-width="${on && shape && k === this._rsel ? 4 : on ? 2.5 : 1.2}"/>`;
+    }));
+    // walls as the card will draw them (dark), windows (blue), railings (dashed)
+    const wl = this._walls();
+    for (const [x1, z1, x2, z2, t] of wl) h += `<line x1="${X(x1)}" y1="${Z(z1)}" x2="${X(x2)}" y2="${Z(z2)}" stroke="${t === 'win' ? '#38bdf8' : 'var(--primary-text-color)'}" stroke-opacity="${t === 'win' ? 0.9 : 0.55}" stroke-width="${t === 'win' ? 5 : 4}" ${t === 'rail' ? 'stroke-dasharray="6 6"' : ''} stroke-linecap="round" pointer-events="none"/>`;
+    // furniture
+    const fur = this._mode === 'furniture' || this._mode === 'doors';
+    rooms.forEach((r, i) => arr(r.furniture).forEach((f, k) => {
+      const fp = footprint(f), on = i === this._sel && k === this._fsel && this._mode === 'furniture', linked = furnEntities(f).length;
+      const st = `fill="${linked ? 'var(--primary-color)' : 'var(--primary-text-color)'}" fill-opacity="${on ? 0.5 : fur ? (linked ? 0.32 : 0.16) : 0.08}" stroke="${on ? 'var(--primary-color)' : 'var(--primary-text-color)'}" stroke-opacity="${fur ? 0.7 : 0.25}" stroke-width="${on ? 3 : 1}" ${f.type === 'fan' ? 'stroke-dasharray="5 4"' : ''}`;
+      if (fp.circle) h += `<circle cx="${X(fp.circle[0])}" cy="${Z(fp.circle[1])}" r="${fp.circle[2] * S}" ${st}/>`;
+      else h += `<rect x="${X(fp.rect[0])}" y="${Z(fp.rect[1])}" width="${(fp.rect[2] - fp.rect[0]) * S}" height="${(fp.rect[3] - fp.rect[1]) * S}" rx="3" ${st}/>`;
+      if (fur) {
+        const b = fpBox(fp), dir = f.head || f.back || f.face || f.facing;
+        if (dir && ['bed', 'sofa', 'chair', 'tv'].includes(f.type)) { // a tick on the side the piece's back / head / screen is on
+          const [cx, cz] = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], e = { n: [cx, b[1]], s: [cx, b[3]], e: [b[2], cz], w: [b[0], cz] }[f.type === 'tv' ? { n: 's', s: 'n', e: 'w', w: 'e' }[dir] : dir];
+          if (e) h += `<circle cx="${X(e[0])}" cy="${Z(e[1])}" r="4" fill="var(--primary-text-color)" fill-opacity=".7" pointer-events="none"/>`;
+        }
+        if (linked) h += `<circle cx="${X(b[2])}" cy="${Z(b[1])}" r="5" fill="var(--primary-color)" stroke="var(--card-background-color)" stroke-width="1.5" pointer-events="none"/>`;
+      }
+    }));
+    // house-level furniture (YAML only): faint
+    for (const f of arr(H.furniture)) { const b = fpBox(footprint(f)); h += `<rect x="${X(b[0])}" y="${Z(b[1])}" width="${(b[2] - b[0]) * S}" height="${(b[3] - b[1]) * S}" fill="none" stroke="var(--secondary-text-color)" stroke-dasharray="3 3" pointer-events="none"/>`; }
+    // doors, openings, badges
+    const dsel = this._dsel, dOn = (k, i) => this._mode === 'doors' && dsel && dsel.k === k && dsel.i === i;
+    arr(H.openings).forEach((o, i) => { h += `<line x1="${X(o[0])}" y1="${Z(o[1])}" x2="${X(o[2])}" y2="${Z(o[3])}" stroke="#a3e635" stroke-width="${dOn('opening', i) ? 9 : 6}" stroke-dasharray="4 4" stroke-linecap="round"/>`; });
+    if (Array.isArray(H.windows)) H.windows.forEach((w, i) => { if (dOn('window', i)) h += `<line x1="${X(w[0])}" y1="${Z(w[1])}" x2="${X(w[2])}" y2="${Z(w[3])}" stroke="#38bdf8" stroke-width="10" stroke-opacity=".5" stroke-linecap="round"/>`; });
+    arr(H.doors).forEach((d, i) => {
+      if (!d.from || !d.to) return; const on = dOn('door', i);
+      h += `<line x1="${X(d.from[0])}" y1="${Z(d.from[1])}" x2="${X(d.to[0])}" y2="${Z(d.to[1])}" stroke="#fb923c" stroke-width="${on ? 9 : 6}" stroke-linecap="round"/>`;
+      const L = Math.hypot(d.to[0] - d.from[0], d.to[1] - d.from[1]) * S, sw = (d.side ?? 1) > 0 ? 1 : 0;
+      h += `<path d="M ${X(d.to[0])} ${Z(d.to[1])} A ${L} ${L} 0 0 ${sw} ${X(d.from[0]) + (Z(d.to[1]) - Z(d.from[1])) * (sw ? -1 : 1)} ${Z(d.from[1]) + (X(d.to[0]) - X(d.from[0])) * (sw ? 1 : -1)}" fill="none" stroke="#fb923c" stroke-opacity=".5" stroke-dasharray="4 4" pointer-events="none"/>`;
+    });
+    arr(H.lock_badges).forEach((b, i) => { h += `<circle cx="${X(N(b.x, 0))}" cy="${Z(N(b.z, 0))}" r="${dOn('badge', i) ? 10 : 7}" fill="#34d399" stroke="var(--card-background-color)" stroke-width="2"/>`; });
+    // room names
+    rooms.forEach((r, i) => { const q = (r.rects || [])[0]; if (q) h += `<text x="${X((q[0] + q[2]) / 2)}" y="${Z((q[1] + q[3]) / 2)}" text-anchor="middle" dominant-baseline="middle" font-size="${S * 0.38}" font-weight="${i === this._sel ? 700 : 400}" fill="var(--primary-text-color)" pointer-events="none" paint-order="stroke" stroke="var(--secondary-background-color)" stroke-width="4">${esc(this._roomName(r, i))}</text>`; });
+    // handles: corners of the selected rectangle (Shape) or piece (Furniture)
+    for (const [x, z] of this._handles()) h += `<circle cx="${X(x)}" cy="${Z(z)}" r="8" fill="var(--card-background-color)" stroke="var(--primary-color)" stroke-width="3"/>`;
+    // what is being drawn right now
+    if (this._ghost) {
+      const q = this._ghost;
+      if (q.length === 4 && this._mode !== 'shape') h += `<line x1="${X(q[0])}" y1="${Z(q[1])}" x2="${X(q[2])}" y2="${Z(q[3])}" stroke="var(--primary-color)" stroke-width="7" stroke-dasharray="8 6" stroke-linecap="round"/>`;
+      else h += `<rect fill="none" stroke="var(--primary-color)" stroke-width="3" stroke-dasharray="8 6" x="${X(Math.min(q[0], q[2]))}" y="${Z(Math.min(q[1], q[3]))}" width="${Math.abs(q[2] - q[0]) * S}" height="${Math.abs(q[3] - q[1]) * S}"/>`;
+    }
+    svg.innerHTML = h;
+  }
+  _walls() {
+    const H = this._H;
+    if (Array.isArray(H.walls) && H.walls.length) return H.walls;
+    const rooms = this._rooms.map((r, i) => ({ id: roomIdOf(r, i, this._hass), rects: arr(r.rects).map(q => q.map(Number)), outdoor: r.outdoor ?? /garden|yard|patio|terrace|balcony|outside|outdoor/i.test(this._roomName(r, i)) })).filter(r => r.rects.length);
+    try { return wallsFromRooms(rooms, H); } catch (e) { return []; }
+  }
+  _handles() {
+    const r = this._rooms[this._sel]; if (!r) return [];
+    if (this._mode === 'shape' && this._rsel != null) { const q = r.rects?.[this._rsel]; if (q) return [[q[0], q[1]], [q[2], q[1]], [q[0], q[3]], [q[2], q[3]]]; }
+    if (this._mode === 'furniture' && this._fsel != null) {
+      const f = arr(r.furniture)[this._fsel]; if (!f) return [];
+      const fp = footprint(f), b = fpBox(fp);
+      if (fp.circle || ['chair', 'charger'].includes(f.type)) return [];
+      return [[b[2], b[3]]];
+    }
+    return [];
+  }
+
+  // all pointer work on the plan: what a press starts depends on the mode and on what is under it
+  _planInput(svg) {
+    const g = () => this._grid, snap = v => r2(Math.round(v / g()) * g());
+    const pt = e => { const b = svg.getBoundingClientRect(), B = this._B; return [B.minX + (e.clientX - b.left) / b.width * (B.maxX - B.minX), B.minZ + (e.clientY - b.top) / b.height * (B.maxZ - B.minZ)]; };
+    const tol = () => { const b = svg.getBoundingClientRect(); return Math.max(0.2, 16 * (this._B.maxX - this._B.minX) / Math.max(1, b.width)); }; // ~16 px
+    let op = null;
+    svg.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;
+      const p = pt(e); op = this._startOp(p, tol(), snap); if (!op) return;
+      op.p0 = p; op.moved = false; svg.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    svg.addEventListener('pointermove', e => {
+      if (!op) return; const p = pt(e);
+      if (!op.moved && Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < tol() * 0.5) return;
+      op.moved = true; op.move?.(p); this._drawPlan(svg);
+    });
+    const end = e => {
+      if (!op) return; const o = op; op = null; this._ghost = null;
+      const changed = o.end ? o.end(o.moved, pt(e)) : o.moved;
+      if (changed) this._emit();
+      this._render();
+    };
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', () => { op = null; this._ghost = null; this._render(); });
+  }
+  _roomAt(p) {
+    const rooms = this._rooms;
+    if ((rooms[this._sel]?.rects || []).some(q => inBox(p, q))) return this._sel;
+    const i = rooms.findIndex(r => (r.rects || []).some(q => inBox(p, q))); return i < 0 ? null : i;
+  }
+  _startOp(p, tol, snap) {
+    const rooms = this._rooms, r = rooms[this._sel], H = this._H;
+    const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tol;
+    if (this._mode === 'shape') {
+      // 1. a corner of the selected rectangle: resize
+      const q = r.rects?.[this._rsel];
+      if (q) for (const [cx, cz] of this._handles()) if (near(p, [cx, cz])) {
+        const fx = cx === q[0] ? q[2] : q[0], fz = cz === q[1] ? q[3] : q[1];
+        return { move: m => { const x = snap(m[0]), z = snap(m[1]); if (Math.abs(x - fx) >= this._grid && Math.abs(z - fz) >= this._grid) r.rects[this._rsel] = [Math.min(x, fx), Math.min(z, fz), Math.max(x, fx), Math.max(z, fz)]; } };
+      }
+      // 2. a rectangle of the selected room: select it, drag to move
+      const k = (r.rects || []).findIndex(qq => inBox(p, qq));
+      if (k >= 0) {
+        const orig = r.rects[k].slice();
+        return { move: m => { this._rsel = k; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]); r.rects[k] = [r2(orig[0] + dx), r2(orig[1] + dz), r2(orig[2] + dx), r2(orig[3] + dz)]; },
+          end: moved => { this._rsel = k; return moved; } };
+      }
+      // 3. anywhere else: draw a new rectangle for the selected room (a tap on another room selects it instead)
+      const other = this._roomAt(p);
+      const a = [snap(p[0]), snap(p[1])];
+      return {
+        move: m => { this._ghost = [a[0], a[1], snap(m[0]), snap(m[1])]; },
+        end: (moved, m) => {
+          if (!moved) { if (other != null && other !== this._sel) { this._sel = other; this._rsel = null; } else this._rsel = null; return false; }
+          const b = [snap(m[0]), snap(m[1])];
+          if (Math.abs(b[0] - a[0]) < this._grid || Math.abs(b[1] - a[1]) < this._grid) return false;
+          (r.rects ||= []).push([Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]);
+          this._rsel = r.rects.length - 1; return true;
+        },
+      };
+    }
+    if (this._mode === 'furniture') {
+      // placing a new piece: it goes into the room under the tap
+      if (this._place) return { end: (moved, m) => { const i = this._roomAt(m) ?? this._sel; this._addPiece(i, this._place, snap(m[0]), snap(m[1])); this._place = null; return true; } };
+      // the resize dot of the selected piece
+      const f = arr(r.furniture)[this._fsel];
+      if (f) for (const hd of this._handles()) if (near(p, hd)) {
+        const b = fpBox(footprint(f));
+        return { move: m => sizePiece(f, b[0], b[1], Math.max(b[0] + 0.1, snap(m[0])), Math.max(b[1] + 0.1, snap(m[1]))) };
+      }
+      // a piece (the selected room's first, then any room's, topmost first): select it and drag to move
+      const hit = this._pieceAt(p, tol * 0.4);
+      if (hit) {
+        const [ri, fi] = hit, pc = rooms[ri].furniture[fi], start = JSON.stringify(pc);
+        let last = [0, 0];
+        return {
+          move: m => { this._sel = ri; this._fsel = fi; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]); movePiece(pc, dx - last[0], dz - last[1]); last = [dx, dz]; },
+          end: () => {
+            this._sel = ri; this._fsel = fi;
+            if (JSON.stringify(pc) === start) return false;
+            // dropped in another room: it belongs to that room now
+            const b = fpBox(footprint(pc)), to = this._roomAt([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]);
+            if (to != null && to !== ri) { rooms[ri].furniture.splice(fi, 1); const l = this._ownFurniture(to); l.push(pc); this._sel = to; this._fsel = l.length - 1; }
+            return true;
+          },
+        };
+      }
+      const i = this._roomAt(p);
+      return { end: () => { if (i != null) this._sel = i; this._fsel = null; return false; } };
+    }
+    if (this._mode === 'doors') {
+      const item = this._doorItemAt(p, tol);
+      if (item) return { end: () => { this._dsel = item; return false; } };
+      if (this._dtool === 'badge') return { end: (moved, m) => { (H.lock_badges ||= []).push({ lock: '', x: snap(m[0]), z: snap(m[1]) }); this._dsel = { k: 'badge', i: H.lock_badges.length - 1 }; return true; } };
+      const a = [snap(p[0]), snap(p[1])];
+      const seg = m => { const b = [snap(m[0]), snap(m[1])]; return Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? [a[0], a[1], b[0], a[1]] : [a[0], a[1], a[0], b[1]]; };
+      return {
+        move: m => { this._ghost = seg(m); },
+        end: (moved, m) => {
+          if (!moved) { this._dsel = null; return false; }
+          const s = seg(m); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
+          if (this._dtool === 'door') { (H.doors ||= []).push({ entity: '', from: [s[0], s[1]], to: [s[2], s[3]] }); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
+          else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
+          else { (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
+          return true;
+        },
+      };
+    }
+    return null;
+  }
+  _pieceAt(p, pad) {
+    const rooms = this._rooms, order = [this._sel, ...rooms.keys()].filter((v, i, a) => a.indexOf(v) === i);
+    for (const ri of order) {
+      const list = arr(rooms[ri]?.furniture);
+      for (let fi = list.length - 1; fi >= 0; fi--) {
+        const fp = footprint(list[fi]);
+        if (fp.circle ? Math.hypot(p[0] - fp.circle[0], p[1] - fp.circle[1]) <= fp.circle[2] + pad : inBox(p, fp.rect, pad)) {
+          if (list[fi].type === 'rug' && list.some((o, j) => j !== fi && o.type !== 'rug' && inBox(p, fpBox(footprint(o)), pad))) continue; // a rug lies under the rest
+          return [ri, fi];
+        }
+      }
+    }
+    return null;
+  }
+  _doorItemAt(p, tol) {
+    const H = this._H;
+    for (const [i, b] of arr(H.lock_badges).entries()) if (Math.hypot(p[0] - N(b.x, 0), p[1] - N(b.z, 0)) <= tol) return { k: 'badge', i };
+    for (const [i, d] of arr(H.doors).entries()) if (d.from && d.to && segDist(p, [...d.from, ...d.to]) <= tol * 0.7) return { k: 'door', i };
+    for (const [i, o] of arr(H.openings).entries()) if (segDist(p, o) <= tol * 0.7) return { k: 'opening', i };
+    if (Array.isArray(H.windows)) for (const [i, w] of H.windows.entries()) if (segDist(p, w) <= tol * 0.7) return { k: 'window', i };
+    return null;
+  }
+
+  /* ---------------- Shape mode ---------------- */
+  _mShape(box, r) {
     const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor };
     box.appendChild(this._form([
       { name: 'area', selector: { area: {} } },
       { name: 'name', selector: { text: {} } },
       { type: 'grid', name: '', schema: [
         { name: 'icon', selector: { icon: {} } },
-        { name: 'floor', selector: { select: { mode: 'dropdown', options: [['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['grass', 'Grass']].map(([value, label]) => ({ value, label })) } } },
+        { name: 'floor', selector: sel([['', 'Automatic'], ['wood', 'Wood'], ['tile', 'Tiles'], ['marble', 'Marble'], ['carpet', 'Carpet'], ['stone', 'Stone'], ['grass', 'Grass']]) },
       ] },
       { name: 'outdoor', selector: { boolean: {} } },
-    ], data, v => {
+    ], data, (v, typing) => {
+      const areaChanged = (v.area || '') !== (r.area || '');
       for (const k of ['name', 'area', 'icon', 'floor']) { if (v[k]) r[k] = v[k]; else delete r[k]; }
       if (v.outdoor) r.outdoor = true; else delete r.outdoor;
-      this._emit();
-      const chip = this.querySelector(`[data-room="${this._sel}"]`); if (chip) chip.lastChild.textContent = r.name || this._hass.areas?.[r.area]?.name || 'Room';
-    }, { area: 'Home Assistant area (devices are found automatically)', outdoor: 'Outdoor (balcony, garden: no ceiling lights, glass railing)' }));
+      this._emit(typing);
+      const chip = this.querySelector(`[data-room="${this._sel}"]`); if (chip) chip.lastChild.textContent = this._roomName(r, this._sel);
+      if (areaChanged) this._render();
+    }, { area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)' }, true));
     const row = document.createElement('div'); row.className = 'sh-row'; row.style.marginTop = '10px';
-    row.innerHTML = `<span class="sh-hint">${(r.rects || []).length} rectangle(s)</span><button data-undo>Remove last rectangle</button><button class="sh-btn del" data-del>Delete room</button>
-      <span style="flex:1"></span><span class="sh-hint">Grid</span><button data-grid>${this._grid} m</button>`;
+    const q = this._rsel != null ? r.rects?.[this._rsel] : null;
+    row.innerHTML = `<span class="sh-hint">${(r.rects || []).length} rectangle(s)${q ? ` · selected ${r2(q[2] - q[0])} × ${r2(q[3] - q[1])} m` : ''}</span>
+      ${q ? '<button data-delrect class="del"><ha-icon icon="mdi:vector-square-remove"></ha-icon>Delete rectangle</button>' : ''}
+      <span style="flex:1"></span>
+      <button data-dup><ha-icon icon="mdi:content-copy"></ha-icon>Duplicate room</button>
+      <button class="sh-btn del" data-del><ha-icon icon="mdi:delete-outline"></ha-icon>Delete room</button>`;
     box.appendChild(row);
-    row.querySelector('[data-undo]').addEventListener('click', () => { (r.rects || []).pop(); this._emit(); this._render(); });
-    row.querySelector('[data-del]').addEventListener('click', () => { rooms.splice(this._sel, 1); this._sel = 0; this._emit(); this._render(); });
-    row.querySelector('[data-grid]').addEventListener('click', () => { this._grid = this._grid === 0.5 ? 0.25 : this._grid === 0.25 ? 1 : 0.5; this._render(); });
+    row.querySelector('[data-delrect]')?.addEventListener('click', () => { r.rects.splice(this._rsel, 1); this._rsel = null; this._emit(); this._render(); });
+    row.querySelector('[data-dup]').addEventListener('click', () => this._dupRoom());
+    row.querySelector('[data-del]').addEventListener('click', () => { this._rooms.splice(this._sel, 1); this._sel = Math.max(0, this._sel - 1); this._rsel = null; this._emit(); this._render(); });
+  }
+  // a copy of the room (without its area, so devices aren't found twice), to the right of the plan
+  _dupRoom() {
+    const rooms = this._rooms, r = rooms[this._sel], c = clone(r);
+    const all = rooms.flatMap(x => x.rects || []), mine = r.rects || [];
+    const dx = mine.length ? Math.max(...all.map(q => q[2])) + 1 - Math.min(...mine.map(q => q[0])) : 0;
+    c.rects = mine.map(q => [r2(q[0] + dx), q[1], r2(q[2] + dx), q[3]]);
+    for (const f of arr(c.furniture)) movePiece(f, dx, 0);
+    delete c.area; delete c.id; c.name = `${this._roomName(r, this._sel)} copy`;
+    rooms.splice(this._sel + 1, 0, c); this._sel++; this._rsel = null; this._emit(); this._render();
   }
 
-  _plan(svg) {
-    const rooms = this._rooms, all = rooms.flatMap(r => r.rects || []);
-    const maxX = Math.max(12, ...all.map(q => Math.max(q[0], q[2])) ) + 2, maxZ = Math.max(9, ...all.map(q => Math.max(q[1], q[3]))) + 2;
-    const s = 40, g = this._grid;
-    svg.setAttribute('viewBox', `0 0 ${maxX * s} ${maxZ * s}`);
-    let h = '';
-    for (let x = 0; x <= maxX + 1e-6; x += g) h += `<line x1="${x * s}" y1="0" x2="${x * s}" y2="${maxZ * s}" stroke="var(--divider-color)" stroke-width="${Math.abs(x - Math.round(x)) < 1e-6 ? 1.2 : 0.4}"/>`;
-    for (let z = 0; z <= maxZ + 1e-6; z += g) h += `<line x1="0" y1="${z * s}" x2="${maxX * s}" y2="${z * s}" stroke="var(--divider-color)" stroke-width="${Math.abs(z - Math.round(z)) < 1e-6 ? 1.2 : 0.4}"/>`;
-    rooms.forEach((r, i) => (r.rects || []).forEach(([x1, z1, x2, z2]) => {
-      const c = COLORS[i % COLORS.length], on = i === this._sel;
-      h += `<rect x="${Math.min(x1, x2) * s}" y="${Math.min(z1, z2) * s}" width="${Math.abs(x2 - x1) * s}" height="${Math.abs(z2 - z1) * s}" fill="${c}" fill-opacity="${on ? 0.45 : 0.2}" stroke="${c}" stroke-width="${on ? 3 : 1.5}"/>`;
+  /* ---------------- Entities mode ---------------- */
+  // what a room shows for one setting: [entity ids, whether it is the room's own list (true) or found in its area (false)]
+  _roleList(r, key, fkey, found) {
+    if (r[key] !== undefined) return [r[key] === null ? [] : arr(r[key]).map(entityId).filter(Boolean), true];
+    return [arr(found[fkey]).map(entityId).filter(Boolean), false];
+  }
+  _mEntities(box, r) {
+    const R = this._reg, found = r.area ? discoverRoom(R, r.area) : {};
+    const lists = Object.fromEntries(ROLES.map(([key, , fkey]) => [key, this._roleList(r, key, fkey, found)]));
+    const assigned = new Set(Object.values(lists).flatMap(([l]) => l));
+    const nm = id => esc(R.name(id));
+    const html = [];
+    if (!r.area) html.push(`<div class="sh-hint">This room isn't linked to an area, so nothing is found on its own. Link one in Shape mode, or add entities here.</div>`);
+    for (const [key, title, , icon] of ROLES) {
+      const [ids, own] = lists[key];
+      if (!ids.length && !own) continue;
+      html.push(`<div class="sh-role" data-role="${key}"><h4><ha-icon icon="${icon}"></ha-icon>${title}<small>${own ? 'your list' : 'found in area'}</small>${own ? `<a data-reset="${key}">Back to what the area has</a>` : ''}</h4>
+        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : '<div class="sh-hint">None.</div>'}</div>`);
+    }
+    // area entities that aren't shown anywhere yet
+    const sugg = (R.byArea[r.area] || []).filter(id => !assigned.has(id));
+    html.push(`<div class="sh-role"><h4><ha-icon icon="mdi:plus-circle-outline"></ha-icon>Add</h4>
+      ${sugg.length ? `<div class="sh-hint" style="margin-bottom:6px">Also in this area:</div><div class="sh-sugg">${sugg.slice(0, 30).map(id => `<button class="sh-chip" data-addent="${id}"><ha-icon icon="mdi:plus"></ha-icon>${nm(id)}</button>`).join('')}</div>` : ''}
+      <div class="sh-anyslot" style="margin-top:8px"></div></div>`);
+    // entities in no room at all
+    const free = this._unassigned();
+    html.push(`<details class="sh-box" ${this._freeOpen ? 'open' : ''} data-free><summary><b>Not in any room (${free.length})</b><span class="sh-hint">tap to add here</span></summary>
+      <input class="sh-search" type="search" placeholder="Search" value="${esc(this._freeQ || '')}"><div class="sh-sugg sh-freelist" style="margin-top:8px"></div></details>`);
+    box.innerHTML = html.join('');
+    // any entity
+    box.querySelector('.sh-anyslot').appendChild(this._form([{ name: 'add', selector: { entity: {} } }], { add: '' }, v => { if (v.add) { this._addEntity(r, v.add, found); } }, { add: 'Any entity' }));
+    box.querySelectorAll('[data-addent]').forEach(b => b.addEventListener('click', () => this._addEntity(r, b.dataset.addent, found)));
+    box.querySelectorAll('[data-reset]').forEach(a => a.addEventListener('click', () => { delete r[a.dataset.reset]; this._emit(); this._render(); }));
+    box.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      const key = b.dataset.key, id = b.dataset.rm, [ids] = lists[key];
+      if (SINGLE_ROLES.includes(key)) r[key] = null; else r[key] = ids.filter(x => x !== id).map(x => this._keepObj(r, key, x));
+      if (key === 'lights') this._lightOpt(r, id, null);
+      this._emit(); this._render();
     }));
-    rooms.forEach((r, i) => { const q = (r.rects || [])[0]; if (q) h += `<text x="${(q[0] + q[2]) / 2 * s}" y="${(q[1] + q[3]) / 2 * s}" text-anchor="middle" dominant-baseline="middle" font-size="${s * 0.42}" fill="var(--primary-text-color)">${esc(r.name || this._hass.areas?.[r.area]?.name || '')}</text>`; });
-    h += '<rect class="sh-draw" fill="none" stroke="var(--primary-color)" stroke-width="3" stroke-dasharray="8 6" width="0" height="0"/>';
-    svg.innerHTML = h;
-    const pt = e => { const b = svg.getBoundingClientRect(); const x = (e.clientX - b.left) / b.width * maxX, z = (e.clientY - b.top) / b.height * maxZ; return [Math.round(x / g) * g, Math.round(z / g) * g]; };
-    const draw = svg.querySelector('.sh-draw');
-    let a = null, b = null;
-    const show = () => { if (!a || !b) return; draw.setAttribute('x', Math.min(a[0], b[0]) * s); draw.setAttribute('y', Math.min(a[1], b[1]) * s); draw.setAttribute('width', Math.abs(b[0] - a[0]) * s); draw.setAttribute('height', Math.abs(b[1] - a[1]) * s); };
-    svg.addEventListener('pointerdown', e => { a = pt(e); b = a; svg.setPointerCapture(e.pointerId); show(); });
-    svg.addEventListener('pointermove', e => { if (a) { b = pt(e); show(); } });
-    svg.addEventListener('pointerup', () => {
-      if (a && b && Math.abs(b[0] - a[0]) >= g && Math.abs(b[1] - a[1]) >= g) {
-        const r = rooms[this._sel]; r.rects = r.rects || [];
-        const f = v => +v.toFixed(2);
-        r.rects.push([f(Math.min(a[0], b[0])), f(Math.min(a[1], b[1])), f(Math.max(a[0], b[0])), f(Math.max(a[1], b[1]))]);
-        this._emit(); this._render();
-      }
-      a = b = null;
-    });
+    box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); }));
+    box.querySelectorAll('[data-lcol]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lcol, { color: c.checked }); this._emit(); }));
+    box.querySelectorAll('[data-lsim]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lsim, { simple: c.checked }); this._emit(); }));
+    const det = box.querySelector('[data-free]'), q = det.querySelector('.sh-search'), list = det.querySelector('.sh-freelist');
+    det.addEventListener('toggle', () => { this._freeOpen = det.open; });
+    const fill = () => {
+      const s = (this._freeQ || '').toLowerCase();
+      const hits = free.filter(id => !s || id.includes(s) || R.name(id).toLowerCase().includes(s));
+      list.innerHTML = hits.slice(0, 40).map(id => `<button class="sh-chip" data-free="${id}" title="${id}"><ha-icon icon="mdi:plus"></ha-icon>${nm(id)}</button>`).join('') + (hits.length > 40 ? `<span class="sh-hint">…and ${hits.length - 40} more: search to narrow it down</span>` : '') || '<span class="sh-hint">Nothing.</span>';
+      list.querySelectorAll('[data-free]').forEach(b => b.addEventListener('click', () => this._addEntity(r, b.dataset.free, found)));
+    };
+    q.addEventListener('input', () => { this._freeQ = q.value; fill(); });
+    fill();
+  }
+  _entRowHtml(r, key, id) {
+    const R = this._reg, ok = !!this._hass.states[id];
+    let opts = '';
+    if (key === 'lights') {
+      const fx = (r.light_fx || {})[id] || '', col = arr(r.color_lights).includes(id), simple = arr(r.simple_lights).includes(id);
+      opts = `<select data-lfx="${id}" title="How it is drawn in 3D">${LIGHT_FX.map(([v, n]) => `<option value="${v}" ${v === fx ? 'selected' : ''}>${n}</option>`).join('')}</select>
+        <label><input type="checkbox" data-lcol="${id}" ${col ? 'checked' : ''}>Colours</label><label><input type="checkbox" data-lsim="${id}" ${simple ? 'checked' : ''}>On / off only</label>`;
+    }
+    return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${esc(ok ? R.name(id) : id)}<small>${ok ? esc(id) : 'not found'}</small></span>${opts}
+      <button class="sh-x" data-rm="${id}" data-key="${key}" title="Remove from this room"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
+  }
+  // a plug written as {entity, name, power} keeps its extra settings when the list changes
+  _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }
+  _addEntity(r, id, found) {
+    const key = roleOf(this._reg, id), fkey = ROLES.find(x => x[0] === key)[2];
+    if (SINGLE_ROLES.includes(key)) r[key] = id;
+    else { const [ids] = this._roleList(r, key, fkey, found); if (!ids.includes(id)) r[key] = [...ids.map(x => this._keepObj(r, key, x)), id]; }
+    this._emit(); this._render();
+  }
+  _lightOpt(r, id, o) {
+    const fx = { ...(r.light_fx || {}) }, col = new Set(arr(r.color_lights)), sim = new Set(arr(r.simple_lights));
+    if (o === null) { delete fx[id]; col.delete(id); sim.delete(id); }
+    else {
+      if ('fx' in o) { if (o.fx) fx[id] = o.fx; else delete fx[id]; }
+      if ('color' in o) o.color ? col.add(id) : col.delete(id);
+      if ('simple' in o) o.simple ? sim.add(id) : sim.delete(id);
+    }
+    if (Object.keys(fx).length) r.light_fx = fx; else delete r.light_fx;
+    if (col.size) r.color_lights = [...col]; else delete r.color_lights;
+    if (sim.size) r.simple_lights = [...sim]; else delete r.simple_lights;
+  }
+  // useful entities that no room shows: not in a linked area, not in any room's lists or furniture
+  _unassigned() {
+    const R = this._reg, rooms = this._rooms, H = this._H;
+    const areas = new Set(rooms.map(r => r.area).filter(Boolean)), used = new Set();
+    for (const r of rooms) {
+      for (const [key] of ROLES) for (const e of arr(r[key])) used.add(entityId(e));
+      for (const f of arr(r.furniture)) furnEntities(f).forEach(e => used.add(e));
+    }
+    for (const d of arr(H.doors)) used.add(d.entity);
+    for (const b of arr(H.lock_badges)) used.add(b.lock || b.entity);
+    return Object.keys(this._hass.states).filter(id => USEFUL(id) && R.visible(id) && !used.has(id) && !areas.has(R.areaOf(id))
+      && !(id.startsWith('sensor.') && !['temperature', 'humidity', 'power', 'energy', 'illuminance', 'carbon_dioxide', 'pm25'].includes(R.dc(id)))
+      && !(id.startsWith('binary_sensor.') && !['motion', 'occupancy', 'presence', 'door', 'window', 'opening', 'garage_door', 'moisture', 'smoke'].includes(R.dc(id))))
+      .sort((a, b) => R.name(a).localeCompare(R.name(b)));
   }
 
-  /* ---------------- panels ---------------- */
+  /* ---------------- Furniture mode ---------------- */
+  // a room with automatic furniture gets its own list the first time it is edited (the automatic set, as pieces)
+  _ownFurniture(i) {
+    const r = this._rooms[i];
+    if (!Array.isArray(r.furniture)) r.furniture = this._H.auto_furniture && r.furniture !== false ? autoFurnitureConfig(r, this._roomName(r, i)) : [];
+    return r.furniture;
+  }
+  _addPiece(i, type, x, z) {
+    const list = this._ownFurniture(i);
+    list.push({ type, x, z, ...clone(NEW_PIECE[type] || {}) });
+    this._sel = i; this._fsel = list.length - 1;
+  }
+  _mFurniture(box, r) {
+    const auto = !Array.isArray(r.furniture) && this._H.auto_furniture && r.furniture !== false;
+    const list = arr(Array.isArray(r.furniture) ? r.furniture : []);
+    const f = list[this._fsel];
+    box.innerHTML = `<div class="sh-ed">
+      ${auto ? '<div class="sh-hint">This room uses automatic furniture (from its name). Placing, moving or suggesting a piece turns it into pieces you can change.</div>' : ''}
+      <div class="sh-pal">${PALETTE.map(t => `<button data-pal="${t}" class="${this._place === t ? 'on' : ''}"><ha-icon icon="${FURN_TYPES[t][1]}"></ha-icon>${FURN_TYPES[t][0]}</button>`).join('')}</div>
+      <div class="sh-row"><button data-suggest><ha-icon icon="mdi:auto-fix"></ha-icon>${list.length ? 'Replace with a suggested set' : 'Suggest furniture'}</button>
+        ${list.length ? '<button data-clear class="del"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon>Remove all</button>' : ''}
+        ${r.furniture === false ? '' : '<button data-none title="No furniture at all in this room"><ha-icon icon="mdi:cancel"></ha-icon>No furniture</button>'}</div>
+      <div class="sh-piece"></div>
+      ${list.length ? `<div class="sh-sugg">${list.map((p, k) => `<button class="sh-chip" data-pick="${k}" style="${k === this._fsel ? 'border-color:var(--primary-color)' : ''}"><ha-icon icon="${FURN_TYPES[p.type]?.[1] || 'mdi:shape-outline'}"></ha-icon>${esc(p.name || FURN_TYPES[p.type]?.[0] || p.type)}${furnEntities(p).length ? ' <span class="sh-tag">linked</span>' : ''}</button>`).join('')}</div>` : ''}
+    </div>`;
+    box.querySelectorAll('[data-pal]').forEach(b => b.addEventListener('click', () => { this._place = this._place === b.dataset.pal ? null : b.dataset.pal; this._fsel = null; this._render(); }));
+    box.querySelector('[data-suggest]').addEventListener('click', () => { r.furniture = autoFurnitureConfig(r, this._roomName(r, this._sel)); this._fsel = null; this._emit(); this._render(); });
+    box.querySelector('[data-clear]')?.addEventListener('click', () => { r.furniture = []; this._fsel = null; this._emit(); this._render(); });
+    box.querySelector('[data-none]')?.addEventListener('click', () => { r.furniture = false; this._fsel = null; this._emit(); this._render(); });
+    box.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { this._fsel = +b.dataset.pick; this._render(); }));
+    if (f) this._pieceForm(box.querySelector('.sh-piece'), r, f);
+  }
+  _pieceForm(slot, r, f) {
+    const t = f.type, ck = COLOR_KEY[t] || 'color', fields = PIECE_FIELDS[t] || [];
+    const ents = furnEntities(f);
+    const data = { name: f.name || '', entities: ents, badge: f.badge !== false, color: hex2rgb(f[ck]) };
+    for (const [k] of fields) if (f[k] !== undefined) data[k] = f[k];
+    const schema = [
+      { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[t] ? { filter: ENTITY_FILTER[t] } : {}) } } },
+      { name: 'name', selector: { text: {} } },
+      ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
+      ...(['plant', 'stairs', 'charger'].includes(t) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
+      ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
+    ];
+    const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
+    head.innerHTML = `<b style="flex:1">${esc(FURN_TYPES[t]?.[0] || t)}</b><button data-turn title="Turn a quarter to the right"><ha-icon icon="mdi:rotate-right"></ha-icon>Turn</button>
+      <button data-copy><ha-icon icon="mdi:content-copy"></ha-icon>Duplicate</button><button class="del" data-delp><ha-icon icon="mdi:delete-outline"></ha-icon>Delete</button>`;
+    slot.appendChild(head);
+    head.querySelector('[data-turn]').addEventListener('click', () => { turnPiece(f); this._emit(); this._render(); });
+    head.querySelector('[data-copy]').addEventListener('click', () => { const c = clone(f); movePiece(c, this._grid * 2, this._grid * 2); r.furniture.push(c); this._fsel = r.furniture.length - 1; this._emit(); this._render(); });
+    head.querySelector('[data-delp]').addEventListener('click', () => { r.furniture.splice(this._fsel, 1); this._fsel = null; this._emit(); this._render(); });
+    slot.appendChild(this._form(schema, data, (v, typing) => {
+      const ids = arr(v.entities).filter(Boolean);
+      delete f.entity; delete f.entities;
+      if (ids.length === 1) f.entity = ids[0]; else if (ids.length > 1) f.entities = ids;
+      if (v.name) f.name = v.name; else delete f.name;
+      for (const [k] of fields) { if (v[k] !== undefined && v[k] !== '' && v[k] !== null) f[k] = v[k]; }
+      const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
+      if (v.badge === false && ids.length) f.badge = false; else delete f.badge;
+      const relink = (ids.length > 0) !== (ents.length > 0);
+      this._emit(typing);
+      if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
+    }, { ...PIECE_LABELS, entities: 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: 'Colour' }, true));
+  }
+
+  /* ---------------- Doors & windows mode ---------------- */
+  _mDoors(box) {
+    const H = this._H, tools = [['door', 'Door', 'mdi:door-open'], ['window', 'Window', 'mdi:window-closed-variant'], ['opening', 'Opening', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
+    box.innerHTML = `<div class="sh-ed"><div class="sh-modes">${tools.map(([k, n, i]) => `<button data-tool="${k}" class="${this._dtool === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${n}</button>`).join('')}</div>
+      ${Array.isArray(H.windows) ? `<div class="sh-row"><span class="sh-hint" style="flex:1">Automatic windows are off because you placed your own (${H.windows.length}).</span><button data-autowin>Back to automatic windows</button></div>` : '<div class="sh-hint">Windows are placed on long outer walls automatically. Add one to place them yourself.</div>'}
+      <div class="sh-row"><span class="sh-hint">Doorways between rooms:</span><button data-doorways>${H.doorways === 'none' || H.doorways === false ? 'Off: turn on' : 'Automatic: turn off'}</button></div>
+      <div class="sh-ditem"></div></div>`;
+    box.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => { this._dtool = b.dataset.tool; this._dsel = null; this._render(); }));
+    box.querySelector('[data-autowin]')?.addEventListener('click', () => { delete H.windows; this._dsel = null; this._emit(); this._render(); });
+    box.querySelector('[data-doorways]').addEventListener('click', () => { if (H.doorways === 'none' || H.doorways === false) delete H.doorways; else H.doorways = 'none'; this._emit(); this._render(); });
+    const it = this._dsel, slot = box.querySelector('.sh-ditem'); if (!it) return;
+    const head = document.createElement('div'); head.className = 'sh-row';
+    head.innerHTML = `<b style="flex:1">${{ door: 'Door', window: 'Window', opening: 'Opening', badge: 'Lock badge' }[it.k]}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>Delete</button>`;
+    slot.appendChild(head);
+    head.querySelector('[data-deld]').addEventListener('click', () => { this._delDoorItem(); this._emit(); this._render(); });
+    if (it.k === 'door') {
+      const d = H.doors[it.i];
+      slot.appendChild(this._form([
+        { name: 'entity', selector: { entity: { domain: 'binary_sensor' } } },
+        { name: 'side', selector: sel([['1', 'Swings one way'], ['-1', 'Swings the other way']]) },
+        { name: 'main', selector: { boolean: {} } },
+      ], { entity: d.entity || '', side: String(d.side ?? 1), main: !!d.main }, v => {
+        d.entity = v.entity || ''; if (v.side === '-1') d.side = -1; else delete d.side; if (v.main) d.main = true; else delete d.main;
+        this._emit(); const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg);
+      }, { entity: 'Contact sensor (the door opens in 3D while it is open)', main: 'Main entrance' }));
+    } else if (it.k === 'badge') {
+      const b = H.lock_badges[it.i];
+      slot.appendChild(this._form([{ name: 'lock', selector: { entity: { domain: 'lock' } } }], { lock: b.lock || b.entity || '' }, v => { b.lock = v.lock || ''; delete b.entity; this._emit(); }, { lock: 'Lock' }));
+    }
+  }
+  _delDoorItem() {
+    const H = this._H, it = this._dsel; if (!it) return;
+    const key = { door: 'doors', window: 'windows', opening: 'openings', badge: 'lock_badges' }[it.k];
+    if (Array.isArray(H[key])) H[key].splice(it.i, 1);
+    if (key !== 'windows' && Array.isArray(H[key]) && !H[key].length) delete H[key];
+    this._dsel = null;
+  }
+
+  /* ================================================================ */
+  /* Panels step                                                       */
+  /* ================================================================ */
   _rPanels(body) {
     const P = this._config.panels = this._config.panels || {};
     body.innerHTML = `<div class="sh-ed"><div class="sh-hint">Panels show up when Home Assistant has something for them (found by integration and device class). Switch off what you don't want, or pick the entities yourself.</div><div class="sh-pl sh-ed"></div></div>`;
@@ -178,10 +876,12 @@ class SweetHomeCardEditor extends HTMLElement {
     }
   }
 
-  /* ---------------- look ---------------- */
+  /* ================================================================ */
+  /* Look step                                                         */
+  /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture };
+    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hint: C.hint !== false };
     body.innerHTML = '';
     body.appendChild(this._form([
       { name: 'title', selector: { text: {} } },
@@ -189,17 +889,20 @@ class SweetHomeCardEditor extends HTMLElement {
       { name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } },
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
-    ], data, v => {
+      { name: 'hint', selector: { boolean: {} } },
+    ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
       if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab;
       const was = H.type;
       if (v.type === 'gltf') { H.type = 'gltf'; if (v.url) H.url = v.url; else delete H.url; } else { delete H.type; delete H.url; }
       if (v.wall_height != null && v.wall_height !== 1.35) H.wall_height = v.wall_height; else delete H.wall_height;
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
+      if (v.hint === false) C.hint = false; else delete C.hint;
       if (!Object.keys(H).length) delete C.house;
-      this._emit();
+      this._emit(typing);
       if (was !== H.type) this._render();
-    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically (bedrooms, kitchen, living room…)' }));
+    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hint: 'Show the “tap a room” tip on first use' }, true));
   }
 }
 if (!customElements.get('sweet-home-card-editor')) customElements.define('sweet-home-card-editor', SweetHomeCardEditor);
+export { footprint, sizePiece, turnPiece, movePiece };

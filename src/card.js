@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor } from './model.js';
+import { buildModel, toColor, FURN_TYPES } from './model.js';
 import './editor.js';
 import './strategy.js';
 const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
@@ -183,6 +183,28 @@ const pretty = o => {
   if (s === s.toUpperCase()) s = s.toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
+// entities a tap switches on / off
+const TOGGLE_DOMAINS = ['light', 'switch', 'fan', 'input_boolean', 'siren', 'humidifier', 'cover', 'valve', 'automation', 'remote', 'vacuum'];
+// binary sensor wording by device class: [on, off]
+const BIN_LABEL = { door: ['Open', 'Closed'], window: ['Open', 'Closed'], garage_door: ['Open', 'Closed'], opening: ['Open', 'Closed'], motion: ['Detected', 'Clear'],
+  occupancy: ['Detected', 'Clear'], presence: ['Home', 'Away'], moisture: ['Wet', 'Dry'], smoke: ['Smoke', 'Clear'], gas: ['Gas', 'Clear'], battery: ['Low', 'Normal'],
+  plug: ['Plugged in', 'Unplugged'], power: ['Power', 'No power'], problem: ['Problem', 'OK'], connectivity: ['Connected', 'Disconnected'], lock: ['Unlocked', 'Locked'], vibration: ['Vibration', 'Still'] };
+const DOM_ICON = { light: ['mdi:lightbulb-on', 'mdi:lightbulb-outline'], switch: ['mdi:toggle-switch', 'mdi:toggle-switch-off-outline'], fan: ['mdi:fan', 'mdi:fan-off'],
+  input_boolean: ['mdi:toggle-switch', 'mdi:toggle-switch-off-outline'], cover: ['mdi:window-shutter-open', 'mdi:window-shutter'], valve: ['mdi:valve-open', 'mdi:valve-closed'],
+  media_player: ['mdi:cast-connected', 'mdi:cast'], climate: ['mdi:thermostat', 'mdi:thermostat'], lock: ['mdi:lock-open-variant', 'mdi:lock'], script: ['mdi:script-text-play', 'mdi:script-text'],
+  scene: ['mdi:palette', 'mdi:palette'], button: ['mdi:gesture-tap-button', 'mdi:gesture-tap-button'], input_button: ['mdi:gesture-tap-button', 'mdi:gesture-tap-button'],
+  camera: ['mdi:cctv', 'mdi:cctv'], vacuum: ['mdi:robot-vacuum', 'mdi:robot-vacuum'], humidifier: ['mdi:air-humidifier', 'mdi:air-humidifier-off'], siren: ['mdi:bullhorn', 'mdi:bullhorn-outline'],
+  automation: ['mdi:robot', 'mdi:robot-off'], remote: ['mdi:remote', 'mdi:remote-off'], person: ['mdi:account', 'mdi:account-outline'], device_tracker: ['mdi:map-marker', 'mdi:map-marker-off'] };
+const DC_ICON = { temperature: 'mdi:thermometer', humidity: 'mdi:water-percent', power: 'mdi:flash', energy: 'mdi:lightning-bolt', battery: 'mdi:battery', illuminance: 'mdi:brightness-5',
+  motion: 'mdi:motion-sensor', occupancy: 'mdi:home-account', door: 'mdi:door', window: 'mdi:window-closed-variant', moisture: 'mdi:water-alert', carbon_dioxide: 'mdi:molecule-co2',
+  pm25: 'mdi:blur', smoke: 'mdi:smoke-detector', opening: 'mdi:square-outline', plug: 'mdi:power-plug', outlet: 'mdi:power-socket-eu', signal_strength: 'mdi:wifi', voltage: 'mdi:sine-wave', current: 'mdi:current-ac' };
+const domIcon = (d, v, a = {}) => {
+  const on = ['on', 'open', 'opening', 'playing', 'unlocked', 'home'].includes(v) || (d === 'climate' && v && v !== 'off');
+  if (a.device_class && DC_ICON[a.device_class]) return DC_ICON[a.device_class];
+  return DOM_ICON[d]?.[on ? 0 : 1] || (d === 'sensor' ? 'mdi:eye' : d === 'binary_sensor' ? (on ? 'mdi:checkbox-marked-circle' : 'mdi:checkbox-blank-circle-outline') : 'mdi:shape-outline');
+};
+const furnName = f => f.name || FURN_TYPES[f.type]?.[0] || pretty(f.type);
+const furnIcon = f => f.icon || FURN_TYPES[f.type]?.[1] || 'mdi:shape-outline';
 const ALL_TABS = [
   ['home', 'Home', 'mdi:home-modern'], ['security', 'Security', 'mdi:shield-home'], ['climate', 'Climate', 'mdi:air-conditioner'],
   ['energy', 'Energy', 'mdi:lightning-bolt'], ['water', 'Water & Garden', 'mdi:water'], ['media', 'Media', 'mdi:television-play'], ['system', 'System', 'mdi:server'],
@@ -389,6 +411,7 @@ export class SweetHomeCard extends HTMLElement {
             <canvas id="cv"></canvas>
             <div class="labels" id="labels"></div>
             <div class="legend" id="legend"></div>
+            <div class="hint" id="hint" role="note"></div>
             <div class="loading" id="loading"><div class="spinner"></div><span>Building your home…</span></div>
             <aside class="drawer" id="drawer"></aside>
           </div>
@@ -423,7 +446,7 @@ export class SweetHomeCard extends HTMLElement {
     this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);
-    const roomEnts = ROOMS.map(r => [r.temp, r.hum, r.lights, r.motion, r.climate, r.count, r.fan, r.locks, r.doors, (r.doors || []).map(d => DOOR_INFO[d]?.timeout), (r.plugs || []).map(p => [p.id, p.power]), r.media]);
+    const roomEnts = ROOMS.map(r => [r.temp, r.hum, r.lights, r.motion, r.climate, r.count, r.fan, r.locks, r.doors, (r.doors || []).map(d => DOOR_INFO[d]?.timeout), (r.plugs || []).map(p => [p.id, p.power]), r.media, (r.entities || []).map(e => e.id), r.furnEnts]);
     const acEnts = E.acs.map(a => [a.id, a.power, this._acExtras(a.id)]);
     const glanceEnts = all(E.alarm, E.doors.map(d => d.id), E.locks.map(l => l.id), roomEnts, acEnts, E.energy.grid, E.energy.solar,
       E.water.tank, E.car.charging, E.car.parking, E.cameras.map(c => [c.person, c.car]), E.media.tv, E.lab.cpu, E.lab.status);
@@ -459,6 +482,7 @@ export class SweetHomeCard extends HTMLElement {
     this._setTab(MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     this._tick();
     this._init3d();
+    this._hintShow();
   }
 
   _acExtras(id) { // related switches such as jet mode / display light
@@ -1078,6 +1102,11 @@ export class SweetHomeCard extends HTMLElement {
         if (performance.now() - (this._cvTap || 0) < 600) break;
         this._select(t.dataset.room === this._sel ? null : t.dataset.room); break;
       case 'close': this._select(null); break;
+      case 'furn': if (performance.now() - (this._cvTap || 0) < 600) break; this._selectFurn(Number(t.dataset.idx)); break;
+      case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(id.startsWith('scene.') ? 'Scene activated' : 'Script started'); break;
+      case 'press': this.call(id.split('.')[0], 'press', { entity_id: id }); this._toast('Pressed'); break;
+      case 'dfold': { const k = t.dataset.k; (this._dOpen ||= new Set()).has(k) ? this._dOpen.delete(k) : this._dOpen.add(k); this._rerender('drawer'); break; }
+      case 'hintx': this._hintDone(); break;
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
@@ -1190,12 +1219,33 @@ export class SweetHomeCard extends HTMLElement {
     this._three?.setMode(m);
     this._renderLegend();
   }
-  _select(id) {
+  _select(id, keepFurn) {
     if (id !== this._sel) this._acOpen = null;
+    if (!keepFurn) this._fsel = null;
+    if (id) this._hintDone();
     this._sel = id;
     this.$('drawer').classList.toggle('open', !!id);
     this._three?.select(id);
     this._rerender('drawer');
+  }
+  // a tap on a furniture piece that has entities: open its room with the piece at the top of the popup
+  _selectFurn(idx) {
+    const f = FURN[idx]; if (!f || !f.entities?.length) return;
+    if (!f.room || !ROOM[f.room]) { this.more(f.entities[0]); return; }
+    this._fsel = idx;
+    if (this._sel === f.room) { this._rerender('drawer'); this.$('drawer').scrollTop = 0; } else this._select(f.room, true);
+  }
+  // first-use hint on the 3D view; gone for good after the first room is opened or when closed
+  _hintShow() {
+    let seen = false; try { seen = localStorage.getItem('sweet-home-hint') === '1'; } catch (e) { /* storage blocked */ }
+    const el = this.$('hint'); if (!el || seen || this._config?.hint === false) return;
+    const pieces = FURN.some(f => f.entities?.length);
+    el.innerHTML = `${ic('mdi:gesture-tap')}<span>Tap a room to see and control what's in it.${pieces ? ' Furniture with a dot can be tapped too.' : ''} Long press any row for details.</span><button class="ibtn" data-act="hintx" aria-label="Close hint">${ic('mdi:close')}</button>`;
+    el.classList.add('on');
+  }
+  _hintDone() {
+    const el = this.$?.('hint'); if (!el?.classList.contains('on')) return;
+    el.classList.remove('on'); try { localStorage.setItem('sweet-home-hint', '1'); } catch (e) { /* storage blocked */ }
   }
   _renderLegend() {
     const el = this.$('legend');
@@ -1364,11 +1414,11 @@ export class SweetHomeCard extends HTMLElement {
       const lname = r.lightNames?.[l] || tc((st.attributes.friendly_name || l).replace(/^Shelly\s*/i, ''));
       return `<div class="lwrap ${on ? 'on' : ''}"><button class="lrow ${on ? 'on' : ''}" data-act="toggle" data-id="${l}">${ic(icon)}<span>${esc(lname)}</span><b>${esc(br)}</b></button>
         ${simple ? '' : `${dim && on ? this.slider(l, 'bright', pct, '#fbbf24') : ''}${on && (fx === 'strip' || r.colorLights?.includes(l)) ? this.colorRow(l) : ''}${on ? this.pickChip(l, 'effect', 'Effect', 'mdi:auto-fix') : ''}`}</div>`;
-    }).join('');
+    });
     const motion = (r.motion || []).filter(m => this.s(m)).map(m => {
       const on = this.v(m) === 'on';
       return `<div class="mrow ${on ? 'on' : ''}" data-act="more" data-id="${m}">${ic(on ? 'mdi:motion-sensor' : 'mdi:motion-sensor-off')}<span>${esc(r.motionNames?.[m] || tc((this.s(m).attributes.friendly_name || m).replace(/\s*occupancy\s*$/i, '')))}</span><b data-ago="${this.s(m).last_changed}" data-pre="${on ? 'Detected' : 'Clear'}" data-short="1" title="${esc(ago(this.s(m).last_changed, this._hass?.locale?.language))}">${on ? 'Detected' : 'Clear'} · ${agoShort(this.s(m).last_changed, this._hass?.locale?.language)}</b></div>`;
-    }).join('');
+    });
     const ac = r.climate && this.s(r.climate) ? (() => {
       const st = this.s(r.climate); const on = this.climOn(r.climate);
       // compact row; tapping it reveals the full controls
@@ -1394,25 +1444,74 @@ export class SweetHomeCard extends HTMLElement {
         const long = info.timeout && this.v(info.timeout) === 'on';
         return `<div class="mrow ${o ? 'open' : ''}" data-act="more" data-id="${d}"${info.timeout ? ` data-id2="${info.timeout}"` : ''}>${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(info.name)}</span><b>${o ? (long ? 'Open too long' : 'Open') : 'Closed'}</b></div>`;
       }),
-    ].join('');
+    ];
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
       const on = this.on(p.id); const w = this.n(p.power); const chg = on && (w ?? 0) > 1.5;
       return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${on ? (chg ? `Charging · ${w.toFixed(1)} W` : 'On · idle') : 'Off'}</b></button>`;
-    }).join('');
+    });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>People Detected</span><b>${this.v(r.count)}</b></div>`);
-    if (r.fan && this.s(r.fan)) extra.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>Exhaust Fan</span><b>${this.on(r.fan) ? 'On' : 'Off'}</b></button>`);
-    if (r.media && this.s(r.media)) extra.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(pretty(this.v(r.media)))}</b></div>`);
+    const devs = [];
+    if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? 'On' : 'Off'}</b></button>`);
+    if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(pretty(this.v(r.media)))}</b></div>`);
+    // furniture with entities: the piece tapped in 3D comes first, highlighted
+    // (an entity that already has its own row above — a light, a door, the TV… — is not repeated under Furniture / Other)
+    const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum].filter(Boolean));
+    const pieces = FURN.filter(f => f.room === r.id && f.entities?.length);
+    const focus = pieces.find(f => f.idx === this._fsel);
+    const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id)).join('')}</div>`;
+    const furn = pieces.filter(f => f !== focus).map(f => [f, f.entities.filter(id => !shown.has(id))]).filter(([, ids]) => ids.length).map(([f, ids]) => piece(f, ids));
+    const inFurn = new Set(pieces.flatMap(f => f.entities));
+    const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, e));
+    // a long list shows its first rows and a "Show more" button
+    const fold = (key, rows) => {
+      if (rows.length <= 6 || this._dOpen?.has(r.id + key)) return rows.join('') + (rows.length > 6 ? `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-up')}Show less</button>` : '');
+      return rows.slice(0, 5).join('') + `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-down')}Show ${rows.length - 5} more</button>`;
+    };
+    const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${title}</div>${fold(key, rows)}` : '');
+    const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length;
     return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3><button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
+      ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
         ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>Temperature</span></div>` : ''}
         ${h != null ? `<div data-act="more" data-id="${r.hum}"><b class="blue">${Math.round(h)}%</b><span>Humidity</span></div>` : ''}
       </div>` : ''}
       ${ac}
-      ${lights ? `<div class="dsec">Lights</div>${lights}` : ''}
-      ${entry ? `<div class="dsec">${r.locks?.length ? 'Entrance' : 'Doors'}</div>${entry}` : ''}
-      ${plugs ? `<div class="dsec">Plugs</div>${plugs}` : ''}
-      ${motion || extra.length ? `<div class="dsec">Sensors</div>${motion}${extra.join('')}` : ''}
-      ${!lights && !motion && !ac && !extra.length && t == null ? `<div class="empty">${ic('mdi:information-outline')} No devices mapped to this room yet.</div>` : ''}`;
+      ${sec('Lights', 'l', lights)}
+      ${sec(r.locks?.length ? 'Entrance' : 'Doors', 'd', entry)}
+      ${sec('Plugs', 'p', plugs)}
+      ${sec('Furniture', 'f', furn)}
+      ${sec('Devices', 'v', devs)}
+      ${sec('Sensors', 's', [...motion, ...extra])}
+      ${sec('Other', 'o', other)}
+      ${empty ? `<div class="empty">${ic('mdi:information-outline')} No devices mapped to this room yet. Link it to an area, or add entities in the card editor (Rooms → Entities).</div>` : ''}`;
+  }
+
+  // One row for any entity: lights, switches, fans, covers… toggle; scripts / scenes run; buttons press; locks lock with a
+  // second tap to confirm; everything else shows its state and opens more-info. Long press always opens more-info.
+  _entRow(id, o = {}) {
+    const st = this.s(id);
+    if (!st) return `<div class="mrow na">${ic('mdi:help-circle-outline')}<span>${esc(o.name || id)}</span><b>Not found</b></div>`;
+    const d = id.split('.')[0], a = st.attributes, v = st.state, bad = BAD.includes(v);
+    const name = esc(o.name || tc(a.friendly_name || id));
+    const icon = o.icon || a.icon || domIcon(d, v, a);
+    if (bad) return `<div class="mrow na" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(pretty(v))}</b></div>`;
+    if (TOGGLE_DOMAINS.includes(d)) {
+      const on = ['on', 'open', 'opening'].includes(v);
+      const val = d === 'light' && on && a.brightness ? Math.round(a.brightness / 2.55) + '%' : d === 'cover' || d === 'valve' ? pretty(v) : on ? 'On' : 'Off';
+      return `<button class="lrow ${on ? 'on' : ''} ${d === 'light' ? '' : 'cool'}" data-act="toggle" data-id="${id}">${ic(icon, d === 'fan' && on ? 'spin' : '')}<span>${name}</span><b>${esc(val)}</b></button>`;
+    }
+    if (d === 'lock') {
+      const locked = v === 'locked';
+      return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${id}" style="position:relative">${ic(locked ? 'mdi:lock' : 'mdi:lock-open-variant')}<span>${name}</span><b>${locked ? 'Locked' : esc(pretty(v))}</b></button>`;
+    }
+    if (d === 'script' || d === 'scene') return `<button class="lrow ${v === 'on' ? 'on cool' : ''}" data-act="run" data-id="${id}">${ic(icon)}<span>${name}</span><b>${d === 'scene' ? 'Activate' : v === 'on' ? 'Running' : 'Run'}</b></button>`;
+    if (d === 'button' || d === 'input_button') return `<button class="lrow" data-act="press" data-id="${id}">${ic(icon)}<span>${name}</span><b>Press</b></button>`;
+    let val;
+    if (d === 'binary_sensor') val = BIN_LABEL[a.device_class]?.[v === 'on' ? 0 : 1] || (v === 'on' ? 'On' : 'Off');
+    else if (!isNaN(parseFloat(v)) && isFinite(v)) { const x = parseFloat(v); val = `${Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 10) / 10}${a.unit_of_measurement ? ' ' + a.unit_of_measurement : ''}`; }
+    else val = pretty(v);
+    const active = this.on(id) || (d === 'climate' && this.climOn(id));
+    return `<div class="mrow ${active ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(val)}</b></div>`;
   }
 
   _rEnergy() {
@@ -2591,9 +2690,11 @@ class HouseScene {
     const T = this.T;
     const mats = {};
     const M = (c, o = {}) => (mats[c + JSON.stringify(o)] ||= new T.MeshStandardMaterial({ color: c, roughness: o.r ?? 0.75, metalness: o.m ?? 0, emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 0, transparent: !!o.op, opacity: o.op ?? 1 }));
+    let cur = null; // the piece being built, when it has entities: its meshes can be tapped
+    const tag = m => { if (cur) { m.userData.furn = cur.idx; cur.meshes.push(m); } return m; };
     const add = (room, geo, mat, x, y, z, shadow = true) => {
       const m = new T.Mesh(geo, mat); const [cx, cz] = this.w(x, z); m.position.set(cx, y, cz);
-      m.castShadow = shadow; m.receiveShadow = true; m.userData.room = room; this.scene.add(m); this.pick.push(m); return m;
+      m.castShadow = shadow; m.receiveShadow = true; m.userData.room = room; this.scene.add(m); this.pick.push(m); return tag(m);
     };
     // axis-aligned box by center
     const box = (room, x, z, w, d, h, color, y = 0, o) => add(room, new T.BoxGeometry(w, h, d), M(color, o), x, y + h / 2, z);
@@ -2657,7 +2758,7 @@ class HouseScene {
         const roof = new T.Mesh(geo, M(0xf5f5f4, { r: 0.6 }));
         roof.position.set(hb.position.x, opts.hbH || 1.0, hb.position.z);
         if (alongX) roof.rotation.y = Math.PI / 2; // headboard runs along z for beds whose head is on an east/west wall
-        roof.castShadow = true; roof.userData.room = room; this.scene.add(roof); this.pick.push(roof);
+        roof.castShadow = true; roof.userData.room = room; this.scene.add(roof); this.pick.push(roof); tag(roof);
         (this.roofs ||= []).push(roof);
       }
     };
@@ -2673,12 +2774,17 @@ class HouseScene {
     const plant = (room, x, z, s = 1) => { cyl(room, x, z, 0.2 * s, 0.38 * s, 0xd6cfc4, 0, { r: 0.6 }); ball(room, x, z, 0.32 * s, 0x2f6b3a, 0.62 * s); ball(room, x + 0.12 * s, z - 0.08 * s, 0.22 * s, 0x3f8a4c, 0.85 * s); };
 
     // pieces from the config (house.furniture / room.furniture, or the automatic set for automatic rooms)
-    this.tvs = []; this.chargers = [];
+    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = [];
     const N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const C = (v, d) => toColor(v, d);
     const opt = f => ({ r: N(f.roughness, 0.75), m: N(f.metalness, 0), op: f.opacity != null ? N(f.opacity, 1) : undefined, e: f.emissive, ei: f.emissive ? N(f.emissive_intensity, 0.6) : 0 });
+    const floorGlow = (x, z, r, color, y = 0.01) => {
+      const g = new T.Mesh(new T.CircleGeometry(r, 32), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
+      const [gx, gz] = this.w(x, z); g.rotation.x = -Math.PI / 2; g.position.set(gx, y, gz); this.scene.add(g); return g;
+    };
     for (const f of FURN) {
       const rm = f.room || null;
+      cur = f.entities?.length ? { idx: f.idx, f, meshes: [] } : null;
       try {
         switch (f.type) {
           case 'box': box(rm, N(f.x, 0), N(f.z, 0), N(f.w, 0.5), N(f.d, 0.5), N(f.h, 0.5), C(f.color, 0x8b6b45), N(f.y, 0), opt(f)); break;
@@ -2694,7 +2800,7 @@ class HouseScene {
           case 'tv': { // a screen that flickers while its media player plays; facing = the direction the screen looks
             const w = N(f.w, 1.6), hh = N(f.h, 0.9), y = N(f.y, 0.6), alongX = !['e', 'w'].includes(f.facing || 'n');
             const m = box(rm, N(f.x, 0), N(f.z, 0), alongX ? w : 0.05, alongX ? 0.05 : w, hh, 0x05070c, y, { r: 0.2, e: 0x3b82f6, ei: 0 });
-            m.material = m.material.clone(); this.tvs.push({ m, entity: f.entity || null }); break;
+            m.material = m.material.clone(); this.tvs.push({ m, entity: f.entities?.find(e => e.startsWith('media_player.')) || f.entity || null }); break;
           }
           case 'charger': { // phone on a charger plug: glows while charging
             const m = box(rm, N(f.x, 0), N(f.z, 0), 0.09, 0.17, 0.015, 0x0b1020, N(f.y, 0.55), { r: 0.2, e: 0x34d399, ei: 0 });
@@ -2704,10 +2810,45 @@ class HouseScene {
             this.chargers.push({ m, glow, plug: f.plug, power: f.power, t: 0 }); break;
           }
           case 'stairs': this._stairs(f); break;
+          case 'lamp': { // floor lamp: the shade glows (in the light's colour) while its light is on
+            const x = N(f.x, 0), z = N(f.z, 0), hh = N(f.h, 1.5), sc = N(f.size, 1), metal = C(f.color, 0x334155);
+            cyl(rm, x, z, 0.16 * sc, 0.03, metal, 0, { r: 0.4, m: 0.5 });
+            cyl(rm, x, z, 0.018, hh - 0.25 * sc, metal, 0.03, { r: 0.4, m: 0.5 });
+            const mat = new T.MeshStandardMaterial({ color: C(f.shade, 0xf5e6c8), emissive: 0xffc27a, emissiveIntensity: 0, roughness: 0.8, side: T.DoubleSide });
+            const m = add(rm, new T.CylinderGeometry(0.12 * sc, 0.2 * sc, 0.25 * sc, 24, 1, true), mat, x, hh - 0.125 * sc, z);
+            this.lamps.push({ m, glow: floorGlow(x, z, 0.9 * sc, 0xffc27a), entity: f.entities[0] || null, t: 0, col: new T.Color(0xffc27a) });
+            break;
+          }
+          case 'fan': { // ceiling fan: the blades turn while the fan is on
+            const x = N(f.x, 0), z = N(f.z, 0), y = N(f.y, 2.1), rad = N(f.radius, 0.6);
+            cyl(rm, x, z, 0.07, 0.08, C(f.color, 0xe5e7eb), y, { r: 0.5 });
+            const g = new T.Group(); const [gx, gz] = this.w(x, z); g.position.set(gx, y + 0.03, gz); this.scene.add(g);
+            const bm = M(C(f.blade, 0x8b6b45), { r: 0.6 });
+            for (let i = 0; i < 4; i++) {
+              const a = i * Math.PI / 2, b = new T.Mesh(new T.BoxGeometry(rad, 0.015, 0.12), bm);
+              b.position.set(Math.cos(a) * rad / 2, 0, Math.sin(a) * rad / 2); b.rotation.y = -a; b.userData.room = rm;
+              g.add(b); this.pick.push(b); tag(b);
+            }
+            this.fans.push({ g, entity: f.entities[0] || null, on: 0, sp: 0 });
+            break;
+          }
+          case 'marker': { // a device with no furniture of its own (a sensor, a plug, a speaker): a dot that lights up while it is on
+            const x = N(f.x, 0), z = N(f.z, 0), y = N(f.y, 0.9), col = C(f.color, 0x2dd4bf);
+            cyl(rm, x, z, 0.012, y, 0x64748b, 0, { r: 0.5 });
+            const m = add(rm, new T.SphereGeometry(0.09, 20, 14), new T.MeshStandardMaterial({ color: 0x1f2937, emissive: col, emissiveIntensity: 0.15, roughness: 0.4 }), x, y, z);
+            this.markers.push({ m, glow: floorGlow(x, z, 0.45, col), entity: f.entities[0] || null, t: 0 });
+            break;
+          }
           default: console.warn('sweet-home: unknown furniture type', f.type);
         }
       } catch (err) { console.warn('sweet-home: furniture', f, err); }
+      if (cur && cur.meshes.length) { // where its badge floats: above the middle of the piece
+        const bb = new T.Box3(); for (const m of cur.meshes) { m.updateWorldMatrix(true, false); bb.expandByObject(m); }
+        const c = bb.getCenter(new T.Vector3());
+        this.fpieces.push({ ...cur, x: c.x, z: c.z, y: bb.max.y + 0.15 });
+      }
     }
+    this._furnBadges();
   }
 
   // stairs inside x0..x1 × z0..z1; axis = direction the steps climb; mode: up | down | split (one flight up, one down)
@@ -2806,12 +2947,26 @@ class HouseScene {
     }
   }
 
+  // small badges over furniture that has entities: a dot, or the entity's icon while it is on / its room is open
+  _furnBadges() {
+    for (const P of this.fpieces) {
+      if (P.f.badge === false) continue;
+      const el = document.createElement('div'); el.className = 'fb'; el.dataset.act = 'furn'; el.dataset.idx = P.idx; el.dataset.id = P.f.entities[0];
+      el.title = furnName(P.f); this.lblLayer.appendChild(el); P.el = el;
+    }
+  }
+
   _input() {
     const T = this.T; const el = this.cv; const ptrs = new Map(); let drag = null; let pinch = null;
     const ray = new T.Raycaster(); const v2 = new T.Vector2();
     const pickAt = (cx, cy) => {
       const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
       ray.setFromCamera(v2, this.cam); const hit = ray.intersectObjects(this.pick, false)[0]; return hit?.object.userData.room || null;
+    };
+    // a furniture piece with entities under the pointer (its index), or null
+    const furnAt = (cx, cy) => {
+      const b = el.getBoundingClientRect(); v2.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
+      ray.setFromCamera(v2, this.cam); const u = ray.intersectObjects(this.pick, false)[0]?.object.userData; return u && u.furn != null ? u.furn : null;
     };
     el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('pointerdown', e => {
@@ -2842,16 +2997,21 @@ class HouseScene {
         this.lastInput = performance.now();
       } else if (e.pointerType === 'mouse') {
         const now = performance.now(); if (now - (this._lh || 0) < 50) return; this._lh = now;
-        const r = pickAt(e.clientX, e.clientY); if (r !== this.hover) { this.hover = r; el.style.cursor = r ? 'pointer' : 'grab'; }
+        const r = pickAt(e.clientX, e.clientY), fi = furnAt(e.clientX, e.clientY);
+        if (r !== this.hover || fi !== this.hoverF) { this.hover = r; this.hoverF = fi; el.style.cursor = r || fi != null ? 'pointer' : 'grab'; this.sync(); }
       }
     });
     const up = e => {
       if (!ptrs.delete(e.pointerId)) return;
-      if (drag && !drag.moving && e.type === 'pointerup' && performance.now() - drag.t < 800) { const r = pickAt(drag.sx, drag.sy); this.card._cvTap = performance.now(); this.card.haptic('selection'); this.card._select(r && r === this.sel ? null : r); }
+      if (drag && !drag.moving && e.type === 'pointerup' && performance.now() - drag.t < 800) {
+        const fi = furnAt(drag.sx, drag.sy); this.card._cvTap = performance.now(); this.card.haptic('selection');
+        if (fi != null) this.card._selectFurn(fi);
+        else { const r = pickAt(drag.sx, drag.sy); this.card._select(r && r === this.sel ? null : r); }
+      }
       if (ptrs.size < 2) pinch = null; drag = null;
     };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
-    el.addEventListener('pointerleave', () => { this.hover = null; });
+    el.addEventListener('pointerleave', () => { this.hover = null; this.hoverF = null; });
     el.addEventListener('wheel', e => { e.preventDefault(); this.goal.radius = clamp(this.goal.radius * (1 + Math.sign(e.deltaY) * 0.09), SPAN * 0.5, SPAN * 4.5); this.lastInput = performance.now(); }, { passive: false });
   }
   _pan(dx, dy) {
@@ -2925,6 +3085,23 @@ class HouseScene {
       A.pts.material.color.setHex(col); A.unit.material.emissive.setHex(col);
     }
     for (const tv of this.tvs || []) tv.on = c.v(tv.entity || E.media.tv) === 'playing' ? 1 : 0;
+    // lamps glow in their light's colour and brightness, fans turn at their speed, device dots light up
+    for (const L of this.lamps || []) {
+      const st = c.s(L.entity), on = st?.state === 'on';
+      L.t = on ? (st.attributes.brightness ? 0.35 + 0.65 * st.attributes.brightness / 255 : 1) : 0;
+      const rc = st?.attributes.rgb_color; L.col.setRGB(...(rc ? rc.map(x => x / 255) : [1, 0.76, 0.48]));
+    }
+    for (const F of this.fans || []) { const st = c.s(F.entity); F.on = st?.state === 'on' ? 1 : 0; F.sp = F.on ? 0.5 + 1.5 * ((st.attributes.percentage ?? 60) / 100) : 0; }
+    for (const P of this.markers || []) { const v = c.v(P.entity); P.t = BAD.includes(v ?? '') ? -1 : c.on(P.entity) || (P.entity.startsWith('climate.') && c.climOn(P.entity)) ? 1 : 0; }
+    // furniture badges: a dot; the entity's icon while it is on, its room is open or the pointer is over it
+    for (const P of this.fpieces || []) {
+      if (!P.el) continue;
+      const ids = P.f.entities, act = ids.some(id => c.on(id) || (id.startsWith('climate.') && c.climOn(id))), na = ids.every(id => BAD.includes(c.v(id) ?? ''));
+      const big = act || this.sel === P.f.room || this.hoverF === P.idx;
+      const st = c.s(ids[0]), icon = P.f.icon || (st ? st.attributes.icon || domIcon(ids[0].split('.')[0], st.state, st.attributes) : furnIcon(P.f));
+      const sig = [act, na, big, icon].join('|');
+      if (P.el._sig !== sig) { P.el._sig = sig; P.el.className = `fb ${act ? 'on' : ''} ${na ? 'na' : ''} ${big ? 'big' : ''}`; P.el.innerHTML = big ? ic(icon) : ''; }
+    }
     this.tvOn = (this.tvs || []).some(tv => tv.on) ? 1 : 0;
     for (const s of this.stairDots) s.on = c.v(s.id) === 'on';
     // day / night from sun
@@ -2933,7 +3110,7 @@ class HouseScene {
     const dv = day.toFixed(2); if (this._dayV !== dv) { this._dayV = dv; this.vp.style.setProperty('--day', dv); }
     // battery: HA pushes state changes all the time; redraw only when something the scene shows changed
     const sg = [Object.values(this.rooms).map(R => [R.litT, R.stripT || 0, R.spotT || 0, R.tvT || 0, R.stripCol ? R.stripCol.getHex() : 0, R.tvCol ? R.tvCol.getHex() : 0, R.motion, R.anyLit, R.temp]),
-      this.lockT, this.phoneT, this.doors.map(D => D.openT), this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
+      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
     if (sg !== this._syncSig) { this._syncSig = sg; this._dirty = true; }
   }
 
@@ -3075,6 +3252,18 @@ class HouseScene {
       const t = tv.on ? 0.9 + 0.25 * Math.sin(tt * 7) * Math.sin(tt * 2.3) : 0; tv.m.material.emissiveIntensity += (t - tv.m.material.emissiveIntensity) * Math.min(1, dt * 6);
       if (tv.on || tv.m.material.emissiveIntensity > 0.01) anim = true;
     }
+    for (const L of this.lamps || []) {
+      const d = L.t - L.m.material.emissiveIntensity / 1.6; mv += Math.abs(d);
+      L.m.material.emissiveIntensity += d * 1.6 * Math.min(1, dt * 5);
+      L.m.material.emissive.lerp(L.col, Math.min(1, dt * 5)); L.glow.material.color.copy(L.m.material.emissive);
+      L.glow.material.opacity = (L.m.material.emissiveIntensity / 1.6) * 0.32 * (this.mode === 'lights' ? 1 : 0.55);
+    }
+    for (const F of this.fans || []) { if (F.sp) { F.g.rotation.y -= dt * F.sp * 6; anim = true; } }
+    for (const P of this.markers || []) {
+      const t = P.t === 1 ? 1.1 + 0.4 * Math.sin(tt * 3) : P.t === -1 ? 0 : 0.15;
+      P.m.material.emissiveIntensity += (t - P.m.material.emissiveIntensity) * Math.min(1, dt * 5);
+      P.glow.material.opacity = P.t === 1 ? 0.25 : 0; if (P.t === 1) anim = true;
+    }
     if (this.tvOn || this.stairDots.some(s => s.on) || this.mode === 'presence') anim = true;
     this._busy = mv > 0.002; this._anim = anim;
     for (const s of this.stairDots) { s.m.material.opacity = s.on ? 0.6 + 0.4 * Math.sin(tt * 6) : 0.12; s.m.scale.setScalar(s.on ? 1.6 : 1); }
@@ -3088,6 +3277,13 @@ class HouseScene {
       if (v.z > 1) { el.style.display = 'none'; continue; }
       el.style.display = '';
       el.style.transform = `translate(-50%,-100%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
+    }
+    for (const P of this.fpieces || []) {
+      if (!P.el) continue;
+      v.set(P.x, P.y, P.z).project(this.cam);
+      if (v.z > 1) { P.el.style.display = 'none'; continue; }
+      P.el.style.display = '';
+      P.el.style.transform = `translate(-50%,-50%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
     }
   }
 }
@@ -3509,6 +3705,19 @@ main{scroll-margin-top:84px}
 .dac .tgt.sm{gap:6px}.dac .ibtn{width:30px;height:30px}.dac .pow{width:30px;height:30px}
 .dac-chev{--mdc-icon-size:18px;color:var(--mu);margin-left:2px}
 .dac.open .acctl{padding-top:2px;border-top:1px solid var(--line)}
+.fb{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;width:10px;height:10px;border-radius:50%;background:rgba(148,163,184,.85);border:2px solid rgba(8,12,24,.8);box-shadow:0 2px 8px rgba(0,0,0,.5);display:grid;place-items:center;will-change:transform;transition:width .2s,height .2s,background .2s}
+.fb::before{content:'';position:absolute;inset:-12px;border-radius:50%} /* a bigger tap area than the dot */
+.fb.big{width:26px;height:26px;background:rgba(8,12,24,.8);border:1px solid rgba(255,255,255,.18)}.fb ha-icon{--mdc-icon-size:15px;color:var(--mu)}
+.fb.on{background:var(--amber);box-shadow:0 0 12px -2px var(--amber)}.fb.on.big{background:rgba(251,191,36,.22);border-color:rgba(251,191,36,.7)}.fb.on ha-icon{color:var(--amber)}
+.fb.na{background:var(--rose)}.fb.na.big{background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.6)}.fb.na ha-icon{color:var(--rose)}
+.hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-radius:14px;background:rgba(8,12,24,.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
+.hint.on{display:flex;opacity:1;transform:translate(-50%,0)}.hint>ha-icon{color:var(--teal);flex:none}.hint span{flex:1}.hint .ibtn{flex:none;width:32px;height:32px}
+.fgrp{border-radius:14px;margin-bottom:8px}.fgrp .lrow:last-child,.fgrp .mrow:last-child{margin-bottom:0}
+.fhd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--mu);margin:2px 2px 6px}.fhd ha-icon{--mdc-icon-size:16px}
+.fgrp.focus{padding:10px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.45);margin-bottom:12px}.fgrp.focus .fhd{color:var(--tx);font-size:13px}.fgrp.focus .fhd ha-icon{color:var(--teal)}
+.dfold{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;padding:8px;margin-bottom:6px;border-radius:10px;font-size:12px;color:var(--mu);border:1px dashed var(--line)}
+.mrow.na{opacity:.6}.mrow.na b{color:var(--rose)}
+@media (pointer:coarse){.lrow,.mrow{min-height:48px;padding:12px 14px;font-size:13.5px}.dfold{min-height:44px}.lbl{padding:7px 11px;font-size:12.5px}.drawer .ibtn{min-width:44px;min-height:44px}.fb.big{width:32px;height:32px}}
 .dsec{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin:12px 0 6px}
 .lrow,.mrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px;font-size:12.5px;text-align:left;cursor:pointer}
 .lrow span,.mrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lrow b,.mrow b{font-size:11.5px;color:var(--mu);font-weight:600}
