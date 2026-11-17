@@ -23,13 +23,18 @@ house:
     - name: Balcony
       rects: [[7.5, 5.5, 10, 9]]
       outdoor: true
-  openings:                     # gaps in shared walls (open-plan passages)
+  # Rooms are closed by walls: add a door or an opening wherever you can walk through.
+  openings:                     # open passages (no wall, no door)
     - [6, 4, 6, 5]
-  doors:                        # door leaves that swing open with a contact sensor
+    - [7, 4, 9, 4]
+  doors:                        # doors cut their own gap; with a contact sensor they swing open in 3D
     - entity: binary_sensor.front_door_contact
       from: [8, 5.5]
       to: [9, 5.5]
       main: true
+    - { from: [2, 5], to: [3, 5] }          # living room ↔ bedroom (no sensor: a closed door)
+    - { from: [5, 6.5], to: [5, 7.4] }      # bedroom ↔ bathroom
+    - { from: [7.5, 6.5], to: [7.5, 7.4] }  # bathroom ↔ balcony
   lock_badges:
     - lock: lock.front_door
       x: 9.2

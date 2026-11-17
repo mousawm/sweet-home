@@ -28,23 +28,29 @@ const S = [
   st('sensor.fridge_temperature', '4.2', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'Fridge' }),
   st('script.movie_night', 'off', { friendly_name: 'Movie Night' }), st('cover.living_room_blinds', 'open', { friendly_name: 'Living Room Blinds' }),
   st('binary_sensor.balcony_door', 'off', { device_class: 'door', friendly_name: 'Balcony Door' }),
+  st('vacuum.robo', 'cleaning', { friendly_name: 'Robo' }), st('light.office', 'on', { friendly_name: 'Office Light', brightness: 255 }),
 ];
 const states = Object.fromEntries(S.map(s => [s.entity_id, s]));
-const areas = { living_room: { area_id: 'living_room', name: 'Living Room' }, kitchen: { area_id: 'kitchen', name: 'Kitchen' }, bedroom: { area_id: 'bedroom', name: 'Bedroom' }, balcony: { area_id: 'balcony', name: 'Balcony' } };
+states['cover.living_room_blinds'].attributes.current_position = 40;
+const areas = { living_room: { area_id: 'living_room', name: 'Living Room', floor_id: 'ground' }, kitchen: { area_id: 'kitchen', name: 'Kitchen', floor_id: 'ground' }, bedroom: { area_id: 'bedroom', name: 'Bedroom', floor_id: 'ground' }, balcony: { area_id: 'balcony', name: 'Balcony', floor_id: 'ground' }, office: { area_id: 'office', name: 'Office', floor_id: 'first' } };
 const ent = (id, area, extra = {}) => ({ entity_id: id, area_id: area, platform: 'demo', ...extra });
 const entities = Object.fromEntries([
   ent('light.living_room', 'living_room'), ent('sensor.living_room_temperature', 'living_room'), ent('media_player.living_room_tv', 'living_room'),
   ent('light.kitchen', 'kitchen'), ent('binary_sensor.kitchen_motion', 'kitchen'), ent('light.bedroom', 'bedroom'), ent('sensor.bedroom_temperature', 'bedroom'),
   ent('sensor.bedroom_humidity', 'bedroom'), ent('climate.bedroom_ac', 'bedroom', { device_id: 'ac1' }), ent('sensor.bedroom_ac_power', 'bedroom', { device_id: 'ac1' }),
   ent('light.bedside_lamp', 'bedroom'), ent('fan.bedroom_fan', 'bedroom'), ent('switch.coffee_machine', 'kitchen'), ent('sensor.fridge_temperature', 'kitchen'),
-  ent('cover.living_room_blinds', 'living_room'), ent('binary_sensor.balcony_door', null),
+  ent('cover.living_room_blinds', 'living_room'), ent('binary_sensor.balcony_door', null), ent('vacuum.robo', 'living_room'), ent('light.office', 'office'),
   ent('lock.front_door', 'living_room'), ent('binary_sensor.front_door', 'living_room'), ent('sensor.door_sensor_battery', null, { device_id: 'ds1' }),
 ].map(e => [e.entity_id, e]));
-const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC' }, ds1: { id: 'ds1', name: 'Door Sensor' } }, areas, floors: {}, locale: { language: 'en' }, user: { name: 'Test' }, themes: { darkMode: true },
-  callService: async () => {}, callWS: async m => (m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []), callApi: async () => [],
+const floors = { ground: { floor_id: 'ground', name: 'Ground floor', level: 0 }, first: { floor_id: 'first', name: 'First floor', level: 1 } };
+const lang = new URLSearchParams(location.search).get('lang') || 'en';
+const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC' }, ds1: { id: 'ds1', name: 'Door Sensor' } }, areas, floors, locale: { language: lang }, language: lang, user: { name: 'Test', is_admin: true }, themes: { darkMode: true },
+  callService: async () => {}, callWS: async m => { (window.ws ||= []).push(m); return m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []; }, callApi: async () => [],
   connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} }, formatEntityState: s => s.state };
 const demo = { title: 'Demo Home', house: { auto_furniture: true, rooms: [
-  { area: 'living_room', rects: [[0, 0, 6, 5]], entities: ['script.movie_night'] },
+  { area: 'living_room', rects: [[0, 0, 6, 5]], entities: ['script.movie_night', 'cover.living_room_blinds'], furniture: [
+    { type: 'sofa', from: [0.9, 0.15], to: [5.1, 1.1], back: 'n' }, { type: 'tv', x: 3, z: 4.8, w: 1.6, h: 0.9, y: 0.6, entity: 'media_player.living_room_tv' },
+    { type: 'blinds', from: [0.8, 0], to: [2.6, 0], entity: 'cover.living_room_blinds' }, { type: 'vacuum', x: 5.4, z: 4.6, entity: 'vacuum.robo' }] },
   { area: 'kitchen', rects: [[6, 0, 10, 5]], furniture: [
     { type: 'block', from: [6.1, 0.1], to: [9.9, 0.7], h: 0.9, color: '#6b4a2b' },
     { type: 'box', name: 'Coffee corner', x: 9.4, z: 1.4, w: 0.8, d: 0.6, h: 0.9, color: '#e5e7eb', entities: ['switch.coffee_machine'] },
@@ -56,8 +62,11 @@ const demo = { title: 'Demo Home', house: { auto_furniture: true, rooms: [
     { type: 'fan', x: 3, z: 6.8, entity: 'fan.bedroom_fan' },
     { type: 'rug', x: 3, z: 6.4, w: 3, d: 1.5, color: '#a5a9b2' }] },
   { area: 'balcony', rects: [[6, 5, 10, 9]], outdoor: true, furniture: [
-    { type: 'marker', name: 'Balcony door sensor', x: 6.3, z: 6, entity: 'binary_sensor.balcony_door' }, { type: 'plant', x: 9.4, z: 8.4 }] }],
-  doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };
+    { type: 'marker', name: 'Balcony door sensor', x: 6.3, z: 6, entity: 'binary_sensor.balcony_door' }, { type: 'plant', x: 9.4, z: 8.4 }] },
+  { name: 'Stairs', rects: [[10, 0, 12, 5]] },
+  { area: 'office', level: 1, rects: [[0, 0, 6, 5]] }, { name: 'Landing', level: 1, rects: [[6, 0, 12, 5]], stairs: true }],
+  doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }, { from: [6, 2], to: [6, 3] }, { from: [3, 5], to: [4, 5] }, { from: [10, 3], to: [10, 4] }, { from: [6, 2], to: [6, 3], level: 1 }],
+  openings: [[8, 5, 9, 5]], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };
 const C = customElements.get('sweet-home-card');
 // no WebGL in headless test browsers: a renderer stub lets the whole scene build run (nothing is drawn)
 class FakeRenderer { constructor(o) { this.domElement = o.canvas; this.shadowMap = {}; this.info = { render: {} }; this.capabilities = { isWebGL2: true }; }

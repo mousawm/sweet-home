@@ -13,6 +13,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
       - name: dist/ is up to date
         run: git diff --exit-code -- dist/ || (echo "Run npm run build and commit dist/" && exit 1)
