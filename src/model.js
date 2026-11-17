@@ -287,6 +287,24 @@ export function wallsFromRooms(rooms, house = {}) {
   return res.filter(s => s.b - s.a > E).map(s => s.o === 'h' ? [s.a, s.c, s.b, s.c, s.type] : [s.c, s.a, s.c, s.b, s.type]);
 }
 
+// cuts gaps into wall segments [x1, z1, x2, z2, type, level] where the gap segments [x1, z1, x2, z2, level] lie on them
+function cutWalls(walls, gaps) {
+  let out = walls;
+  for (const [gx1, gz1, gx2, gz2, gl] of gaps) {
+    const gh = Math.abs(gz1 - gz2) < 1e-3, ga = gh ? Math.min(gx1, gx2) : Math.min(gz1, gz2), gb = gh ? Math.max(gx1, gx2) : Math.max(gz1, gz2), gc = gh ? gz1 : gx1;
+    const next = [];
+    for (const w of out) {
+      const [x1, z1, x2, z2, t, l] = w, h = Math.abs(z1 - z2) < 1e-3, c = h ? z1 : x1, a = h ? Math.min(x1, x2) : Math.min(z1, z2), b = h ? Math.max(x1, x2) : Math.max(z1, z2);
+      if (l !== gl || h !== gh || Math.abs(c - gc) > 0.02 || b <= ga + 1e-3 || a >= gb - 1e-3) { next.push(w); continue; }
+      const seg = (p, q) => (h ? [p, c, q, c, t, l] : [c, p, c, q, t, l]);
+      if (a < ga - 1e-3) next.push(seg(a, ga));
+      if (b > gb + 1e-3) next.push(seg(gb, b));
+    }
+    out = next;
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ */
 /* the full model                                                       */
 /* ------------------------------------------------------------------ */
@@ -315,10 +333,12 @@ export function buildModel(cfg = {}, hass) {
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
       climate: pick('climate') || null, fan: pick('fan') || null, count: rc.count || null,
-      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: R.name(p), icon: 'mdi:power-socket-eu', power: R.sameDevice(p, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null } : { icon: 'mdi:power-socket-eu', ...p }),
+      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: rc.names?.[p] || R.name(p), icon: 'mdi:power-socket-eu', power: R.sameDevice(p, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null } : { icon: 'mdi:power-socket-eu', ...p, name: rc.names?.[p.id || p.entity] || p.name }),
       media: rc.media !== undefined ? rc.media : found.media || null,
-      lightFx: lightFx || undefined, lightNames: rc.light_names || rc.lightNames || undefined,
-      motionNames: rc.motion_names || rc.motionNames || undefined, stripSides: rc.strip_sides ?? rc.stripSides,
+      // names for this card only (`names`, and the older `light_names` for lights)
+      names: { ...(rc.light_names || rc.lightNames || {}), ...(rc.names || {}) },
+      lightFx: lightFx || undefined, lightNames: { ...(rc.light_names || rc.lightNames || {}), ...(rc.names || {}) },
+      motionNames: { ...(rc.names || {}), ...(rc.motion_names || rc.motionNames || {}) }, stripSides: rc.strip_sides ?? rc.stripSides, stripMode: rc.strip_mode || rc.stripMode || 'full',
       tvGlow: rc.tv_glow || rc.tvGlow || undefined, colorLights: arr(rc.color_lights || rc.colorLights),
       simpleLights: arr(rc.simple_lights || rc.simpleLights), labelY: rc.label_height, zoom: rc.zoom,
       ac: rc.ac, auto: !!rc.auto, furniture: rc.furniture,
@@ -362,6 +382,12 @@ export function buildModel(cfg = {}, hass) {
     return { level: l, name: given?.name || haFloor?.name || (l === 0 ? 'Ground floor' : l < 0 ? (l === -1 ? 'Basement' : `Basement ${-l}`) : `Floor ${l}`), icon: given?.icon || haFloor?.icon || null };
   });
 
+  // the lines walls stand on, per floor: ['h', z, x from, x to] / ['v', x, z from, z to] (room edges, or your own walls)
+  const customWalls = Array.isArray(house.walls) && house.walls.length ? house.walls.map(([x1, z1, x2, z2, t, l]) => [sx(x1), sz(z1), sx(x2), sz(z2), t || 'w', lvOf(l)]) : null;
+  const wallLines = l => customWalls
+    ? customWalls.filter(q => q[5] === l).map(([x1, z1, x2, z2]) => (Math.abs(z1 - z2) < 1e-3 ? ['h', z1, Math.min(x1, x2), Math.max(x1, x2)] : ['v', x1, Math.min(z1, z2), Math.max(z1, z2)]))
+    : rooms.filter(r => r.level === l).flatMap(r => r.rects.flatMap(([x1, z1, x2, z2]) => [['h', z1, x1, x2], ['h', z2, x1, x2], ['v', x1, z1, z2], ['v', x2, z1, z2]]));
+
   /* ---------- doors: a leaf that swings open with its contact sensor (or stays shut without one) ---------- */
   const doors = arr(house.doors).map(d => {
     const from = d.from || [d.x, d.z], to = d.to;
@@ -369,8 +395,18 @@ export function buildModel(cfg = {}, hass) {
     let axis = d.axis, dir = d.dir, w = d.width ?? d.w;
     if (to) { axis = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]) ? 'x' : 'z'; dir = (axis === 'x' ? to[0] - from[0] : to[1] - from[1]) >= 0 ? 1 : -1; w = Math.hypot(to[0] - from[0], to[1] - from[1]); }
     axis = axis || 'x'; dir = dir ?? 1; w = num(w, 0.9);
-    const x = sx(from[0]), z = sz(from[1]);
-    return { id: d.entity || d.id || null, x, z, axis, dir, w, side: d.side ?? 1, main: !!d.main, level: lvOf(d.level),
+    let x = sx(from[0]), z = sz(from[1]);
+    const level = lvOf(d.level);
+    // a door placed a little off its wall (typed by hand, drawn on another grid) goes onto the nearest wall line within
+    // 0.4 m, so it cuts its gap and isn't hidden inside the wall
+    const lines = wallLines(level), a0 = axis === 'x' ? Math.min(x, x + dir * w) : Math.min(z, z + dir * w), a1 = a0 + w;
+    let best = null;
+    for (const [o, c, p, q] of lines) {
+      if (o !== (axis === 'x' ? 'h' : 'v') || q < a0 + 0.05 || p > a1 - 0.05) continue;
+      const dist = Math.abs(c - (axis === 'x' ? z : x)); if (dist <= 0.4 && (!best || dist < best[0])) best = [dist, c];
+    }
+    if (best) { if (axis === 'x') z = best[1]; else x = best[1]; }
+    return { id: d.entity || d.id || null, x, z, axis, dir, w, side: d.side ?? 1, main: !!d.main, level,
       seg: axis === 'x' ? [x, z, x + dir * w, z] : [x, z, x, z + dir * w] };
   }).filter(Boolean);
 
@@ -379,7 +415,8 @@ export function buildModel(cfg = {}, hass) {
   const segLv = q => lvOf(q[4]);
   const shiftQ = ([a, b2, c, d]) => [sx(a), sz(b2), sx(c), sz(d)];
   let walls;
-  if (Array.isArray(house.walls) && house.walls.length) walls = house.walls.map(([x1, z1, x2, z2, t, l]) => [sx(x1), sz(z1), sx(x2), sz(z2), t || 'w', lvOf(l)]);
+  // your own walls: doors and openings cut them too
+  if (customWalls) walls = cutWalls(customWalls, [...arr(house.openings).map(q => [...shiftQ(q), segLv(q)]), ...doors.map(d => [...d.seg, d.level])]);
   else {
     walls = [];
     for (const l of levelIds) {
@@ -523,7 +560,13 @@ export function buildModel(cfg = {}, hass) {
       extra: arr(EN.extra).map(c => ({ id: c.entity, name: c.name || R.name(c.entity), icon: c.icon || 'mdi:flash' })),
       exclude: arr(EN.exclude),
     },
-    water: { tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null, pumps: arr(W2.pumps).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || null, info: p.info || p.timer || null, confirm: p.confirm !== false })) },
+    // pumps: `entity_id` or {entity, name, power, timer}; their power sensor is found on the same device when not given.
+    // entities: anything else for the Water card (valves, flow and pressure sensors, …)
+    water: {
+      tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null,
+      pumps: arr(W2.pumps).map(p => (typeof p === 'string' ? { entity: p } : p)).filter(p => p?.entity).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || R.sameDevice(p.entity, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null, info: p.info || p.timer || null, confirm: p.confirm !== false })),
+      entities: arr(W2.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),
+    },
     car: {
       charging: CAR.charging || null, power: CAR.power || null, time: CAR.time || null, perCharge: CAR.energy_per_charge || null, costCharge: CAR.cost_per_charge || null,
       month: CAR.energy_month || null, costMonth: CAR.cost_month || null, year: CAR.energy_year || null, costYear: CAR.cost_year || null, parking: CAR.status || null,
@@ -561,7 +604,7 @@ export function buildModel(cfg = {}, hass) {
     security: panel('security') && !!(E.alarm || E.locks.length || E.doors.length || E.cameras.length || E.gate.relay),
     climate: panel('climate') && !!(E.acs.length || rooms.some(r => r.temp)),
     energy: panel('energy'),
-    water: !!(E.water.tank || E.water.pumps.length || E.irrigation.valves.length),
+    water: !!(E.water.tank || E.water.pumps.length || E.water.entities.length || E.irrigation.valves.length),
     media: (panel('media') && !!(E.media.tv || E.tvLight.light)) || (panel('media_server') && hasMS),
     system: panel('system'),
   };

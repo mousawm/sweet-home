@@ -281,8 +281,9 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-role h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}.sh-role h4 ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color)}
       .sh-role h4 small{font-weight:400;color:var(--secondary-text-color)}.sh-role h4 a{font-weight:400;font-size:12px;color:var(--primary-color);cursor:pointer;margin-left:auto}
       .sh-ent{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--secondary-background-color);margin-bottom:6px;flex-wrap:wrap;font-size:13px}
-      .sh-rename{font:inherit;font-size:13px;color:var(--primary-text-color);background:transparent;border:1px solid transparent;border-radius:6px;padding:2px 4px;margin:-3px 0 0 -5px;width:100%;box-sizing:border-box}
-      .sh-rename:hover{border-color:var(--divider-color)}.sh-rename:focus{outline:none;border-color:var(--primary-color);background:var(--card-background-color)}
+      .sh-namebox{display:flex;align-items:center;gap:6px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);padding:0 8px;margin-bottom:3px;cursor:text}
+      .sh-namebox:focus-within{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}.sh-namebox ha-icon{--mdc-icon-size:16px;color:var(--secondary-text-color);flex:none}
+      .sh-rename{font:inherit;font-size:13px;color:var(--primary-text-color);background:transparent;border:0;padding:7px 0;width:100%;min-width:0;outline:none}
       .sh-ent .nm{flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis}.sh-ent .nm small{display:block;color:var(--secondary-text-color);font-size:11px}
       .sh-ent.bad .nm small{color:var(--error-color)}
       .sh-ent select{font:inherit;font-size:12px;padding:4px;border-radius:6px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
@@ -528,7 +529,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const H = this._H;
     if (Array.isArray(H.walls) && H.walls.length) return H.walls;
     const rooms = this._rooms.map((r, i) => ({ id: roomIdOf(r, i, this._hass), rects: arr(r.rects).map(q => q.map(Number)), outdoor: r.outdoor ?? /garden|yard|patio|terrace|balcony|outside|outdoor/i.test(this._roomName(r, i)), lv: this._lvOf(r) })).filter(r => r.rects.length && r.lv === this._lvl);
-    const doorSegs = arr(H.doors).filter(d => d.from && d.to && this._onLv(d)).map(d => [...d.from, ...d.to]);
+    const doorSegs = arr(H.doors).filter(d => d.from && d.to && this._onLv(d)).map(d => this._snapSeg([...d.from, ...d.to]));
     const wins = Array.isArray(H.windows) ? H.windows.filter(w => this._onLv(w)) : null;
     try { return wallsFromRooms(rooms, { ...H, doorways: H.doorways ?? 'none', openings: [...arr(H.openings).filter(o => this._onLv(o)), ...doorSegs], windows: wins ? (wins.length ? wins : 'none') : H.windows }); } catch (e) { return []; }
   }
@@ -643,8 +644,8 @@ class SweetHomeCardEditor extends HTMLElement {
           move: m => {
             this._dsel = item; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]);
             if (item.k === 'badge') { o.x = r2(N(orig.x, 0) + dx); o.z = r2(N(orig.z, 0) + dz); }
-            else if (item.k === 'door') { o.from = [r2(orig.from[0] + dx), r2(orig.from[1] + dz)]; o.to = [r2(orig.to[0] + dx), r2(orig.to[1] + dz)]; }
-            else { o[0] = r2(orig[0] + dx); o[1] = r2(orig[1] + dz); o[2] = r2(orig[2] + dx); o[3] = r2(orig[3] + dz); }
+            else if (item.k === 'door') { const q = this._snapSeg([orig.from[0] + dx, orig.from[1] + dz, orig.to[0] + dx, orig.to[1] + dz]).map(r2); o.from = [q[0], q[1]]; o.to = [q[2], q[3]]; }
+            else { const q = this._snapSeg([orig[0] + dx, orig[1] + dz, orig[2] + dx, orig[3] + dz]).map(r2); o[0] = q[0]; o[1] = q[1]; o[2] = q[2]; o[3] = q[3]; }
           },
           end: () => { this._dsel = item; return JSON.stringify(o) !== start; },
         };
@@ -653,10 +654,10 @@ class SweetHomeCardEditor extends HTMLElement {
       const a = [snap(p[0]), snap(p[1])];
       const seg = m => { const b = [snap(m[0]), snap(m[1])]; return Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? [a[0], a[1], b[0], a[1]] : [a[0], a[1], a[0], b[1]]; };
       return {
-        move: m => { this._ghost = seg(m); },
+        move: m => { this._ghost = this._snapSeg(seg(m)); },
         end: (moved, m) => {
           if (!moved) { this._dsel = null; return false; }
-          const s = seg(m); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
+          const s = this._snapSeg(seg(m)); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
           if (this._dtool === 'door') { const d = { from: [s[0], s[1]], to: [s[2], s[3]] }; this._setLv(d, this._lvl); (H.doors ||= []).push(d); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
           else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; this._setLv(s, this._lvl); H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
           else { this._setLv(s, this._lvl); (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
@@ -665,6 +666,19 @@ class SweetHomeCardEditor extends HTMLElement {
       };
     }
     return null;
+  }
+  // a door / window / opening segment goes onto the nearest wall line of this floor (within 0.4 m)
+  _snapSeg(q) {
+    const hz = Math.abs(q[1] - q[3]) < 1e-6, a0 = hz ? Math.min(q[0], q[2]) : Math.min(q[1], q[3]), a1 = hz ? Math.max(q[0], q[2]) : Math.max(q[1], q[3]), c0 = hz ? q[1] : q[0];
+    let best = null;
+    for (const r of this._rooms) if (this._onLv(r)) for (const [x1, z1, x2, z2] of r.rects || []) {
+      for (const [c, p0, p1] of hz ? [[z1, x1, x2], [z2, x1, x2]] : [[x1, z1, z2], [x2, z1, z2]]) {
+        if (Math.max(p0, p1) < a0 + 0.05 || Math.min(p0, p1) > a1 - 0.05) continue;
+        const d = Math.abs(c - c0); if (d <= 0.4 && (!best || d < best[0])) best = [d, c];
+      }
+    }
+    if (best) { if (hz) { q[1] = best[1]; q[3] = best[1]; } else { q[0] = best[1]; q[2] = best[1]; } }
+    return q;
   }
   _pieceAt(p, pad) {
     const rooms = this._rooms, order = [this._sel, ...rooms.keys()].filter((v, i, a) => a.indexOf(v) === i && rooms[v] && this._onLv(rooms[v]));
@@ -755,7 +769,7 @@ class SweetHomeCardEditor extends HTMLElement {
       const [ids, own] = lists[key];
       if (!ids.length && !own) continue;
       html.push(`<div class="sh-role" data-role="${key}"><h4><ha-icon icon="${icon}"></ha-icon>${t(title)}<small>${t(own ? 'your list' : 'found in area')}</small>${own ? `<a data-reset="${key}">${t('Back to what the area has')}</a>` : ''}</h4>
-        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : `<div class="sh-hint">${t('None.')}</div>`}</div>`);
+        ${ids.length ? ids.map(id => this._entRowHtml(r, key, id)).join('') : `<div class="sh-hint">${t('None.')}</div>`}${key === 'lights' ? this._stripHtml(r) : ''}</div>`);
     }
     // area entities that aren't shown anywhere yet
     const sugg = (R.byArea[r.area] || []).filter(id => !assigned.has(id));
@@ -779,9 +793,14 @@ class SweetHomeCardEditor extends HTMLElement {
     }));
     box.querySelectorAll('[data-rename]').forEach(inp => {
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
-      inp.addEventListener('change', () => this._rename(inp));
+      inp.addEventListener('change', () => this._rename(inp, r));
     });
-    box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); }));
+    box.querySelectorAll('[data-lfx]').forEach(s => s.addEventListener('change', () => { this._lightOpt(r, s.dataset.lfx, { fx: s.value }); this._emit(); this._render(); }));
+    box.querySelectorAll('[data-sside]').forEach(c => c.addEventListener('change', () => {
+      const v = [...box.querySelectorAll('[data-sside]')].filter(x => x.checked).map(x => x.dataset.sside).join('');
+      if (v === 'nesw') delete r.strip_sides; else r.strip_sides = v; this._emit();
+    }));
+    box.querySelector('[data-smode]')?.addEventListener('change', e => { if (e.target.value === 'walls') r.strip_mode = 'walls'; else delete r.strip_mode; this._emit(); });
     box.querySelectorAll('[data-lcol]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lcol, { color: c.checked }); this._emit(); }));
     box.querySelectorAll('[data-lsim]').forEach(c => c.addEventListener('change', () => { this._lightOpt(r, c.dataset.lsim, { simple: c.checked }); this._emit(); }));
     const det = box.querySelector('[data-free]'), q = det.querySelector('.sh-search'), list = det.querySelector('.sh-freelist');
@@ -795,6 +814,15 @@ class SweetHomeCardEditor extends HTMLElement {
     q.addEventListener('input', () => { this._freeQ = q.value; fill(); });
     fill();
   }
+  // LED strip of the room (when one of its lights is drawn as a strip): which walls it runs along, and what it does
+  // where a wall is missing (an opening, a door): keep going along the whole side, or stop at the gap
+  _stripHtml(r) {
+    if (!Object.values(r.light_fx || {}).includes('strip')) return '';
+    if (Array.isArray(r.strip_sides)) return `<div class="sh-hint">${t('Strip on more than one rectangle: set its sides in YAML (strip_sides)')}</div>`;
+    const sides = r.strip_sides ?? 'nesw', mode = r.strip_mode === 'walls' ? 'walls' : 'full';
+    return `<div class="sh-ent"><span class="nm">${t('LED strip on')}</span>${[['n', 'North'], ['e', 'East'], ['s', 'South'], ['w', 'West']].map(([k, n]) => `<label><input type="checkbox" data-sside="${k}" ${sides.includes(k) ? 'checked' : ''}>${t(n)}</label>`).join('')}</div>
+      <div class="sh-ent"><span class="nm">${t('Where there is no wall')}</span><select data-smode><option value="full" ${mode === 'full' ? 'selected' : ''}>${t('Keep going')}</option><option value="walls" ${mode === 'walls' ? 'selected' : ''}>${t('Stop at the gap')}</option></select></div>`;
+  }
   _entRowHtml(r, key, id) {
     const R = this._reg, ok = !!this._hass.states[id];
     let opts = '';
@@ -803,18 +831,29 @@ class SweetHomeCardEditor extends HTMLElement {
       opts = `<select data-lfx="${id}" title="How it is drawn in 3D">${LIGHT_FX.map(([v, n]) => `<option value="${v}" ${v === fx ? 'selected' : ''}>${t(n)}</option>`).join('')}</select>
         <label><input type="checkbox" data-lcol="${id}" ${col ? 'checked' : ''}>${t('Colours')}</label><label><input type="checkbox" data-lsim="${id}" ${simple ? 'checked' : ''}>${t('On / off only')}</label>`;
     }
-    // the name can be changed right here: it is saved in Home Assistant (entity registry), so it changes everywhere
-    const canRename = ok && this._hass.entities?.[id] && this._hass.user?.is_admin !== false;
-    const name = canRename ? `<input class="sh-rename" data-rename="${id}" value="${esc(R.name(id))}" title="Rename in Home Assistant" aria-label="Name of ${esc(id)}">` : esc(ok ? R.name(id) : id);
-    return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${name}<small>${ok ? esc(id) : 'not found'}</small></span>${opts}
+    // The name can be changed right here. Entities Home Assistant can rename (they have a unique ID) are renamed there,
+    // so the name changes everywhere; the others get a name for this card only (room `names`).
+    const inHA = ok && !!this._hass.entities?.[id] && this._hass.user?.is_admin !== false;
+    const own = (r.names || {})[id] ?? (key === 'lights' ? (r.light_names || {})[id] : undefined);
+    const cur = own ?? (ok ? R.name(id) : id);
+    const name = `<label class="sh-namebox"><ha-icon icon="mdi:pencil-outline"></ha-icon><input class="sh-rename" data-rename="${id}" data-ha="${inHA && own == null ? 1 : ''}" value="${esc(cur)}" placeholder="${esc(ok ? R.name(id) : id)}" title="${esc(t('Rename'))}" aria-label="${esc(t('Name of {0}', id))}"></label>`;
+    const note = !ok ? t('not found') : own != null ? `${esc(id)} · ${t('name in this card')}` : inHA ? esc(id) : `${esc(id)} · ${t('can only be renamed in this card')}`;
+    return `<div class="sh-ent ${ok ? '' : 'bad'}"><span class="nm">${name}<small>${note}</small></span>${opts}
       <button class="sh-x" data-rm="${id}" data-key="${key}" title="Remove from this room"><ha-icon icon="mdi:close"></ha-icon></button></div>`;
   }
-  async _rename(inp) {
-    const id = inp.dataset.rename, v = inp.value.trim(), small = inp.parentElement.querySelector('small');
-    try {
-      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
-      if (small) small.textContent = `${id} · ${v ? 'renamed' : 'default name'}`;
-    } catch (e) { if (small) { small.textContent = `${id} · ${e?.message || 'could not rename'}`; small.style.color = 'var(--error-color)'; } }
+  async _rename(inp, r) {
+    const id = inp.dataset.rename, v = inp.value.trim(), small = inp.closest('.nm')?.querySelector('small');
+    const say = (txt, bad) => { if (small) { small.textContent = `${id} · ${txt}`; small.style.color = bad ? 'var(--error-color)' : 'var(--success-color, #43a047)'; } };
+    // a name for this card only (an entity Home Assistant can't rename, or one that already has one here)
+    const cardName = () => {
+      const names = { ...(r.names || {}) }; if (v) names[id] = v; else delete names[id];
+      if (r.light_names?.[id] != null) { const ln = { ...r.light_names }; delete ln[id]; if (Object.keys(ln).length) r.light_names = ln; else delete r.light_names; }
+      if (Object.keys(names).length) r.names = names; else delete r.names;
+      this._emit(); say(v ? t('name in this card') : t('default name'));
+    };
+    if (!inp.dataset.ha) return cardName();
+    try { await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null }); say(v ? t('renamed in Home Assistant') : t('default name')); }
+    catch (e) { say(e?.message || t('could not rename'), true); }
   }
   // a plug written as {entity, name, power} keeps its extra settings when the list changes
   _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }
@@ -967,24 +1006,41 @@ class SweetHomeCardEditor extends HTMLElement {
       security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
-      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } }],
+      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
+        { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }],
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
       media_server: [],
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
-      attention: [{ name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
+      attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
+        { name: 'battery_exclude_devices', selector: { device: { multiple: true } } },
+        { name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
     };
     for (const [k, n, d] of PANELS) {
       const det = document.createElement('details'); det.className = 'sh-panel';
       const on = P[k] !== false;
-      det.innerHTML = `<summary><span><b>${n}</b><br><small>${d}</small></span></summary>`;
+      det.innerHTML = `<summary><span><b>${t(n)}</b><br><small>${d}</small></span></summary>`;
       const sw = document.createElement('ha-switch'); sw.checked = on;
       sw.addEventListener('click', e => e.stopPropagation());
       sw.addEventListener('change', () => { set(k, sw.checked ? undefined : false); this._render(); });
       det.querySelector('summary').appendChild(sw);
       if (on && schemas[k].length) {
-        const data = typeof P[k] === 'object' ? P[k] : {};
-        det.appendChild(this._form(schemas[k], data, v => { const o = {}; for (const [kk, vv] of Object.entries(v)) if (vv !== '' && vv != null && !(Array.isArray(vv) && !vv.length)) o[kk] = vv; set(k, { ...(typeof P[k] === 'object' ? P[k] : {}), ...o }); }));
+        const cur = typeof P[k] === 'object' && P[k] ? P[k] : {};
+        // the form shows plain IDs: pumps written as {entity, power, timer} and devices excluded by name are kept as they are
+        const data = { ...cur };
+        if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
+        if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
+        det.appendChild(this._form(schemas[k], data, v => {
+          const next = { ...(typeof P[k] === 'object' && P[k] ? P[k] : {}) };
+          for (const [kk, vv] of Object.entries(v)) {
+            let val = vv;
+            if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
+            if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete next[kk]; else next[kk] = val;
+          }
+          set(k, next);
+        }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
+          pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
     }

@@ -83,8 +83,10 @@ The dashboard is generated for you until you take control of it:
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
-        what you don't want, add other devices from the area, or add any entity. Set how each light is drawn (ceiling
-        light, spots, LED strip, TV backlight), with or without colours. A list shows devices that are in no room yet.
+        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity in Home
+        Assistant (or, for entities Home Assistant can't rename, in this card only). Set how each light is drawn (ceiling
+        light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
+        whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
         **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
@@ -93,8 +95,7 @@ The dashboard is generated for you until you take control of it:
         Drag any of them to move it.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
-      so you can line them up. Areas on a Home Assistant floor are added to that floor. In Entities mode, edit a
-      name to rename the entity in Home Assistant itself.
+      so you can line them up. Areas on a Home Assistant floor are added to that floor.
 
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
@@ -143,7 +144,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
-| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall. |
+| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
 | `door_info` | Names and timeout sensors for doors in the room popup (`entity`, `name`, `timeout`) |
 | `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level` |
 | `furniture` | Furniture anywhere in the house (the same pieces as in rooms) |
@@ -176,9 +177,11 @@ shifted so that it starts at 0.
                                          # (default: blinds, plain switches, valves… found in the area)
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
+  names: {script.good_night: Bedtime}    # names for this card only (the editor writes these for entities HA can't rename)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
   strip_sides: nes                       # walls that have the LED strip
+  strip_mode: walls                      # stop the strip where a wall is missing (doors, openings); default: full side
   ac: {x: 0.2, z: 6, dx: 1, dz: 0}       # where the AC unit hangs and which way it blows
   anchor: [2.5, 7]                       # label position
 ```
@@ -237,7 +240,9 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
-- **water**: `tank`, `quality`, `temperature`, `pumps` (`entity`, `power`, `timer`)
+- **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`; the power
+  sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
+  pressure…)
 - **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
 - **car**: `charging`, `power`, `time`, `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`, `status`
 - **media**:
@@ -250,7 +255,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
   - `unavailable_domains`, `unavailable_integrations`
-  - `exclude_devices`, `exclude_entities`, `battery_exclude`
+  - `exclude_devices` (device IDs or names), `exclude_entities`, `battery_exclude_devices` (only left out of low
+    batteries), `battery_exclude`
+  - In the card, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
+    lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
 
 ## Gestures
 
