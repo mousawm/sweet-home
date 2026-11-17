@@ -1,7 +1,11 @@
 name: Release
+# Publishes a release for the version in package.json (v<version>, with dist/sweet-home-card.js attached)
+# whenever main is pushed and that release doesn't exist yet. Bump "version" in package.json to release.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -19,6 +23,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            && gh release upload "$GITHUB_REF_NAME" dist/sweet-home-card.js --clobber \
-            || gh release create "$GITHUB_REF_NAME" dist/sweet-home-card.js --title "Sweet Home $GITHUB_REF_NAME" --generate-notes
+          TAG="v$(node -p "require('./package.json').version")"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/sweet-home-card.js --clobber
+          else
+            gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
+          fi

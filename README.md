@@ -1,5 +1,9 @@
 # Sweet Home
 
+![Sweet Home demo house](docs/demo-house.png)
+
+<sub>The demo house from the test page, drawn with three.js' SVG renderer. In Home Assistant the card adds shadows, textures and glowing lights.</sub>
+
 Your home as an interactive **3D model** in Home Assistant. Tap a room to see and switch what is in it. Tabs cover
 security, climate, energy, water, media and your home lab.
 
