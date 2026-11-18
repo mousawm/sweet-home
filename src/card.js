@@ -3275,6 +3275,29 @@ class HouseScene {
             }
             break;
           }
+          case 'ac': { // an AC unit: on a wall (`style: wall`), in the ceiling (`cassette`) or standing on the floor (`floor`); `facing` = where it blows
+            const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', st = f.style || 'wall', col = C(f.color, 0xf8fafc);
+            const dx = fc === 'e' ? 1 : fc === 'w' ? -1 : 0, dz = fc === 's' ? 1 : fc === 'n' ? -1 : 0, ew = !!dx;
+            const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.4, emissive: 0x60a5fa, emissiveIntensity: 0 });
+            let unit, y;
+            if (st === 'cassette') { y = WALL_H - 0.02; unit = add(rm, new T.BoxGeometry(0.6, 0.05, 0.6), mat, x, y - 0.025, z); box(rm, x, z, 0.36, 0.36, 0.006, 0x94a3b8, y - 0.056, { r: 0.6 }); }
+            else if (st === 'floor') {
+              const H = Math.min(1.2, WALL_H * 0.85); y = H * 0.82;
+              unit = add(rm, new T.BoxGeometry(ew ? 0.3 : 0.45, H, ew ? 0.45 : 0.3), mat, x, H / 2, z);
+              box(rm, x + dx * 0.152, z + dz * 0.152, ew ? 0.006 : 0.36, ew ? 0.36 : 0.006, H * 0.18, 0x334155, H * 0.72, { r: 0.5 }); // the outlet
+            } else {
+              y = N(f.y, WALL_H - 0.23);
+              unit = add(rm, new T.BoxGeometry(ew ? 0.22 : 0.9, 0.28, ew ? 0.9 : 0.22), mat, x, y + 0.07, z);
+              box(rm, x + dx * 0.111, z + dz * 0.111, ew ? 0.006 : 0.8, ew ? 0.8 : 0.006, 0.05, 0xcbd5e1, y - 0.03, { r: 0.5 }); // the flap
+            }
+            const n = 60, pos = new Float32Array(n * 3), life = new Float32Array(n); for (let i = 0; i < n; i++) life[i] = Math.random();
+            const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3));
+            const pts = new T.Points(g, new T.PointsMaterial({ color: 0x93c5fd, size: 0.09, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
+            this._at().add(pts);
+            const [cx, cz] = this.w(x, z);
+            this.acs.push({ ent: f.entities.find(e => e.startsWith('climate.')) || f.entities[0] || null, unit, pts, life, cx, cz, dx, dz, y, cas: st === 'cassette', on: 0, onT: 0 });
+            break;
+          }
           case 'lamp': { // floor lamp: the shade glows (in the light's colour) while its light is on
             const x = N(f.x, 0), z = N(f.z, 0), hh = N(f.h, 1.5), sc = N(f.size, 1), metal = C(f.color, 0x334155);
             cyl(rm, x, z, 0.16 * sc, 0.03, metal, 0, { r: 0.4, m: 0.5 });
@@ -3515,7 +3538,7 @@ class HouseScene {
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3));
       const pts = new T.Points(g, new T.PointsMaterial({ color: 0x93c5fd, size: 0.09, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
       this._at().add(pts);
-      this.acs.push({ r, unit, pts, life, cx, cz, dx, dz, on: 0, onT: 0 });
+      this.acs.push({ ent: r.climate, unit, pts, life, cx, cz, dx, dz, y: 1.05, on: 0, onT: 0 });
     }
   }
 
@@ -3702,7 +3725,7 @@ class HouseScene {
     this.lockT = (this.badges || []).map(B => B.t).join(); this.phoneT = (this.chargers || []).map(P => P.t).join();
     for (const D of this.doors) D.openT = c.v(D.d.id) === 'on' ? 1 : 0;
     for (const A of this.acs) {
-      const st = c.s(A.r.climate); A.onT = c.climOn(A.r.climate) ? 1 : 0;
+      const st = c.s(A.ent); A.onT = A.ent && c.climOn(A.ent) ? 1 : 0;
       const am = acMode(st), col = am === 'heat' ? 0xfb923c : am === 'dry' ? 0xfde68a : am === 'fan_only' ? 0xe0e7ff : am === 'auto' || am === 'heat_cool' ? 0x6ee7b7 : 0x93c5fd;
       A.pts.material.color.setHex(col); A.unit.material.emissive.setHex(col);
     }
@@ -3858,10 +3881,11 @@ class HouseScene {
         for (let i = 0; i < A.life.length; i++) {
           A.life[i] += dt * 0.45; if (A.life[i] > 1) A.life[i] -= 1;
           const l = A.life[i]; const spread = (((i * 7919) % 100) / 100 - 0.5) * 0.8;
-          const dist = 0.2 + l * 2.6;
-          p[i * 3] = A.cx + A.dx * dist + (A.dz ? spread * (1 + l) : 0) + (A.dx ? 0 : 0);
-          p[i * 3 + 1] = 1.05 - l * 0.9 + Math.sin(l * 6 + i) * 0.05;
-          p[i * 3 + 2] = A.cz + A.dz * dist + (A.dx ? spread * (1 + l) : 0);
+          const dist = 0.2 + l * (A.cas ? 1.6 : 2.6);
+          const [ddx, ddz] = A.cas ? [[1, 0], [-1, 0], [0, 1], [0, -1]][i % 4] : [A.dx, A.dz]; // a ceiling cassette blows out on its four sides
+          p[i * 3] = A.cx + ddx * dist + (ddz ? spread * (1 + l) : 0);
+          p[i * 3 + 1] = A.y - l * Math.min(0.9, A.y - 0.1) + Math.sin(l * 6 + i) * 0.05;
+          p[i * 3 + 2] = A.cz + ddz * dist + (ddx ? spread * (1 + l) : 0);
         }
         A.pts.geometry.attributes.position.needsUpdate = true;
       }

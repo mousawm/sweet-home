@@ -228,5 +228,27 @@ test('automatic bedrooms get bedside tables next to the bed', () => {
   assert.equal(small.filter(p => p.type === 'nightstand').length, 1);
 });
 
+test('a plug\'s power sensor is found without being picked', () => {
+  const S = (u, dcl) => st('5', { unit_of_measurement: u, ...(dcl ? { device_class: dcl } : {}) });
+  const R = registry({ states: { 'switch.a': st('on'), 'sensor.a_energy': S('kWh', 'energy'), 'sensor.a_power': S('W', 'power'),
+      'switch.b': st('on'), 'sensor.b_today': S('kWh'), 'sensor.b_load': S('W'),
+      'switch.c': st('on'), 'sensor.c_power': S('W'), 'switch.d': st('on'), 'sensor.d_voltage': S('V', 'voltage') },
+    entities: { 'switch.a': { device_id: 'A' }, 'sensor.a_energy': { device_id: 'A' }, 'sensor.a_power': { device_id: 'A', entity_category: 'diagnostic' },
+      'switch.b': { device_id: 'B' }, 'sensor.b_today': { device_id: 'B' }, 'sensor.b_load': { device_id: 'B' }, 'switch.d': { device_id: 'D' }, 'sensor.d_voltage': { device_id: 'D' } } });
+  assert.equal(R.powerOf('switch.a'), 'sensor.a_power'); // device class power, even as a diagnostic entity
+  assert.equal(R.powerOf('switch.b'), 'sensor.b_load'); // no device class: a W unit
+  assert.equal(R.powerOf('switch.c'), 'sensor.c_power'); // no device: named after the plug
+  assert.equal(R.powerOf('switch.d'), null); // nothing that reads power
+});
+
+test('an AC piece replaces the room\'s automatic unit and works with its climate entity', () => {
+  const h = { ...hass, states: { ...hass.states, 'climate.bed': st('cool') }, entities: { ...hass.entities, 'climate.bed': { area_id: 'bed' } } };
+  const auto = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]] }] } }, h);
+  assert.ok(auto.rooms[0].ac);
+  const m = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]], furniture: [{ type: 'ac', x: 0.2, z: 2, facing: 'e' }] }] } }, h);
+  assert.equal(m.rooms[0].ac, undefined);
+  assert.deepEqual(m.furniture.find(f => f.type === 'ac').entities, ['climate.bed']);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

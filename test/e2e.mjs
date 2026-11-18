@@ -67,6 +67,7 @@ try {
   await p.evaluate(() => { card.editMode = false; card._setTab('home'); }); await p.waitForTimeout(150);
   await p.evaluate(() => card._setTab('home'));
   check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
+  check('an AC placed in the bedroom replaces its automatic unit, with the room\'s climate entity', await p.evaluate(() => { const A = card._three.acs.filter(a => a.ent === 'climate.bedroom_ac'); return A.length === 1 && A[0].dx === 1 && !card._model.rooms.find(r => r.id === 'bedroom').ac; }));
   check('bedside table: the phone shows while its charger plug draws power (power sensor found from the plug)', await p.evaluate(() => card._model.furniture.find(f => f.type === 'nightstand' && f.plug)?.power === 'sensor.phone_charger_power' && card._three.chargers[0].parts[0].visible));
   await p.evaluate(() => { const h = window.hassObj; h.states['sensor.phone_charger_power'] = { ...h.states['sensor.phone_charger_power'], state: '0.2' }; card.hass = { ...h, states: { ...h.states } }; });
   check('…and is gone once it stops charging', await p.waitForFunction(() => !card._three.chargers[0].parts[0].visible, null, { timeout: 5000 }).then(() => true, () => false));
