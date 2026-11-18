@@ -1091,6 +1091,37 @@ class SweetHomeCardEditor extends HTMLElement {
     this._emit();
     if (small) { small.textContent = `${id} · ${t(names[id] ? 'name on this dashboard' : 'default name')}`; small.style.color = 'var(--success-color, #43a047)'; }
   }
+  // Security: for each gate / garage door picked, the sensors that tell whether it is open — a contact sensor, or a
+  // camera's state classification (Frigate) — with suggestions found by name and device
+  _entranceSensors(det, P) {
+    const S = typeof P.security === 'object' && P.security ? P.security : null, list = arr(S?.entrances);
+    if (!list.length) return;
+    const R = this._reg, words = id => (this._reg.name(id) + ' ' + id).toLowerCase().split(/[^a-z0-9\u0600-\u06ff]+/).filter(w => w.length > 2 && !/^(cover|switch|button|script|relay|the|open|close|sensor|binary)$/.test(w));
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Open / closed sensors')}</div><div class="sh-hint">${t('Tell each gate whether it is open: a door or contact sensor, or a camera that recognises the gate’s state (Frigate state classification: a sensor that reads open / closed). Add a second one as a backup.')}</div>`;
+    det.appendChild(box);
+    list.forEach((e, i) => {
+      const id = entityId(e); if (!id) return;
+      const o = typeof e === 'object' ? e : { entity: id }, cur = arr(o.sensor);
+      const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+      // suggestions: contact sensors / text sensors on the same device, or sharing a word with the gate's name
+      const ws = words(id), dev = R.ents[id]?.device_id;
+      const sugg = Object.keys(this._hass.states).filter(x => (x.startsWith('binary_sensor.') && ['door', 'garage_door', 'opening', 'window'].includes(R.dc(x))) || (x.startsWith('sensor.') && (R.platform(x) === 'frigate' || /state|status|position/.test(x))))
+        .filter(x => !cur.includes(x) && ((dev && R.ents[x]?.device_id === dev) || words(x).some(w => ws.includes(w)))).slice(0, 4);
+      row.innerHTML = `<span class="nm">${esc(R.name(id))}<small>${esc(id)}</small></span>${sugg.length ? `<div class="sh-hint" style="margin:4px 0">${t('Suggested')}: ${sugg.map(x => `<button class="sh-chip" data-sg="${esc(x)}">${esc(R.name(x))}</button>`).join(' ')}</div>` : ''}`;
+      row.appendChild(this._form([{ name: 'sensor', selector: { entity: { domain: ['binary_sensor', 'sensor', 'select', 'input_select', 'cover', 'lock', 'input_boolean'] } } }, { name: 'sensor_2', selector: { entity: { domain: ['binary_sensor', 'sensor', 'select', 'input_select', 'cover', 'lock', 'input_boolean'] } } }],
+        { sensor: cur[0] || '', sensor_2: cur[1] || '' }, v => {
+          const nx = [v.sensor, v.sensor_2].filter(Boolean), obj = { ...o, entity: id }; delete obj.sensor_2;
+          if (nx.length) obj.sensor = nx.length > 1 ? nx : nx[0]; else delete obj.sensor;
+          S.entrances[i] = Object.keys(obj).length === 1 ? id : obj; this._emit();
+        }, { sensor: 'Open / closed sensor', sensor_2: 'Second sensor (backup)' }));
+      row.querySelectorAll('[data-sg]').forEach(b => b.addEventListener('click', () => {
+        const nx = [...cur, b.dataset.sg].slice(0, 2), obj = { ...o, entity: id, sensor: nx.length > 1 ? nx : nx[0] };
+        S.entrances[i] = obj; this._emit(); this._render();
+      }));
+      box.appendChild(row);
+    });
+  }
   // removes an entity's dashboard name everywhere except in `keep` (the card's `names`, other rooms' `names` / `light_names`)
   _dropName(id, keep) {
     for (const h of [this._config, ...this._rooms]) if (h !== keep) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
@@ -1303,6 +1334,7 @@ class SweetHomeCardEditor extends HTMLElement {
           status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
+        if (k === 'security') this._entranceSensors(det, P);
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
     }

@@ -717,7 +717,10 @@ export function buildModel(cfg = {}, hass) {
     .map(e => (typeof e === 'string' ? { entity: e } : e)).filter(e => e?.entity || e?.id).map(e => {
       const id = e.entity || e.id, name = e.name || R.name(id), kind = e.kind || e.type || kindOf(e.sensor || id, name);
       const own = !e.kind && !e.type && states[id]?.attributes?.icon; // an icon set on the entity in Home Assistant
-      return { id, name, cfgName: e.name || null, sensor: e.sensor || null, kind, icons: e.icon ? [e.icon, e.icon] : own ? [own, own] : ENT_ICON[kind] || ENT_ICON.gate, cover: id.startsWith('cover.') };
+      // `sensor`: one or more entities that tell open / closed (contact sensor, Frigate state classification, …): the
+      // first one with a clear reading wins; `open_states` / `closed_states`: words of your own for a text sensor
+      const sensors = arr(e.sensor).concat(arr(e.sensor_2)).filter(x => typeof x === 'string' && x.includes('.'));
+      return { id, name, cfgName: e.name || null, sensor: sensors[0] || null, sensors, openWords: arr(e.open_states).map(x => String(x).toLowerCase()), closedWords: arr(e.closed_states).map(x => String(x).toLowerCase()), kind, icons: e.icon ? [e.icon, e.icon] : own ? [own, own] : ENT_ICON[kind] || ENT_ICON.gate, cover: id.startsWith('cover.') };
     });
   const doorList = (sec.doors ? arr(sec.doors) : allOf('binary_sensor', id => ['door', 'garage_door'].includes(R.dc(id)))).slice(0, 24)
     .map(d => typeof d === 'string' ? { id: d, name: R.name(d) } : { id: d.entity || d.id, name: d.name || R.name(d.entity || d.id), open: d.open_state });

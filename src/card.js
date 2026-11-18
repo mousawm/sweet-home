@@ -365,11 +365,24 @@ export class SweetHomeCard extends HTMLElement {
     return `${x.toFixed(d)}${u ? `<small>${esc(u)}</small>` : ''}`;
   }
   // an entrance (gate, garage door…): open / closed / moving / bad (unavailable) / unknown (a relay without a sensor)
+  // Sensors: a contact sensor (on = open), a cover or lock, or a text sensor such as Frigate's state classification
+  // ("open" / "closed" / "partially open" …). The first sensor with a clear reading wins; with sensors but no clear
+  // reading it is 'unsure' (the tile shows what the sensor says).
   entState(g) {
-    const src = g.sensor || (g.cover || g.id.startsWith('lock.') ? g.id : null); if (!src) return BAD.includes(this.v(g.id)) ? 'bad' : 'unknown';
-    const v = this.v(src); if (BAD.includes(v)) return 'bad';
-    if (v === 'opening' || v === 'closing') return 'moving';
-    return ['open', 'on', 'unlocked'].includes(v) ? 'open' : 'closed';
+    const srcs = g.sensors?.length ? g.sensors : g.sensor ? [g.sensor] : g.cover || g.id.startsWith('lock.') ? [g.id] : [];
+    if (!srcs.length) return BAD.includes(this.v(g.id)) ? 'bad' : 'unknown';
+    let seen = false;
+    for (const src of srcs) {
+      const raw = this.v(src); if (raw == null || BAD.includes(raw)) continue; seen = true;
+      const v = String(raw).toLowerCase().trim(), d = src.split('.')[0];
+      if (g.openWords?.includes(v)) return 'open';
+      if (g.closedWords?.includes(v)) return 'closed';
+      if (/^(opening|closing|moving)$/.test(v)) return 'moving';
+      if (d === 'binary_sensor' || d === 'input_boolean' || d === 'switch') return v === 'on' ? 'open' : 'closed';
+      if (/^(open|opened|on|unlocked|ajar|partially[ _]?open|half[ _]?open)$/.test(v)) return 'open';
+      if (/^(closed|close|shut|off|locked)$/.test(v)) return 'closed';
+    }
+    return seen ? 'unsure' : 'bad';
   }
   on(id) { const v = this.v(id); return v === 'on' || v === 'open' || v === 'playing' || v === 'home'; }
   ok(id) { const v = this.v(id); return v !== undefined && !BAD.includes(v); }
@@ -548,7 +561,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('tabs'), deps: glanceEnts, render: () => this._rTabs() },
       { el: $('glance'), deps: glanceEnts, render: () => this._rGlance() },
       { el: $('hdr'), deps: all(E.weather, E.persons, E.alarm, E.doors.map(d => d.id), roomEnts, E.energy.grid, E.energy.solar, E.face, E.car.parking, E.locks.map(l => l.id)), render: () => this._rHeader() },
-      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, g.sensor])), render: () => this._rSecurity() },
+      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, ...(g.sensors || [])])), render: () => this._rSecurity() },
       { el: $('climate'), deps: all(acEnts, roomEnts), render: () => this._rClimate() },
       { el: $('modes'), deps: all(E.modes.map(m => m[0])), render: () => this._rModes() },
       { el: $('drawer'), deps: all(roomEnts, acEnts, E.media.tv), render: () => this._rDrawer() },
@@ -1506,8 +1519,9 @@ export class SweetHomeCard extends HTMLElement {
     // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
     const gate = E.entrances.filter(g => this.s(g.id)).map(g => {
       // a relay gate without an open sensor can't tell: it shows as closed (green) until a sensor says otherwise
-      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' || st === 'unknown' ? 'good' : st === 'moving' ? 'warn' : 'bad';
-      const label = { open: 'Open', closed: 'Closed', moving: pretty(this.v(g.id)), bad: 'Unavailable', unknown: 'Closed' }[st];
+      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' || st === 'unknown' ? 'good' : st === 'moving' || st === 'unsure' ? 'warn' : 'bad';
+      const said = this.v(g.sensors?.find(x => this.ok(x)) || g.id);
+      const label = { open: 'Open', closed: 'Closed', moving: pretty(said), bad: 'Unavailable', unknown: 'Closed', unsure: pretty(said) }[st];
       return `<button class="lock ${cls}" data-act="entrance" data-id="${g.id}"${g.sensor ? ` data-id2="${g.sensor}"` : ''}>
         <div class="lk-ic">${ic(st === 'open' || st === 'moving' ? g.icons[1] : g.icons[0])}</div>
         <b>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</b><span>${esc(tr(label))}</span></button>`;
