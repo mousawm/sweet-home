@@ -31,6 +31,10 @@ security, climate, energy, water, media and your home lab.
 | ![Security tab: alarm, locks, doors and live cameras](docs/screenshots/security.webp) | ![Climate tab: room temperatures and one card per AC](docs/screenshots/climate.webp) |
 | **Energy** | **Water & Garden** |
 | ![Energy tab: live power flow, today's chart and the car charger](docs/screenshots/energy.webp) | ![Water & Garden tab: tank trend, pumps and irrigation](docs/screenshots/water.webp) |
+| **3D house** | **Furniture that reacts** |
+| ![The demo house in 3D: rooms with live temperatures, locks, a pool and a parked car](docs/screenshots/overview-3d.webp) | ![A bathroom: toilet, vanity with a glowing mirror, towel warmer, steaming shower, washing machine and bathtub](docs/screenshots/bathroom-3d.webp) |
+| **Floor plan editor** | **On a phone** |
+| ![The card editor: rooms, walls, doors, windows and furniture drawn on a plan](docs/screenshots/editor-plan.webp) | ![A room popup on a phone: lights with brightness, the front door lock and blinds](docs/screenshots/phone-room.webp) |
 
 ## Install
 
