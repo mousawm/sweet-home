@@ -151,6 +151,11 @@ try {
   }, rid));
   check('…and shown on the panel', await p.evaluate(() => { card._setTab('climate'); return card.shadowRoot.getElementById('climate').textContent.includes('Panel Name'); }));
   await p.evaluate(() => { card.editMode = false; card._setTab('home'); editor._step = 'look'; editor._render(); }); await p.waitForTimeout(100);
+  check('Look: the tip switch is "Hide the tip", off by default', await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); return !!i && !i.checked && !editor.querySelector('ha-form input[name=hint]'); }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = true; i.dispatchEvent(new Event('change')); });
+  check('…turning it on hides the tip (hint: false)', await p.evaluate(() => editor._config.hint === false));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = false; i.dispatchEvent(new Event('change')); });
+  check('…turning it off shows it again', await p.evaluate(() => !('hint' in editor._config)));
   check('the editor lists the names on this dashboard', await p.evaluate(id => !!editor.querySelector(`[data-nm="${id}"]`) && editor.querySelector(`[data-nm="${id}"]`).value === 'Panel Name', rid));
   await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
   check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));

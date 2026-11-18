@@ -107,7 +107,7 @@ The dashboard is generated for you until you take control of it:
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
    2. **Panels**: turn panels on or off and pick their entities.
-   3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
+   3. **Look**: title, weather, start tab, wall height, automatic furniture, **Hide the "tap a room" tip** (on: the tip is never shown), or a 3D file.
       **Names on this dashboard** lists every entity renamed here (in a room or on a panel). Change or clear a name,
       or rename any other entity.
 5. Click **Save**, then **Done**.

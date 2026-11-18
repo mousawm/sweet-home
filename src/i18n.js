@@ -136,6 +136,7 @@ const AR = {
   Watering: 'جارٍ الري', 'Valves (one per zone)': 'المحابس (واحد لكل منطقة)', 'Reminder notification': 'إشعار التذكير', 'Watering time': 'وقت الري',
   'Water every': 'الري كل', Schedule: 'الجدول', 'Day of the week': 'يوم الأسبوع', 'Water tomorrow (switch)': 'الري غدًا (مفتاح)', 'Next watering': 'الري القادم',
   'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
+  'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
