@@ -78,6 +78,12 @@ const NEW_PIECE = {
 };
 const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
 const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
+// pieces made of several parts: a colour for each of the other parts too, with the colour the 3D view uses by default
+const PART_COLORS = {
+  sofa: [['cushion', 'Seat cushions', '#64748b'], ['pillow', 'Pillows', '#e2e8f0']],
+  bed: [['frame', 'Frame', '#7c5a3c'], ['headboard', 'Headboard', '#e8dcc8'], ['pillow', 'Pillows', '#ffffff']],
+  table: [['leg', 'Legs', '#b7a684']], chair: [['seat', 'Seat', '#334155']],
+};
 const DIRS = ['n', 'e', 's', 'w'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
 // option lists are translated when a form is drawn
@@ -1415,13 +1421,16 @@ class SweetHomeCardEditor extends HTMLElement {
   _pieceForm(slot, r, f) {
     const ty = f.type, ck = COLOR_KEY[ty] || 'color', fields = PIECE_FIELDS[ty] || [];
     const ents = furnEntities(f);
+    const parts = PART_COLORS[ty] || [];
     const data = { name: f.name || '', entities: ents, badge: f.badge !== false, color: hex2rgb(f[ck]) };
+    for (const [k, , d] of parts) data['c_' + k] = hex2rgb(typeof f[k] === 'string' ? f[k] : d);
     for (const [k] of fields) if (f[k] !== undefined) data[k] = f[k];
     const schema = [
       { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[ty] ? { filter: ENTITY_FILTER[ty] } : {}) } } },
       { name: 'name', selector: { text: {} } },
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
       ...(['plant', 'stairs', 'charger', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
+      ...(parts.length ? [{ type: 'grid', name: '', schema: parts.map(([k]) => ({ name: 'c_' + k, selector: { color_rgb: {} } })) }] : []),
       ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
     ];
     const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
@@ -1438,11 +1447,12 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.name) f.name = v.name; else delete f.name;
       for (const [k] of fields) { if (v[k] !== undefined && v[k] !== '' && v[k] !== null) f[k] = v[k]; }
       const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
+      for (const [k, , d] of parts) { const c = rgb2hex(v['c_' + k]); if (c && (c !== d || typeof f[k] === 'string')) f[k] = c; } // the other parts' colours
       if (v.badge === false && ids.length) f.badge = false; else delete f.badge;
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
-    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: 'Colour' }, true));
+    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
   }
 
   /* ---------------- Doors & windows mode ---------------- */

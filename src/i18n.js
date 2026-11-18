@@ -179,6 +179,8 @@ const AR = {
   'Tap each corner of {0} in turn: the walls follow. Tap the first corner again (or Done) to close the room. Its shape is replaced by what you draw.': 'اضغط على كل زاوية من {0} بالترتيب: تتبعها الجدران. اضغط على الزاوية الأولى مجددًا (أو تم) لإغلاق الغرفة. يحل ما ترسمه محل شكلها.',
   '{0} corners': '{0} زوايا', 'Straight walls (every 45°)': 'جدران مستقيمة (كل 45°)', 'Remove last corner': 'إزالة آخر زاوية', Cancel: 'إلغاء',
   'Drawing the walls of {0}: tap each corner on the plan (one square = {1} m).': 'رسم جدران {0}: اضغط على كل زاوية على المخطط (المربع الواحد = {1} م).',
+  // furniture part colours
+  'Seat cushions': 'وسائد المقعد', Pillows: 'الوسائد', Frame: 'الهيكل', Headboard: 'لوح الرأس', Legs: 'الأرجل', Seat: 'المقعد', 'Colour (frame and back)': 'اللون (الهيكل والظهر)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

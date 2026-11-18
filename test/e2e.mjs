@@ -351,6 +351,13 @@ try {
   const hd = await p.evaluate(() => editor._handles()[0]);
   await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
   check('resizing a turned sofa keeps its width (0.9 m) and changes only its length', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.w === 0.9 && f.d === 3; }));
+  // a sofa's parts each get a colour: frame and back, seat cushions, pillows
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._fsel = 0; editor._render(); });
+  check('a sofa has colours for its seat cushions and pillows, showing the 3D defaults', await p.evaluate(() => { const c = editor.querySelector('ha-form input[name=c_cushion]'), pl = editor.querySelector('ha-form input[name=c_pillow]'); return c?.value === '#64748b' && pl?.value === '#e2e8f0'; }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=c_cushion]'); i.value = '#7c3aed'; i.dispatchEvent(new Event('change')); });
+  check('…changing the cushions writes only the cushions', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.cushion === '#7c3aed' && f.pillow === undefined; }));
+  await p.waitForTimeout(1500);
+  check('…and the 3D sofa uses it', await p.evaluate(() => card._model.furniture.find(f => f.type === 'sofa' && f.room === 'living_room')?.cushion === 0x7c3aed));
   // the same for a counter (written with corners, as the suggested kitchen set writes it) and a counter at its default size
   for (const piece of [{ type: 'block', from: [1, 1], to: [3.5, 1.6], h: 0.9 }, { type: 'block', x: 3, z: 3, w: 2, d: 0.6 }]) {
     await p.evaluate(pc => { const r = editor._config.house.rooms[0]; r.furniture = [pc]; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); }, piece);
