@@ -1460,7 +1460,7 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
       ...(['plant', 'stairs', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
       ...(parts.length ? [{ type: 'grid', name: '', schema: parts.map(([k]) => ({ name: 'c_' + k, selector: { color_rgb: {} } })) }] : []),
-      ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
+      ...(ents.length || ty === 'ac' ? [{ name: 'badge', selector: { boolean: {} } }] : []), // an AC is linked to its room's climate entity even when none is picked
     ];
     const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
     head.innerHTML = `<b style="flex:1">${esc(t(FURN_TYPES[ty]?.[0] || ty))}</b>${ROUND.includes(ty) ? '' : `<button data-turn title="${t('Turn a quarter clockwise')}"><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button>`}
@@ -1478,7 +1478,7 @@ class SweetHomeCardEditor extends HTMLElement {
       for (const k of ['plug', 'power']) if (fields.some(([n]) => n === k) && !v[k]) delete f[k]; // a cleared entity is gone
       const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
       for (const [k, , d] of parts) { const c = rgb2hex(v['c_' + k]); if (c && (c !== d || typeof f[k] === 'string')) f[k] = c; } // the other parts' colours
-      if (v.badge === false && ids.length) f.badge = false; else delete f.badge;
+      if (v.badge === false && (ids.length || ty === 'ac')) f.badge = false; else delete f.badge;
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }

@@ -68,6 +68,7 @@ try {
   await p.evaluate(() => card._setTab('home'));
   check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
   check('an AC placed in the bedroom replaces its automatic unit, with the room\'s climate entity', await p.evaluate(() => { const A = card._three.acs.filter(a => a.ent === 'climate.bedroom_ac'); return A.length === 1 && A[0].dx === 1 && !card._model.rooms.find(r => r.id === 'bedroom').ac; }));
+  check('an AC has a badge it can hide', await p.evaluate(async () => { const fi = card._model.furniture.find(f => f.type === 'ac').idx, on = !!card._three.fpieces.find(P => P.idx === fi)?.el; const c = JSON.parse(JSON.stringify(card._config)); c.house.rooms.find(r => r.area === 'bedroom').furniture.find(f => f.type === 'ac').badge = false; card.setConfig(c); await new Promise(r => setTimeout(r, 1500)); const P = card._three.fpieces.find(P => P.f.type === 'ac'); return on && P && !P.el; }));
   check('bedside table: the phone shows while its charger plug draws power (power sensor found from the plug)', await p.evaluate(() => card._model.furniture.find(f => f.type === 'nightstand' && f.plug)?.power === 'sensor.phone_charger_power' && card._three.chargers[0].parts[0].visible));
   await p.evaluate(() => { const h = window.hassObj; h.states['sensor.phone_charger_power'] = { ...h.states['sensor.phone_charger_power'], state: '0.2' }; card.hass = { ...h, states: { ...h.states } }; });
   check('…and is gone once it stops charging', await p.waitForFunction(() => !card._three.chargers[0].parts[0].visible, null, { timeout: 5000 }).then(() => true, () => false));
@@ -351,6 +352,7 @@ try {
   check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
   await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
   // resizing a turned sofa: only the side dragged changes, the other keeps its exact size
+  check('editor: an AC with no entity picked still has the "show a badge" switch', await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'ac', x: 3, z: 0.2, facing: 's' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); return [...editor.querySelectorAll('ha-form')].some(f => JSON.stringify(f.schema).includes('"badge"')); }));
   await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); });
   const hd = await p.evaluate(() => editor._handles()[0]);
   await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
