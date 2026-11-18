@@ -70,13 +70,13 @@ const USEFUL = id => {
 const NEW_PIECE = {
   bed: { width: 1.4, length: 2, head: 'n' }, sofa: { w: 2, d: 0.9, back: 'n' }, table: { w: 1.2, d: 0.8 }, chair: { face: 'n' },
   tv: { w: 1.4, h: 0.8, y: 0.6, facing: 's' }, lamp: { h: 1.5 }, fan: { radius: 0.6 }, marker: { y: 0.9 }, plant: { size: 0.8 },
-  rug: { w: 2, d: 1.4 }, nightstand: { w: 0.5, d: 0.4, h: 0.55, facing: 's' }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 }, vacuum: {},
+  rug: { w: 2, d: 1.4 }, charger: { y: 0.75 }, nightstand: { w: 0.5, d: 0.4, h: 0.55, facing: 's' }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 }, vacuum: {},
   car: { facing: 'n', color: '#2563eb' }, tree: { size: 1 }, sprinkler: { radius: 2 },
   hedge: { _span: [1, 0.2], h: 0.9 }, pool: { _span: [1.5, 1] },
   // pieces given by corners: [half width, half depth] around the tap
   stairs: { _span: [1, 0.5], axis: 'x', steps: 8 }, blinds: { _span: [0.6, 0] },
 };
-const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'nightstand', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
+const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'nightstand', 'charger', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
 const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
 // pieces made of several parts: a colour for each of the other parts too, with the colour the 3D view uses by default
 const PART_COLORS = {
@@ -91,7 +91,7 @@ const trOpts = schema => schema.map(x => (x.schema ? { ...x, schema: trOpts(x.sc
 const num = (o, step = 0.05, min = 0, max = 10, unit = 'm') => ({ number: { min, max, step, mode: 'box', unit_of_measurement: unit } });
 const sel = opts => ({ select: { mode: 'dropdown', options: opts.map(([value, label]) => ({ value, label })) } });
 const PIECE_FIELDS = {
-  box: [['w', num()], ['d', num()], ['h', num()], ['y', num()]], nightstand: [['w', num()], ['d', num()], ['h', num()], ['facing', sel(DIR_OPTS)], ['drawers', num(0, 1, 1, 4, '')], ['lamp', { boolean: {} }]], block: [['h', num()], ['y', num()]], rug: [['w', num()], ['d', num()]],
+  box: [['w', num()], ['d', num()], ['h', num()], ['y', num()]], nightstand: [['w', num()], ['d', num()], ['h', num()], ['facing', sel(DIR_OPTS)], ['drawers', num(0, 1, 1, 4, '')], ['lamp', { boolean: {} }], ['plug', { entity: { filter: { domain: ['switch', 'input_boolean'] } } }], ['power', { entity: { filter: { domain: 'sensor', device_class: 'power' } } }]], charger: [['y', num()], ['plug', { entity: { filter: { domain: ['switch', 'input_boolean'] } } }], ['power', { entity: { filter: { domain: 'sensor', device_class: 'power' } } }], ['charging_w', num(0, 0.5, 0, 50, 'W')]], block: [['h', num()], ['y', num()]], rug: [['w', num()], ['d', num()]],
   table: [['w', num()], ['d', num()], ['h', num()]], chair: [['face', sel(DIR_OPTS)]],
   sofa: [['back', sel(DIR_OPTS)], ['arms', sel([['both', 'Both'], ['start', 'Start'], ['end', 'End'], ['none', 'None']])]],
   bed: [['width', num()], ['length', num()], ['head', sel(DIR_OPTS)]], plant: [['size', num(0, 0.1, 0.2, 3, '×')]],
@@ -102,7 +102,7 @@ const PIECE_FIELDS = {
 };
 const ENTITY_FILTER = { lamp: { domain: 'light' }, nightstand: { domain: ['light', 'switch', 'sensor', 'binary_sensor', 'media_player'] }, fan: { domain: 'fan' }, tv: { domain: 'media_player' }, blinds: { domain: 'cover' }, vacuum: { domain: 'vacuum' },
   car: { domain: ['binary_sensor', 'device_tracker', 'person', 'sensor', 'input_boolean'] }, sprinkler: { domain: ['valve', 'switch', 'input_boolean'] } };
-const PIECE_LABELS = { drawers: 'Drawers', lamp: 'Table lamp on top', trunk: 'Trunk colour', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
+const PIECE_LABELS = { plug: 'Phone charger plug (the phone shows while it charges)', power: 'Charger power sensor (found from the plug when empty)', charging_w: 'Charging above', drawers: 'Drawers', lamp: 'Table lamp on top', trunk: 'Trunk colour', d: 'Depth', h: 'Height', y: 'Height above the floor', width: 'Width', length: 'Length', head: 'Head of the bed', back: 'Back side', arms: 'Arms', face: 'Faces', facing: 'Screen faces', size: 'Size', radius: 'Radius', axis: 'Direction', mode: 'Mode', steps: 'Steps' };
 
 const clone = o => JSON.parse(JSON.stringify(o || {}));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1450,7 +1450,7 @@ class SweetHomeCardEditor extends HTMLElement {
       { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[ty] ? { filter: ENTITY_FILTER[ty] } : {}) } } },
       { name: 'name', selector: { text: {} } },
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
-      ...(['plant', 'stairs', 'charger', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
+      ...(['plant', 'stairs', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
       ...(parts.length ? [{ type: 'grid', name: '', schema: parts.map(([k]) => ({ name: 'c_' + k, selector: { color_rgb: {} } })) }] : []),
       ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
     ];
@@ -1467,13 +1467,14 @@ class SweetHomeCardEditor extends HTMLElement {
       if (ids.length === 1) f.entity = ids[0]; else if (ids.length > 1) f.entities = ids;
       if (v.name) f.name = v.name; else delete f.name;
       for (const [k] of fields) { if (v[k] !== undefined && v[k] !== '' && v[k] !== null) f[k] = v[k]; }
+      for (const k of ['plug', 'power']) if (fields.some(([n]) => n === k) && !v[k]) delete f[k]; // a cleared entity is gone
       const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
       for (const [k, , d] of parts) { const c = rgb2hex(v['c_' + k]); if (c && (c !== d || typeof f[k] === 'string')) f[k] = c; } // the other parts' colours
       if (v.badge === false && ids.length) f.badge = false; else delete f.badge;
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
-    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', ...(ty === 'nightstand' ? { facing: 'Drawers face', entities: 'Linked entities (a light makes its lamp glow)' } : {}), color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
+    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', ...(ty === 'nightstand' ? { facing: 'Drawers face', entities: 'Linked entities (a light makes its lamp glow)' } : {}), ...(ty === 'charger' ? { entities: 'Linked entities (tap the phone in 3D to control them)' } : {}), color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
   }
 
   /* ---------------- Doors & windows mode ---------------- */

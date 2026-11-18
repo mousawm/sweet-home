@@ -634,8 +634,10 @@ export function buildModel(cfg = {}, hass) {
     // centre + size → extents for the extent-based pieces
     if (['sofa', 'block', 'stairs', 'counter'].includes(o.type) && o.x0 == null && o.x != null) { o.x0 = o.x - num(o.w, 1) / 2; o.x1 = o.x + num(o.w, 1) / 2; o.z0 = o.z - num(o.d, 1) / 2; o.z1 = o.z + num(o.d, 1) / 2; }
     if (!o.room) { const px = o.x ?? ((o.x0 + o.x1) / 2), pz = o.z ?? ((o.z0 + o.z1) / 2); o.room = roomAt(px, pz, f.level != null ? lvOf(f.level) : null); }
-    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade', 'handle']) if (o[k] != null) o[k] = toColor(o[k], undefined);
+    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade', 'handle', 'phone_color']) if (o[k] != null) o[k] = toColor(o[k], undefined);
     o.entities = furnEntities(f);
+    // a charger plug's power sensor, from the plug's own device when it is not given
+    if (o.plug && !o.power) o.power = R.sameDevice(o.plug, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null;
     return o;
   };
   // `src` says where a piece is in the config (so the 3D view can move it): {house: i} or {room: room index, i}

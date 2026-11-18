@@ -248,11 +248,11 @@ furniture:
 | `chair` | `x z face (n/s/e/w) color seat` |
 | `sofa` | `from to back (n/s/e/w) color cushion pillow arms (both/start/end/none)` |
 | `bed` | `x z width length head (n/s/e/w) frame duvet headboard pillow house_headboard` |
-| `nightstand` | `x z w d h facing (n/s/e/w: where the drawers look) drawers (1-4) lamp (false hides it) color top handle shade entity`: a bedside table with a table lamp that glows with its light. Automatic bedrooms get one each side of the bed. |
+| `nightstand` | `x z w d h facing (n/s/e/w: where the drawers look) drawers (1-4) lamp (false hides it) color top handle shade entity plug power charging_w`: a bedside table with a table lamp that glows with its light. With `plug` (a phone charger's smart plug), a phone lies on top while it charges: while the plug draws more than `charging_w` (1.5 W) on `power`. `power` is found from the plug's own device when left out; with no power sensor, plug on means charging. Automatic bedrooms get one each side of the bed. |
 | `plant` | `x z size` |
 | `cylinder`, `ball` | `x z radius h y color` |
 | `tv` | `x z w h y facing entity`: the screen flickers while the player plays |
-| `charger` | `x z y plug power`: a phone that glows while charging |
+| `charger` | `x z y plug power charging_w color phone_color`: a charging pad; the phone on it shows (and glows) only while it charges, as for `nightstand` |
 | `stairs` | `from to axis (x/z) mode (up/down/split) steps motion` |
 | `lamp` | `x z h size color shade entity`: the shade glows in the light's colour and brightness |
 | `fan` | `x z y radius color blade entity`: a ceiling fan whose blades turn at the fan's speed |
