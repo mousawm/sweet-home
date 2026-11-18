@@ -140,6 +140,9 @@ const AR = {
   // entrances
   'Gates, garage doors, barriers, shutters': 'البوابات، أبواب المرآب، الحواجز، الأبواب الدوّارة', 'Tap again to open': 'اضغط مرة أخرى للفتح', 'Tap again to close': 'اضغط مرة أخرى للإغلاق', 'Tap again to stop': 'اضغط مرة أخرى للإيقاف',
   'Opening {0}': 'جارٍ فتح {0}', 'Closing {0}': 'جارٍ إغلاق {0}', 'Stopping {0}': 'جارٍ إيقاف {0}', 'Tap to open': 'اضغط للفتح',
+  // lock badge names
+  'The name above the badge in the 3D view, on this dashboard only. Clear it to show the lock’s name.': 'الاسم فوق الشارة في العرض ثلاثي الأبعاد، في لوحة التحكم هذه فقط. امسحه لعرض اسم القفل.',
+  'Name shown in 3D (empty: the lock’s name)': 'الاسم في العرض ثلاثي الأبعاد (فارغ: اسم القفل)', 'Show the name above the badge': 'عرض الاسم فوق الشارة',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
