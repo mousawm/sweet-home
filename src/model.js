@@ -669,6 +669,25 @@ export function buildModel(cfg = {}, hass) {
     else r.floorRects = (r.floorRects || r.rects).flatMap(q => minus(q, well));
     f.well = well;
   }
+  // Two sofas at a right angle whose ends overlap make one corner (L-shaped) sofa: the one along x keeps the corner
+  // seat, the other stops at its edge, neither has an arm at the joint, and the corner gets a back on the outer side.
+  const sofas = furniture.filter(f => f.type === 'sofa' && f.x0 != null && f.z0 != null);
+  const ext = f => [Math.min(f.x0, f.x1), Math.min(f.z0, f.z1), Math.max(f.x0, f.x1), Math.max(f.z0, f.z1)];
+  const dropArm = (f, end) => { const a = f.arms || 'both'; f.arms = a === 'both' ? (end === 'start' ? 'end' : 'start') : a === end ? 'none' : a; };
+  for (const A of sofas) for (const B of sofas) {
+    if (A === B || A.room !== B.room || A.lJoin || B.lJoin) continue;
+    const ah = ['n', 's'].includes(A.back || 'n'), bh = ['n', 's'].includes(B.back || 'n'); if (!ah || bh) continue; // A along x, B along z
+    const a = ext(A), b = ext(B), ox0 = Math.max(a[0], b[0]), oz0 = Math.max(a[1], b[1]), ox1 = Math.min(a[2], b[2]), oz1 = Math.min(a[3], b[3]);
+    if (ox1 - ox0 < 0.05 || oz1 - oz0 < 0.05) continue; // they don't overlap
+    const aEnd = (ox0 + ox1) / 2 < (a[0] + a[2]) / 2 ? 'start' : 'end', bTop = (oz0 + oz1) / 2 < (b[1] + b[3]) / 2;
+    dropArm(A, aEnd); dropArm(B, bTop ? 'start' : 'end');
+    // B stops where A's seat ends (on the side away from A's back)
+    if (bTop) { B.z0 = Math.min(a[3], b[3] - 0.3); B.z1 = b[3]; } else { B.z1 = Math.max(a[1], b[1] + 0.3); B.z0 = b[1]; }
+    B.x0 = b[0]; B.x1 = b[2]; A.x0 = a[0]; A.x1 = a[2]; A.z0 = a[1]; A.z1 = a[3];
+    // the corner's outer side gets a back when B's back is on that side
+    if ((aEnd === 'start' && (B.back || 'n') === 'w') || (aEnd === 'end' && B.back === 'e')) A.cornerBack = aEnd;
+    A.lJoin = B.lJoin = true;
+  }
   // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
   const lvOfRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
   // a flight of stairs stays within the wall height (a cut-away house has low walls)

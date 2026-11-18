@@ -811,7 +811,9 @@ class SweetHomeCardEditor extends HTMLElement {
       const f = arr(r.furniture)[this._fsel];
       if (f) for (const hd of this._handles()) if (near(p, hd)) {
         const b = fpBox(footprint(f));
-        return { move: m => sizePiece(f, b[0], b[1], Math.max(b[0] + 0.1, snap(m[0])), Math.max(b[1] + 0.1, snap(m[1]))) };
+        // the size changes by the grid steps dragged, on each side on its own: a side not dragged keeps its exact size
+        const step = v => Math.round(v / this._grid) * this._grid;
+        return { move: m => sizePiece(f, b[0], b[1], r2(Math.max(b[0] + 0.1, b[2] + step(m[0] - hd[0]))), r2(Math.max(b[1] + 0.1, b[3] + step(m[1] - hd[1])))) };
       }
       // a piece (the selected room's first, then any room's, topmost first): select it and drag to move
       const hit = this._pieceAt(p, tol * 0.4);
@@ -1103,9 +1105,11 @@ class SweetHomeCardEditor extends HTMLElement {
     const D = this._draft || [], last = D[D.length - 1];
     if (!last || this._drawFree) return [snap(p[0]), snap(p[1])];
     const dx = p[0] - last[0], dz = p[1] - last[1], L = Math.hypot(dx, dz); if (L < 1e-6) return [last[0], last[1]];
-    const a = Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4), diag = Math.abs(Math.sin(a) * Math.cos(a)) > 0.1;
-    const len = diag ? Math.max(this._grid, Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid) : Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid;
-    return [r2(last[0] + Math.cos(a) * len), r2(last[1] + Math.sin(a) * len)];
+    // the wall's direction to the nearest 45°; its length in grid steps along x and z, so its end stays on the grid
+    const a = Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4), along = L * Math.cos(Math.atan2(dz, dx) - a);
+    const ux = Math.round(Math.cos(a)), uz = Math.round(Math.sin(a)), diag = ux && uz;
+    const n = Math.max(1, Math.round((diag ? along / Math.SQRT2 : along) / this._grid)) * this._grid;
+    return [r2(last[0] + ux * n), r2(last[1] + uz * n)];
   }
   _drawTap(m, tol, snap) {
     const D = (this._draft ||= []), q = this._drawSnap(m, snap);

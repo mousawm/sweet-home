@@ -187,6 +187,12 @@ test('two rooms on the same area (or with the same name) still get their own ids
   const m = buildModel({ house: { rooms: [{ area: 'living', rects: [[0, 0, 4, 4]] }, { area: 'living', name: 'Living room corridor', rects: [[4, 0, 6, 4]] }, { name: 'Hall', rects: [[0, 4, 4, 6]] }, { name: 'Hall', rects: [[4, 4, 6, 6]] }] } }, hass);
   assert.deepEqual(m.rooms.map(r => r.id), ['living', 'living_2', 'hall', 'hall_2']);
 });
+test('two sofas overlapping at a right angle become one L-shaped sofa', () => {
+  const m = buildModel({ house: { windows: 'none', rooms: [{ name: 'Lounge', rects: [[0, 0, 6, 5]], furniture: [{ type: 'sofa', from: [0.2, 0.2], to: [3.2, 1.1], back: 'n' }, { type: 'sofa', from: [0.2, 0.2], to: [1.1, 3], back: 'w' }, { type: 'sofa', from: [4, 3], to: [5.8, 3.9], back: 's' }] }] } }, hass);
+  const [A, B, C] = m.furniture.filter(f => f.type === 'sofa');
+  assert.deepEqual([A.arms, A.cornerBack, B.arms, B.z0, B.z1], ['end', 'start', 'end', 1.1, 3], 'A keeps the corner, B starts at its edge, no arms at the joint');
+  assert.equal(C.arms, undefined, 'a sofa on its own keeps both arms');
+});
 test('furniture keeps its place in the config and its entities', () => {
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], furniture: [{ type: 'lamp', x: 1, z: 1, entity: 'light.living' }, { type: 'bed', x: 2, z: 2, entities: ['light.bed', 'light.living'] }] }] } }, hass);
   assert.deepEqual(m.furniture.map(f => f.src), [{ room: 0, i: 0 }, { room: 0, i: 1 }]);
