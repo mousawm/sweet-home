@@ -278,7 +278,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`; the power
   sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
   pressure…)
-- **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
+- **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`; pick them in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
 - **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
   colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
   `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`

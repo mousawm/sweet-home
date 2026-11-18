@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea } from './model.js';
+import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
@@ -561,7 +561,7 @@ export class SweetHomeCard extends HTMLElement {
     const off = {
       security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
-      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
+      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
@@ -1243,7 +1243,10 @@ export class SweetHomeCard extends HTMLElement {
       case 'valve': { // irrigation zones need a second tap, like the locks
         const on = this.on(id);
         if (!this._armConfirm(t, id, on ? 'Tap again to stop' : 'Tap again to water')) return;
-        this.call('switch', on ? 'turn_off' : 'turn_on', { entity_id: id }); break;
+        const d = id.split('.')[0]; // a valve opens / closes; a switch or helper turns on / off
+        if (d === 'valve') this.call('valve', on ? 'close_valve' : 'open_valve', { entity_id: id });
+        else this.call(d === 'input_boolean' ? 'input_boolean' : 'switch', on ? 'turn_off' : 'turn_on', { entity_id: id });
+        break;
       }
       case 'acexp': this._acOpen = this._acOpen === id ? null : id; this._rerender('drawer'); break;
       case 'acpow': this.call('climate', this.climOn(id) ? 'turn_off' : 'turn_on', { entity_id: id }); break;
@@ -2572,21 +2575,23 @@ export class SweetHomeCard extends HTMLElement {
     // a weekday only matters for weekly schedules: hide it for "N Days" intervals or when it reads "Set to days"
     const dayless = /set to days/i.test(this.v(I.day) || '') || /\bdays?\b/i.test(this.v(I.every) || '');
     const mins = id => { const s = this.n(id); return s == null ? null : Math.round(s / 60); };
-    const v = I.valves.filter(x => this.s(x[0])).map(([id, n], i) => {
-      const m = mins(I.durations[i]);
+    // a name given in the panel wins; else the entity's name (dashboard names included)
+    const v = I.valves.map((x, i) => [...x, i]).filter(x => this.s(x[0])).map(([id, n, i]) => {
+      const m = mins(I.durations[i]), cfgName = arr(this._config?.panels?.irrigation?.zones ?? this._config?.panels?.irrigation?.valves)[i]?.name;
+      const nm = cfgName || this.s(id).attributes.friendly_name || n, bad = BAD.includes(this.v(id));
       return `<button class="valve ${this.on(id) ? 'on' : ''}" data-act="valve" data-id="${id}"${I.durations[i] ? ` data-id2="${I.durations[i]}"` : ''}>
-      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${n}</b><span>${this.on(id) ? 'Watering' : 'Closed'}${m != null ? ` · ${m} min` : ''}</span></button>`;
+      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${m} min` : ''}</span></button>`;
     }).join('');
     const ok = id => this.ok(id) ? esc(this.v(id)) : '—';
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info
     return `<div class="ch">${ic('mdi:sprinkler')}<h3>Irrigation</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? 'Watering tomorrow' : 'Scheduled'}</button>`}</div>
-      <div class="valves">${v}</div>
+      ${v ? `<div class="valves">${v}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('No valves yet: add them in the card editor (Panels → Irrigation).')}</div>`}
       ${!(I.next || I.notify) ? '' : `<div class="nextirr">
-        <div class="ni" data-act="more" data-id="${I.next}" data-id2="${I.time}">${ic('mdi:calendar-clock')}<div><span>Next Irrigation</span><b>${ok(I.next)}</b></div></div>
-        <div class="ni" data-act="more" data-id="${I.notify}">${ic('mdi:bell-ring-outline')}<div><span>Reminder Notification</span><b>${ok(I.notify)}</b></div></div>
+        ${I.next ? `<div class="ni" data-act="more" data-id="${I.next}"${I.time ? ` data-id2="${I.time}"` : ''}>${ic('mdi:calendar-clock')}<div><span>${tr('Next watering')}</span><b>${ok(I.next)}</b></div></div>` : ''}
+        ${I.notify ? `<div class="ni" data-act="more" data-id="${I.notify}">${ic('mdi:bell-ring-outline')}<div><span>${tr('Reminder notification')}</span><b>${ok(I.notify)}</b></div></div>` : ''}
       </div>`}
-      ${!(I.every || I.day) ? '' : '<div class="dsec">Schedule</div>'}
-      <div class="picks col">${this.pickChip(I.every, 'select', 'Water every', 'mdi:calendar-sync')}${dayless ? '' : this.pickChip(I.day, 'select', 'Day of the week', 'mdi:calendar-today')}</div>`;
+      ${!(I.every || I.day) ? '' : `<div class="dsec">${tr('Schedule')}</div>`}
+      <div class="picks col">${this.pickChip(I.every, 'select', tr('Water every'), 'mdi:calendar-sync')}${dayless ? '' : this.pickChip(I.day, 'select', tr('Day of the week'), 'mdi:calendar-today')}</div>`;
   }
 
   /* ------------------------------------------------------------------ */

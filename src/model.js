@@ -667,6 +667,9 @@ export function buildModel(cfg = {}, hass) {
   const tvPlayer = media.player || first('media_player', id => R.dc(id) === 'tv') || null;
   const W2 = P.water || {};
   const IR = P.irrigation || {};
+  const irrGiven = IR.zones ?? IR.valves;
+  const irrZones = (irrGiven !== undefined ? arr(irrGiven) : P.irrigation === false ? [] : allOf('valve').map(entity => ({ entity, auto: true })))
+    .map(z => (typeof z === 'string' ? { entity: z } : z)).filter(z => z?.entity);
   const CAR = P.car || {};
   const EN = P.energy || {};
   const AT = P.attention || {};
@@ -715,7 +718,8 @@ export function buildModel(cfg = {}, hass) {
     lab,
     devices: arr(P.devices?.entities || cfg.devices).map(d => typeof d === 'string' ? { name: R.name(d).replace(/\s*battery( level)?$/i, ''), icon: 'mdi:cellphone', bat: d } : { name: d.name, icon: d.icon || 'mdi:cellphone', bat: d.battery, chg: d.charging, trk: d.tracker, chgState: d.charging_state }),
     irrigation: {
-      valves: arr(IR.zones).map((z, i) => [z.entity, z.name || `Zone ${i + 1}`]), durations: arr(IR.zones).map(z => z.duration || null),
+      // zones: `entity_id` or {entity, name, duration}; `valves` is the same list. Not given: every valve entity.
+      valves: irrZones.map((z, i) => [z.entity, z.name || (z.auto ? R.name(z.entity) : null) || R.name(z.entity) || `Zone ${i + 1}`]), durations: irrZones.map(z => z.duration || null),
       every: IR.interval || null, day: IR.weekday || null, tomorrow: IR.tomorrow || null, next: IR.next || null, notify: IR.notification || null, time: IR.time || null,
     },
     modes: arr(cfg.modes).map(m => typeof m === 'string' ? [m, R.name(m), states[m]?.attributes?.icon || 'mdi:toggle-switch-outline'] : [m.entity, m.name || R.name(m.entity), m.icon || 'mdi:toggle-switch-outline']),

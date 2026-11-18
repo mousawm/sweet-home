@@ -81,6 +81,13 @@ try {
   check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
   check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
   check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
+  // irrigation: its valves (a valve entity and a switch), named, and they open / start with a second tap
+  await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(150);
+  check('irrigation panel shows its valves', await p.evaluate(() => { const v = [...card.shadowRoot.querySelectorAll('#irrigation .valve')]; return v.length === 2 && v[0].textContent.includes('Front lawn') && v[0].textContent.includes('Watering') && v[1].textContent.includes('Drip Zone') && v[1].textContent.includes('Closed'); }));
+  // two taps 0.4 s apart (a quick double tap on a zone with a duration opens the duration instead)
+  for (const id of ['valve.garden', 'switch.drip_zone']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#irrigation .valve[data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
+  check('a valve closes with valve.close_valve, a switch zone starts with switch.turn_on', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'valve' && c[1] === 'close_valve' && c[2].entity_id === 'valve.garden') && (window.calls || []).some(c => c[0] === 'switch' && c[1] === 'turn_on' && c[2].entity_id === 'switch.drip_zone')));
+  await p.evaluate(() => card._setTab('home'));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -148,6 +155,14 @@ try {
   await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
   check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
+  // irrigation in the editor: valves are picked there, a zone's name and duration stay
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('the irrigation panel in the editor has a valves field', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=zones]')].some(i => i.value === 'valve.garden,switch.drip_zone')));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=zones]')][0]; i.value = 'valve.garden,switch.drip_zone,switch.well_pump'; i.dispatchEvent(new Event('change')); });
+  check('adding a valve keeps the other zones as they were', await p.evaluate(() => JSON.stringify(editor._config.panels.irrigation.zones) === '[{"entity":"valve.garden","name":"Front lawn","duration":"sensor.water_flow"},"switch.drip_zone","switch.well_pump"]'));
+  await p.waitForTimeout(1500);
+  check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
+  await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
   // room shapes: ready-made shapes, corners, bends, separate walls
   await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
   check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));

@@ -132,6 +132,10 @@ const AR = {
   'Names on this dashboard': 'الأسماء في لوحة التحكم هذه', 'No names yet.': 'لا توجد أسماء بعد.', 'Rename another entity': 'إعادة تسمية كيان آخر', 'Default name': 'الاسم الافتراضي', Panel: 'اللوحة',
   'Renamed in a room popup, on a panel (pencil while editing) or here. They replace the entity name everywhere on this dashboard; Home Assistant keeps its own names. Clear a name to go back to the default.':
     'تُعاد التسمية من نافذة الغرفة، أو من أي لوحة (رمز القلم أثناء التعديل)، أو من هنا. تحل الأسماء محل اسم الكيان في كل مكان في لوحة التحكم هذه، ويحتفظ Home Assistant بأسمائه الأصلية. امسح الاسم للعودة إلى الاسم الافتراضي.',
+  // irrigation
+  Watering: 'جارٍ الري', 'Valves (one per zone)': 'المحابس (واحد لكل منطقة)', 'Reminder notification': 'إشعار التذكير', 'Watering time': 'وقت الري',
+  'Water every': 'الري كل', Schedule: 'الجدول', 'Day of the week': 'يوم الأسبوع', 'Water tomorrow (switch)': 'الري غدًا (مفتاح)', 'Next watering': 'الري القادم',
+  'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

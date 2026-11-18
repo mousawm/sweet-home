@@ -30,7 +30,7 @@ const S = [
   st('binary_sensor.balcony_door', 'off', { device_class: 'door', friendly_name: 'Balcony Door' }),
   st('vacuum.robo', 'cleaning', { friendly_name: 'Robo' }),
   st('switch.well_pump', 'on', { friendly_name: 'Well Pump' }), st('sensor.well_pump_power', '420', { device_class: 'power', unit_of_measurement: 'W' }),
-  st('sensor.water_flow', '12.5', { friendly_name: 'Water Flow', unit_of_measurement: 'L/min' }), st('valve.garden', 'open', { friendly_name: 'Garden Valve' }),
+  st('sensor.water_flow', '12.5', { friendly_name: 'Water Flow', unit_of_measurement: 'L/min' }), st('valve.garden', 'open', { friendly_name: 'Garden Valve' }), st('switch.drip_zone', 'off', { friendly_name: 'Drip Zone' }), st('input_select.irrigate_every', '2 Days', { friendly_name: 'Irrigate every', options: ['1 Day', '2 Days', '1 Week'] }), st('sensor.next_irrigation', 'Friday', { friendly_name: 'Next irrigation date' }),
   st('switch.ev_charger', 'on', { friendly_name: 'EV Charger' }), st('sensor.ev_power', '7200', { device_class: 'power', unit_of_measurement: 'W' }),
   st('sensor.ev_battery', '64', { device_class: 'battery', unit_of_measurement: '%' }), st('sensor.ev_range', '310', { unit_of_measurement: 'km' }),
   st('sensor.ev_charge_energy', '12.4', { unit_of_measurement: 'kWh' }), st('sensor.ev_month_energy', '186', { unit_of_measurement: 'kWh' }), st('sensor.ev_status', 'parked'),
@@ -54,7 +54,7 @@ const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC'
   callService: async () => {}, callWS: async m => { (window.ws ||= []).push(m); return m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []; }, callApi: async () => [],
   connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} }, formatEntityState: s => s.state };
 const demo = { title: 'Demo Home', panels: { car: { name: 'Model Y', color: '#dc2626', charging: 'switch.ev_charger', power: 'sensor.ev_power', battery: 'sensor.ev_battery', range: 'sensor.ev_range',
-  status: 'sensor.ev_status', energy_per_charge: 'sensor.ev_charge_energy', energy_month: 'sensor.ev_month_energy' }, water: { pumps: ['switch.well_pump'], entities: ['sensor.water_flow', 'valve.garden'] } }, house: { auto_furniture: true, rooms: [
+  status: 'sensor.ev_status', energy_per_charge: 'sensor.ev_charge_energy', energy_month: 'sensor.ev_month_energy' }, water: { pumps: ['switch.well_pump'], entities: ['sensor.water_flow', 'valve.garden'] }, irrigation: { zones: [{ entity: 'valve.garden', name: 'Front lawn', duration: 'sensor.water_flow' }, 'switch.drip_zone'], interval: 'input_select.irrigate_every', next: 'sensor.next_irrigation' } }, house: { auto_furniture: true, rooms: [
   { area: 'living_room', rects: [[0, 0, 6, 5]], names: { 'sensor.living_room_temperature': 'Lounge Temp' }, light_fx: { 'light.living_room': 'strip' }, strip_mode: 'walls', entities: ['script.movie_night', 'cover.living_room_blinds'], furniture: [
     { type: 'sofa', from: [0.9, 0.15], to: [5.1, 1.1], back: 'n' }, { type: 'tv', x: 3, z: 4.8, w: 1.6, h: 0.9, y: 0.6, entity: 'media_player.living_room_tv' },
     { type: 'blinds', from: [0.8, 0], to: [2.6, 0], entity: 'cover.living_room_blinds' }, { type: 'vacuum', x: 5.4, z: 4.6, entity: 'vacuum.robo' }] },
