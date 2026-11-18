@@ -208,6 +208,10 @@ try {
   check('…turning it on hides the tip (hint: false)', await p.evaluate(() => editor._config.hint === false));
   await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = false; i.dispatchEvent(new Event('change')); });
   check('…turning it off shows it again', await p.evaluate(() => !('hint' in editor._config)));
+  check('the tip switched off also drops "tap a room" from the 3D view\'s subtitle', await p.evaluate(async () => {
+    const T = customElements.get('t-card'), sub = async hint => { const el = new T(); el.setConfig({ ...card._config, hint }); document.body.appendChild(el); el.hass = window.hassObj; await new Promise(r => setTimeout(r, 300)); const t = el.shadowRoot.querySelector('.stage .title span').textContent; el.remove(); return t; };
+    return (await sub(false)) === 'Live 3D view' && (await sub(undefined)).includes('tap a room');
+  }));
   check('the editor lists the names on this dashboard', await p.evaluate(id => !!editor.querySelector(`[data-nm="${id}"]`) && editor.querySelector(`[data-nm="${id}"]`).value === 'Panel Name', rid));
   await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
   check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));

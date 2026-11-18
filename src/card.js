@@ -490,7 +490,7 @@ export class SweetHomeCard extends HTMLElement {
        <div class="home-grid">
         <section class="stage card">
           <div class="stage-top">
-            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${tr('Live 3D view · tap a room')}</span></div></div>
+            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
             <div class="seg" id="modeSeg">
               <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
               <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>

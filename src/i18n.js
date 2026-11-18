@@ -7,7 +7,7 @@
 const AR = {
   // tabs, 3D view
   Home: 'الرئيسية', Security: 'الأمان', Climate: 'المناخ', Energy: 'الطاقة', 'Water & Garden': 'المياه والحديقة', Media: 'الوسائط', System: 'النظام',
-  Lights: 'الإضاءة', Presence: 'التواجد', 'Live 3D view · tap a room': 'عرض ثلاثي الأبعاد مباشر · اضغط على أي غرفة', 'Building your home…': 'جارٍ بناء منزلك…',
+  Lights: 'الإضاءة', Presence: 'التواجد', 'Live 3D view · tap a room': 'عرض ثلاثي الأبعاد مباشر · اضغط على أي غرفة', 'Live 3D view': 'عرض ثلاثي الأبعاد مباشر', 'Building your home…': 'جارٍ بناء منزلك…',
   'Top view': 'عرض علوي', '3D view': 'عرض ثلاثي الأبعاد', 'Auto-rotate': 'دوران تلقائي', 'Move furniture': 'تحريك الأثاث', Floors: 'الطوابق',
   occupied: 'مشغولة', empty: 'فارغة', 'lights on': 'إضاءة تعمل', off: 'مطفأة',
   'Good night': 'تصبح على خير', 'Good morning': 'صباح الخير', 'Good afternoon': 'مساء الخير', 'Good evening': 'مساء الخير',
