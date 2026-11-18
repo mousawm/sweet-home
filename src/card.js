@@ -3129,10 +3129,12 @@ class HouseScene {
     const cyl = (room, x, z, r, h, color, y = 0, o) => add(room, new T.CylinderGeometry(r, r, h, 28), M(color, o), x, y + h / 2, z);
     const ball = (room, x, z, r, color, y) => add(room, new T.SphereGeometry(r, 20, 16), M(color, { r: 0.9 }), x, y, z);
     // sofa: footprint extents, back side n/s/e/w, arms on the two ends
-    const sofa = (room, x0, z0, x1, z1, back, color, cushion, pillow, arms = 'both') => {
+    const sofa = (room, x0, z0, x1, z1, back, color, cushion, pillow, arms = 'both', cornerBack = null) => {
       const seatH = 0.42, backT = 0.22, armT = 0.18;
       ext(room, x0, z0, x1, z1, 0.3, color);
       const horiz = back === 'n' || back === 's';
+      // the corner of an L-shaped sofa: a back on its outer end too
+      if (cornerBack && horiz) { if (cornerBack === 'start') ext(room, x0, z0, x0 + backT, z1, 0.86, color); else ext(room, x1 - backT, z0, x1, z1, 0.86, color); }
       if (back === 'n') ext(room, x0, z0, x1, z0 + backT, 0.86, color);
       if (back === 's') ext(room, x0, z1 - backT, x1, z1, 0.86, color);
       if (back === 'w') ext(room, x0, z0, x0 + backT, z1, 0.86, color);
@@ -3219,7 +3221,7 @@ class HouseScene {
           case 'rug': rug(rm, N(f.x, 0), N(f.z, 0), N(f.w, 2), N(f.d, 1.5), C(f.color, 0x9ca3af)); break;
           case 'cylinder': cyl(rm, N(f.x, 0), N(f.z, 0), N(f.radius, 0.2), N(f.h, 0.5), C(f.color, 0xd6cfc4), N(f.y, 0), opt(f)); break;
           case 'ball': ball(rm, N(f.x, 0), N(f.z, 0), N(f.radius, 0.2), C(f.color, 0xf9a8d4), N(f.y, 0.2)); break;
-          case 'sofa': sofa(rm, N(f.x0, 0), N(f.z0, 0), N(f.x1, 2), N(f.z1, 1), f.back || 'n', C(f.color, 0x475569), C(f.cushion, 0x64748b), f.pillow === false ? null : C(f.pillow, 0xe2e8f0), f.arms || 'both'); break;
+          case 'sofa': sofa(rm, N(f.x0, 0), N(f.z0, 0), N(f.x1, 2), N(f.z1, 1), f.back || 'n', C(f.color, 0x475569), C(f.cushion, 0x64748b), f.pillow === false ? null : C(f.pillow, 0xe2e8f0), f.arms || 'both', f.cornerBack); break;
           case 'bed': bed(rm, N(f.x, 0), N(f.z, 0), N(f.width, 1.4), N(f.length, 2.0), f.head || 'n', C(f.frame, 0x7c5a3c), C(f.duvet, 0x93c5fd), C(f.headboard, 0xe8dcc8), { pillow: C(f.pillow, 0xffffff), house: !!f.house_headboard, hbH: f.headboard_height }); break;
           case 'chair': chair(rm, N(f.x, 0), N(f.z, 0), f.face || 'n', C(f.color, 0x334155), f.seat != null ? C(f.seat) : undefined); break;
           case 'table': table(rm, N(f.x, 0), N(f.z, 0), N(f.w, 1.2), N(f.d, 0.8), N(f.h, 0.76), C(f.top, 0xd8ccb2), C(f.leg, 0xb7a684), opt(f)); break;

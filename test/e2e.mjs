@@ -346,10 +346,30 @@ try {
   await p.waitForTimeout(1500);
   check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
   await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
+  // resizing a turned sofa: only the side dragged changes, the other keeps its exact size
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); });
+  const hd = await p.evaluate(() => editor._handles()[0]);
+  await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
+  check('resizing a turned sofa keeps its width (0.9 m) and changes only its length', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.w === 0.9 && f.d === 3; }));
+  // a sofa's parts each get a colour: frame and back, seat cushions, pillows
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._fsel = 0; editor._render(); });
+  check('a sofa has colours for its seat cushions and pillows, showing the 3D defaults', await p.evaluate(() => { const c = editor.querySelector('ha-form input[name=c_cushion]'), pl = editor.querySelector('ha-form input[name=c_pillow]'); return c?.value === '#64748b' && pl?.value === '#e2e8f0'; }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=c_cushion]'); i.value = '#7c3aed'; i.dispatchEvent(new Event('change')); });
+  check('…changing the cushions writes only the cushions', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.cushion === '#7c3aed' && f.pillow === undefined; }));
+  await p.waitForTimeout(1500);
+  check('…and the 3D sofa uses it', await p.evaluate(() => card._model.furniture.find(f => f.type === 'sofa' && f.room === 'living_room')?.cushion === 0x7c3aed));
+  // the same for a counter (written with corners, as the suggested kitchen set writes it) and a counter at its default size
+  for (const piece of [{ type: 'block', from: [1, 1], to: [3.5, 1.6], h: 0.9 }, { type: 'block', x: 3, z: 3, w: 2, d: 0.6 }]) {
+    await p.evaluate(pc => { const r = editor._config.house.rooms[0]; r.furniture = [pc]; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); }, piece);
+    const h2 = await p.evaluate(() => editor._handles()[0]);
+    await drag(h2, [h2[0] + 0.1, h2[1] + 1]);
+    check(`resizing a turned counter keeps its depth (${piece.from ? 'corners' : 'centre and size'})`, await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0], b = f.from ? [Math.abs(f.to[0] - f.from[0]), Math.abs(f.to[1] - f.from[1])] : [f.w, f.d]; return Math.abs(b[0] - 0.6) < 1e-6 && b[1] > 2.5; }));
+  }
+  await p.evaluate(() => { delete editor._config.house.rooms[0].furniture; editor._mode = 'shape'; editor._fsel = null; editor._emit(); editor._render(); });
   // drawing a room's walls corner by corner (straight walls snap to 45°), and rotating a room by any angle
   await p.evaluate(() => { editor._sel = 2; editor._mode = 'shape'; editor._stool = 'draw'; editor._render(); });
   for (const q of [[0, 5], [6, 5], [6, 8.2], [3.1, 9.9], [0, 9.9], [0, 5]]) { await p.mouse.click(...await pt(...q)); await p.waitForTimeout(80); }
-  check('drawing walls: tap each corner, back on the first one closes the room (a slanted wall snaps to 45°)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points) === '[[0,5],[6,5],[6,8],[4,10],[0,10]]' && editor._stool === 'rect') || await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points)));
+  check('drawing walls: tap each corner, back on the first one closes the room (a slanted wall snaps to 45°)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points) === '[[0,5],[6,5],[6,8],[3.5,10.5],[0,10.5]]' && editor._stool === 'rect'));
   await p.evaluate(() => { editor._sel = 0; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-rotby="15"]').click(); });
   check('rotating a room by 15° (a rectangle becomes free corners, turned around its middle)', await p.evaluate(() => { const P = editor._config.house.rooms[0].points; return P?.length === 4 && Math.abs(P[0][0] - (3 - 3 * Math.cos(Math.PI / 12) + 2.5 * Math.sin(Math.PI / 12))) < 0.02 && !editor._config.house.rooms[0].rects; }));
   await p.evaluate(() => { const i = editor.querySelector('[data-rotdeg]'); i.value = '-15'; i.dispatchEvent(new Event('change')); });

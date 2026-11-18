@@ -78,6 +78,12 @@ const NEW_PIECE = {
 };
 const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
 const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
+// pieces made of several parts: a colour for each of the other parts too, with the colour the 3D view uses by default
+const PART_COLORS = {
+  sofa: [['cushion', 'Seat cushions', '#64748b'], ['pillow', 'Pillows', '#e2e8f0']],
+  bed: [['frame', 'Frame', '#7c5a3c'], ['headboard', 'Headboard', '#e8dcc8'], ['pillow', 'Pillows', '#ffffff']],
+  table: [['leg', 'Legs', '#b7a684']], chair: [['seat', 'Seat', '#334155']],
+};
 const DIRS = ['n', 'e', 's', 'w'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
 // option lists are translated when a form is drawn
@@ -811,7 +817,9 @@ class SweetHomeCardEditor extends HTMLElement {
       const f = arr(r.furniture)[this._fsel];
       if (f) for (const hd of this._handles()) if (near(p, hd)) {
         const b = fpBox(footprint(f));
-        return { move: m => sizePiece(f, b[0], b[1], Math.max(b[0] + 0.1, snap(m[0])), Math.max(b[1] + 0.1, snap(m[1]))) };
+        // the size changes by the grid steps dragged, on each side on its own: a side not dragged keeps its exact size
+        const step = v => Math.round(v / this._grid) * this._grid;
+        return { move: m => sizePiece(f, b[0], b[1], r2(Math.max(b[0] + 0.1, b[2] + step(m[0] - hd[0]))), r2(Math.max(b[1] + 0.1, b[3] + step(m[1] - hd[1])))) };
       }
       // a piece (the selected room's first, then any room's, topmost first): select it and drag to move
       const hit = this._pieceAt(p, tol * 0.4);
@@ -1103,9 +1111,11 @@ class SweetHomeCardEditor extends HTMLElement {
     const D = this._draft || [], last = D[D.length - 1];
     if (!last || this._drawFree) return [snap(p[0]), snap(p[1])];
     const dx = p[0] - last[0], dz = p[1] - last[1], L = Math.hypot(dx, dz); if (L < 1e-6) return [last[0], last[1]];
-    const a = Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4), diag = Math.abs(Math.sin(a) * Math.cos(a)) > 0.1;
-    const len = diag ? Math.max(this._grid, Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid) : Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid;
-    return [r2(last[0] + Math.cos(a) * len), r2(last[1] + Math.sin(a) * len)];
+    // the wall's direction to the nearest 45°; its length in grid steps along x and z, so its end stays on the grid
+    const a = Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4), along = L * Math.cos(Math.atan2(dz, dx) - a);
+    const ux = Math.round(Math.cos(a)), uz = Math.round(Math.sin(a)), diag = ux && uz;
+    const n = Math.max(1, Math.round((diag ? along / Math.SQRT2 : along) / this._grid)) * this._grid;
+    return [r2(last[0] + ux * n), r2(last[1] + uz * n)];
   }
   _drawTap(m, tol, snap) {
     const D = (this._draft ||= []), q = this._drawSnap(m, snap);
@@ -1411,13 +1421,16 @@ class SweetHomeCardEditor extends HTMLElement {
   _pieceForm(slot, r, f) {
     const ty = f.type, ck = COLOR_KEY[ty] || 'color', fields = PIECE_FIELDS[ty] || [];
     const ents = furnEntities(f);
+    const parts = PART_COLORS[ty] || [];
     const data = { name: f.name || '', entities: ents, badge: f.badge !== false, color: hex2rgb(f[ck]) };
+    for (const [k, , d] of parts) data['c_' + k] = hex2rgb(typeof f[k] === 'string' ? f[k] : d);
     for (const [k] of fields) if (f[k] !== undefined) data[k] = f[k];
     const schema = [
       { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[ty] ? { filter: ENTITY_FILTER[ty] } : {}) } } },
       { name: 'name', selector: { text: {} } },
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
       ...(['plant', 'stairs', 'charger', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
+      ...(parts.length ? [{ type: 'grid', name: '', schema: parts.map(([k]) => ({ name: 'c_' + k, selector: { color_rgb: {} } })) }] : []),
       ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
     ];
     const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
@@ -1434,11 +1447,12 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.name) f.name = v.name; else delete f.name;
       for (const [k] of fields) { if (v[k] !== undefined && v[k] !== '' && v[k] !== null) f[k] = v[k]; }
       const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
+      for (const [k, , d] of parts) { const c = rgb2hex(v['c_' + k]); if (c && (c !== d || typeof f[k] === 'string')) f[k] = c; } // the other parts' colours
       if (v.badge === false && ids.length) f.badge = false; else delete f.badge;
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
-    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: 'Colour' }, true));
+    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
   }
 
   /* ---------------- Doors & windows mode ---------------- */

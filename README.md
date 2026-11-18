@@ -107,6 +107,11 @@ The dashboard is generated for you until you take control of it:
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
         **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
+        Two sofas (or two counters) placed at a right angle with their ends overlapping become one L-shaped corner sofa
+        (or corner counter; worktops at the same height join too). Pieces made of several parts have a colour for each:
+        a sofa's frame and back, seat cushions and pillows; a bed's duvet, frame, headboard and pillows; a table's top and
+        legs; a chair's frame and seat. Resizing
+        changes only the side you drag; the other keeps its exact size.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
         Drag any of them to move it. On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
