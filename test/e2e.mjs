@@ -61,7 +61,10 @@ try {
     const w = card.shadowRoot.getElementById('water'); return !!w.querySelector('[data-id="switch.well_pump"][data-id2="sensor.well_pump_power"]') && !!w.querySelector('[data-id="sensor.water_flow"]') && !!w.querySelector('[data-id="valve.garden"]');
   }));
   await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(300);
-  check('needs attention rows have a hide button', await p.evaluate(() => !!card.shadowRoot.querySelector('#alerts [data-act=exclude][data-id="sensor.door_sensor_battery"]')));
+  check('needs attention: no hide button outside edit mode', await p.evaluate(() => { card._setTab('system'); return !card.shadowRoot.querySelector('#alerts [data-act=exclude]'); }));
+  await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(200);
+  check('…the hide button shows while the dashboard is edited', await p.evaluate(() => { card._setTab('system'); return !!card.shadowRoot.querySelector('#alerts [data-act=exclude][data-id="sensor.door_sensor_battery"]'); }));
+  await p.evaluate(() => { card.editMode = false; card._setTab('home'); }); await p.waitForTimeout(150);
   await p.evaluate(() => card._setTab('home'));
   check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
   await p.evaluate(() => { const h = window.hassObj; h.states['binary_sensor.car_parked'] = { ...h.states['binary_sensor.car_parked'], state: 'off' }; card.hass = { ...h, states: { ...h.states } }; });

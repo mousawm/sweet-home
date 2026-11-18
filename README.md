@@ -296,7 +296,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   - `unavailable_domains`, `unavailable_integrations`
   - `exclude_devices` (device IDs or names), `exclude_entities`, `battery_exclude_devices` (only left out of low
     batteries), `battery_exclude`
-  - In the card, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
+  - While the dashboard is edited, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
     lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
 
 ## Gestures

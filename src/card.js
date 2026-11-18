@@ -1232,7 +1232,7 @@ export class SweetHomeCard extends HTMLElement {
         if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
         break;
       }
-      case 'exclude': {
+      case 'exclude': if (!this._editing) break; {
         if (!this._armConfirm(t, id, tr('Tap again to hide it'))) return;
         this._excludeDevice(id, t.dataset.kind); break;
       }
@@ -1871,7 +1871,8 @@ export class SweetHomeCard extends HTMLElement {
     // excluded devices: by device ID (what the card editor writes) or by name
     const exDev = (id, extra = []) => { const l = [...A.excludeDevices, ...extra]; return l.includes(devName(id)) || l.includes(h.entities?.[id]?.device_id); };
     // admins get a button on each row to leave that device (or the entity, when it has none) out from now on
-    const hide = (id, kind = '') => (h.user?.is_admin ? `<button class="hbtn" data-act="exclude" data-id="${id}" data-kind="${kind}" title="${esc(tr('Hide this device here'))}" aria-label="${esc(tr('Hide this device here'))}">${ic('mdi:eye-off-outline')}</button>` : '');
+    // hiding a device from this list is part of editing the dashboard: the eye only shows in edit mode
+    const hide = (id, kind = '') => (h.user?.is_admin && this._editing ? `<button class="hbtn edit-only" data-act="exclude" data-id="${id}" data-kind="${kind}" title="${esc(tr('Hide this device here'))}" aria-label="${esc(tr('Hide this device here'))}">${ic('mdi:eye-off-outline')}</button>` : '');
     const nm = st => tc(st.attributes.friendly_name || st.entity_id);
     // label = the main device (bold) with the entity under it; just the entity when it has no device
     const lab = (st, name = nm(st)) => {
