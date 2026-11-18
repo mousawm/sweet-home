@@ -91,6 +91,11 @@ The dashboard is generated for you until you take control of it:
           room that shape in the space it takes now. **Turn** and **Mirror** change which way it faces.
         - **Edit corners** gives a room free corners. Drag a corner to move it, which slants the walls next to it. Drag
           the square in the middle of a wall to bend it into a curve, or tap the square to add a corner there.
+        - **Draw walls**: tap each corner of the room in turn and its walls follow; tap the first corner again (or
+          **Done**) to close it. **Straight walls** keeps every wall at a multiple of 45°; turn it off to draw at any angle.
+          **Remove last corner** (or Backspace) steps back.
+        - **Rotate**: **Turn** (a quarter), **15°** either way, or type any angle. A room drawn with rectangles gets free
+          corners first. In the room-by-room guide, **Turn** turns the ready-made shape before it is added.
         - **Separate walls**: drag on the plan to draw a wall that stands on its own, in any direction. Use it for a
           partition, a kitchen half wall, a glass screen or a curved garden wall. Tap one to set its kind, height and
           bend, or drag it to move it. Doors and openings cut separate walls too.

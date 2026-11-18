@@ -174,6 +174,11 @@ const AR = {
   'That was the last area. Drag the rooms on the plan to fine-tune them, then add doors, devices and furniture.': 'كانت هذه آخر منطقة. اسحب الغرف على المخطط لضبطها، ثم أضف الأبواب والأجهزة والأثاث.',
   'No areas left to add.': 'لا توجد مناطق متبقية للإضافة.', 'After adding, drag the room on the plan below to move it or its corners to resize it.': 'بعد الإضافة، اسحب الغرفة على المخطط بالأسفل لتحريكها أو اسحب زواياها لتغيير حجمها.', Room: 'غرفة',
   'New room': 'غرفة جديدة',
+  // drawing walls, rotating
+  'Draw walls': 'رسم الجدران', 'Rotate 15° anticlockwise': 'تدوير 15° عكس عقارب الساعة', 'Rotate 15° clockwise': 'تدوير 15° مع عقارب الساعة', 'Rotate by an angle (degrees, clockwise)': 'تدوير بزاوية (درجات، مع عقارب الساعة)',
+  'Tap each corner of {0} in turn: the walls follow. Tap the first corner again (or Done) to close the room. Its shape is replaced by what you draw.': 'اضغط على كل زاوية من {0} بالترتيب: تتبعها الجدران. اضغط على الزاوية الأولى مجددًا (أو تم) لإغلاق الغرفة. يحل ما ترسمه محل شكلها.',
+  '{0} corners': '{0} زوايا', 'Straight walls (every 45°)': 'جدران مستقيمة (كل 45°)', 'Remove last corner': 'إزالة آخر زاوية', Cancel: 'إلغاء',
+  'Drawing the walls of {0}: tap each corner on the plan (one square = {1} m).': 'رسم جدران {0}: اضغط على كل زاوية على المخطط (المربع الواحد = {1} م).',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

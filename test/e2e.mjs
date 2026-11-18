@@ -338,6 +338,15 @@ try {
   await p.waitForTimeout(1500);
   check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
   await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
+  // drawing a room's walls corner by corner (straight walls snap to 45°), and rotating a room by any angle
+  await p.evaluate(() => { editor._sel = 2; editor._mode = 'shape'; editor._stool = 'draw'; editor._render(); });
+  for (const q of [[0, 5], [6, 5], [6, 8.2], [3.1, 9.9], [0, 9.9], [0, 5]]) { await p.mouse.click(...await pt(...q)); await p.waitForTimeout(80); }
+  check('drawing walls: tap each corner, back on the first one closes the room (a slanted wall snaps to 45°)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points) === '[[0,5],[6,5],[6,8],[4,10],[0,10]]' && editor._stool === 'rect') || await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points)));
+  await p.evaluate(() => { editor._sel = 0; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-rotby="15"]').click(); });
+  check('rotating a room by 15° (a rectangle becomes free corners, turned around its middle)', await p.evaluate(() => { const P = editor._config.house.rooms[0].points; return P?.length === 4 && Math.abs(P[0][0] - (3 - 3 * Math.cos(Math.PI / 12) + 2.5 * Math.sin(Math.PI / 12))) < 0.02 && !editor._config.house.rooms[0].rects; }));
+  await p.evaluate(() => { const i = editor.querySelector('[data-rotdeg]'); i.value = '-15'; i.dispatchEvent(new Event('change')); });
+  check('…and back by typing an angle (to the centimetre)', await p.evaluate(() => [[0, 0], [6, 0], [6, 5], [0, 5]].every((q, i) => Math.abs(editor._config.house.rooms[0].points[i][0] - q[0]) <= 0.011 && Math.abs(editor._config.house.rooms[0].points[i][1] - q[1]) <= 0.011)));
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; delete r.points; r.rects = [[0, 0, 6, 5]]; editor._emit(); editor._render(); }); // as it was, for the tests below
   // room shapes: ready-made shapes, corners, bends, separate walls
   await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
   check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));
@@ -371,6 +380,9 @@ try {
   check('…the next area gets a size that suits its name', await p.evaluate(() => editor._wiz.w === 3.5 && editor._wiz.d === 3 && editor.querySelector('.sh-wiz-name').textContent.startsWith('Kitchen')));
   await p.evaluate(() => { editor.querySelector('[data-wshape=l]').click(); });
   check('…the plan shows where the next room will go (dashed, with its name)', await p.evaluate(() => [...editor.querySelectorAll('.sh-plan path[stroke-dasharray="8 6"]')].length === 1 && [...editor.querySelectorAll('.sh-plan text')].some(t => t.textContent === 'Kitchen')));
+  await p.evaluate(() => editor.querySelector('[data-wturn]').click());
+  check('…a ready-made shape can be turned before it is added', await p.evaluate(() => editor._wiz.rot === 1 && editor.querySelector('[data-wturn]').textContent.includes('90°')));
+  await p.evaluate(() => editor.querySelector('[data-wturn]').click()); await p.evaluate(() => editor.querySelector('[data-wturn]').click()); await p.evaluate(() => editor.querySelector('[data-wturn]').click());
   await p.evaluate(() => { const s = editor.querySelector('[data-wside]'); s.value = 'below'; s.dispatchEvent(new Event('change')); editor.querySelector('[data-wadd]').click(); });
   check('…with a shape, placed below the last room without overlapping', await p.evaluate(() => { const r = editor._config.house.rooms[1]; return r.area === 'kitchen' && r.points?.length === 6 && Math.min(...r.points.map(q => q[1])) === 3; }));
   await p.evaluate(() => editor.querySelector('[data-wcustom]').click());
