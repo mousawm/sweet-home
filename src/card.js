@@ -1490,11 +1490,13 @@ export class SweetHomeCard extends HTMLElement {
     const st = this.v(E.alarm);
     const al = ALARM[st] || [st || '—', 'mdi:shield', '#94a3b8'];
     const btn = (svc, icon, label, match) => `<button class="abtn ${st === match ? 'on' : ''}" data-act="alarm" data-svc="${svc}" title="${label}">${ic(icon)}<span>${label}</span></button>`;
+    // a lock shows what it locks (door, gate, garage…) with a small padlock that tells its state; a plain lock is a padlock
     const locks = E.locks.map(l => {
       const s = this.v(l.id); const locked = s === 'locked'; const bad = !this.ok(l.id);
       const cls = bad ? 'na' : locked ? 'good' : s === 'unlocked' ? 'bad' : 'warn';
-      return `<button class="lock ${cls}" data-act="lock" data-id="${l.id}">
-        <div class="lk-ic">${ic(locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock-clock')}</div>
+      const pad = locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : s === 'jammed' ? 'mdi:lock-alert' : 'mdi:lock-clock';
+      return `<button class="lock ${cls}" data-act="lock" data-id="${l.id}" data-kind="${l.kind || 'padlock'}">
+        <div class="lk-ic">${l.icon ? `${ic(l.icon)}<i class="lk-b">${ic(pad)}</i>` : ic(pad)}</div>
         <b>${esc(l.name)}</b><span>${esc(s || '—')}</span></button>`;
     }).join('');
     // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
@@ -4001,7 +4003,8 @@ main{scroll-margin-top:84px}
 .abtn.on{background:color-mix(in srgb,var(--c) 25%,transparent);color:#fff;border-color:var(--c)}
 .locks{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:12px}
 .lock{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 4px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);transition:.2s}
-.lk-ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;margin-bottom:4px}
+.lk-ic{position:relative;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;margin-bottom:4px}
+.lk-b{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--panel2,#1e293b);border:1.5px solid currentColor;font-style:normal}.lk-b ha-icon{--mdc-icon-size:11px}
 .lock b{font-size:12px;font-weight:600}.lock span{font-size:11px;color:var(--mu);text-transform:capitalize}
 .lock.good .lk-ic{background:rgba(52,211,153,.15);color:var(--green)}
 .lock.bad{border-color:rgba(251,113,133,.5);background:rgba(244,63,94,.1)}.lock.bad .lk-ic{background:rgba(244,63,94,.2);color:var(--rose);box-shadow:0 0 18px -4px var(--rose)}

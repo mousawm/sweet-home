@@ -123,6 +123,11 @@ test('a door on a slanted wall snaps onto it and cuts it', () => {
   const diag = m.walls.filter(w => w[0] !== w[2] && w[1] !== w[3]);
   assert.equal(diag.length, 2, 'the slanted wall has a gap');
 });
+test('locks: what they lock picks the icon (guessed, or kind / icon given)', () => {
+  const h = { ...hass, states: { ...hass.states, 'lock.front': st('locked', { friendly_name: 'Front Door' }), 'lock.x': st('locked', { friendly_name: 'Thing' }) } };
+  const m = buildModel({ panels: { security: { locks: ['lock.front', 'lock.x', { entity: 'lock.x', kind: 'gate' }, { entity: 'lock.x', icon: 'mdi:star' }] } } }, h);
+  assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', 'mdi:door-closed'], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']]);
+});
 test('furniture keeps its place in the config and its entities', () => {
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], furniture: [{ type: 'lamp', x: 1, z: 1, entity: 'light.living' }, { type: 'bed', x: 2, z: 2, entities: ['light.bed', 'light.living'] }] }] } }, hass);
   assert.deepEqual(m.furniture.map(f => f.src), [{ room: 0, i: 0 }, { room: 0, i: 1 }]);

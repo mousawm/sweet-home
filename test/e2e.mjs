@@ -87,6 +87,10 @@ try {
     const t = id => card.shadowRoot.querySelector(`#security [data-act=entrance][data-id="${id}"]`)?.textContent.replace(/\s+/g, ' ') || '';
     return t('cover.garage_door').includes('Garage Door') && t('cover.garage_door').includes('Closed') && t('cover.driveway_gate').includes('Opening') && t('switch.gate_relay').includes('Main Gate') && t('switch.gate_relay').includes('Open');
   }));
+  check('locks show what they lock, with a padlock badge for their state', await p.evaluate(() => {
+    const k = id => { const b = card.shadowRoot.querySelector(`#security [data-act=lock][data-id="${id}"]`); return b ? [b.dataset.kind, b.querySelector('.lk-ic > ha-icon').getAttribute('icon'), b.querySelector('.lk-b ha-icon')?.getAttribute('icon') || ''].join() : ''; };
+    return k('lock.front_door') === 'door,mdi:door-closed,mdi:lock' && k('lock.garage_side') === 'garage,mdi:garage,mdi:lock' && k('lock.home_safe') === 'safe,mdi:safe,mdi:lock' && k('lock.shed') === 'padlock,mdi:greenhouse,mdi:lock' && k('lock.bike') === 'padlock,mdi:lock,';
+  }));
   for (const id of ['cover.garage_door', 'cover.driveway_gate', 'switch.gate_relay']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#security [data-act=entrance][data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
   check('a second tap opens the garage door, stops the moving gate, pulses the relay', await p.evaluate(() => { const c = window.calls || [], has = (d, s, id) => c.some(x => x[0] === d && x[1] === s && x[2].entity_id === id); return has('cover', 'open_cover', 'cover.garage_door') && has('cover', 'stop_cover', 'cover.driveway_gate') && has('switch', 'turn_on', 'switch.gate_relay'); }));
   check('one tap alone does nothing', await p.evaluate(() => (window.calls || []).filter(x => x[2]?.entity_id === 'cover.garage_door').length === 1));
