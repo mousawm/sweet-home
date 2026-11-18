@@ -151,6 +151,27 @@ try {
     const ok = !L.some(l => !l.textContent.trim()) && t.some(x => x.includes('Living Room')) && t.some(x => x.includes('Living room corridor'));
     el.remove(); const c = new T(); c.setConfig(JSON.parse(JSON.stringify(cfg)).house ? (cfg.house.rooms.pop(), cfg) : cfg); document.body.appendChild(c); window.card = c; c.hass = window.hassObj; await new Promise(r => setTimeout(r, 600)); return ok;
   }));
+  await p.evaluate(() => card._setTab('home')); await p.waitForTimeout(200);
+  const cfg0 = await p.evaluate(() => JSON.stringify(card._config));
+  check('modes: icons from their names, renamed from the Modes panel (pencil while editing)', await p.evaluate(async () => {
+    const ico = () => [...card.shadowRoot.querySelectorAll('#modes .tile')].map(b => b.querySelector('ha-icon')?.getAttribute('icon'));
+    const before = ico(); card.editMode = true; await new Promise(r => setTimeout(r, 150));
+    card.shadowRoot.querySelector('#modes [data-act=rnsec]')?.click(); await new Promise(r => setTimeout(r, 150));
+    const inp = card.shadowRoot.querySelector('#sheet [data-rename="input_boolean.guests"]'); if (!inp) return 'no rename row ' + before;
+    inp.value = 'Visitors'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+    const keep = window.__sweetHomeEditor; window.__sweetHomeEditor = { isConnected: true, applyExternal: c => { card.setConfig(c); } };
+    card.shadowRoot.querySelector('#sheet [data-act=rnsave]').click(); await new Promise(r => setTimeout(r, 1500)); window.__sweetHomeEditor = keep;
+    const names = [...card.shadowRoot.querySelectorAll('#modes .tile span')].map(x => x.textContent); card.editMode = false;
+    const ok = before[0] === 'mdi:account-multiple' && before[1] === 'mdi:motion-sensor-off' && before[2] === 'mdi:weather-night' && names.includes('Visitors'); if (!ok) console.log(JSON.stringify([before, names])); return ok;
+  }));
+  check('Look → automatic icons off: Home Assistant\'s icons', await p.evaluate(async () => {
+    const h = window.hassObj; h.states['input_boolean.guests'] = { ...h.states['input_boolean.guests'], attributes: { ...h.states['input_boolean.guests'].attributes, icon: 'mdi:home-heart' } }; card.hass = { ...h, states: { ...h.states } };
+    card.setConfig({ ...JSON.parse(JSON.stringify(card._config)), smart_icons: false }); await new Promise(r => setTimeout(r, 1200));
+    const off = card.shadowRoot.querySelector('#modes .tile ha-icon')?.getAttribute('icon');
+    card.setConfig({ ...JSON.parse(JSON.stringify(card._config)), smart_icons: true }); await new Promise(r => setTimeout(r, 1200));
+    return off === 'mdi:home-heart' && card.shadowRoot.querySelector('#modes .tile ha-icon')?.getAttribute('icon') === 'mdi:account-multiple';
+  }));
+  await p.evaluate(async c => { card.setConfig(JSON.parse(c)); await new Promise(r => setTimeout(r, 1200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); }, cfg0);
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

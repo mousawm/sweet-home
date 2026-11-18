@@ -273,6 +273,10 @@ furniture:
 | `sprinkler` | `x z radius entity`: sprays water in 3D while its valve or switch is on |
 | all types | `entity` / `entities`, `name`, `badge` |
 
+**Icons.** Switches, fans, plugs, modes, scripts and phone buttons get an icon that suits their name (a fan, a water heater,
+a guest mode…), in English or Arabic; a fan's icon turns while it is on. `smart_icons: false` (Look → *Automatic icons*
+off) uses the icons set in Home Assistant instead. An icon you set in the card always wins.
+
 `facing` is the side a piece's front looks to; `w` and `d` are its size along x and z. In the editor, a toilet, sink, washer…
 placed near a wall sits flat against it and turns to face into the room. Automatic bathrooms get a toilet, a sink and a
 bathtub (or a shower when the room is small); laundries get a washing machine.

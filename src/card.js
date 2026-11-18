@@ -25,7 +25,7 @@ function useModel(m) {
 }
 // sections shown on each tab
 // panels whose entities can be renamed for this dashboard (pencil in edit mode)
-const RN_SECS = ['glance', 'security', 'cams', 'climate', 'energy', 'car', 'ehist', 'water', 'irrigation', 'media', 'mserver', 'tvlight', 'alerts', 'lab', 'devices'];
+const RN_SECS = ['glance', 'modes', 'security', 'cams', 'climate', 'energy', 'car', 'ehist', 'water', 'irrigation', 'media', 'mserver', 'tvlight', 'alerts', 'lab', 'devices'];
 const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], climate: ['climate'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'lab', 'devices'] };
 
 /* ------------------------------------------------------------------ */
@@ -228,6 +228,7 @@ const NAME_ICONS = [[/exhaust|ventilat|extract|\bfans?\b|مروحة|شفاط/, '
   [/do not disturb|\bdnd\b/, 'mdi:minus-circle'], [/guest/, 'mdi:account-multiple'], [/sleep|night|نوم/, 'mdi:weather-night'], [/away|vacation|holiday/, 'mdi:airplane'],
   [/motion|presence|occupan/, 'mdi:motion-sensor'], [/plug|socket|outlet|power ?strip|extension|قابس|مقبس/, 'mdi:power-socket-eu']];
 const NAMED_DOMAINS = ['switch', 'input_boolean', 'fan', 'button', 'input_button', 'script', 'automation', 'valve', 'humidifier'];
+let SMART = true; // `smart_icons` (Look): icons picked from names; off: the icon set in Home Assistant
 const nameIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (NAME_ICONS.find(([re]) => re.test(t)) || [])[1] || null; };
 const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
 // a button's label without the noise: "button Areen phone ring mod" → "Ring Mod" (the word "button" and the phone / person's name go)
@@ -277,6 +278,7 @@ export class SweetHomeCard extends HTMLElement {
   setConfig(config) {
     const prev = this._cfgJSON;
     this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
+    SMART = this._config.smart_icons !== false;
     if (this._built && prev !== this._cfgJSON) this._rebuild();
   }
   getCardSize() { return 20; }
@@ -746,7 +748,7 @@ export class SweetHomeCard extends HTMLElement {
           const d = id.split('.')[0], fn = this.s(id).attributes.friendly_name || id;
           // a name of your own (here or a dashboard name) as written; else the entity's name without "button" and the phone / person's name
           const dev = this._hass.devices?.[this._hass.entities?.[id]?.device_id] || {};
-          const nm = n || (this._nameMap?.[id] ? fn : cleanLabel(fn, [dev.name_by_user, dev.name, P.name, ps?.attributes.friendly_name, String(pid).split('.')[1]?.replace(/_/g, ' ')])), i = i0 || btnIcon(id, nm); return `<button class="phbtn" data-act="${d === 'script' || d === 'scene' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle'}" data-id="${id}" data-label="${esc(nm)}">${ic(i)}<span>${esc(nm)}</span></button>`; }).join('')}</div>`;
+          const nm = n || (this._nameMap?.[id] ? fn : cleanLabel(fn, [dev.name_by_user, dev.name, P.name, ps?.attributes.friendly_name, String(pid).split('.')[1]?.replace(/_/g, ' ')])), i = i0 || (SMART ? btnIcon(id, nm) : this.s(id).attributes.icon || domIcon(d, this.s(id).state, this.s(id).attributes)); return `<button class="phbtn" data-act="${d === 'script' || d === 'scene' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle'}" data-id="${id}" data-label="${esc(nm)}">${ic(i)}<span>${esc(nm)}</span></button>`; }).join('')}</div>`;
     } else {
       const rows = ROOMS.filter(r => r.temp && this.s(r.temp)).map(r => {
         const t = this.n(r.temp), h = r.hum ? this.n(r.hum) : null, ac = r.climate && this.climOn(r.climate);
@@ -1658,10 +1660,11 @@ export class SweetHomeCard extends HTMLElement {
 
   // Modes on the Home tab: on / off switches light up while on; scenes, scripts and buttons run with one tap
   _rModes() {
-    const t = E.modes.filter(m => this.s(m[0])).map(([id, n, i]) => {
+    const t = E.modes.filter(m => this.s(m[0])).map(([id, n, i, di]) => {
       const d = id.split('.')[0], st = this.s(id), run = ['scene', 'script', 'button', 'input_button'].includes(d), bad = BAD.includes(st.state);
-      const act = d === 'scene' || d === 'script' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle';
-      return `<button class="tile ${!run && this.on(id) ? 'on' : ''} ${bad ? 'na' : ''}" data-act="${act}" data-id="${id}" title="${esc(st.attributes.friendly_name || id)}">${ic(i)}<span>${esc(n || st.attributes.friendly_name || id)}</span></button>`;
+      const act = d === 'scene' || d === 'script' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle', name = n || st.attributes.friendly_name || id;
+      const icon = i || (SMART && nameIcon(id, name)) || st.attributes.icon || di; // its own icon, else one that suits its name, else Home Assistant's
+      return `<button class="tile ${!run && this.on(id) ? 'on' : ''} ${bad ? 'na' : ''}" data-act="${act}" data-id="${id}" title="${esc(name)}">${ic(icon, icon === 'mdi:fan' && this.on(id) ? 'spin' : '')}<span>${esc(name)}</span></button>`;
     }).join('');
     return `<div class="ch">${ic('mdi:tune-variant')}<h3>${tr('Modes')}</h3></div><div class="tiles">${t}</div>`;
   }
@@ -1715,7 +1718,7 @@ export class SweetHomeCard extends HTMLElement {
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
       const on = this.on(p.id); const w = this.n(p.power); const drawing = on && (w ?? 0) > 1.5, charger = /charg/i.test(`${p.icon} ${p.id} ${p.name}`), chg = drawing && charger;
       const val = !on ? tr('Off') : chg ? tr('Charging · {0} W', w.toFixed(1)) : drawing ? tr('On · {0} W', w < 10 ? w.toFixed(1) : Math.round(w)) : p.power ? tr('On · idle') : tr('On');
-      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon && p.icon !== 'mdi:power-socket-eu' ? p.icon : nameIcon(p.id, p.name) || 'mdi:power-socket-eu', on && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
+      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon && !['mdi:power-socket-eu', 'mdi:cellphone-charging'].includes(p.icon) ? p.icon : (SMART && nameIcon(p.id, p.name)) || this.s(p.id)?.attributes.icon || p.icon, on && SMART && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
     });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
@@ -1769,7 +1772,7 @@ export class SweetHomeCard extends HTMLElement {
     const rows = ids.map(id => {
       const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id;
       const cur = pend[id] ?? st.attributes.friendly_name ?? id;
-      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+      return `<label class="rnrow">${ic((SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
     return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}" aria-label="${tr('Done')}">${ic('mdi:check')}</button></div>
       <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change on this dashboard only. Clear a name to go back to the default.')}</div>
@@ -1782,13 +1785,13 @@ export class SweetHomeCard extends HTMLElement {
     if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
       // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
       const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
-      const ids = [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
+      const ids = sid === 'modes' ? E.modes.map(m => m[0]).filter(id => this.s(id)) : [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
       this._rnIds = { sid, ids };
     }
     const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = this._rnIds.ids.map(id => {
-      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? st.attributes.friendly_name ?? id;
-      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? (sid === 'modes' && E.modes.find(m => m[0] === id)?.[1]) ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic((SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
     return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
       + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
@@ -1818,6 +1821,7 @@ export class SweetHomeCard extends HTMLElement {
       const home = (ci != null && rooms[ci]) || holders.find(h => h.names?.[id] != null) || cfg;
       for (const h of holders) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
       if (v && v !== raw.states[id]?.attributes.friendly_name) (home.names ||= {})[id] = v;
+      for (const m of arr(cfg.modes)) if (m && typeof m === 'object' && m.entity === id) delete m.name; // a mode shows the name given here
     }
   }
   async _saveNames(r) {
@@ -1837,7 +1841,7 @@ export class SweetHomeCard extends HTMLElement {
     if (!st) return `<div class="mrow na">${ic('mdi:help-circle-outline')}<span>${esc(o.name || id)}</span><b>${tr('Not found')}</b></div>`;
     const d = id.split('.')[0], a = st.attributes, v = st.state, bad = BAD.includes(v);
     const name = esc(o.name || tc(a.friendly_name || id));
-    const icon = o.icon || a.icon || (a.device_class && DC_ICON[a.device_class] ? null : NAMED_DOMAINS.includes(d) && nameIcon(id, o.name || a.friendly_name)) || domIcon(d, v, a);
+    const icon = o.icon || (SMART && !(a.device_class && DC_ICON[a.device_class]) && NAMED_DOMAINS.includes(d) && nameIcon(id, o.name || a.friendly_name)) || a.icon || domIcon(d, v, a);
     if (o.val != null) return `<div class="mrow ${o.on ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(o.val)}</b></div>`;
     if (bad) return `<div class="mrow na" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(pretty(v))}</b></div>`;
     if (TOGGLE_DOMAINS.includes(d)) {

@@ -926,7 +926,7 @@ export function buildModel(cfg = {}, hass) {
     },
     // modes on the Home tab: switches, helpers, scenes, scripts, automations; `entity_id` or {entity, name, icon}
     modes: P.modes === false ? [] : arr(cfg.modes).map(m => (typeof m === 'string' ? { entity: m } : m)).filter(m => typeof m?.entity === 'string' && m.entity.includes('.'))
-      .map(m => [m.entity, m.name || null, m.icon || states[m.entity]?.attributes?.icon || MODE_ICON[m.entity.split('.')[0]] || 'mdi:toggle-switch-outline']),
+      .map(m => [m.entity, m.name || null, m.icon || null, MODE_ICON[m.entity.split('.')[0]] || 'mdi:toggle-switch-outline']), // [id, own name, own icon, the domain's icon]
     face: sec.face || null,
     forecast,
     tvLight: { light: P.tv_light?.light || null, selects: arr(P.tv_light?.selects).map(s => typeof s === 'string' ? [s, R.name(s), 'mdi:tune'] : [s.entity, s.name || R.name(s.entity), s.icon || 'mdi:tune']) },
