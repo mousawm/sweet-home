@@ -50,7 +50,11 @@ export function registry(hass) {
     return best(sameDevice(id, () => true)) || best(Object.keys(states).filter(e => e.startsWith(`sensor.${obj}_`) && (dc(e) === 'power' || isW(e))));
   };
   const ofPlatform = (p, re) => Object.keys(ents).filter(id => ents[id].platform === p && states[id] && (!re || re.test(id)));
-  return { states, ents, devs, areas, floors, areaOf, dc, name, visible, platform, byArea, sameDevice, ofPlatform, powerOf };
+  // a switch that is a smart plug: an outlet, one with a power sensor, or named like one (a phone charger, a socket…)
+  const PLUG_RE = /plug|socket|outlet|charger|power ?strip|extension|مقبس|قابس|شاحن/i;
+  const isPlug = id => String(id).startsWith('switch.') && (dc(id) === 'outlet' || PLUG_RE.test(id) || PLUG_RE.test(name(id)) || !!powerOf(id));
+  const plugIcon = id => /charger|شاحن/i.test(`${id} ${name(id)}`) ? 'mdi:cellphone-charging' : 'mdi:power-socket-eu';
+  return { states, ents, devs, areas, floors, areaOf, dc, name, visible, platform, byArea, sameDevice, ofPlatform, powerOf, isPlug, plugIcon };
 }
 
 // the level of each Home Assistant floor (its `level`, or its place in the list when it has none)
@@ -69,8 +73,8 @@ export function discoverRoom(R, areaId) {
   const lc = id => R.name(id).toLowerCase();
   const temps = ids.filter(id => d(id) === 'sensor' && R.dc(id) === 'temperature' && !/cpu|battery|device temp|processor|chip|board|water|outdoor/.test(lc(id)));
   const hums = ids.filter(id => d(id) === 'sensor' && R.dc(id) === 'humidity');
-  const plugs = ids.filter(id => d(id) === 'switch' && R.dc(id) === 'outlet').map(id => ({
-    id, name: R.name(id), icon: 'mdi:power-socket-eu',
+  const plugs = ids.filter(id => R.isPlug(id)).map(id => ({
+    id, name: R.name(id), icon: R.plugIcon(id),
     power: R.powerOf(id),
   }));
   return {
@@ -85,7 +89,7 @@ export function discoverRoom(R, areaId) {
     plugs,
     media: ids.find(id => d(id) === 'media_player') || null,
     // everything else worth a button in the room popup: blinds, plain switches, valves, vacuums…
-    entities: ids.filter(id => OTHER_DOMAINS.includes(d(id)) && !(d(id) === 'switch' && R.dc(id) === 'outlet')),
+    entities: ids.filter(id => OTHER_DOMAINS.includes(d(id)) && !R.isPlug(id)),
   };
 }
 const OTHER_DOMAINS = ['cover', 'switch', 'valve', 'vacuum', 'humidifier', 'siren', 'water_heater'];
@@ -104,7 +108,7 @@ export function roleOf(R, id) {
   if (d === 'binary_sensor' && ['door', 'garage_door', 'opening'].includes(dc)) return 'doors';
   if (d === 'lock') return 'locks';
   if (d === 'fan') return 'fan';
-  if (d === 'switch' && dc === 'outlet') return 'plugs';
+  if (d === 'switch' && (R.isPlug ? R.isPlug(id) : dc === 'outlet')) return 'plugs';
   if (d === 'media_player') return 'media';
   return 'entities';
 }
@@ -123,9 +127,10 @@ export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'],
   washer: ['Washing machine', 'mdi:washing-machine'], towel: ['Towel warmer', 'mdi:radiator'] };
 
 const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/parking|carport|driveway/, 'mdi:car'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
-  [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
+  [/bath|toilet|wc|shower/, 'mdi:shower'], [/master|bedroom|bed room|guest room/, 'mdi:bed'], [/office|study|work/, 'mdi:desk'],
   [/garage/, 'mdi:garage'], [/garden|yard|patio|terrace|balcony|outside|outdoor/, 'mdi:flower'], [/hall|corridor|entry|entrance|landing/, 'mdi:door-open'],
-  [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive']];
+  [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive'],
+  [/room/, 'mdi:bed']]; // a plain "… room" last: a bathroom, laundry room or storage room has its own icon
 const roomIcon = n => (ROOM_ICONS.find(([re]) => re.test(String(n).toLowerCase())) || [0, 'mdi:home-outline'])[1];
 const roomFloor = n => /bath|toilet|wc|shower|kitchen|laundry/.test(n) ? 'tile' : /bed|kid|nursery/.test(n) ? 'carpet' : /garage|parking|carport|driveway/.test(n) ? 'asphalt' : /garden|yard|patio|terrace|balcony|outside|outdoor/.test(n) ? 'stone' : /living|dining|lounge|office|study/.test(n) ? 'wood' : 'marble';
 const isOutdoor = n => /garden|yard|patio|terrace|balcony|outside|outdoor|driveway|carport|parking/.test(String(n).toLowerCase());
@@ -524,7 +529,7 @@ export function buildModel(cfg = {}, hass) {
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
       climate: pick('climate') || null, fan: pick('fan') || null, count: rc.count || null,
-      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: rc.names?.[p] || R.name(p), icon: 'mdi:power-socket-eu', power: R.powerOf(p) } : { icon: 'mdi:power-socket-eu', ...p, name: rc.names?.[p.id || p.entity] || p.name }),
+      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: rc.names?.[p] || R.name(p), icon: R.plugIcon(p), power: R.powerOf(p) } : { icon: 'mdi:power-socket-eu', ...p, name: rc.names?.[p.id || p.entity] || p.name }),
       media: rc.media !== undefined ? rc.media : found.media || null,
       // names for this card only (`names`, and the older `light_names` for lights)
       names: { ...(rc.light_names || rc.lightNames || {}), ...(rc.names || {}) },
@@ -536,6 +541,11 @@ export function buildModel(cfg = {}, hass) {
       // anything else to show in the room popup ("Other"): `entity_id` or {entity, name, icon}
       entities: arr(rc.entities !== undefined ? rc.entities : found.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),
     };
+    // smart plugs added under the room's other entities are shown with its plugs (on / charging, with their power)
+    for (const e of r.entities.filter(e => R.isPlug(e.id))) {
+      if (!r.plugs.some(p => (p.id || p.entity) === e.id)) r.plugs.push({ id: e.id, name: e.name || r.names[e.id] || R.name(e.id), icon: e.icon || R.plugIcon(e.id), power: R.powerOf(e.id) });
+    }
+    r.entities = r.entities.filter(e => !R.isPlug(e.id));
     return r;
   }).filter(r => r.rects.length);
   // every room needs its own id: two rooms on the same area or with the same name get "_2", "_3"… (otherwise the second

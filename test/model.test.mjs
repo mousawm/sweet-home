@@ -266,5 +266,24 @@ test('the automatic AC of an outline room hangs on its top wall, not mid-room', 
   assert.ok(Math.abs(r.ac.z - (top + 0.14)) < 1e-6, JSON.stringify(r.ac));
 });
 
+test('smart plugs: outlets, switches with a power sensor or named like a plug / charger; added ones move to Plugs', () => {
+  const h = { states: { 'switch.phone_charger': st('on', { friendly_name: 'Phone Charger' }), 'switch.lamp': st('off', { friendly_name: 'Lamp' }), 'sensor.lamp_power': st('3', { unit_of_measurement: 'W' }),
+      'switch.dnd': st('off', { friendly_name: 'Do not disturb' }), 'switch.socket': st('on', { device_class: 'outlet' }) },
+    entities: { 'switch.phone_charger': { area_id: 'bed' }, 'switch.lamp': { area_id: 'bed', device_id: 'L' }, 'sensor.lamp_power': { device_id: 'L' }, 'switch.dnd': { area_id: 'bed' }, 'switch.socket': { area_id: 'bed' } },
+    areas: { bed: { area_id: 'bed', name: 'Bedroom' } }, devices: {}, floors: {} };
+  const r = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]] }] } }, h).rooms[0];
+  assert.deepEqual(r.plugs.map(p => p.id).sort(), ['switch.lamp', 'switch.phone_charger', 'switch.socket']);
+  assert.equal(r.plugs.find(p => p.id === 'switch.phone_charger').icon, 'mdi:cellphone-charging');
+  assert.deepEqual(r.entities.map(e => e.id), ['switch.dnd']);
+  // picked by hand under the room's entities: still shown with its plugs
+  const r2 = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]], plugs: [], entities: ['switch.phone_charger', 'switch.dnd'] }] } }, h).rooms[0];
+  assert.deepEqual([r2.plugs.map(p => p.id), r2.entities.map(e => e.id)], [['switch.phone_charger'], ['switch.dnd']]);
+});
+
+test('room icons: a bathroom or laundry room is not a bedroom', () => {
+  const ic = n => buildModel({ house: { rooms: [{ name: n, rects: [[0, 0, 3, 3]] }] } }, hass).rooms[0].icon;
+  assert.deepEqual(['Bathroom', 'Laundry room', 'Master bedroom', 'Guest room', 'Storage room'].map(ic), ['mdi:shower', 'mdi:washing-machine', 'mdi:bed', 'mdi:bed', 'mdi:archive']);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');
