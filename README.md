@@ -110,7 +110,7 @@ The dashboard is generated for you until you take control of it:
         Two sofas (or two counters) placed at a right angle with their ends overlapping become one L-shaped corner sofa
         (or corner counter; worktops at the same height join too). Pieces made of several parts have a colour for each:
         a sofa's frame and back, seat cushions and pillows; a bed's duvet, frame, headboard and pillows; a table's top and
-        legs; a chair's frame and seat. Resizing
+        legs; a chair's frame and seat. A piece moved or placed within 35 cm of a wall goes flat against it. Resizing
         changes only the side you drag; the other keeps its exact size.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
