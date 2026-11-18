@@ -45,6 +45,12 @@ try {
     const secOf = id => { let n = card.shadowRoot.querySelector(`#drawer [data-id="${id}"]`); while (n && !n.classList?.contains('dsec')) n = n.previousElementSibling || n.parentElement; return n?.textContent; };
     return secOf('sensor.living_people') === 'Sensors' && secOf('script.movie_night') === 'Other';
   }));
+  check('rows get icons from their names: a fan switch, a water heater, a plug named after its device', await p.evaluate(() => {
+    const h = window.hassObj, add = (id, n) => { h.states[id] = { entity_id: id, state: 'on', attributes: { friendly_name: n } }; };
+    add('switch.bathroom_fan', 'Fan'); add('switch.boiler', 'Water Heater'); add('switch.kettle_plug', 'Kettle'); card.hass = { ...h, states: { ...h.states } };
+    const icon = html => (html.match(/icon="([^"]+)"/) || [])[1];
+    return icon(card._entRow('switch.bathroom_fan')) === 'mdi:fan' && /spin/.test(card._entRow('switch.bathroom_fan')) && icon(card._entRow('switch.boiler')) === 'mdi:water-boiler' && icon(card._entRow('switch.kettle_plug')) === 'mdi:kettle';
+  }));
   check('scripts run from the popup', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'homeassistant' && c[2].entity_id === 'script.movie_night')));
   check('rename and move are hidden outside edit mode', await p.evaluate(() => !card.shadowRoot.querySelector('#drawer [data-act=names]') && !card.shadowRoot.querySelector('[data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display === 'none'));
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(100);

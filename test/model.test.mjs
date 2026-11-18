@@ -280,5 +280,10 @@ test('smart plugs: outlets, switches with a power sensor or named like a plug / 
   assert.deepEqual([r2.plugs.map(p => p.id), r2.entities.map(e => e.id)], [['switch.phone_charger'], ['switch.dnd']]);
 });
 
+test('room icons: a bathroom or laundry room is not a bedroom', () => {
+  const ic = n => buildModel({ house: { rooms: [{ name: n, rects: [[0, 0, 3, 3]] }] } }, hass).rooms[0].icon;
+  assert.deepEqual(['Bathroom', 'Laundry room', 'Master bedroom', 'Guest room', 'Storage room'].map(ic), ['mdi:shower', 'mdi:washing-machine', 'mdi:bed', 'mdi:bed', 'mdi:archive']);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

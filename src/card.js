@@ -215,6 +215,20 @@ const BTN_ICONS = [[/ring|bell|alert|chime/, 'mdi:bell-ring'], [/locat|gps|find|
   [/restart|reboot/, 'mdi:restart'], [/shut ?down|power ?off/, 'mdi:power'], [/notif|message|send/, 'mdi:message-text'], [/speak|tts|say|announce/, 'mdi:account-voice'],
   [/mute|silen/, 'mdi:volume-off'], [/vibrat/, 'mdi:vibrate'], [/volume/, 'mdi:volume-high'], [/wi-?fi/, 'mdi:wifi'], [/bluetooth/, 'mdi:bluetooth'], [/camera|photo|snap/, 'mdi:camera'],
   [/light|lamp/, 'mdi:lightbulb'], [/alarm/, 'mdi:alarm'], [/dnd|do not disturb/, 'mdi:minus-circle'], [/battery|charg/, 'mdi:battery-charging'], [/car/, 'mdi:car'], [/clean|vacuum/, 'mdi:robot-vacuum'], [/water|valve/, 'mdi:water'], [/fan/, 'mdi:fan'], [/tv|media|play/, 'mdi:play-circle']];
+// icons for switches, fans, plugs… from their name, when the entity has no icon of its own ("Bathroom Fan" → a fan)
+const NAME_ICONS = [[/exhaust|ventilat|extract|\bfans?\b|مروحة|شفاط/, 'mdi:fan'], [/charger|charging|شاحن/, 'mdi:cellphone-charging'], [/water ?heater|boiler|geyser|سخان/, 'mdi:water-boiler'],
+  [/towel|radiator|heater|heating|underfloor|floor heat|دفاية|مدفأة/, 'mdi:radiator'], [/dehumid/, 'mdi:air-humidifier-off'], [/humidif/, 'mdi:air-humidifier'], [/purif/, 'mdi:air-purifier'],
+  [/\bac\b|a\/c|air ?con|aircon|مكيف/, 'mdi:air-conditioner'], [/dish ?wash/, 'mdi:dishwasher'], [/dryer|tumble/, 'mdi:tumble-dryer'], [/wash|غسال/, 'mdi:washing-machine'],
+  [/coffee|espresso|قهوة/, 'mdi:coffee-maker'], [/kettle|غلاية/, 'mdi:kettle'], [/microwave/, 'mdi:microwave'], [/oven|stove|cooker/, 'mdi:stove'], [/fridge|freezer|ثلاجة/, 'mdi:fridge'],
+  [/pump|مضخة/, 'mdi:pump'], [/irrigat|sprinkl|garden water/, 'mdi:sprinkler-variant'], [/valve|water/, 'mdi:water'], [/pool/, 'mdi:pool'], [/fountain/, 'mdi:fountain'],
+  [/\btv\b|television|شاشة|تلفزيون/, 'mdi:television'], [/speaker|sound|audio/, 'mdi:speaker'], [/console|playstation|xbox|\bps5\b/, 'mdi:gamepad-variant'], [/computer|\bpc\b|desktop/, 'mdi:desktop-tower-monitor'],
+  [/printer/, 'mdi:printer'], [/router|wi-?fi|modem|network/, 'mdi:router-wireless'], [/camera|cctv|كاميرا/, 'mdi:cctv'], [/siren|alarm/, 'mdi:alarm-light'],
+  [/christmas|xmas|string light|fairy/, 'mdi:string-lights'], [/mirror|مرآة/, 'mdi:mirror'], [/aquarium|fish/, 'mdi:fishbowl'], [/garage/, 'mdi:garage'], [/gate|بوابة/, 'mdi:gate'],
+  [/curtain|blind|shade|ستارة/, 'mdi:blinds'], [/door|باب/, 'mdi:door'], [/window|نافذة/, 'mdi:window-closed-variant'], [/lamp|light|led|bulb|إضاءة|مصباح|ضوء/, 'mdi:lightbulb'],
+  [/do not disturb|\bdnd\b/, 'mdi:minus-circle'], [/guest/, 'mdi:account-multiple'], [/sleep|night|نوم/, 'mdi:weather-night'], [/away|vacation|holiday/, 'mdi:airplane'],
+  [/motion|presence|occupan/, 'mdi:motion-sensor'], [/plug|socket|outlet|power ?strip|extension|قابس|مقبس/, 'mdi:power-socket-eu']];
+const NAMED_DOMAINS = ['switch', 'input_boolean', 'fan', 'button', 'input_button', 'script', 'automation', 'valve', 'humidifier'];
+const nameIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (NAME_ICONS.find(([re]) => re.test(t)) || [])[1] || null; };
 const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
 // a button's label without the noise: "button Areen phone ring mod" → "Ring Mod" (the word "button" and the phone / person's name go)
 const cleanLabel = (name, strip = []) => { let s = ` ${String(name || '')} `; for (const w of ['button', ...strip.filter(Boolean)]) s = s.replace(new RegExp(`\\s${String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[’']s?/g, "[’']?s?")}(?=\\s)`, 'gi'), ' '); s = s.trim().replace(/\s+/g, ' '); return s ? s.replace(/(^|\s)\S/g, c => c.toUpperCase()) : String(name || ''); };
@@ -1701,7 +1715,7 @@ export class SweetHomeCard extends HTMLElement {
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
       const on = this.on(p.id); const w = this.n(p.power); const drawing = on && (w ?? 0) > 1.5, charger = /charg/i.test(`${p.icon} ${p.id} ${p.name}`), chg = drawing && charger;
       const val = !on ? tr('Off') : chg ? tr('Charging · {0} W', w.toFixed(1)) : drawing ? tr('On · {0} W', w < 10 ? w.toFixed(1) : Math.round(w)) : p.power ? tr('On · idle') : tr('On');
-      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${val}</b></button>`;
+      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon && p.icon !== 'mdi:power-socket-eu' ? p.icon : nameIcon(p.id, p.name) || 'mdi:power-socket-eu', on && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
     });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
@@ -1823,13 +1837,13 @@ export class SweetHomeCard extends HTMLElement {
     if (!st) return `<div class="mrow na">${ic('mdi:help-circle-outline')}<span>${esc(o.name || id)}</span><b>${tr('Not found')}</b></div>`;
     const d = id.split('.')[0], a = st.attributes, v = st.state, bad = BAD.includes(v);
     const name = esc(o.name || tc(a.friendly_name || id));
-    const icon = o.icon || a.icon || domIcon(d, v, a);
+    const icon = o.icon || a.icon || (a.device_class && DC_ICON[a.device_class] ? null : NAMED_DOMAINS.includes(d) && nameIcon(id, o.name || a.friendly_name)) || domIcon(d, v, a);
     if (o.val != null) return `<div class="mrow ${o.on ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(o.val)}</b></div>`;
     if (bad) return `<div class="mrow na" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(pretty(v))}</b></div>`;
     if (TOGGLE_DOMAINS.includes(d)) {
       const on = ['on', 'open', 'opening'].includes(v);
       const val = d === 'light' && on && a.brightness ? Math.round(a.brightness / 2.55) + '%' : d === 'cover' || d === 'valve' ? tr(pretty(v)) : on ? tr('On') : tr('Off');
-      return `<button class="lrow ${on ? 'on' : ''} ${d === 'light' ? '' : 'cool'}" data-act="toggle" data-id="${id}">${ic(icon, d === 'fan' && on ? 'spin' : '')}<span>${name}</span><b>${esc(val)}</b></button>`;
+      return `<button class="lrow ${on ? 'on' : ''} ${d === 'light' ? '' : 'cool'}" data-act="toggle" data-id="${id}">${ic(icon, (d === 'fan' || icon === 'mdi:fan') && on ? 'spin' : '')}<span>${name}</span><b>${esc(val)}</b></button>`;
     }
     if (d === 'lock') {
       const locked = v === 'locked';

@@ -127,9 +127,10 @@ export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'],
   washer: ['Washing machine', 'mdi:washing-machine'], towel: ['Towel warmer', 'mdi:radiator'] };
 
 const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/parking|carport|driveway/, 'mdi:car'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
-  [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
+  [/bath|toilet|wc|shower/, 'mdi:shower'], [/master|bedroom|bed room|guest room/, 'mdi:bed'], [/office|study|work/, 'mdi:desk'],
   [/garage/, 'mdi:garage'], [/garden|yard|patio|terrace|balcony|outside|outdoor/, 'mdi:flower'], [/hall|corridor|entry|entrance|landing/, 'mdi:door-open'],
-  [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive']];
+  [/stair/, 'mdi:stairs'], [/laundry|utility/, 'mdi:washing-machine'], [/kid|child|nursery|play/, 'mdi:teddy-bear'], [/basement|cellar|storage/, 'mdi:archive'],
+  [/room/, 'mdi:bed']]; // a plain "… room" last: a bathroom, laundry room or storage room has its own icon
 const roomIcon = n => (ROOM_ICONS.find(([re]) => re.test(String(n).toLowerCase())) || [0, 'mdi:home-outline'])[1];
 const roomFloor = n => /bath|toilet|wc|shower|kitchen|laundry/.test(n) ? 'tile' : /bed|kid|nursery/.test(n) ? 'carpet' : /garage|parking|carport|driveway/.test(n) ? 'asphalt' : /garden|yard|patio|terrace|balcony|outside|outdoor/.test(n) ? 'stone' : /living|dining|lounge|office|study/.test(n) ? 'wood' : 'marble';
 const isOutdoor = n => /garden|yard|patio|terrace|balcony|outside|outdoor|driveway|carport|parking/.test(String(n).toLowerCase());
