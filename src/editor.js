@@ -49,6 +49,7 @@ const PANELS = [
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
   ['modes', 'Modes', 'One-tap buttons on the Home tab: guests, holiday, scenes, scripts'],
+  ['devices', 'Devices', 'Batteries of phones, tablets, watches and other devices (System tab)'],
 ];
 // room settings that hold entities, as the Entities mode shows them: [YAML key, title, key in the discovered set, icon]
 const ROLES = [
@@ -1297,6 +1298,7 @@ class SweetHomeCardEditor extends HTMLElement {
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
       media_server: [],
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
+      devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
         { name: 'battery_exclude_devices', selector: { device: { multiple: true } } },
@@ -1317,6 +1319,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
+        if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
         if (k === 'modes') { // modes live in the card's own `modes` list (not under panels): a name or icon given in YAML stays
           det.appendChild(this._form(schemas.modes, { modes: arr(this._config.modes).map(entityId).filter(Boolean) }, v => {
             const old = arr(this._config.modes), val = arr(v.modes).map(id => old.find(o => typeof o === 'object' && entityId(o) === id) || id);
@@ -1335,6 +1338,7 @@ class SweetHomeCardEditor extends HTMLElement {
           for (const [kk, vv] of Object.entries(v)) {
             let val = vv;
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (k === 'devices' && kk === 'entities') val = arr(vv).map(id => arr(next.entities).find(o => typeof o === 'object' && o.battery === id) || id); // a device's name / icon stay
             if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
             if (k === 'irrigation' && kk === 'zones') { val = arr(vv).map(id => arr(next.zones ?? next.valves).find(o => typeof o === 'object' && entityId(o) === id) || id); delete next.valves; } // a zone's name and duration are kept
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
@@ -1346,7 +1350,7 @@ class SweetHomeCardEditor extends HTMLElement {
           name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
           status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
-          pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
+          pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
         if (k === 'security') this._entranceSensors(det, P);
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);

@@ -153,6 +153,9 @@ const AR = {
   // modes
   'One-tap buttons on the Home tab: guests, holiday, scenes, scripts': 'أزرار بلمسة واحدة في التبويب الرئيسي: الضيوف، العطلة، المشاهد، السكربتات', 'Mode buttons (switches, helpers, scenes, scripts)': 'أزرار الأوضاع (مفاتيح، مساعدات، مشاهد، سكربتات)',
   Modes: 'الأوضاع',
+  // devices panel
+  'Batteries of phones, tablets, watches and other devices (System tab)': 'بطاريات الهواتف والأجهزة اللوحية والساعات وغيرها (تبويب النظام)',
+  'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)': 'البطاريات المعروضة (فارغ: كل هاتف وجهاز لوحي وساعة عليها تطبيق Home Assistant)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

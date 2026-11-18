@@ -245,6 +245,14 @@ try {
   await drag([(arcOp[0] + arcOp[2]) / 2, (arcOp[1] + arcOp[3]) / 2], [(arcOp[0] + arcOp[2]) / 2 + 0.2, (arcOp[1] + arcOp[3]) / 2 + 0.5]);
   check('moving a passage on a curved wall keeps both ends on the arc', await p.evaluate(n => { const o = editor._config.house.openings[n]; return o[1] > 6.2 && [[o[0], o[1]], [o[2], o[3]]].every(q => editor._nearWall(q, 0.03)); }, nOp));
   await p.evaluate(() => { editor._mode = 'shape'; editor._render(); });
+  // Devices panel: found on its own (Companion app), or picked in the editor (any battery), with name, charging and place
+  check('devices: the Companion-app iPad is found on its own, with its charging state and place', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('30') && !t.includes('Door Sensor'); }));
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entities]')].find(x => x.closest('details')?.textContent.includes('Batteries of phones')); i.value = 'sensor.ipad_battery_level,sensor.door_sensor_battery'; i.dispatchEvent(new Event('change')); });
+  check('…picking batteries in the editor (Panels → Devices)', await p.evaluate(() => JSON.stringify(editor._config.panels.devices) === '{"entities":["sensor.ipad_battery_level","sensor.door_sensor_battery"]}'));
+  await p.waitForTimeout(1500);
+  check('…the card shows them: the iPad as before and the door sensor by its device name', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('Door Sensor'); }));
+  await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
   // modes in the editor (Panels → Modes): picked there, written to the card's own `modes`, a mode's icon kept
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
   check('the editor lists the mode buttons', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=modes]')].some(i => i.value === 'input_boolean.guests,input_boolean.motion_stop,scene.good_night')));

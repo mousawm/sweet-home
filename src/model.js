@@ -773,6 +773,15 @@ export function buildModel(cfg = {}, hass) {
   const EN = P.energy || {};
   const AT = P.attention || {};
 
+  // one row of the Devices panel: the device's name and kind (phone, tablet, watch, laptop…), charging, where it is
+  function batDevice(d) {
+    const id = d.battery, dev = R.devs[R.ents[id]?.device_id];
+    const ch = d.charging || d.charging_state ? null : R.sameDevice(id, e => /is_charging$|battery_state$|charger_type$/.test(e) || (e.startsWith('binary_sensor.') && R.dc(e) === 'battery_charging'))[0];
+    const dn = d.name || dev?.name_by_user || dev?.name || R.name(id).replace(/\s*battery( level)?$/i, '');
+    const kind = `${dn} ${dev?.model || ''}`.toLowerCase();
+    const icon = d.icon || (/watch/.test(kind) ? 'mdi:watch' : /pad|tab/.test(kind) ? 'mdi:tablet' : /mac|book|laptop|pc\b/.test(kind) ? 'mdi:laptop' : /lock/.test(kind) ? 'mdi:lock' : /remote/.test(kind) ? 'mdi:remote' : R.platform(id) === 'mobile_app' || /phone|pixel|galaxy/.test(kind) ? 'mdi:cellphone' : 'mdi:battery');
+    return { name: dn, icon, bat: id, chg: d.charging || (ch && ch.startsWith('binary_sensor.') ? ch : undefined), chgState: d.charging_state || (ch && ch.startsWith('sensor.') ? ch : undefined), trk: d.tracker || R.sameDevice(id, e => e.startsWith('device_tracker.'))[0] };
+  }
   const E = {
     weather: cfg.weather || first('weather'), sun: 'sun.sun',
     persons, phones,
@@ -816,7 +825,9 @@ export function buildModel(cfg = {}, hass) {
     },
     mserver,
     lab,
-    devices: arr(P.devices?.entities || cfg.devices).map(d => typeof d === 'string' ? { name: R.name(d).replace(/\s*battery( level)?$/i, ''), icon: 'mdi:cellphone', bat: d } : { name: d.name, icon: d.icon || 'mdi:cellphone', bat: d.battery, chg: d.charging, trk: d.tracker, chgState: d.charging_state }),
+    // Devices panel: battery level sensors (`entity_id`, or {battery, name, icon, charging, charging_state, tracker}); for
+    // a plain id the device's name, its charging sensor and its location tracker are found on the same device
+    devices: arr(P.devices?.entities || cfg.devices).filter(d => typeof d === 'string' || (d && typeof d.battery === 'string')).map(d => batDevice(typeof d === 'string' ? { battery: d } : d)),
     irrigation: {
       // zones: `entity_id` or {entity, name, duration}; `valves` is the same list. Not given: every valve entity.
       valves: irrZones.map((z, i) => [z.entity, z.name || (z.auto ? R.name(z.entity) : null) || R.name(z.entity) || `Zone ${i + 1}`]), durations: irrZones.map(z => z.duration || null),
@@ -829,14 +840,9 @@ export function buildModel(cfg = {}, hass) {
     forecast,
     tvLight: { light: P.tv_light?.light || null, selects: arr(P.tv_light?.selects).map(s => typeof s === 'string' ? [s, R.name(s), 'mdi:tune'] : [s.entity, s.name || R.name(s.entity), s.icon || 'mdi:tune']) },
   };
-  if (!E.devices.length && (P.devices === undefined || P.devices === true)) {
+  if (!E.devices.length && (P.devices === undefined || P.devices === true || (typeof P.devices === 'object' && !arr(P.devices.entities).length))) {
     // phones / tablets / watches: battery level sensors of the Companion app
-    E.devices = allOf('sensor', id => R.platform(id) === 'mobile_app' && /battery_level$/.test(id)).map(id => {
-      const ch = R.sameDevice(id, e => /is_charging$/.test(e) || /battery_state$/.test(e))[0];
-      const trk = R.sameDevice(id, e => e.startsWith('device_tracker.'))[0];
-      const dn = R.devs[R.ents[id]?.device_id]?.name_by_user || R.devs[R.ents[id]?.device_id]?.name || R.name(id);
-      return { name: dn, icon: /watch/i.test(dn) ? 'mdi:watch' : /pad|tab/i.test(dn) ? 'mdi:tablet' : 'mdi:cellphone', bat: id, chg: ch && ch.startsWith('binary_sensor.') ? ch : undefined, chgState: ch && ch.startsWith('sensor.') ? ch : undefined, trk };
-    });
+    E.devices = allOf('sensor', id => R.platform(id) === 'mobile_app' && /battery_level$/.test(id)).map(id => batDevice({ battery: id }));
   }
 
   /* ---------- which tabs have something to show ---------- */
