@@ -3214,7 +3214,7 @@ class HouseScene {
     const plant = (room, x, z, s = 1) => { cyl(room, x, z, 0.2 * s, 0.38 * s, 0xd6cfc4, 0, { r: 0.6 }); ball(room, x, z, 0.32 * s, 0x2f6b3a, 0.62 * s); ball(room, x + 0.12 * s, z - 0.08 * s, 0.22 * s, 0x3f8a4c, 0.85 * s); };
 
     // pieces from the config (house.furniture / room.furniture, or the automatic set for automatic rooms)
-    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = []; this.blinds = []; this.vacuums = []; this.cars = []; this.pools = []; this.sprinklers = [];
+    this.tvs = []; this.chargers = []; this.lamps = []; this.fans = []; this.markers = []; this.fpieces = []; this.blinds = []; this.vacuums = []; this.cars = []; this.pools = []; this.sprinklers = []; this.washers = []; this.steams = [];
     const N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const C = (v, d) => toColor(v, d);
     const opt = f => ({ r: N(f.roughness, 0.75), m: N(f.metalness, 0), op: f.opacity != null ? N(f.opacity, 1) : undefined, e: f.emissive, ei: f.emissive ? N(f.emissive_intensity, 0.6) : 0 });
@@ -3252,7 +3252,7 @@ class HouseScene {
           case 'stairs': this._stairs(f); break;
           case 'nightstand': { // bedside table: drawers on its front (`facing`), a table lamp on top that glows with its light
             const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', ew = fc === 'e' || fc === 'w', W = N(f.w, 0.5), D = N(f.d, 0.4), H = Math.max(0.25, N(f.h, 0.55));
-            const [fw, fd] = ew ? [D, W] : [W, D], wood = C(f.color, 0x7c5a3c), top = f.top != null ? C(f.top) : wood, hnd = C(f.handle, 0xd4b483);
+            const [fw, fd] = [W, D], wood = C(f.color, 0x7c5a3c), top = f.top != null ? C(f.top) : wood, hnd = C(f.handle, 0xd4b483);
             const sx = fc === 'e' ? 1 : fc === 'w' ? -1 : 0, sz = fc === 's' ? 1 : fc === 'n' ? -1 : 0, front = ew ? fw / 2 : fd / 2, across = ew ? fd : fw;
             box(rm, x, z, fw - 0.06, fd - 0.06, 0.05, 0x2a1f16, 0, { r: 0.9 }); // plinth, set back
             box(rm, x, z, fw, fd, H - 0.08, wood, 0.05, { r: 0.7 });
@@ -3272,6 +3272,72 @@ class HouseScene {
               const mat = new T.MeshStandardMaterial({ color: C(f.shade, 0xf5e6c8), emissive: 0xffc27a, emissiveIntensity: 0, roughness: 0.8, side: T.DoubleSide });
               const m = add(rm, new T.CylinderGeometry(0.07 * s, 0.11 * s, 0.14 * s, 24, 1, true), mat, lx, y0 + 0.2 * s + 0.05 * s, lz);
               this.lamps.push({ m, glow: floorGlow(lx, lz, 0.6, 0xffc27a), entity: f.entities.find(e => e.startsWith('light.') || e.startsWith('switch.')) || null, t: 0, col: new T.Color(0xffc27a) });
+            }
+            break;
+          }
+          case 'toilet': case 'sink': case 'shower': case 'bathtub': case 'washer': case 'towel': {
+            // bathroom / laundry pieces: w × d is the x × z size; `facing` is their front. u runs along the front, v from the back (-) to the front (+)
+            const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', ew = fc === 'e' || fc === 'w', sg = fc === 's' || fc === 'e' ? 1 : -1;
+            const DF = { toilet: [0.4, 0.65], sink: [0.8, 0.5], shower: [0.9, 0.9], bathtub: [1.7, 0.75], washer: [0.6, 0.6], towel: [0.5, 0.08] }[f.type];
+            const W = N(f.w, ew ? DF[1] : DF[0]), D = N(f.d, ew ? DF[0] : DF[1]), A = ew ? D : W, Dp = ew ? W : D;
+            const at = (u, v) => ew ? [x + sg * v, z + u] : [x + u, z + sg * v];
+            const lb = (u, v, a, dp, h, col, y = 0, o) => { const [px, pz] = at(u, v); return box(rm, px, pz, ew ? dp : a, ew ? a : dp, h, col, y, o); };
+            const lc = (u, v, r, h, col, y = 0, o) => { const [px, pz] = at(u, v); return cyl(rm, px, pz, r, h, col, y, o); };
+            const white = C(f.color, 0xf8fafc), chrome = { r: 0.25, m: 0.8 }, ent = f.entities[0] || null;
+            if (f.type === 'toilet') {
+              lb(0, -Dp / 2 + 0.1, A * 0.92, 0.2, 0.4, white, 0.38, { r: 0.3 }); // tank
+              lb(0, -Dp / 2 + 0.11, A * 0.95, 0.22, 0.03, white, 0.78, { r: 0.3 }); // its lid
+              lc(0, -Dp / 2 + 0.11, 0.018, 0.012, 0xcbd5e1, 0.81, chrome); // flush button
+              lb(0, -Dp / 2 + 0.25, A * 0.45, 0.12, 0.38, white, 0, { r: 0.3 }); // foot
+              lc(0, Dp / 2 - Math.min(A, Dp) * 0.48, Math.min(A, Dp) * 0.46, 0.3, white, 0.08, { r: 0.3 }); // bowl
+              lc(0, Dp / 2 - Math.min(A, Dp) * 0.48, Math.min(A, Dp) * 0.48, 0.03, C(f.seat, 0xffffff), 0.38, { r: 0.35 }); // seat
+            } else if (f.type === 'sink') {
+              const H = N(f.h, 0.85), wood = C(f.color, 0x8b6b45), top = C(f.top, 0xf8fafc), r = Math.min(A * 0.3, Dp * 0.32);
+              lb(0, -0.01, A, Dp - 0.02, 0.1, 0x2a1f16, 0, { r: 0.9 }); // plinth
+              lb(0, 0, A, Dp, H - 0.14, wood, 0.1, { r: 0.7 });
+              for (const s2 of A > 0.55 ? [-1, 1] : [0]) lb(s2 * A / 4, Dp / 2 + 0.006, (s2 ? A / 2 : A) - 0.03, 0.012, H - 0.22, wood, 0.13, { r: 0.55 }); // doors
+              lb(0, 0, A + 0.02, Dp + 0.02, 0.04, top, H - 0.04, { r: 0.25 });
+              lc(0, 0.03, r, 0.006, 0xdbe4ee, H, { r: 0.2 }); lc(0, 0.03, r * 0.15, 0.007, 0x64748b, H, chrome); // basin, drain
+              lc(0, -Dp / 2 + 0.07, 0.015, 0.16, 0xcbd5e1, H, chrome); lb(0, -Dp / 2 + 0.11, 0.025, 0.09, 0.02, 0xcbd5e1, H + 0.14, chrome); // tap
+              const mat = new T.MeshStandardMaterial({ color: 0xc7d7e6, emissive: 0xffc27a, emissiveIntensity: 0, roughness: 0.08, metalness: 0.6 });
+              const [mx, mz] = at(0, -Dp / 2 + 0.012), m = add(rm, new T.BoxGeometry(ew ? 0.015 : A * 0.8, Math.min(0.6, WALL_H - H - 0.1), ew ? A * 0.8 : 0.015), mat, mx, H + 0.12 + Math.min(0.6, WALL_H - H - 0.1) / 2, mz);
+              if (f.entities.some(e => e.startsWith('light.') || e.startsWith('switch.'))) this.lamps.push({ m, glow: floorGlow(...at(0, Dp / 2 + 0.3), 0.7, 0xffc27a), entity: f.entities.find(e => e.startsWith('light.') || e.startsWith('switch.')), t: 0, col: new T.Color(0xffc27a) });
+            } else if (f.type === 'shower') {
+              const H = Math.min(1.95, WALL_H), glass = { r: 0.05, m: 0.1, op: 0.22 };
+              lb(0, 0, A, Dp, 0.06, white, 0, { r: 0.35 }); lc(0, 0, 0.04, 0.062, 0x64748b, 0, chrome); // tray, drain
+              lb(0, Dp / 2 - 0.01, A * 0.6, 0.012, H - 0.06, 0xcfe8ff, 0.06, glass); // the glass door, half open
+              lb(-A / 2 + 0.006, 0, 0.012, Dp, H - 0.06, 0xcfe8ff, 0.06, glass); // a glass side
+              lb(A / 2 - 0.02, -Dp / 2 + 0.03, 0.02, 0.02, H - 0.3, 0xcbd5e1, 0.06, chrome); // riser
+              lb(A / 2 - 0.1, -Dp / 2 + 0.1, 0.14, 0.14, 0.02, 0xcbd5e1, H - 0.27, chrome); // head
+              if (ent) { // steam: a few soft puffs that rise while the shower runs
+                const mat = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
+                const puffs = [0, 1, 2, 3, 4].map(k => { const [px, pz] = at((k % 3 - 1) * A * 0.2, (k % 2 - 0.5) * Dp * 0.3); const m = new T.Mesh(new T.SphereGeometry(0.16 + 0.04 * (k % 3), 12, 10), mat); const [gx, gz] = this.w(px, pz); m.position.set(gx, 0.3, gz); this._at().add(m); return m; });
+                this.steams.push({ puffs, mat, entity: ent, H, t: 0, a: 0 });
+              }
+            } else if (f.type === 'bathtub') {
+              lb(0, 0, A, Dp, 0.55, white, 0, { r: 0.3 });
+              lb(0, 0, A - 0.12, Dp - 0.12, 0.004, 0xdbe4ee, 0.55, { r: 0.2 });
+              if (f.water !== false) lb(0, 0, A - 0.14, Dp - 0.14, 0.004, 0x7dd3fc, 0.556, { r: 0.05, m: 0.1, op: 0.7 });
+              const [tx, tz] = at(-A / 2 + 0.03, 0); cyl(rm, tx, tz, 0.015, 0.14, 0xcbd5e1, 0.55, chrome); // tap at one end
+            } else if (f.type === 'washer') {
+              const H = N(f.h, 0.85), r = Math.min(A, H) * 0.3;
+              lb(0, 0, A, Dp, H, white, 0, { r: 0.35 });
+              lb(0, Dp / 2 + 0.004, A * 0.92, 0.008, 0.11, 0xe5e7eb, H - 0.15, { r: 0.4 }); // control panel
+              lc(A * 0.3, Dp / 2 + 0.01, 0.03, 0.02, 0x94a3b8, H - 0.12, chrome); // dial (laid flat as a knob)
+              // the door: a ring and a glass, facing out, and the drum behind it that turns while it runs
+              const [dx2, dz2] = at(0, Dp / 2 + 0.012), dy = (H - 0.15) / 2 + 0.03;
+              const g = new T.Group(); const [gx, gz] = this.w(dx2, dz2); g.position.set(gx, dy, gz); g.rotation.y = { s: 0, n: Math.PI, e: Math.PI / 2, w: -Math.PI / 2 }[fc]; this._at().add(g);
+              const disc = (rad, th, col, o, zz) => { const m = new T.Mesh(new T.CylinderGeometry(rad, rad, th, 32), M(col, o)); m.rotation.x = Math.PI / 2; m.position.z = zz; m.userData.room = rm; g.add(m); this.pick.push(m); return tag(m); };
+              disc(r * 1.12, 0.02, 0xcbd5e1, chrome, 0); disc(r, 0.022, 0x1e293b, { r: 0.1, m: 0.3 }, 0.002);
+              const drum = new T.Group(); drum.position.z = 0.013; g.add(drum);
+              for (const [k, col] of [[0, 0x60a5fa], [2.1, 0xf472b6], [4.2, 0xfbbf24]]) { const b = new T.Mesh(new T.BoxGeometry(r * 0.55, r * 0.35, 0.004), M(col, { r: 0.9 })); b.position.set(Math.cos(k) * r * 0.42, Math.sin(k) * r * 0.42, 0); b.rotation.z = k; drum.add(b); }
+              this.washers.push({ drum, entity: ent, sp: 0 });
+            } else { // towel warmer: two posts and rails that glow warm while it is on
+              const y0 = N(f.y, 0.4), H = Math.min(0.9, WALL_H - y0 - 0.05), mat = new T.MeshStandardMaterial({ color: C(f.color, 0xe5e7eb), roughness: 0.25, metalness: 0.7, emissive: 0xff8a3d, emissiveIntensity: 0 });
+              for (const s2 of [-1, 1]) { const [px, pz] = at(s2 * (A / 2 - 0.015), 0); add(rm, new T.CylinderGeometry(0.014, 0.014, H, 12), mat, px, y0 + H / 2, pz); }
+              let first = null; const n = Math.max(3, Math.round(H / 0.12));
+              for (let k = 0; k < n; k++) { const [px, pz] = at(0, 0); const m = add(rm, new T.BoxGeometry(ew ? 0.018 : A - 0.03, 0.018, ew ? A - 0.03 : 0.018), mat, px, y0 + 0.05 + k * (H - 0.1) / (n - 1), pz); first ||= m; }
+              if (ent) this.lamps.push({ m: first, glow: floorGlow(...at(0, 0.3), 0.5, 0xff8a3d), entity: ent, t: 0, col: new T.Color(0xff8a3d) });
             }
             break;
           }
@@ -3729,6 +3795,10 @@ class HouseScene {
       const am = acMode(st), col = am === 'heat' ? 0xfb923c : am === 'dry' ? 0xfde68a : am === 'fan_only' ? 0xe0e7ff : am === 'auto' || am === 'heat_cool' ? 0x6ee7b7 : 0x93c5fd;
       A.pts.material.color.setHex(col); A.unit.material.emissive.setHex(col);
     }
+    // washing machines turn their drum while they run (a plug that draws power, a status that is not idle); showers steam
+    const runs = id => { const v = String(c.v(id) ?? '').toLowerCase(), n = c.n(id); return id.startsWith('sensor.') && n != null ? n > 5 : ['on', 'running', 'washing', 'wash', 'rinse', 'rinsing', 'spin', 'spinning', 'drying', 'heat', 'heating', 'active'].includes(v); };
+    for (const W of this.washers || []) W.on = W.entity && runs(W.entity) ? 1 : 0;
+    for (const S of this.steams || []) { const n = c.n(S.entity); S.t = S.entity.startsWith('sensor.') ? (n != null && n > 70 ? 1 : 0) : S.entity.startsWith('water_heater.') ? (['off', 'idle'].includes(c.v(S.entity)) || BAD.includes(c.v(S.entity) ?? '') ? 0 : 1) : runs(S.entity) ? 1 : 0; }
     for (const tv of this.tvs || []) tv.on = c.v(tv.entity || E.media.tv) === 'playing' ? 1 : 0;
     // lamps glow in their light's colour and brightness, fans turn at their speed, device dots light up
     for (const L of this.lamps || []) {
@@ -3762,7 +3832,7 @@ class HouseScene {
     const dv = day.toFixed(2); if (this._dayV !== dv) { this._dayV = dv; this.vp.style.setProperty('--day', dv); }
     // battery: HA pushes state changes all the time; redraw only when something the scene shows changed
     const sg = [Object.values(this.rooms).map(R => [R.litT, R.stripT || 0, R.spotT || 0, R.tvT || 0, R.stripCol ? R.stripCol.getHex() : 0, R.tvCol ? R.tvCol.getHex() : 0, R.motion, R.anyLit, R.temp]),
-      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), (this.cars || []).map(K => K.t), (this.sprinklers || []).map(S => S.onT), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
+      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), (this.cars || []).map(K => K.t), (this.sprinklers || []).map(S => S.onT), (this.washers || []).map(W => W.on), (this.steams || []).map(S => S.t), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
     if (sg !== this._syncSig) { this._syncSig = sg; this._dirty = true; }
   }
 
@@ -3913,6 +3983,11 @@ class HouseScene {
       L.glow.material.opacity = (L.m.material.emissiveIntensity / 1.6) * 0.32 * (this.mode === 'lights' ? 1 : 0.55);
     }
     for (const F of this.fans || []) { if (F.sp) { F.g.rotation.y -= dt * F.sp * 6; anim = true; } }
+    for (const W of this.washers || []) { W.sp += ((W.on ? 5 : 0) - W.sp) * Math.min(1, dt * 1.5); if (W.sp > 0.01) { W.drum.rotation.z -= dt * W.sp; anim = true; } }
+    for (const S of this.steams || []) {
+      S.a += (S.t - S.a) * Math.min(1, dt * 1.2); S.mat.opacity = S.a * 0.22; if (S.a < 0.01 && !S.t) continue; anim = true;
+      S.puffs.forEach((m, k) => { const l = (tt * 0.25 + k / S.puffs.length) % 1; m.position.y = 0.4 + l * (S.H - 0.3); m.scale.setScalar(0.6 + l * 0.9); });
+    }
     for (const K of this.cars || []) { // a car arriving drives into its bay from behind; one leaving drives off forwards
       if (K.c == null) { K.c = K.t; K.g.visible = !!K.t; K.slide = 0; } // the first state: no animation
       else if (K.t !== K.c) { K.c = K.t; K.slide = K.t ? 3.5 : 0; K.g.visible = true; }

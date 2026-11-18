@@ -352,6 +352,7 @@ try {
   check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
   await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
   // resizing a turned sofa: only the side dragged changes, the other keeps its exact size
+  check('editor: a toilet put near the bottom wall turns to face into the room and sits flat against it', await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = []; editor._addPiece(0, 'toilet', 3, 4.8); const f = r.furniture[0]; return f.facing === 'n' && Math.abs(f.z + f.d / 2 - (5 - 0.06)) < 0.011 && f.d === 0.65; }));
   check('editor: an AC with no entity picked still has the "show a badge" switch', await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'ac', x: 3, z: 0.2, facing: 's' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); return [...editor.querySelectorAll('ha-form')].some(f => JSON.stringify(f.schema).includes('"badge"')); }));
   await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); });
   const hd = await p.evaluate(() => editor._handles()[0]);
