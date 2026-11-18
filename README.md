@@ -106,8 +106,8 @@ The dashboard is generated for you until you take control of it:
 
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
-   2. **Panels**: turn panels on or off and pick their entities.
-   3. **Look**: title, weather, start tab, wall height, automatic furniture, **Hide the "tap a room" tip** (on: the tip is never shown), or a 3D file.
+   2. **Panels**: turn panels on or off and pick their entities. **Modes** adds one-tap buttons to the Home tab (guests, holiday, scenes, scripts).
+   3. **Look**: title, weather, start tab, wall height, automatic furniture, **Hide the "tap a room" tip** (on: the tip and the "tap a room" under the 3D view's title are not shown), or a 3D file.
       **Names on this dashboard** lists every entity renamed here (in a room or on a panel). Change or clear a name,
       or rename any other entity.
 5. Click **Save**, then **Done**.
@@ -134,7 +134,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
-| `modes` | Switches or input booleans shown as mode buttons (`entity`, `name`, `icon`) |
+| `modes` | Mode buttons on the Home tab, under At a glance (`entity_id` or `{entity, name, icon}`): switches, helpers, lights and automations light up while on; scenes, scripts and buttons run with one tap. Pick them in the card editor: Panels → Modes. |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
 | `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. |

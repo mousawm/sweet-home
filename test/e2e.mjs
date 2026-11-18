@@ -95,6 +95,10 @@ try {
   check('a second tap opens the garage door, stops the moving gate, pulses the relay', await p.evaluate(() => { const c = window.calls || [], has = (d, s, id) => c.some(x => x[0] === d && x[1] === s && x[2].entity_id === id); return has('cover', 'open_cover', 'cover.garage_door') && has('cover', 'stop_cover', 'cover.driveway_gate') && has('switch', 'turn_on', 'switch.gate_relay'); }));
   check('one tap alone does nothing', await p.evaluate(() => (window.calls || []).filter(x => x[2]?.entity_id === 'cover.garage_door').length === 1));
   await p.evaluate(() => card._setTab('home'));
+  // modes on the Home tab: switches light up while on, a scene runs with one tap
+  check('modes card on the Home tab', await p.evaluate(() => { card._setTab('home'); const t = [...card.shadowRoot.querySelectorAll('#modes .tile')]; return t.length === 3 && t[0].classList.contains('on') && t[0].textContent.includes('Guests') && !t[1].classList.contains('on') && t[2].dataset.act === 'run'; }));
+  await p.evaluate(() => { card.shadowRoot.querySelector('#modes [data-id="input_boolean.motion_stop"]').click(); card.shadowRoot.querySelector('#modes [data-id="scene.good_night"]').click(); });
+  check('…a mode toggles, a scene runs', await p.evaluate(() => { const c = window.calls || []; return c.some(x => x[1] === 'toggle' && x[2].entity_id === 'input_boolean.motion_stop') && c.some(x => x[2]?.entity_id === 'scene.good_night'); }));
   // gate sensors: a camera's state classification (Frigate: open / closed text), a contact sensor as backup, words of your own
   check('a gate tells open / closed from Frigate, falls back to the second sensor, shows an unclear reading', await p.evaluate(async () => {
     const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(card._config));
@@ -208,6 +212,10 @@ try {
   check('…turning it on hides the tip (hint: false)', await p.evaluate(() => editor._config.hint === false));
   await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = false; i.dispatchEvent(new Event('change')); });
   check('…turning it off shows it again', await p.evaluate(() => !('hint' in editor._config)));
+  check('the tip switched off also drops "tap a room" from the 3D view\'s subtitle', await p.evaluate(async () => {
+    const T = customElements.get('t-card'), sub = async hint => { const el = new T(); el.setConfig({ ...card._config, hint }); document.body.appendChild(el); el.hass = window.hassObj; await new Promise(r => setTimeout(r, 300)); const t = el.shadowRoot.querySelector('.stage .title span').textContent; el.remove(); return t; };
+    return (await sub(false)) === 'Live 3D view' && (await sub(undefined)).includes('tap a room');
+  }));
   check('the editor lists the names on this dashboard', await p.evaluate(id => !!editor.querySelector(`[data-nm="${id}"]`) && editor.querySelector(`[data-nm="${id}"]`).value === 'Panel Name', rid));
   await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
   check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));
@@ -234,6 +242,14 @@ try {
   await drag([(arcOp[0] + arcOp[2]) / 2, (arcOp[1] + arcOp[3]) / 2], [(arcOp[0] + arcOp[2]) / 2 + 0.2, (arcOp[1] + arcOp[3]) / 2 + 0.5]);
   check('moving a passage on a curved wall keeps both ends on the arc', await p.evaluate(n => { const o = editor._config.house.openings[n]; return o[1] > 6.2 && [[o[0], o[1]], [o[2], o[3]]].every(q => editor._nearWall(q, 0.03)); }, nOp));
   await p.evaluate(() => { editor._mode = 'shape'; editor._render(); });
+  // modes in the editor (Panels → Modes): picked there, written to the card's own `modes`, a mode's icon kept
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('the editor lists the mode buttons', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=modes]')].some(i => i.value === 'input_boolean.guests,input_boolean.motion_stop,scene.good_night')));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=modes]')][0]; i.value = 'input_boolean.motion_stop,scene.good_night'; i.dispatchEvent(new Event('change')); });
+  check('…removing one keeps the others as they were', await p.evaluate(() => JSON.stringify(editor._config.modes) === '[{"entity":"input_boolean.motion_stop","icon":"mdi:motion-sensor-off"},"scene.good_night"]'));
+  await p.waitForTimeout(1500);
+  check('…and the card follows', await p.evaluate(() => card.shadowRoot.querySelectorAll('#modes .tile').length === 2));
+  await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // gate sensors in the editor: a picker per gate, with the Frigate sensor suggested by name
   await p.evaluate(() => { editor._config.panels = { ...editor._config.panels, security: { entrances: ['switch.gate_relay'] } }; editor._step = 'panels'; editor._render(); });
   check('each gate gets open / closed sensor pickers, with suggestions', await p.evaluate(() => !!editor.querySelector('ha-form input[name=sensor]') && !!editor.querySelector('ha-form input[name=sensor_2]') && !!editor.querySelector('[data-sg="sensor.gate_cam_gate_state"]')));
