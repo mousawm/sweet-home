@@ -680,6 +680,10 @@ export function buildModel(cfg = {}, hass) {
   const P = cfg.panels || {};
   const panel = k => P[k] !== false;
   const sec = typeof P.security === 'object' ? P.security : {};
+  // A panel with several fields: pick any of them yourself and only what you picked shows — the fields you left empty
+  // stay empty instead of being found on their own. Pick none and they are all found as before.
+  const given = (o, keys) => !!o && typeof o === 'object' && keys.some(k => o[k] != null && o[k] !== '' && !(Array.isArray(o[k]) && !o[k].length));
+  const secOwn = given(sec, ['alarm', 'locks', 'doors', 'cameras', 'entrances']);
   const persons = P.people === false ? [] : cfg.persons ? arr(cfg.persons).filter(p => typeof p === 'string') : allOf('person');
   // phone panel per person: the mobile_app device behind one of the person's trackers, and what `people` sets for the
   // person: {name, tracker, battery, charging, location, ringer, wifi, entities: [...], buttons: [...]} (each one given
@@ -713,7 +717,7 @@ export function buildModel(cfg = {}, hass) {
   // garage, window, safe, car, locker, else a padlock. Not given: guessed from the lock's id and name.
   const LOCK_ICON = { door: 'mdi:door-closed', sliding: 'mdi:door-sliding', gate: 'mdi:gate', garage: 'mdi:garage', window: 'mdi:window-closed-variant', safe: 'mdi:safe', car: 'mdi:car', locker: 'mdi:locker', padlock: null };
   const lockKind = (id, name) => { const t = `${id} ${name}`.toLowerCase(); return /garage/.test(t) ? 'garage' : /sliding|patio/.test(t) ? 'sliding' : /gate/.test(t) ? 'gate' : /window/.test(t) ? 'window' : /safe\b|vault/.test(t) ? 'safe' : /\bcar\b|vehicle|tesla/.test(t) ? 'car' : /locker|cabinet|drawer|box/.test(t) ? 'locker' : /door|front|back|entr|deadbolt|porch|main/.test(t) ? 'door' : 'padlock'; };
-  const lockList = (sec.locks ? arr(sec.locks) : allOf('lock')).map(l => (typeof l === 'string' ? { entity: l } : l)).filter(l => l?.entity || l?.id).map(l => {
+  const lockList = (sec.locks ? arr(sec.locks) : secOwn ? [] : allOf('lock')).map(l => (typeof l === 'string' ? { entity: l } : l)).filter(l => l?.entity || l?.id).map(l => {
     const id = l.entity || l.id, name = l.name || R.name(id), kind = LOCK_ICON[l.kind] !== undefined ? l.kind : lockKind(id, name);
     // a plain padlock unless you ask for what it locks (`kind`) or an icon of your own
     return { id, name, kind, icon: l.icon || (l.kind ? LOCK_ICON[l.kind] : null) || null };
@@ -723,7 +727,7 @@ export function buildModel(cfg = {}, hass) {
   // garage door or a gate. The older single `gate: {relay, sensor, name}` is kept as one of them.
   const ENT_ICON = { garage: ['mdi:garage', 'mdi:garage-open'], gate: ['mdi:gate', 'mdi:gate-open'], door: ['mdi:door-closed', 'mdi:door-open'], shutter: ['mdi:window-shutter', 'mdi:window-shutter-open'], barrier: ['mdi:boom-gate', 'mdi:boom-gate-up'] };
   const kindOf = (id, name) => { const t = `${R.dc(id) || ''} ${id} ${name}`.toLowerCase(); return /garage/.test(t) ? 'garage' : /barrier|boom/.test(t) ? 'barrier' : /shutter|rolling|blind/.test(t) ? 'shutter' : /gate/.test(t) ? 'gate' : /door/.test(t) ? 'door' : 'gate'; };
-  const entranceList = [...(sec.entrances !== undefined ? arr(sec.entrances) : P.security === false ? [] : allOf('cover', id => ['garage', 'gate'].includes(R.dc(id)))), ...(sec.gate?.relay ? [{ entity: sec.gate.relay, sensor: sec.gate.sensor, name: sec.gate.name || 'Gate', kind: 'gate' }] : [])]
+  const entranceList = [...(sec.entrances !== undefined ? arr(sec.entrances) : P.security === false || secOwn ? [] : allOf('cover', id => ['garage', 'gate'].includes(R.dc(id)))), ...(sec.gate?.relay ? [{ entity: sec.gate.relay, sensor: sec.gate.sensor, name: sec.gate.name || 'Gate', kind: 'gate' }] : [])]
     .map(e => (typeof e === 'string' ? { entity: e } : e)).filter(e => e?.entity || e?.id).map(e => {
       const id = e.entity || e.id, name = e.name || R.name(id), kind = e.kind || e.type || kindOf(e.sensor || id, name);
       const own = !e.kind && !e.type && states[id]?.attributes?.icon; // an icon set on the entity in Home Assistant
@@ -732,9 +736,9 @@ export function buildModel(cfg = {}, hass) {
       const sensors = arr(e.sensor).concat(arr(e.sensor_2)).filter(x => typeof x === 'string' && x.includes('.'));
       return { id, name, cfgName: e.name || null, sensor: sensors[0] || null, sensors, openWords: arr(e.open_states).map(x => String(x).toLowerCase()), closedWords: arr(e.closed_states).map(x => String(x).toLowerCase()), kind, icons: e.icon ? [e.icon, e.icon] : own ? [own, own] : ENT_ICON[kind] || ENT_ICON.gate, cover: id.startsWith('cover.') };
     });
-  const doorList = (sec.doors ? arr(sec.doors) : allOf('binary_sensor', id => ['door', 'garage_door'].includes(R.dc(id)))).slice(0, 24)
+  const doorList = (sec.doors ? arr(sec.doors) : secOwn ? [] : allOf('binary_sensor', id => ['door', 'garage_door'].includes(R.dc(id)))).slice(0, 24)
     .map(d => typeof d === 'string' ? { id: d, name: R.name(d) } : { id: d.entity || d.id, name: d.name || R.name(d.entity || d.id), open: d.open_state });
-  const camList = (P.security === false ? [] : sec.cameras ? arr(sec.cameras) : allOf('camera')).map(c => { // Security off: its cameras too
+  const camList = (P.security === false ? [] : sec.cameras ? arr(sec.cameras) : secOwn ? [] : allOf('camera')).map(c => { // Security off: its cameras too
     const id = typeof c === 'string' ? c : c.entity || c.id;
     const obj = id.split('.')[1].replace(/_(rtsp|stream|main|sub|high|low)$/, '');
     const ex = s => states[`binary_sensor.${obj}_${s}`] ? `binary_sensor.${obj}_${s}` : null;
@@ -772,11 +776,11 @@ export function buildModel(cfg = {}, hass) {
   const forecast = { today: fs(/energy_production_today$/), remaining: fs(/energy_production_today_remaining$/), tomorrow: fs(/energy_production_tomorrow$/), peak: fs(/power_highest_peak_time_today$/) };
 
   const media = P.media || {};
-  const tvPlayer = media.player || first('media_player', id => R.dc(id) === 'tv') || null;
+  const tvPlayer = media.player || (given(media, ['speakers']) ? null : first('media_player', id => R.dc(id) === 'tv')) || null;
   const W2 = P.water || {};
   const IR = P.irrigation || {};
   const irrGiven = IR.zones ?? IR.valves;
-  const irrZones = (irrGiven !== undefined ? arr(irrGiven) : P.irrigation === false ? [] : allOf('valve').map(entity => ({ entity, auto: true })))
+  const irrZones = (irrGiven !== undefined ? arr(irrGiven) : P.irrigation === false || given(IR, ['interval', 'weekday', 'tomorrow', 'next', 'notification', 'time']) ? [] : allOf('valve').map(entity => ({ entity, auto: true })))
     .map(z => (typeof z === 'string' ? { entity: z } : z)).filter(z => z?.entity);
   const CAR = P.car || {};
   const EN = P.energy || {};
@@ -794,7 +798,7 @@ export function buildModel(cfg = {}, hass) {
   const E = {
     weather: cfg.weather || first('weather'), sun: 'sun.sun',
     persons, phones,
-    alarm: sec.alarm || first('alarm_control_panel'),
+    alarm: sec.alarm || (secOwn ? null : first('alarm_control_panel')),
     locks: lockList,
     entrances: entranceList,
     gate: sec.gate ? { name: sec.gate.name || 'Gate', relay: sec.gate.relay, sensor: sec.gate.sensor } : { name: 'Gate', relay: null, sensor: null },

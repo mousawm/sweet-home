@@ -266,6 +266,8 @@ dashboard. Pieces from the automatic set can be moved once their room has its ow
 
 ### `panels`
 
+Panels with several fields (Security, Media, Irrigation, Energy's live power, and each person's phone panel) follow one rule: leave every field empty and they are found on their own; pick one and only what you pick shows, the empty fields stay empty.
+
 See [examples/panels.yaml](examples/panels.yaml) for every panel.
 
 - **security**: `alarm`, `locks`, `entrances`, `doors`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance)

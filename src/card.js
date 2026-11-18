@@ -1984,8 +1984,10 @@ export class SweetHomeCard extends HTMLElement {
     try { this._eprefs = await this._hass.callWS({ type: 'energy/get_prefs' }); } catch (e) { this._eprefs = null; }
     // live power = the power sensors (stat_rate) of HA's Energy settings, unless the card config names others
     const P = this._eprefs?.energy_sources || [], g = P.find(x => x.type === 'grid'), so = P.find(x => x.type === 'solar');
-    if (!E.energy.grid) E.energy.grid = g?.stat_rate || g?.power?.[0]?.stat_rate || null;
-    if (!E.energy.solar) E.energy.solar = so?.stat_rate || null;
+    // live power: picked in the card (grid and / or solar) — then only those — else Home Assistant's Energy settings
+    const own = !!(this._config?.panels?.energy?.grid_power || this._config?.panels?.energy?.solar_power);
+    if (!E.energy.grid && !own) E.energy.grid = g?.stat_rate || g?.power?.[0]?.stat_rate || null;
+    if (!E.energy.solar && !own) E.energy.solar = so?.stat_rate || null;
     const on = this._config?.panels?.energy !== false && !!(E.energy.grid || E.energy.solar || this._eSrc().gridIn);
     for (const sec of this._sections || []) {
       if (['energy', 'ehist'].includes(sec.el.id)) { sec.off = !on; sec.el.style.display = on ? '' : 'none'; }

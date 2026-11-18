@@ -161,6 +161,7 @@ const AR = {
   'People at the top (empty: everyone)': 'الأشخاص في الأعلى (فارغ: الجميع)', 'Phone panel: leave every field empty to find them on the phone; once you pick one, only what you pick shows': 'لوحة الهاتف: اترك كل الحقول فارغة لتُكتشف من الهاتف؛ وعند اختيار أحدها يظهر ما تختاره فقط',
   'Name on the panel (empty: the phone’s name)': 'الاسم في اللوحة (فارغ: اسم الهاتف)', 'Phone tracker': 'متتبع الهاتف', Battery: 'البطارية', Address: 'العنوان', 'Ringer mode': 'وضع الرنين', 'Wi-Fi': 'الواي فاي',
   'More rows (any entity)': 'صفوف إضافية (أي كيان)', 'Buttons (ring the phone, find it, scripts…)': 'أزرار (رنين الهاتف، العثور عليه، سكربتات…)',
+  'Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.': 'اترك كل الحقول فارغة لتُكتشف تلقائيًا. وعند اختيار أحدها يظهر ما تختاره فقط.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
