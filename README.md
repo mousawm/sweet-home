@@ -267,7 +267,8 @@ dashboard. Pieces from the automatic set can be moved once their room has its ow
 
 See [examples/panels.yaml](examples/panels.yaml) for every panel.
 
-- **security**: `alarm`, `locks`, `doors`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`)
+- **security**: `alarm`, `locks`, `entrances`, `doors`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance)
+  - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
 - **climate**: `entities`
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:
   - `grid_power`, `solar_power`: your own power sensors

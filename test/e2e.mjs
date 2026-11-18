@@ -81,6 +81,16 @@ try {
   check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
   check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
   check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
+  // security: gates and garage doors next to the locks (covers found on their own, the older relay gate kept)
+  await p.evaluate(() => card._setTab('security')); await p.waitForTimeout(150);
+  check('security shows the garage door, the gate cover and the relay gate with their state', await p.evaluate(() => {
+    const t = id => card.shadowRoot.querySelector(`#security [data-act=entrance][data-id="${id}"]`)?.textContent.replace(/\s+/g, ' ') || '';
+    return t('cover.garage_door').includes('Garage Door') && t('cover.garage_door').includes('Closed') && t('cover.driveway_gate').includes('Opening') && t('switch.gate_relay').includes('Main Gate') && t('switch.gate_relay').includes('Open');
+  }));
+  for (const id of ['cover.garage_door', 'cover.driveway_gate', 'switch.gate_relay']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#security [data-act=entrance][data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
+  check('a second tap opens the garage door, stops the moving gate, pulses the relay', await p.evaluate(() => { const c = window.calls || [], has = (d, s, id) => c.some(x => x[0] === d && x[1] === s && x[2].entity_id === id); return has('cover', 'open_cover', 'cover.garage_door') && has('cover', 'stop_cover', 'cover.driveway_gate') && has('switch', 'turn_on', 'switch.gate_relay'); }));
+  check('one tap alone does nothing', await p.evaluate(() => (window.calls || []).filter(x => x[2]?.entity_id === 'cover.garage_door').length === 1));
+  await p.evaluate(() => card._setTab('home'));
   // irrigation: its valves (a valve entity and a switch), named, and they open / start with a second tap
   await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(150);
   check('irrigation panel shows its valves', await p.evaluate(() => { const v = [...card.shadowRoot.querySelectorAll('#irrigation .valve')]; return v.length === 2 && v[0].textContent.includes('Front lawn') && v[0].textContent.includes('Watering') && v[1].textContent.includes('Drip Zone') && v[1].textContent.includes('Closed'); }));
@@ -160,6 +170,13 @@ try {
   await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
   check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
+  // security in the editor: gates and garage doors picked there, a gate's sensor and name kept
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
+  check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
+  await p.waitForTimeout(1500);
+  check('…the card shows the picked one and the older gate', await p.evaluate(() => { card._setTab('security'); return [...card.shadowRoot.querySelectorAll('#security [data-act=entrance]')].map(b => b.dataset.id).join() === 'cover.garage_door,switch.gate_relay'; }));
+  await p.evaluate(() => card._setTab('home'));
   // irrigation in the editor: valves are picked there, a zone's name and duration stay
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
   check('the irrigation panel in the editor has a valves field', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=zones]')].some(i => i.value === 'valve.garden,switch.drip_zone')));
