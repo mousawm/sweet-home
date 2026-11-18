@@ -260,6 +260,7 @@ furniture:
 | `blinds` | `from to y h color shade entity`: a blind along a window that rolls down with the cover's position |
 | `vacuum` | `x z color entity`: a dock and a robot that drives around the room while it cleans and goes back after |
 | `car` | `x z facing (n/e/s/w: where its front points) color length width entity parked_state`: a car in a painted bay. With a sensor it is there only while it is parked, and drives in / off when that changes: a binary sensor that is on, a tracker or person at `home`, or a state like `parked` (`parked_state` sets the exact state). |
+| `ac` | `x z style (wall/cassette/floor) facing (n/e/s/w: where it blows) color y entity`: an AC unit that glows and blows air in its mode's colour while its climate entity runs. With no entity it uses its room's. A room with an `ac` piece has no automatic unit; in the editor a wall unit turns to blow away from the wall it is put against. |
 | `tree` | `x z size color trunk` |
 | `hedge` | `from to h color` |
 | `pool` | `from to color` |

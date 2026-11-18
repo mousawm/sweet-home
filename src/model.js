@@ -118,7 +118,7 @@ export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'],
   tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
   rug: ['Rug', 'mdi:rug'], nightstand: ['Bedside table', 'mdi:table-furniture'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
   charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'],
-  car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'] };
+  car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'], ac: ['AC', 'mdi:air-conditioner'] };
 
 const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/parking|carport|driveway/, 'mdi:car'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
   [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
@@ -724,6 +724,11 @@ export function buildModel(cfg = {}, hass) {
   // a flight of stairs stays within the wall height (a cut-away house has low walls)
   const wallH = num(house.wall_height, 1.35);
   for (const f of furniture) if (f.type === 'stairs' && f.rise == null) f.rise = Math.min(0.13, (wallH * 0.92) / num(f.steps, 10));
+  // AC pieces: a room with one has no automatic unit; one with no entity works with its room's climate entity
+  for (const f of furniture) if (f.type === 'ac') {
+    const r = rooms.find(x => x.id === f.room); if (r) delete r.ac;
+    if (!furnEntities(f).length && r?.climate) f.entities = [r.climate];
+  }
   furniture.forEach((f, i) => { f.idx = i; f.level = f.room ? lvOfRoom[f.room] ?? lvOf(f.level) : lvOf(f.level); if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
   for (const r of rooms) r.furnEnts = furniture.filter(f => f.room === r.id).flatMap(f => f.entities);
   // lock badges float in 3D with their name above them (`name`, else the lock's name; `label: false` hides it); `i` is

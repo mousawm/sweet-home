@@ -241,5 +241,14 @@ test('a plug\'s power sensor is found without being picked', () => {
   assert.equal(R.powerOf('switch.d'), null); // nothing that reads power
 });
 
+test('an AC piece replaces the room\'s automatic unit and works with its climate entity', () => {
+  const h = { ...hass, states: { ...hass.states, 'climate.bed': st('cool') }, entities: { ...hass.entities, 'climate.bed': { area_id: 'bed' } } };
+  const auto = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]] }] } }, h);
+  assert.ok(auto.rooms[0].ac);
+  const m = buildModel({ house: { rooms: [{ area: 'bed', rects: [[0, 0, 4, 4]], furniture: [{ type: 'ac', x: 0.2, z: 2, facing: 'e' }] }] } }, h);
+  assert.equal(m.rooms[0].ac, undefined);
+  assert.deepEqual(m.furniture.find(f => f.type === 'ac').entities, ['climate.bed']);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');
