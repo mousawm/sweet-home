@@ -472,14 +472,13 @@ export function buildModel(cfg = {}, hass) {
     if (p > a) out.push([a, qq, p, vv]); if (u < c) out.push([u, qq, c, vv]);
     return out.filter(([x1, z1, x2, z2]) => x2 - x1 > 0.02 && z2 - z1 > 0.02);
   };
-  // stairs and the floors: with one floor there is nowhere to go down (no stairwell); otherwise stairs not set by
-  // hand go up from the lowest floor, down from the top one, and both ways in between
+  // stairs and the floors: with several floors, stairs not set by hand go up from the lowest floor, down from the top
+  // one, and both ways in between. With one floor (a flat in a building) they go both ways.
   const lvRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
   for (const f of furniture) {
-    if (f.type !== 'stairs') continue;
+    if (f.type !== 'stairs' || !f.byFloors || levelIds.length < 2) continue;
     const l = lvRoom[f.room] ?? lvOf(f.level);
-    if (levelIds.length < 2) f.mode = 'up';
-    else if (f.byFloors) f.mode = l <= levelIds[0] ? 'up' : l >= levelIds[levelIds.length - 1] ? 'down' : 'split';
+    f.mode = l <= levelIds[0] ? 'up' : l >= levelIds[levelIds.length - 1] ? 'down' : 'split';
   }
   for (const f of furniture) {
     if (f.type !== 'stairs' || !['down', 'split'].includes(f.mode) || !f.room) continue;

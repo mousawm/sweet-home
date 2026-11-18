@@ -2584,7 +2584,7 @@ class HouseScene {
     this.T = THREE; this.card = card;
     const T = THREE;
     this.vp = card.$('viewport'); this.cv = card.$('cv'); this.lblLayer = card.$('labels');
-    const r = this.renderer = new T.WebGLRenderer({ canvas: this.cv, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    const r = this.renderer = new T.WebGLRenderer({ canvas: this.cv, antialias: true, alpha: true, powerPreference: 'high-performance', stencil: true }); // stencil: stairwells
     // battery: 1.5× resolution on touch devices (phones / tablets), 2× on a PC
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
     r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
@@ -3180,15 +3180,20 @@ class HouseScene {
   _stairs(f) {
     const T = this.T, N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const stone = new T.MeshStandardMaterial({ color: 0xd6cfc2, roughness: 0.7 }), edge = new T.MeshStandardMaterial({ color: 0x8b7f6e, roughness: 0.6 });
+    // Below the floor (a flight going down, its stairwell) is drawn only where you look into it through the hole in the
+    // floor: the hole writes 1 into the stencil buffer, and those parts draw only where the stencil is 1. From the side
+    // or from below nothing hangs out of the house.
+    const inWell = m => Object.assign(m, { stencilWrite: true, stencilRef: 1, stencilFunc: T.EqualStencilFunc, stencilFail: T.KeepStencilOp, stencilZFail: T.KeepStencilOp, stencilZPass: T.KeepStencilOp });
+    const stoneDown = inWell(stone.clone()), edgeDown = inWell(edge.clone());
     const rail = new T.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
     const x0 = N(f.x0, 0), z0 = N(f.z0, 0), x1 = N(f.x1, 2), z1 = N(f.z1, 1), alongX = (f.axis || 'x') === 'x', mode = f.mode || 'up';
     const n = N(f.steps, 10), len = alongX ? x1 - x0 : z1 - z0, wid = alongX ? z1 - z0 : x1 - x0, run = len / n, rise = N(f.rise, 0.13);
     const room = f.room || null;
     const step = (along, a0, a1, y) => { // along: position along the climb; a0..a1: across
       const geo = alongX ? new T.BoxGeometry(run, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, run);
-      const s = new T.Mesh(geo, stone); const [cx, cz] = alongX ? this.w(along, (a0 + a1) / 2) : this.w((a0 + a1) / 2, along);
+      const below = y < 0, s = new T.Mesh(geo, below ? stoneDown : stone); if (below) s.renderOrder = 2; const [cx, cz] = alongX ? this.w(along, (a0 + a1) / 2) : this.w((a0 + a1) / 2, along);
       s.position.set(cx, y, cz); s.castShadow = s.receiveShadow = true; s.userData.room = room; if (f.idx != null) s.userData.fi = f.idx; this._at().add(s); this.pick.push(s);
-      const nose = new T.Mesh(alongX ? new T.BoxGeometry(0.03, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, 0.03), edge);
+      const nose = new T.Mesh(alongX ? new T.BoxGeometry(0.03, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, 0.03), below ? edgeDown : edge); if (below) nose.renderOrder = 2;
       nose.position.set(cx - (alongX ? run / 2 : 0), y, cz - (alongX ? 0 : run / 2)); this._at().add(nose);
     };
     const a0 = alongX ? z0 : x0, a1 = alongX ? z1 : x1, mid = (a0 + a1) / 2, s0 = alongX ? x0 : z0;
@@ -3201,25 +3206,27 @@ class HouseScene {
       const [hx, hz] = alongX ? this.w(s0 + len / 2, mid) : this.w(mid, s0 + len / 2);
       const hr = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.05, 0.05) : new T.BoxGeometry(0.05, 0.05, len), rail); hr.position.set(hx, 0.95, hz); this._at().add(hr);
       for (let i = 0; i <= 4; i++) { const q = s0 + len * i / 4; const [px, pz] = alongX ? this.w(q, mid) : this.w(mid, q); const pst = new T.Mesh(new T.BoxGeometry(0.04, 0.95, 0.04), rail); pst.position.set(px, 0.475, pz); this._at().add(pst); }
-      const voidM = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.02, (a1 - a0) / 2) : new T.BoxGeometry((a1 - a0) / 2, 0.02, len), new T.MeshBasicMaterial({ color: 0x05070c }));
-      const [vx, vz] = alongX ? this.w(s0 + len / 2, (mid + a1) / 2) : this.w((mid + a1) / 2, s0 + len / 2); voidM.position.set(vx, -n * rise - 0.1, vz); this._at().add(voidM);
     }
     // the stairwell of a flight going down: an open dark shaft under the hole in the floor
     if (f.well) {
       const [wx0, wz0, wx1, wz1] = f.well, depth = n * rise + 0.25;
-      const shaft = new T.Mesh(new T.BoxGeometry(wx1 - wx0, depth, wz1 - wz0), new T.MeshStandardMaterial({ color: 0x0b1020, roughness: 1, side: T.BackSide }));
-      const [sxw, szw] = this.w((wx0 + wx1) / 2, (wz0 + wz1) / 2); shaft.position.set(sxw, -depth / 2, szw); shaft.userData.room = room; if (f.idx != null) shaft.userData.fi = f.idx;
+      const shaft = new T.Mesh(new T.BoxGeometry(wx1 - wx0, depth, wz1 - wz0), inWell(new T.MeshStandardMaterial({ color: 0x0b1020, roughness: 1, side: T.BackSide })));
+      const [sxw, szw] = this.w((wx0 + wx1) / 2, (wz0 + wz1) / 2); shaft.position.set(sxw, -depth / 2, szw); shaft.renderOrder = 2; shaft.userData.room = room; if (f.idx != null) shaft.userData.fi = f.idx;
       this._at().add(shaft);
+      // the opening: invisible, it only marks the stencil where the hole in the floor is seen
+      const hole = new T.Mesh(new T.PlaneGeometry(wx1 - wx0, wz1 - wz0), new T.MeshBasicMaterial({ colorWrite: false, depthWrite: false, stencilWrite: true, stencilRef: 1, stencilFunc: T.AlwaysStencilFunc, stencilZPass: T.ReplaceStencilOp }));
+      hole.rotation.x = -Math.PI / 2; hole.position.set(sxw, 0.001, szw); hole.renderOrder = 1; this._at().add(hole);
     }
     // arrows on the flights: teal going up, amber going down
     const arrow = (across, y, up) => {
       const sh = new T.Shape(); sh.moveTo(0, 0.22); sh.lineTo(0.16, -0.06); sh.lineTo(0.06, -0.06); sh.lineTo(0.06, -0.22); sh.lineTo(-0.06, -0.22); sh.lineTo(-0.06, -0.06); sh.lineTo(-0.16, -0.06); sh.closePath();
-      const m = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: up ? 0x2dd4bf : 0xfbbf24, transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide }));
+      const mat = new T.MeshBasicMaterial({ color: up ? 0x2dd4bf : 0xfbbf24, transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide });
+      const m = new T.Mesh(new T.ShapeGeometry(sh), up ? mat : inWell(mat));
       const along = s0 + len / 2, [ax, az] = alongX ? this.w(along, across) : this.w(across, along);
       m.rotation.x = -Math.PI / 2; // lying flat; the shape's +y points along -z
       // both point the way you walk: up the rising flight, down the sinking one (both run along +x / +z)
       m.rotation.z = alongX ? -Math.PI / 2 : Math.PI;
-      m.position.set(ax, y + 0.1, az); m.renderOrder = 2; this._at().add(m);
+      m.position.set(ax, y + 0.1, az); m.renderOrder = up ? 2 : 3; this._at().add(m);
     };
     const midY = (n / 2) * rise;
     if (mode === 'split') { arrow((a0 + mid) / 2, 0.08 + midY, true); arrow((mid + a1) / 2, -0.08 - midY, false); }

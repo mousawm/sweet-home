@@ -73,11 +73,11 @@ test('stairs follow the floors: up from the lowest, down from the top, both in b
   const chosen = buildModel({ house: { rooms: [{ name: 'Stairs', stairs: 'both', rects: [[0, 0, 2, 4]] }, { name: 'Hall', level: 1, rects: [[0, 0, 2, 4]] }] } }, hass);
   assert.equal(chosen.furniture.find(f => f.type === 'stairs').mode, 'split', 'a choice made by hand wins');
 });
-test('one floor: stairs only go up, no stairwell (even when set to both or down)', () => {
+test('one floor (a flat): stairs go both ways unless set; stairs: false turns them off', () => {
   const m = buildModel({ house: { rooms: [{ name: 'Stairs', rects: [[0, 0, 2, 4]] }, { name: 'Hall', stairs: 'down', rects: [[2, 0, 4, 4]] }] } }, hass);
-  assert.deepEqual(m.furniture.filter(f => f.type === 'stairs').map(f => f.mode), ['up', 'up']);
-  assert.ok(m.rooms.every(r => !r.floorRects));
-  assert.equal(buildModel({ house: { auto_furniture: true, rooms: [{ name: 'Stairs', stairs: false, rects: [[0, 0, 2, 4]] }] } }, hass).furniture.filter(f => f.type === 'stairs').length, 0, 'stairs: false turns them off');
+  assert.deepEqual(m.furniture.filter(f => f.type === 'stairs').map(f => f.mode), ['split', 'down']);
+  assert.ok(m.rooms.every(r => r.floorRects), 'a stairwell in both');
+  assert.equal(buildModel({ house: { auto_furniture: true, rooms: [{ name: 'Stairs', stairs: false, rects: [[0, 0, 2, 4]] }] } }, hass).furniture.filter(f => f.type === 'stairs').length, 0);
 });
 test('parking: asphalt floor, a car in the automatic set; cars and garden pieces keep their sensor', () => {
   const m = buildModel({ house: { auto_furniture: true, rooms: [{ name: 'Driveway', rects: [[0, 0, 3, 6]] }, { name: 'Garden', rects: [[3, 0, 9, 6]], furniture: [{ type: 'car', x: 1, z: 1, entity: 'binary_sensor.door', color: '#ff0000' }, { type: 'sprinkler', x: 5, z: 3, entity: 'switch.kettle' }] }] } }, hass);
