@@ -1505,8 +1505,9 @@ export class SweetHomeCard extends HTMLElement {
     }).join('');
     // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
     const gate = E.entrances.filter(g => this.s(g.id)).map(g => {
-      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' ? 'good' : st === 'moving' ? 'warn' : st === 'open' ? 'bad' : '';
-      const label = { open: 'Open', closed: 'Closed', moving: pretty(this.v(g.id)), bad: 'Unavailable', unknown: 'Tap to open' }[st];
+      // a relay gate without an open sensor can't tell: it shows as closed (green) until a sensor says otherwise
+      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' || st === 'unknown' ? 'good' : st === 'moving' ? 'warn' : 'bad';
+      const label = { open: 'Open', closed: 'Closed', moving: pretty(this.v(g.id)), bad: 'Unavailable', unknown: 'Closed' }[st];
       return `<button class="lock ${cls}" data-act="entrance" data-id="${g.id}"${g.sensor ? ` data-id2="${g.sensor}"` : ''}>
         <div class="lk-ic">${ic(st === 'open' || st === 'moving' ? g.icons[1] : g.icons[0])}</div>
         <b>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</b><span>${esc(tr(label))}</span></button>`;

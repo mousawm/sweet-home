@@ -125,10 +125,10 @@ test('a door on a slanted wall snaps onto it and cuts it', () => {
   const diag = m.walls.filter(w => w[0] !== w[2] && w[1] !== w[3]);
   assert.equal(diag.length, 2, 'the slanted wall has a gap');
 });
-test('locks: what they lock picks the icon (guessed, or kind / icon given)', () => {
+test('locks: a padlock, or what they lock when kind / icon is given', () => {
   const h = { ...hass, states: { ...hass.states, 'lock.front': st('locked', { friendly_name: 'Front Door' }), 'lock.x': st('locked', { friendly_name: 'Thing' }) } };
   const m = buildModel({ panels: { security: { locks: ['lock.front', 'lock.x', { entity: 'lock.x', kind: 'gate' }, { entity: 'lock.x', icon: 'mdi:star' }] } } }, h);
-  assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', 'mdi:door-closed'], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']]);
+  assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', null], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']], 'a padlock unless kind / icon is given');
 });
 test('open passages on every kind of wall: inner, outer, outdoor railings, slanted, curved, separate (straight and bent)', () => {
   const rooms = [{ name: 'Living', rects: [[0, 0, 6, 5]] }, { name: 'Balcony', outdoor: true, rects: [[6, 0, 9, 5]] }, { name: 'Bed', points: [[0, 5], [6, 5], [6, 9, 1], [0, 9]] }, { name: 'Den', points: [[9, 0], [12, 0], [12, 3], [10, 5], [9, 5]] }, { name: 'Garden', rects: [[0, 10, 12, 14]] }, { name: 'Up', level: 1, points: [[0, 0, -0.8], [4, 0], [4, 4], [0, 4]] }];

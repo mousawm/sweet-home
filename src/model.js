@@ -705,7 +705,8 @@ export function buildModel(cfg = {}, hass) {
   const lockKind = (id, name) => { const t = `${id} ${name}`.toLowerCase(); return /garage/.test(t) ? 'garage' : /sliding|patio/.test(t) ? 'sliding' : /gate/.test(t) ? 'gate' : /window/.test(t) ? 'window' : /safe\b|vault/.test(t) ? 'safe' : /\bcar\b|vehicle|tesla/.test(t) ? 'car' : /locker|cabinet|drawer|box/.test(t) ? 'locker' : /door|front|back|entr|deadbolt|porch|main/.test(t) ? 'door' : 'padlock'; };
   const lockList = (sec.locks ? arr(sec.locks) : allOf('lock')).map(l => (typeof l === 'string' ? { entity: l } : l)).filter(l => l?.entity || l?.id).map(l => {
     const id = l.entity || l.id, name = l.name || R.name(id), kind = LOCK_ICON[l.kind] !== undefined ? l.kind : lockKind(id, name);
-    return { id, name, kind, icon: l.icon || (l.kind ? LOCK_ICON[l.kind] : null) || states[id]?.attributes?.icon || LOCK_ICON[kind] || null };
+    // a plain padlock unless you ask for what it locks (`kind`) or an icon of your own
+    return { id, name, kind, icon: l.icon || (l.kind ? LOCK_ICON[l.kind] : null) || null };
   });
   // entrances next to the locks: gates, garage doors, barriers, shutters. A cover opens / closes itself; a relay
   // (switch / button / script) is pulsed and an optional `sensor` says whether it is open. Not given: every cover that is a
