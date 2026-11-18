@@ -125,7 +125,7 @@ function autoRooms(R, cfg) {
   const floorLevel = a => areaLevel(R, a) ?? 0;
   let ids = Object.keys(R.areas);
   if (cfg.areas) ids = arr(cfg.areas).filter(a => R.areas[a]);
-  else ids = ids.filter(a => (R.byArea[a] || []).length); // areas with something in them
+  else if (ids.some(a => (R.byArea[a] || []).length)) ids = ids.filter(a => (R.byArea[a] || []).length); // areas with something in them (or every area, while none has devices yet)
   ids.sort((a, b) => floorLevel(a) - floorLevel(b) || String(R.areas[a].name).localeCompare(R.areas[b].name));
   if (!ids.length) return [];
   // one block per floor, all at the same place: the card shows one floor at a time
@@ -426,7 +426,55 @@ export function extraWalls(list) {
 /* ------------------------------------------------------------------ */
 /* the full model                                                       */
 /* ------------------------------------------------------------------ */
+// A config typed by hand can hold anything: empty list items, text where numbers go, a list where one item goes. This
+// keeps what can be used and drops what can't (it never adds anything), so one bad line can't stop the whole card.
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const isNum = v => v !== '' && v != null && isFinite(Number(v));
+const segOk = q => Array.isArray(q) && q.length >= 4 && q.slice(0, 4).every(isNum);
+const ptOk = q => Array.isArray(q) && q.length >= 2 && isNum(q[0]) && isNum(q[1]);
+const entOk = e => (typeof e === 'string' && e.includes('.')) || (isObj(e) && typeof (e.entity || e.id) === 'string');
+export function cleanConfig(cfg) {
+  if (!isObj(cfg)) return {};
+  const c = { ...cfg };
+  if (c.names !== undefined && !isObj(c.names)) delete c.names;
+  if (c.panels !== undefined && !isObj(c.panels)) delete c.panels;
+  if (isObj(c.panels)) {
+    c.panels = { ...c.panels };
+    for (const [k, v] of Object.entries(c.panels)) {
+      if (v !== false && !isObj(v)) { delete c.panels[k]; continue; } // `true`, text or a list: as if not set
+      if (!isObj(v)) continue;
+      const o = c.panels[k] = { ...v };
+      for (const [kk, vv] of Object.entries(o)) if (Array.isArray(vv)) o[kk] = vv.filter(x => x != null && x !== '' && (typeof x !== 'object' || isObj(x)));
+    }
+  }
+  if (!isObj(c.house)) { if (c.house !== undefined) delete c.house; return c; }
+  const H = c.house = { ...c.house };
+  const objs = k => { if (H[k] !== undefined) H[k] = arr(H[k]).filter(isObj); };
+  const segs = k => { if (Array.isArray(H[k])) H[k] = H[k].filter(segOk); else if (H[k] !== undefined && H[k] !== 'none' && H[k] !== 'auto') delete H[k]; };
+  objs('doors'); objs('lock_badges'); objs('door_info'); objs('levels'); objs('furniture');
+  segs('openings'); segs('windows');
+  if (H.walls !== undefined) H.walls = arr(H.walls).filter(segOk);
+  if (H.extra_walls !== undefined) H.extra_walls = arr(H.extra_walls).filter(w => segOk(w) || (isObj(w) && ptOk(w.from) && ptOk(w.to)));
+  H.doors = H.doors?.filter(d => ptOk(d.from) || (isNum(d.x) && isNum(d.z)));
+  if (!H.doors) delete H.doors;
+  H.lock_badges = H.lock_badges?.filter(b => isNum(b.x) && isNum(b.z));
+  if (!H.lock_badges) delete H.lock_badges;
+  if (H.rooms !== undefined) H.rooms = arr(H.rooms).filter(isObj).map(r => {
+    const o = { ...r };
+    if (o.rects !== undefined) o.rects = arr(o.rects).filter(segOk);
+    if (o.points !== undefined) o.points = arr(o.points).filter(ptOk);
+    if (Array.isArray(o.furniture)) o.furniture = o.furniture.filter(f => isObj(f) && typeof (f.type ?? 'box') === 'string');
+    for (const k of ['names', 'light_names', 'motion_names', 'light_fx']) if (o[k] !== undefined && !isObj(o[k])) delete o[k];
+    for (const k of ['lights', 'motion', 'doors', 'locks', 'plugs', 'entities', 'color_lights', 'simple_lights']) if (o[k] != null) o[k] = arr(o[k]).filter(entOk);
+    for (const k of ['temperature', 'humidity', 'climate', 'fan', 'media']) if (o[k] != null && o[k] !== false && typeof o[k] !== 'string') delete o[k];
+    if (o.level != null && !isNum(o.level)) delete o.level;
+    return o;
+  });
+  return c;
+}
+
 export function buildModel(cfg = {}, hass) {
+  cfg = cleanConfig(cfg);
   const R = registry(hass);
   const house = cfg.house || {};
   const states = R.states;
@@ -672,7 +720,7 @@ export function buildModel(cfg = {}, hass) {
     });
   const doorList = (sec.doors ? arr(sec.doors) : allOf('binary_sensor', id => ['door', 'garage_door'].includes(R.dc(id)))).slice(0, 24)
     .map(d => typeof d === 'string' ? { id: d, name: R.name(d) } : { id: d.entity || d.id, name: d.name || R.name(d.entity || d.id), open: d.open_state });
-  const camList = (sec.cameras ? arr(sec.cameras) : allOf('camera')).map(c => {
+  const camList = (P.security === false ? [] : sec.cameras ? arr(sec.cameras) : allOf('camera')).map(c => { // Security off: its cameras too
     const id = typeof c === 'string' ? c : c.entity || c.id;
     const obj = id.split('.')[1].replace(/_(rtsp|stream|main|sub|high|low)$/, '');
     const ex = s => states[`binary_sensor.${obj}_${s}`] ? `binary_sensor.${obj}_${s}` : null;

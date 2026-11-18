@@ -102,7 +102,26 @@ try {
   for (const id of ['valve.garden', 'switch.drip_zone']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#irrigation .valve[data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
   check('a valve closes with valve.close_valve, a switch zone starts with switch.turn_on', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'valve' && c[1] === 'close_valve' && c[2].entity_id === 'valve.garden') && (window.calls || []).some(c => c[0] === 'switch' && c[1] === 'turn_on' && c[2].entity_id === 'switch.drip_zone')));
   await p.evaluate(() => card._setTab('home'));
+  // states Home Assistant has not filled in yet (just after a restart): no "NaN" anywhere
+  check('unknown states with no attributes show "—", never NaN', await p.evaluate(async () => {
+    const h = JSON.parse(JSON.stringify(window.hassObj)); for (const k in h.states) { h.states[k].state = 'unknown'; h.states[k].attributes = {}; }
+    card.hass = h; let ok = true;
+    for (const t of ['home', 'security', 'climate', 'energy', 'water', 'system']) { card._setTab(t); await new Promise(r => setTimeout(r, 120)); if (/NaN|undefined/.test(card.shadowRoot.textContent)) ok = false; }
+    card.hass = window.hassObj; card._setTab('home'); await new Promise(r => setTimeout(r, 150)); return ok;
+  }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
+  // a home with no rooms yet: say what to do; a panel switched off is hidden
+  p = await open('?config=demo');
+  check('no rooms yet: the 3D view says how to add them, no tap-a-room tip', await p.evaluate(async () => {
+    const T = customElements.get('t-card'), el = new T(); el.setConfig({ house: { rooms: [] }, panels: { security: false } }); card.remove(); document.body.appendChild(el); window.card = el;
+    el.hass = { ...window.hassObj, areas: {}, floors: {} }; await new Promise(r => setTimeout(r, 900));
+    const L = el.shadowRoot.getElementById('loading');
+    return L.classList.contains('noroom') && L.textContent.includes('No rooms yet') && !el.shadowRoot.getElementById('hint').classList.contains('show');
+  }));
+  check('a panel switched off is hidden (Security off: no Security tab, cameras too)', await p.evaluate(() => ![...card.shadowRoot.querySelectorAll('#tabs [data-tab]')].some(t => t.dataset.tab === 'security')));
+  check('no page errors (empty home)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
   console.log('editor');

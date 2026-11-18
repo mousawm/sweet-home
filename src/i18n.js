@@ -143,6 +143,10 @@ const AR = {
   // lock badge names
   'The name above the badge in the 3D view, on this dashboard only. Clear it to show the lock’s name.': 'الاسم فوق الشارة في العرض ثلاثي الأبعاد، في لوحة التحكم هذه فقط. امسحه لعرض اسم القفل.',
   'Name shown in 3D (empty: the lock’s name)': 'الاسم في العرض ثلاثي الأبعاد (فارغ: اسم القفل)', 'Show the name above the badge': 'عرض الاسم فوق الشارة',
+  // empty home
+  'No rooms yet': 'لا توجد غرف بعد',
+  'Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.': 'أضف المناطق في Home Assistant (الإعدادات ← المناطق) وضع أجهزتك فيها: تصبح كل منطقة غرفة. أو ارسم غرفك بنفسك: عدّل لوحة التحكم، ثم عدّل هذه البطاقة ← الغرف.',
+  'Your alarm, locks, temperatures, power, cameras and TV show up here once Home Assistant has them.': 'يظهر هنا نظام الإنذار والأقفال ودرجات الحرارة والطاقة والكاميرات والتلفاز عند توفرها في Home Assistant.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

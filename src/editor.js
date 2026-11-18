@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear } from './model.js';
+import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -182,11 +182,11 @@ class SweetHomeCardEditor extends HTMLElement {
   connectedCallback() { window.__sweetHomeEditor = this; }
   disconnectedCallback() { if (window.__sweetHomeEditor === this) delete window.__sweetHomeEditor; }
   // a change made in the card's 3D view (furniture dragged in arrange mode): taken like an edit here, with undo
-  applyExternal(config) { this._config = clone(config); this._emit(); this._render(); }
+  applyExternal(config) { this._config = cleanConfig(clone(config)); this._emit(); this._render(); }
   setConfig(config) {
     const j = JSON.stringify(config || {});
     if (j === this._last) return; // our own change coming back from Home Assistant: nothing to redraw (keeps the focus while typing)
-    this._config = clone(config); this._last = j; this._render();
+    this._config = cleanConfig(clone(config)); this._last = j; this._render(); // empty or broken list items are left out
   }
   set hass(h) { const first = !this._hass; this._hass = h; setLang(this._config?.language || h?.locale?.language || h?.language); this._R = null; if (first) this._render(); else this.querySelectorAll('ha-form').forEach(f => { f.hass = h; }); }
   get _reg() { return (this._R ||= registry(this._hass)); }

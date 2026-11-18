@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr } from './model.js';
+import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr, cleanConfig } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
@@ -253,7 +253,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   setConfig(config) {
     const prev = this._cfgJSON;
-    this._config = config || {}; this._cfgJSON = JSON.stringify(this._config);
+    this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
     if (this._built && prev !== this._cfgJSON) this._rebuild();
   }
   getCardSize() { return 20; }
@@ -565,11 +565,12 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('devices'), deps: all(E.devices.map(d => [d.bat, d.chg, d.trk, d.chgState]), E.persons), render: () => this._rDevices() },
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
     ];
+    const offP = k => this._config?.panels?.[k] === false; // a panel switched off in the card editor
     const off = {
-      security: !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: !E.cameras.length, climate: !MODEL.has.climate,
+      security: offP('security') || !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: offP('security') || offP('cameras') || !E.cameras.length, climate: offP('climate') || !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
-      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
-      mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
+      water: offP('water') || !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: offP('irrigation') || !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
+      mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: offP('devices') || !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
@@ -713,7 +714,7 @@ export class SweetHomeCard extends HTMLElement {
       const inside = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
       const avg = inside.length ? inside.reduce((a, b) => a + b, 0) / inside.length : null;
       const w = this.s(E.weather);
-      const out = w ? `<div class="dsec">Outside</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}<b style="color:${rgb(tempRGB(w.attributes.temperature))}">${Number(w.attributes.temperature).toFixed(1)}°</b></div>` : '';
+      const out = w ? `<div class="dsec">Outside</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}${isFinite(parseFloat(w.attributes.temperature)) ? `<b style="color:${rgb(tempRGB(Number(w.attributes.temperature)))}">${Number(w.attributes.temperature).toFixed(1)}°</b>` : '<b>—</b>'}</div>` : '';
       html = head('mdi:home-thermometer', 'Temperatures', avg != null ? `Average ${avg.toFixed(1)}° · ${Math.min(...inside).toFixed(1)}° – ${Math.max(...inside).toFixed(1)}°` : 'No readings')
         + `<div class="dsec">Rooms</div>${rows}${out}`;
     }
@@ -1443,7 +1444,7 @@ export class SweetHomeCard extends HTMLElement {
   // first-use hint on the 3D view; gone for good after the first room is opened or when closed
   _hintShow() {
     let seen = false; try { seen = localStorage.getItem('sweet-home-hint') === '1'; } catch (e) { /* storage blocked */ }
-    const el = this.$('hint'); if (!el || seen || this._config?.hint === false) return;
+    const el = this.$('hint'); if (!el || seen || this._config?.hint === false || (MODEL && !MODEL.gltf && !ROOMS.length)) return; // no rooms: nothing to tap yet
     const pieces = FURN.some(f => f.entities?.length);
     el.innerHTML = `${ic('mdi:gesture-tap')}<span>${tr("Tap a room to see and control what's in it.")}${pieces ? ' ' + tr('Furniture with a dot can be tapped too.') : ''} ${tr('Long press any row for details.')}</span><button class="ibtn" data-act="hintx" aria-label="${tr('Close hint')}">${ic('mdi:close')}</button>`;
     el.classList.add('on');
@@ -1463,7 +1464,7 @@ export class SweetHomeCard extends HTMLElement {
   _rHeader() {
     const w = this.s(E.weather);
     const wx = w ? `<div class="chip big" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}
-      <div><b>${Math.round(w.attributes.temperature)}°</b><span>${esc(wxName(w.state))} · ${w.attributes.humidity ?? '—'}%</span></div></div>` : '';
+      <div><b>${isFinite(parseFloat(w.attributes.temperature)) ? Math.round(w.attributes.temperature) + '°' : '—'}</b><span>${esc(wxName(w.state))}${isFinite(parseFloat(w.attributes.humidity)) ? ` · ${Math.round(w.attributes.humidity)}%` : ''}</span></div></div>` : '';
     const persons = E.persons.map(p => {
       const st = this.s(p); if (!st) return '';
       const home = st.state === 'home'; const pic = st.attributes.entity_picture;
@@ -1552,7 +1553,7 @@ export class SweetHomeCard extends HTMLElement {
     // each tile opens its tab and scrolls to the card it summarises (data-to = that card's id)
     const tile = (tab, icon, color, label, value, sub, to = tab) => `<button class="gl" data-act="tab" data-tab="${tab}" data-to="${to}" style="--c:${color}">
       <span class="gi">${ic(icon)}</span><div><span>${tr(tc(label))}</span><b>${value}</b><em>${sub}</em></div></button>`;
-    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>${tr('At a glance')}</h3></div><div class="glance">
+    const tiles = `
       ${this._secOff('security') ? '' : tile('security', al[1], al[2], 'Security', tr(al[0]), open ? tr('{0} open / unlocked', open) : esc(tr('All closed & locked')))}
       ${this._secOff('climate') ? '' : tile('climate', 'mdi:home-thermometer', '#22d3ee', 'Climate', avg != null ? avg.toFixed(1) + '°' : '—', acOn ? tr('{0} AC running', acOn) : tr('All ACs off'))}
       ${this._secOff('energy') ? '' : tile('energy', 'mdi:lightning-bolt', '#fbbf24', 'Power now', fmtW(home), tr('Today {0}', this._eKwh('d', 1)))}
@@ -1560,8 +1561,9 @@ export class SweetHomeCard extends HTMLElement {
       ${this._secOff('car') ? '' : tile('energy', 'mdi:car-electric', '#34d399', 'Car', ch ? tr('Charging') : esc(this.v(E.car.parking) || '—'), ch ? fmtW(this.n(E.car.power)) : tr('Charger idle'), 'car')}
       ${!E.cameras.length ? '' : tile('security', 'mdi:cctv', det ? '#fb7185' : '#94a3b8', 'Cameras', det ? (det > 1 ? tr('{0} persons', det) : tr('1 person')) : tr('All quiet'), tr('{0} cameras live', E.cameras.length), 'cams')}
       ${!tv ? '' : tile('media', 'mdi:television-play', '#f472b6', 'TV', esc(tr(pretty(tv?.state))), esc(tv?.attributes.app_name || tc(tv?.attributes.friendly_name || '')))}
-      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? tr('Online') : tr('Offline'), 'lab')}
-    </div>`;
+      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? tr('Online') : tr('Offline'), 'lab')}`;
+    // nothing to sum up yet (a new home): say what fills this card instead of an empty box
+    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>${tr('At a glance')}</h3></div>${tiles.trim() ? `<div class="glance">${tiles}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Your alarm, locks, temperatures, power, cameras and TV show up here once Home Assistant has them.')}</div>`}`;
   }
 
   _acControls(id) {
@@ -2649,6 +2651,10 @@ export class SweetHomeCard extends HTMLElement {
     this._three = scene;
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
+    if (!MODEL.gltf && !ROOMS.length) { // no rooms yet: say how to get them instead of an empty 3D view
+      const L = this.$('loading'); L.classList.remove('gone'); L.classList.add('noroom'); this.$('hint')?.classList.add('gone');
+      L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
+    }
     this._renderLegend();
     this._three.sync();
   }
@@ -4272,8 +4278,9 @@ main{scroll-margin-top:84px}
 .dot.amber{background:var(--amber);box-shadow:0 0 8px var(--amber)}.dot.gray{background:#475569}.dot.teal{background:var(--teal)}.dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}.dot.red{background:var(--rose)}
 .pulse{animation:pulse 1.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(45,212,191,.7)}100%{box-shadow:0 0 0 10px rgba(45,212,191,0)}}
+.loading.noroom{padding:24px;text-align:center;gap:8px}.loading.noroom ha-icon{--mdc-icon-size:40px;color:var(--teal)}.loading.noroom b{color:var(--tx);font-size:16px}.loading.noroom span{max-width:420px;line-height:1.5}
 .loading{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;color:var(--mu);font-size:13px;transition:opacity .6s}
-.loading.gone{opacity:0;pointer-events:none}
+.loading.gone,.hint.gone{opacity:0;pointer-events:none}
 .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);animation:spin 1s linear infinite}
 .drawer{position:absolute;top:12px;right:12px;bottom:12px;width:290px;max-width:calc(100% - 24px);padding:16px;border-radius:18px;background:rgba(10,15,30,.82);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transform:translateX(calc(100% + 20px));transition:transform .35s cubic-bezier(.2,.8,.2,1);overflow:auto;box-shadow:-20px 0 50px -20px rgba(0,0,0,.6)}
 .drawer.open{transform:none}
