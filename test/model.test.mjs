@@ -250,5 +250,21 @@ test('an AC piece replaces the room\'s automatic unit and works with its climate
   assert.deepEqual(m.furniture.find(f => f.type === 'ac').entities, ['climate.bed']);
 });
 
+test('automatic bathrooms get a toilet, a sink and a bathtub or shower; laundries a washing machine', () => {
+  const T = c => autoFurnitureConfig(c).map(p => p.type);
+  assert.deepEqual(T({ name: 'Bathroom', rects: [[0, 0, 2.6, 2.6]] }).sort(), ['bathtub', 'sink', 'toilet']);
+  assert.deepEqual(T({ name: 'Guest WC', rects: [[0, 0, 1.6, 2.2]] }).sort(), ['shower', 'sink', 'toilet']);
+  assert.ok(T({ name: 'Laundry', rects: [[0, 0, 2, 2]] }).includes('washer'));
+  // nothing sticks out of a small bathroom
+  for (const p of autoFurnitureConfig({ name: 'Bathroom', rects: [[0, 0, 1.6, 2.2]] })) assert.ok(p.x - p.w / 2 >= 0 && p.x + p.w / 2 <= 1.6 && p.z - p.d / 2 >= 0 && p.z + p.d / 2 <= 2.2, p.type);
+});
+
+test('the automatic AC of an outline room hangs on its top wall, not mid-room', () => {
+  const h = { ...hass, states: { ...hass.states, 'climate.bed': st('cool') }, entities: { ...hass.entities, 'climate.bed': { area_id: 'bed' } } };
+  const m = buildModel({ house: { rooms: [{ area: 'bed', points: [[0, 0], [6, 0], [6, 4], [1.2, 4], [0, 2.8, 0.7]] }] } }, h);
+  const r = m.rooms[0], top = Math.min(...r.rects.map(q => q[1]));
+  assert.ok(Math.abs(r.ac.z - (top + 0.14)) < 1e-6, JSON.stringify(r.ac));
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

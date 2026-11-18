@@ -261,11 +261,21 @@ furniture:
 | `vacuum` | `x z color entity`: a dock and a robot that drives around the room while it cleans and goes back after |
 | `car` | `x z facing (n/e/s/w: where its front points) color length width entity parked_state`: a car in a painted bay. With a sensor it is there only while it is parked, and drives in / off when that changes: a binary sensor that is on, a tracker or person at `home`, or a state like `parked` (`parked_state` sets the exact state). |
 | `ac` | `x z style (wall/cassette/floor) facing (n/e/s/w: where it blows) color y entity`: an AC unit that glows and blows air in its mode's colour while its climate entity runs. With no entity it uses its room's. A room with an `ac` piece has no automatic unit; in the editor a wall unit turns to blow away from the wall it is put against. |
+| `toilet` | `x z w d facing color seat` |
+| `sink` | `x z w d h facing color top entity`: a vanity with a basin, tap and mirror; the mirror glows while its light is on |
+| `shower` | `x z w d facing entity`: a tray with glass; steam rises while a switch / water heater is on, or a humidity sensor is above 70 % |
+| `bathtub` | `x z w d facing water (false: empty)` |
+| `washer` | `x z w d h facing entity`: a front-loader whose drum turns while it runs (a power sensor above 5 W, or a running / on state) |
+| `towel` | `x z w y facing color entity`: a towel warmer whose rails glow warm while it is on |
 | `tree` | `x z size color trunk` |
 | `hedge` | `from to h color` |
 | `pool` | `from to color` |
 | `sprinkler` | `x z radius entity`: sprays water in 3D while its valve or switch is on |
 | all types | `entity` / `entities`, `name`, `badge` |
+
+`facing` is the side a piece's front looks to; `w` and `d` are its size along x and z. In the editor, a toilet, sink, washer…
+placed near a wall sits flat against it and turns to face into the room. Automatic bathrooms get a toilet, a sink and a
+bathtub (or a shower when the room is small); laundries get a washing machine.
 
 **Move furniture in 3D**: while the dashboard is in edit mode, admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
 While the card editor is open, each move goes through it (with undo). Otherwise it is saved straight into the

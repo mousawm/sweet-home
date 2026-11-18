@@ -118,7 +118,9 @@ export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'],
   tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
   rug: ['Rug', 'mdi:rug'], nightstand: ['Bedside table', 'mdi:table-furniture'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
   charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'],
-  car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'], ac: ['AC', 'mdi:air-conditioner'] };
+  car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'], ac: ['AC', 'mdi:air-conditioner'],
+  toilet: ['Toilet', 'mdi:toilet'], sink: ['Sink', 'mdi:faucet'], shower: ['Shower', 'mdi:shower-head'], bathtub: ['Bathtub', 'mdi:bathtub-outline'],
+  washer: ['Washing machine', 'mdi:washing-machine'], towel: ['Towel warmer', 'mdi:radiator'] };
 
 const ROOM_ICONS = [[/stair/, 'mdi:stairs'], [/parking|carport|driveway/, 'mdi:car'], [/living|lounge|family|salon/, 'mdi:sofa'], [/kitchen/, 'mdi:countertop'], [/dining/, 'mdi:table-chair'],
   [/master|bedroom|bed room|guest room|room/, 'mdi:bed'], [/bath|toilet|wc|shower/, 'mdi:shower'], [/office|study|work/, 'mdi:desk'],
@@ -184,8 +186,15 @@ export function autoFurniture(room) {
     f.push({ type: 'table', room: R, x: cx, z: cz, w: 1.8, d: 1.0, h: 0.76, top: 0xd8ccb2, leg: 0xb7a684 });
     for (const [dx, dz, face] of [[-0.5, -0.75, 's'], [0.5, -0.75, 's'], [-0.5, 0.75, 'n'], [0.5, 0.75, 'n']]) f.push({ type: 'chair', room: R, x: cx + dx, z: cz + dz, face, color: 0xcfc4ae });
   } else if (/bath|toilet|wc|shower/.test(n)) {
-    f.push({ type: 'box', room: R, x: x1 + 0.5, z: cz, w: 0.8, d: 1.6, h: 0.56, color: 0xffffff });
-    f.push({ type: 'box', room: R, x: x2 - 0.45, z: z1 + 0.35, w: 0.7, d: 0.45, h: 0.85, color: 0xe5e7eb });
+    // a toilet and a sink on the top wall; a bathtub along the bottom wall when it fits, else a shower in the corner
+    const sw = w >= 1.8 ? 0.8 : Math.max(0.45, w - 1.0);
+    f.push({ type: 'toilet', room: R, x: x1 + 0.36, z: z1 + 0.38, w: 0.4, d: 0.65, facing: 's' });
+    f.push({ type: 'sink', room: R, x: x2 - sw / 2 - 0.06, z: z1 + 0.31, w: sw, d: 0.5, h: 0.85, facing: 's' });
+    if (w >= 1.9 && d >= 2.2) f.push({ type: 'bathtub', room: R, x: cx, z: z2 - 0.43, w: Math.min(1.7, w - 0.2), d: 0.75, facing: 'n' });
+    else if (d >= 1.9) { const s = Math.min(0.9, w * 0.5, d - 1.0); f.push({ type: 'shower', room: R, x: x1 + s / 2 + 0.06, z: z2 - s / 2 - 0.06, w: s, d: s, facing: 'n' }); }
+  } else if (/laundry|utility/.test(n)) {
+    f.push({ type: 'washer', room: R, x: x1 + 0.37, z: z1 + 0.37, w: 0.6, d: 0.6, h: 0.85, facing: 's' });
+    if (w >= 1.5) f.push({ type: 'washer', room: R, x: x1 + 1.0, z: z1 + 0.37, w: 0.6, d: 0.6, h: 0.85, facing: 's', name: 'Dryer' });
   } else if (/bed|room|kid|nursery|guest/.test(n) && !/bath|living|dining/.test(n)) {
     const big = /master|parent|main/.test(n);
     f.push({ type: 'rug', room: R, x: cx, z: cz + 0.3, w: w * 0.6, d: d * 0.5, color: 0xa5a9b2 });
@@ -552,10 +561,10 @@ export function buildModel(cfg = {}, hass) {
   const W = maxx - minx, D = maxz - minz;
   const roomAt = (x, z, l) => rooms.find(r => (l == null || r.level === l) && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x >= a - 0.05 && x <= c + 0.05 && z >= b - 0.05 && z <= d + 0.05)))?.id || null;
 
-  /* AC units: given position, or on the room's first wall facing in */
+  /* AC units: given position, or on the room's top wall (an outline room: its topmost part) facing in */
   for (const r of rooms) {
     if (!r.climate || r.ac === false) { if (r.ac === false) delete r.ac; continue; }
-    if (!r.ac || r.ac === 'auto' || r.ac === true) { const [x1, z1, x2] = r.rects[0]; r.ac = { x: (x1 + x2) / 2, z: z1 + 0.14, dx: 0, dz: 1 }; }
+    if (!r.ac || r.ac === 'auto' || r.ac === true) { const [x1, z1, x2] = r.rects.reduce((a, b) => (b[1] < a[1] - 1e-6 || (Math.abs(b[1] - a[1]) < 1e-6 && b[2] - b[0] > a[2] - a[0]) ? b : a)); r.ac = { x: (x1 + x2) / 2, z: z1 + 0.14, dx: 0, dz: 1 }; }
   }
 
   /* ---------- floors (levels) ---------- */
