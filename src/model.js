@@ -39,8 +39,18 @@ export function registry(hass) {
     const dev = ents[id]?.device_id; if (!dev) return [];
     return Object.keys(ents).filter(e => ents[e].device_id === dev && e !== id && states[e] && pred(e));
   };
+  // the power sensor of a switch / plug: a sensor on its device that reads power (device class, else a W / kW unit,
+  // else "power" / "watt" in its id), or with no device, a power sensor named after it (switch.x → sensor.x_power)
+  const isW = e => /^(m|k)?W$/.test(states[e]?.attributes?.unit_of_measurement || '');
+  const powerOf = id => {
+    if (!id) return null;
+    const rank = e => !e.startsWith('sensor.') || /energy|kwh|_today|_total|voltage|current$/i.test(e) && dc(e) !== 'power' && !isW(e) ? 0 : dc(e) === 'power' ? 3 : isW(e) ? 2 : /power|watt/i.test(e) ? 1 : 0;
+    const best = list => list.map(e => [rank(e), e]).filter(([r]) => r).sort((a, b) => b[0] - a[0])[0]?.[1] || null;
+    const obj = String(id).split('.')[1] || '';
+    return best(sameDevice(id, () => true)) || best(Object.keys(states).filter(e => e.startsWith(`sensor.${obj}_`) && (dc(e) === 'power' || isW(e))));
+  };
   const ofPlatform = (p, re) => Object.keys(ents).filter(id => ents[id].platform === p && states[id] && (!re || re.test(id)));
-  return { states, ents, devs, areas, floors, areaOf, dc, name, visible, platform, byArea, sameDevice, ofPlatform };
+  return { states, ents, devs, areas, floors, areaOf, dc, name, visible, platform, byArea, sameDevice, ofPlatform, powerOf };
 }
 
 // the level of each Home Assistant floor (its `level`, or its place in the list when it has none)
@@ -61,7 +71,7 @@ export function discoverRoom(R, areaId) {
   const hums = ids.filter(id => d(id) === 'sensor' && R.dc(id) === 'humidity');
   const plugs = ids.filter(id => d(id) === 'switch' && R.dc(id) === 'outlet').map(id => ({
     id, name: R.name(id), icon: 'mdi:power-socket-eu',
-    power: R.sameDevice(id, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null,
+    power: R.powerOf(id),
   }));
   return {
     lights: ids.filter(id => d(id) === 'light'),
@@ -505,7 +515,7 @@ export function buildModel(cfg = {}, hass) {
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
       climate: pick('climate') || null, fan: pick('fan') || null, count: rc.count || null,
-      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: rc.names?.[p] || R.name(p), icon: 'mdi:power-socket-eu', power: R.sameDevice(p, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null } : { icon: 'mdi:power-socket-eu', ...p, name: rc.names?.[p.id || p.entity] || p.name }),
+      plugs: arr(rc.plugs !== undefined ? rc.plugs : found.plugs).map(p => typeof p === 'string' ? { id: p, name: rc.names?.[p] || R.name(p), icon: 'mdi:power-socket-eu', power: R.powerOf(p) } : { icon: 'mdi:power-socket-eu', ...p, name: rc.names?.[p.id || p.entity] || p.name }),
       media: rc.media !== undefined ? rc.media : found.media || null,
       // names for this card only (`names`, and the older `light_names` for lights)
       names: { ...(rc.light_names || rc.lightNames || {}), ...(rc.names || {}) },
@@ -637,7 +647,7 @@ export function buildModel(cfg = {}, hass) {
     for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade', 'handle', 'phone_color']) if (o[k] != null) o[k] = toColor(o[k], undefined);
     o.entities = furnEntities(f);
     // a charger plug's power sensor, from the plug's own device when it is not given
-    if (o.plug && !o.power) o.power = R.sameDevice(o.plug, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null;
+    if (o.plug && !o.power) o.power = R.powerOf(o.plug);
     return o;
   };
   // `src` says where a piece is in the config (so the 3D view can move it): {house: i} or {room: room index, i}
@@ -755,7 +765,7 @@ export function buildModel(cfg = {}, hass) {
   const climates = arr(P.climate?.entities).length ? arr(P.climate.entities) : allOf('climate');
   const acs = climates.map(id => ({
     id, name: R.name(id), room: roomOfEntity(id),
-    power: R.sameDevice(id, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null,
+    power: R.powerOf(id),
   }));
   // locks: `entity_id` or {entity, name, kind, icon}. The kind (what is locked) picks the icon: door, sliding door, gate,
   // garage, window, safe, car, locker, else a padlock. Not given: guessed from the lock's id and name.
@@ -866,7 +876,7 @@ export function buildModel(cfg = {}, hass) {
     // entities: anything else for the Water card (valves, flow and pressure sensors, …)
     water: {
       tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null,
-      pumps: arr(W2.pumps).map(p => (typeof p === 'string' ? { entity: p } : p)).filter(p => p?.entity).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || R.sameDevice(p.entity, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null, info: p.info || p.timer || null, confirm: p.confirm !== false })),
+      pumps: arr(W2.pumps).map(p => (typeof p === 'string' ? { entity: p } : p)).filter(p => p?.entity).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || R.powerOf(p.entity), info: p.info || p.timer || null, confirm: p.confirm !== false })),
       entities: arr(W2.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),
     },
     car: {

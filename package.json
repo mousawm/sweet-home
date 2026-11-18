@@ -1,6 +1,6 @@
 {
   "name": "sweet-home-card",
-  "version": "0.6.19",
+  "version": "0.6.20",
   "description": "Sweet Home: an interactive 3D home dashboard card for Home Assistant",
   "type": "module",
   "private": true,
