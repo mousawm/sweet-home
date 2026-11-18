@@ -710,7 +710,7 @@ export class SweetHomeCard extends HTMLElement {
       const b = this.n(P.battery), chg = this.on(P.charging), ring = this.v(P.ringer);
       const RING = { normal: ['Normal', 'mdi:volume-high'], vibrate: ['Vibrate', 'mdi:vibrate'], silent: ['Silent', 'mdi:volume-off'] };
       const rg = RING[ring] || [tc(pretty(ring || '—')), 'mdi:volume-high'];
-      const row = (id, icon, label, val, cls = '') => this.s(id) ? `<div class="mrow ${cls}" data-act="more" data-id="${id}">${ic(icon)}<span>${label}</span><b>${esc(val)}</b></div>` : '';
+      const row = (id, icon, label, val, cls = '') => id && this.s(id) ? `<div class="mrow ${cls}" data-act="more" data-id="${id}">${ic(icon)}<span>${label}</span><b>${esc(val)}</b></div>` : '';
       const where = this.v(P.tracker) || ps?.state;
       html = `<div class="sh-h">${pic ? `<img src="${esc(pic)}" alt="">` : ic('mdi:cellphone')}<div><b>${esc(P.name)}</b><span>${esc(tc(pretty(ps?.state || '—')))}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`
         + row(P.battery, chg ? 'mdi:battery-charging' : b != null && b < 20 ? 'mdi:battery-alert' : 'mdi:battery', 'Battery', b != null ? `${Math.round(b)}%${chg ? ' · Charging' : ''}` : '—', b != null && b < 20 && !chg ? 'open' : chg ? 'on' : '')
@@ -718,7 +718,8 @@ export class SweetHomeCard extends HTMLElement {
         + row(P.location, 'mdi:map', 'Address', this.ok(P.location) ? this.v(P.location) : '—')
         + row(P.ringer, rg[1], 'Ringer Mode', rg[0])
         + row(P.wifi, 'mdi:wifi', 'Wi-Fi', this.ok(P.wifi) && this.v(P.wifi) !== '<not connected>' ? this.v(P.wifi) : 'Not connected')
-        + `<div class="phbtns">${P.buttons.filter(([id]) => this.s(id)).map(([id, n, i]) => `<button class="phbtn" data-act="press" data-id="${id}" data-label="${esc(n)}">${ic(i)}<span>${esc(n)}</span></button>`).join('')}</div>`;
+        + (P.entities || []).map(id => this._entRow(id)).join('')
+        + `<div class="phbtns">${P.buttons.filter(([id]) => this.s(id)).map(([id, n, i]) => { const d = id.split('.')[0], nm = n || this.s(id).attributes.friendly_name || id; return `<button class="phbtn" data-act="${d === 'script' || d === 'scene' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle'}" data-id="${id}" data-label="${esc(nm)}">${ic(i)}<span>${esc(nm)}</span></button>`; }).join('')}</div>`;
     } else {
       const rows = ROOMS.filter(r => r.temp && this.s(r.temp)).map(r => {
         const t = this.n(r.temp), h = r.hum ? this.n(r.hum) : null, ac = r.climate && this.climOn(r.climate);

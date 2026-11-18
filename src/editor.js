@@ -50,6 +50,7 @@ const PANELS = [
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
   ['modes', 'Modes', 'One-tap buttons on the Home tab: guests, holiday, scenes, scripts'],
   ['devices', 'Devices', 'Batteries of phones, tablets, watches and other devices (System tab)'],
+  ['people', 'People', 'Who shows at the top, and each person’s phone panel (long press their picture)'],
 ];
 // room settings that hold entities, as the Entities mode shows them: [YAML key, title, key in the discovered set, icon]
 const ROLES = [
@@ -1124,6 +1125,34 @@ class SweetHomeCardEditor extends HTMLElement {
       box.appendChild(row);
     });
   }
+  // People: who shows at the top (empty: everyone), and for each person the rows of their phone panel. A field left
+  // empty is found on the person's phone (Home Assistant app); anything picked wins.
+  _mPeople(det) {
+    const C = this._config, all = Object.keys(this._hass.states).filter(x => x.startsWith('person.'));
+    det.appendChild(this._form([{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }], { persons: arr(C.persons) }, v => {
+      if (arr(v.persons).length) C.persons = arr(v.persons); else delete C.persons; this._emit(); this._render();
+    }, { persons: 'People at the top (empty: everyone)' }));
+    const sensor = { entity: { domain: ['sensor', 'binary_sensor'] } };
+    for (const p of arr(C.persons).length ? arr(C.persons) : all) {
+      const o = { ...(C.people?.[p] || {}) }, d = document.createElement('details'); d.className = 'sh-panel'; d.style.margin = '8px 0 0';
+      d.innerHTML = `<summary><span><b>${esc(this._reg.name(p))}</b><br><small>${t('Phone panel: empty fields are found on the phone')}</small></span></summary>`;
+      d.appendChild(this._form([
+        { name: 'name', selector: { text: {} } }, { name: 'tracker', selector: { entity: { domain: 'device_tracker' } } },
+        { type: 'grid', name: '', schema: [{ name: 'battery', selector: sensor }, { name: 'charging', selector: sensor }, { name: 'location', selector: sensor }, { name: 'ringer', selector: sensor }, { name: 'wifi', selector: sensor }] },
+        { name: 'entities', selector: { entity: { multiple: true } } },
+        { name: 'buttons', selector: { entity: { domain: ['button', 'input_button', 'script', 'scene', 'switch', 'input_boolean'], multiple: true } } },
+      ], { ...o, entities: arr(o.entities), buttons: arr(o.buttons).map(entityId).filter(Boolean) }, (v, typing) => {
+        const n = { ...(C.people?.[p] || {}) };
+        for (const [k, val] of Object.entries(v)) {
+          let x = val; if (k === 'buttons') x = arr(val).map(id => arr(n.buttons).find(b => typeof b === 'object' && entityId(b) === id) || id);
+          if (x === '' || x == null || (Array.isArray(x) && !x.length)) delete n[k]; else n[k] = x;
+        }
+        C.people = { ...(C.people || {}) }; if (Object.keys(n).length) C.people[p] = n; else delete C.people[p]; if (!Object.keys(C.people).length) delete C.people;
+        this._emit(typing);
+      }, { name: 'Name on the panel (empty: the phone’s name)', tracker: 'Phone tracker', battery: 'Battery', charging: 'Charging', location: 'Address', ringer: 'Ringer mode', wifi: 'Wi-Fi', entities: 'More rows (any entity)', buttons: 'Buttons (ring the phone, find it, scripts…)' }));
+      det.appendChild(d);
+    }
+  }
   // removes an entity's dashboard name everywhere except in `keep` (the card's `names`, other rooms' `names` / `light_names`)
   _dropName(id, keep) {
     for (const h of [this._config, ...this._rooms]) if (h !== keep) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
@@ -1298,6 +1327,7 @@ class SweetHomeCardEditor extends HTMLElement {
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
       media_server: [],
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
+      people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
@@ -1320,6 +1350,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
         if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
+        if (k === 'people') { this._mPeople(det); list.appendChild(det); continue; }
         if (k === 'modes') { // modes live in the card's own `modes` list (not under panels): a name or icon given in YAML stays
           det.appendChild(this._form(schemas.modes, { modes: arr(this._config.modes).map(entityId).filter(Boolean) }, v => {
             const old = arr(this._config.modes), val = arr(v.modes).map(id => old.find(o => typeof o === 'object' && entityId(o) === id) || id);

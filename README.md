@@ -132,6 +132,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `title` | Name in the 3D view header (default `My Home`) |
 | `weather` | Weather entity for the header chip and weather sheet (default: the first one) |
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
+| `people` | Each person's phone panel (long press their picture): `{person.x: {name, tracker, battery, charging, location, ringer, wifi, entities, buttons}}`. Empty fields are found on the person's phone (Companion app); `false` hides a row; `entities` adds rows, `buttons` adds buttons (ring the phone, scripts…). Set it up in the card editor: Panels → People. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
 | `modes` | Mode buttons on the Home tab, under At a glance (`entity_id` or `{entity, name, icon}`): switches, helpers, lights and automations light up while on; scenes, scripts and buttons run with one tap. Pick them in the card editor: Panels → Modes. |

@@ -680,18 +680,24 @@ export function buildModel(cfg = {}, hass) {
   const P = cfg.panels || {};
   const panel = k => P[k] !== false;
   const sec = typeof P.security === 'object' ? P.security : {};
-  const persons = cfg.persons ? arr(cfg.persons) : allOf('person');
-  // phone panel per person: the mobile_app device behind one of the person's trackers
-  const phones = {};
+  const persons = P.people === false ? [] : cfg.persons ? arr(cfg.persons).filter(p => typeof p === 'string') : allOf('person');
+  // phone panel per person: the mobile_app device behind one of the person's trackers, and what `people` sets for the
+  // person: {name, tracker, battery, charging, location, ringer, wifi, entities: [...], buttons: [...]} (each one given
+  // wins over what is found; `false` hides that row)
+  const phones = {}, people = cfg.people && typeof cfg.people === 'object' ? cfg.people : {};
   for (const p of persons) {
-    const trk = arr(states[p]?.attributes?.device_trackers).find(t => R.platform(t) === 'mobile_app');
-    if (!trk) continue;
-    const on = (pred) => R.sameDevice(trk, pred)[0] || null;
+    const o = people[p] && typeof people[p] === 'object' ? people[p] : {};
+    const trk = o.tracker || arr(states[p]?.attributes?.device_trackers).find(t => R.platform(t) === 'mobile_app');
+    if (!trk && !Object.keys(o).length) continue;
+    const on = (pred) => (trk ? R.sameDevice(trk, pred)[0] || null : null);
+    const pick = (k, found) => (o[k] === false ? null : o[k] || found);
     phones[p] = {
-      name: R.devs[R.ents[trk]?.device_id]?.name_by_user || R.devs[R.ents[trk]?.device_id]?.name || R.name(trk), tracker: trk,
-      battery: on(e => /battery_level$/.test(e)), charging: on(e => /is_charging$/.test(e) || (e.startsWith('binary_sensor.') && R.dc(e) === 'battery_charging')),
-      location: on(e => /geocoded_location$/.test(e)), ringer: on(e => /ringer_mode$/.test(e)), wifi: on(e => /wi_fi_connection$|wifi_connection$/.test(e)),
-      buttons: [],
+      name: o.name || (trk && (R.devs[R.ents[trk]?.device_id]?.name_by_user || R.devs[R.ents[trk]?.device_id]?.name || R.name(trk))) || R.name(p), tracker: trk || null,
+      battery: pick('battery', on(e => /battery_level$/.test(e))), charging: pick('charging', on(e => /is_charging$/.test(e) || (e.startsWith('binary_sensor.') && R.dc(e) === 'battery_charging'))),
+      location: pick('location', on(e => /geocoded_location$/.test(e))), ringer: pick('ringer', on(e => /ringer_mode$/.test(e))), wifi: pick('wifi', on(e => /wi_fi_connection$|wifi_connection$/.test(e))),
+      entities: arr(o.entities).filter(e => typeof e === 'string'),
+      buttons: arr(o.buttons).map(b => (typeof b === 'string' ? { entity: b } : b)).filter(b => typeof b?.entity === 'string')
+        .map(b => [b.entity, b.name || null, b.icon || states[b.entity]?.attributes?.icon || (b.entity.startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button')]),
     };
   }
   const roomOfEntity = id => rooms.find(r => r.climate === id || r.lights.includes(id) || r.locks.includes(id))?.id || null;

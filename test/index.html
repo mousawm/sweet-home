@@ -23,7 +23,7 @@ const S = [
   st('sensor.grid_power', '1250', { device_class: 'power', unit_of_measurement: 'W' }), st('sensor.solar_power', '2100', { device_class: 'power', unit_of_measurement: 'W' }),
   st('sensor.door_sensor_battery', '4', { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Door Sensor Battery' }),
   st('sensor.ipad_battery_level', '30', { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'iPad Battery Level' }), st('sensor.ipad_battery_state', 'Not Charging', { friendly_name: 'iPad Battery State' }), st('device_tracker.ipad', 'home', { friendly_name: 'iPad' }),
-  st('person.alex', 'home', { friendly_name: 'Alex' }),
+  st('person.alex', 'home', { friendly_name: 'Alex', device_trackers: ['device_tracker.ipad'] }),
   st('light.bedside_lamp', 'on', { friendly_name: 'Bedside Lamp', brightness: 180, rgb_color: [255, 170, 90], supported_color_modes: ['rgb'] }),
   st('fan.bedroom_fan', 'on', { friendly_name: 'Bedroom Fan', percentage: 66 }), st('switch.coffee_machine', 'off', { friendly_name: 'Coffee Machine' }),
   st('sensor.fridge_temperature', '4.2', { device_class: 'temperature', unit_of_measurement: '°C', friendly_name: 'Fridge' }),
