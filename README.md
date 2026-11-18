@@ -291,12 +291,13 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   Jellyfin app on an Android TV before playing.
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`.
 - **tv_light**: `light`, `selects`
+- **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
   - `unavailable_domains`, `unavailable_integrations`
   - `exclude_devices` (device IDs or names), `exclude_entities`, `battery_exclude_devices` (only left out of low
     batteries), `battery_exclude`
-  - In the card, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
+  - While the dashboard is edited, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
     lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
 
 ## Gestures
