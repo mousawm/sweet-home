@@ -516,6 +516,10 @@ export function buildModel(cfg = {}, hass) {
     };
     return r;
   }).filter(r => r.rects.length);
+  // every room needs its own id: two rooms on the same area or with the same name get "_2", "_3"… (otherwise the second
+  // one takes the first one's label, popup and lights in the 3D view)
+  const seenIds = new Set();
+  for (const r of rooms) { let id = r.id, n = 2; while (seenIds.has(id)) id = `${r.id}_${n++}`; r.id = id; seenIds.add(id); }
 
   /* ---------- normalise coordinates so the plan starts at (0,0) ---------- */
   let minx = Infinity, minz = Infinity, maxx = -Infinity, maxz = -Infinity;

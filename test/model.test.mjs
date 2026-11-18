@@ -183,6 +183,10 @@ test('a panel with several fields: pick any and only what you picked shows; pick
   assert.deepEqual([own.locks.length, own.doors.length, own.alarm, own.cameras.length, own.irrigation.valves.length, own.media.tv], [0, 0, null, 1, 0, null]);
   assert.ok(buildModel({ panels: { security: { gate: { relay: 'switch.g' } } } }, h).E.locks.length, 'the older gate alone still finds the rest');
 });
+test('two rooms on the same area (or with the same name) still get their own ids', () => {
+  const m = buildModel({ house: { rooms: [{ area: 'living', rects: [[0, 0, 4, 4]] }, { area: 'living', name: 'Living room corridor', rects: [[4, 0, 6, 4]] }, { name: 'Hall', rects: [[0, 4, 4, 6]] }, { name: 'Hall', rects: [[4, 4, 6, 6]] }] } }, hass);
+  assert.deepEqual(m.rooms.map(r => r.id), ['living', 'living_2', 'hall', 'hall_2']);
+});
 test('furniture keeps its place in the config and its entities', () => {
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], furniture: [{ type: 'lamp', x: 1, z: 1, entity: 'light.living' }, { type: 'bed', x: 2, z: 2, entities: ['light.bed', 'light.living'] }] }] } }, hass);
   assert.deepEqual(m.furniture.map(f => f.src), [{ room: 0, i: 0 }, { room: 0, i: 1 }]);
