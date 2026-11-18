@@ -1629,7 +1629,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false };
+    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false };
     body.innerHTML = '';
     body.appendChild(this._form([
       { name: 'title', selector: { text: {} } },
@@ -1638,6 +1638,7 @@ class SweetHomeCardEditor extends HTMLElement {
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
+      { name: 'smart_icons', selector: { boolean: {} } },
     ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
       if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab;
@@ -1646,10 +1647,11 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.wall_height != null && v.wall_height !== 1.35) H.wall_height = v.wall_height; else delete H.wall_height;
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
+      if (v.smart_icons === false) C.smart_icons = false; else delete C.smart_icons; // off = the icons set in Home Assistant
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip' }, true));
+    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant' }, true));
     this._mNames(body);
   }
   // Names on this dashboard: every entity renamed here, in a room or on a panel. Home Assistant keeps its own names.
