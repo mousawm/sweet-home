@@ -267,14 +267,41 @@ try {
     card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const sh = card.shadowRoot.getElementById('sheet'), t = sh.textContent;
     const ok = t.includes('Areen phone') && t.includes('Water Flow') && t.includes('30%') && sh.querySelector('.phbtn[data-id="script.movie_night"]')?.dataset.act === 'run'; card._closeSheet(); return ok;
   }));
+  // phone buttons: a clean label and a fitting icon on their own; a name and icon of your own from the editor
+  await p.evaluate(() => {
+    const f = [...editor.querySelectorAll('details.sh-panel details.sh-panel')].find(x => x.textContent.includes('Alex'));
+    const i = f.querySelector('ha-form input[name=buttons]'); i.value = 'button.ipad_ring_mod,button.ipad_location_update'; i.dispatchEvent(new Event('change'));
+  });
+  await p.waitForTimeout(1500);
+  check('phone buttons: "button" and the phone\'s name dropped, an icon from what they do', await p.evaluate(async () => {
+    card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100));
+    const b = id => { const e = card.shadowRoot.querySelector(`#sheet .phbtn[data-id="${id}"]`); return e ? e.textContent.trim() + '|' + e.querySelector('ha-icon').getAttribute('icon') : ''; };
+    const r = [b('button.ipad_ring_mod'), b('button.ipad_location_update')]; card._closeSheet(); return JSON.stringify(r);
+  }).then(r => { const ok = r === JSON.stringify(['Ring Mod|mdi:bell-ring', 'Location Update|mdi:crosshairs-gps']); if (!ok) console.log('      got', r); return ok; }));
+  await p.evaluate(() => { editor._render(); const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Who shows at the top')); d.open = true; });
+  await p.evaluate(() => {
+    const row = [...editor.querySelectorAll('.sh-ent')].find(x => x.textContent.includes('button.ipad_ring_mod'));
+    const set = (n, v) => { const i = row.querySelector(`ha-form input[name=${n}]`); i.value = v; i.dispatchEvent(new Event('change')); };
+    set('name', 'Ring Mode'); set('icon', 'mdi:bell-alert');
+  });
+  check('…a button gets a name and icon of its own in the editor', await p.evaluate(() => JSON.stringify(editor._config.people['person.alex'].buttons[0]) === '{"entity":"button.ipad_ring_mod","name":"Ring Mode","icon":"mdi:bell-alert"}'));
+  await p.waitForTimeout(1500);
+  check('…and the phone panel shows them', await p.evaluate(async () => { card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const e = card.shadowRoot.querySelector('#sheet .phbtn[data-id="button.ipad_ring_mod"]'); const ok = e?.textContent.trim() === 'Ring Mode' && e.querySelector('ha-icon').getAttribute('icon') === 'mdi:bell-alert'; card._closeSheet(); return ok; }));
+  check('…in edit mode the phone panel has a pencil that lists its rows and buttons to rename', await p.evaluate(async () => {
+    card.editMode = true; await new Promise(r => setTimeout(r, 150)); card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100));
+    card.shadowRoot.querySelector('#sheet [data-act=rnphone]').click(); await new Promise(r => setTimeout(r, 100));
+    const ids = [...card.shadowRoot.querySelectorAll('#sheet [data-rename]')].map(i => i.dataset.rename); card._closeSheet(); card.editMode = false;
+    return ids.includes('button.ipad_location_update') && ids.includes('sensor.ipad_battery_level');
+  }));
   await p.evaluate(() => {
     const f = [...editor.querySelectorAll('details.sh-panel details.sh-panel')].find(x => x.textContent.includes('Alex'));
     const i = f.querySelector('ha-form input[name=wifi]'); i.value = 'sensor.water_flow'; i.dispatchEvent(new Event('change'));
   });
   await p.waitForTimeout(1500);
   check('…once one phone row is picked, only picked rows show (battery, place… are no longer found)', await p.evaluate(async () => {
-    card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent; card._closeSheet();
-    return t.includes('Wi-Fi') && !t.includes('Battery') && !t.includes('30%') && !t.includes('Location') && t.includes('Areen phone');
+    card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent;
+    const rows = [...card.shadowRoot.querySelectorAll('#sheet .mrow')].map(r => r.textContent); card._closeSheet();
+    return t.includes('Wi-Fi') && !t.includes('Battery') && !t.includes('30%') && !rows.some(r => /^\s*Location/.test(r)) && t.includes('Areen phone');
   }));
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // modes in the editor (Panels → Modes): picked there, written to the card's own `modes`, a mode's icon kept

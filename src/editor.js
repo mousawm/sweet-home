@@ -1150,6 +1150,19 @@ class SweetHomeCardEditor extends HTMLElement {
         C.people = { ...(C.people || {}) }; if (Object.keys(n).length) C.people[p] = n; else delete C.people[p]; if (!Object.keys(C.people).length) delete C.people;
         this._emit(typing);
       }, { name: 'Name on the panel (empty: the phone’s name)', tracker: 'Phone tracker', battery: 'Battery', charging: 'Charging', location: 'Address', ringer: 'Ringer mode', wifi: 'Wi-Fi', entities: 'More rows (any entity)', buttons: 'Buttons (ring the phone, find it, scripts…)' }));
+      // each button: a name and an icon of its own for this dashboard (empty: the button's name without "button" and the
+      // phone's name, and an icon picked from what it does)
+      arr(o.buttons).forEach((b, bi) => {
+        const id = entityId(b); if (!id) return;
+        const bo = typeof b === 'object' ? b : { entity: id }, row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+        row.innerHTML = `<span class="nm">${t('Button')}: ${esc(this._reg.name(id))}<small>${esc(id)}</small></span>`;
+        row.appendChild(this._form([{ type: 'grid', name: '', schema: [{ name: 'name', selector: { text: {} } }, { name: 'icon', selector: { icon: {} } }] }], { name: bo.name || '', icon: bo.icon || '' }, (v, typing) => {
+          const n = { ...C.people[p] }, list = arr(n.buttons).slice(), nb = { ...bo, entity: id };
+          for (const k of ['name', 'icon']) { if (v[k]) nb[k] = v[k]; else delete nb[k]; }
+          list[bi] = Object.keys(nb).length === 1 ? id : nb; n.buttons = list; C.people = { ...C.people, [p]: n }; this._emit(typing);
+        }, { name: 'Name on this dashboard', icon: 'Icon (empty: picked from what it does)' }));
+        d.appendChild(row);
+      });
       det.appendChild(d);
     }
   }

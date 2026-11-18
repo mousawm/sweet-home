@@ -704,7 +704,7 @@ export function buildModel(cfg = {}, hass) {
       location: pick('location', on(e => /geocoded_location$/.test(e))), ringer: pick('ringer', on(e => /ringer_mode$/.test(e))), wifi: pick('wifi', on(e => /wi_fi_connection$|wifi_connection$/.test(e))),
       entities: arr(o.entities).filter(e => typeof e === 'string'),
       buttons: arr(o.buttons).map(b => (typeof b === 'string' ? { entity: b } : b)).filter(b => typeof b?.entity === 'string')
-        .map(b => [b.entity, b.name || null, b.icon || states[b.entity]?.attributes?.icon || (b.entity.startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button')]),
+        .map(b => [b.entity, b.name || null, b.icon || states[b.entity]?.attributes?.icon || null]), // no icon: the card picks one from the name
     };
   }
   const roomOfEntity = id => rooms.find(r => r.climate === id || r.lights.includes(id) || r.locks.includes(id))?.id || null;
