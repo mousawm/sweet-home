@@ -3201,6 +3201,16 @@ class HouseScene {
       box(room, x, z, w, d, 0.05, top, h - 0.05, o || { r: 0.35 });
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(room, x + sx * (w / 2 - 0.07), z + sz * (d / 2 - 0.07), 0.06, 0.06, h - 0.05, leg);
     };
+    // a phone lying on its back on a charger: shown only while it charges (see _update); `ew` lays it east–west
+    const phone = (room, x, z, y, ew, f) => {
+      const [pw, pd] = ew ? [0.16, 0.08] : [0.08, 0.16];
+      const body = box(room, x, z, pw, pd, 0.012, C(f.phone_color, 0x1f2937), y, { r: 0.35, m: 0.4 });
+      const m = box(room, x, z, pw - 0.012, pd - 0.012, 0.002, 0x0b1020, y + 0.012, { r: 0.15, e: 0x34d399, ei: 0 }); m.material = m.material.clone();
+      const glow = new T.Mesh(new T.CircleGeometry(0.28, 32), new T.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
+      const [gx, gz] = this.w(x, z); glow.rotation.x = -Math.PI / 2; glow.position.set(gx, y + 0.016, gz); this._at().add(glow);
+      body.visible = m.visible = false;
+      this.chargers.push({ m, glow, parts: [body, m], plug: f.plug || null, power: f.power || null, min: N(f.charging_w, 1.5), t: 0 });
+    };
     const plant = (room, x, z, s = 1) => { cyl(room, x, z, 0.2 * s, 0.38 * s, 0xd6cfc4, 0, { r: 0.6 }); ball(room, x, z, 0.32 * s, 0x2f6b3a, 0.62 * s); ball(room, x + 0.12 * s, z - 0.08 * s, 0.22 * s, 0x3f8a4c, 0.85 * s); };
 
     // pieces from the config (house.furniture / room.furniture, or the automatic set for automatic rooms)
@@ -3234,14 +3244,37 @@ class HouseScene {
             const m = box(rm, N(f.x, 0), N(f.z, 0), alongX ? w : 0.05, alongX ? 0.05 : w, hh, 0x05070c, y, { r: 0.2, e: 0x3b82f6, ei: 0 });
             m.material = m.material.clone(); this.tvs.push({ m, entity: f.entities?.find(e => e.startsWith('media_player.')) || f.entity || null }); break;
           }
-          case 'charger': { // phone on a charger plug: glows while charging
-            const m = box(rm, N(f.x, 0), N(f.z, 0), 0.09, 0.17, 0.015, 0x0b1020, N(f.y, 0.55), { r: 0.2, e: 0x34d399, ei: 0 });
-            m.material = m.material.clone();
-            const glow = new T.Mesh(new T.CircleGeometry(0.32, 32), new T.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
-            const [gx, gz] = this.w(N(f.x, 0), N(f.z, 0)); glow.rotation.x = -Math.PI / 2; glow.position.set(gx, N(f.y, 0.55) + 0.017, gz); this._at().add(glow);
-            this.chargers.push({ m, glow, plug: f.plug, power: f.power, t: 0 }); break;
+          case 'charger': { // a charging pad; the phone on it shows while it charges
+            const x = N(f.x, 0), z = N(f.z, 0), y = N(f.y, 0.55);
+            cyl(rm, x, z, 0.05, 0.008, C(f.color, 0xe5e7eb), y, { r: 0.4 });
+            phone(rm, x, z, y + 0.008, false, f); break;
           }
           case 'stairs': this._stairs(f); break;
+          case 'nightstand': { // bedside table: drawers on its front (`facing`), a table lamp on top that glows with its light
+            const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', ew = fc === 'e' || fc === 'w', W = N(f.w, 0.5), D = N(f.d, 0.4), H = Math.max(0.25, N(f.h, 0.55));
+            const [fw, fd] = ew ? [D, W] : [W, D], wood = C(f.color, 0x7c5a3c), top = f.top != null ? C(f.top) : wood, hnd = C(f.handle, 0xd4b483);
+            const sx = fc === 'e' ? 1 : fc === 'w' ? -1 : 0, sz = fc === 's' ? 1 : fc === 'n' ? -1 : 0, front = ew ? fw / 2 : fd / 2, across = ew ? fd : fw;
+            box(rm, x, z, fw - 0.06, fd - 0.06, 0.05, 0x2a1f16, 0, { r: 0.9 }); // plinth, set back
+            box(rm, x, z, fw, fd, H - 0.08, wood, 0.05, { r: 0.7 });
+            box(rm, x, z, fw + 0.03, fd + 0.03, 0.03, top, H - 0.03, { r: 0.45 });
+            const n = Math.max(1, Math.min(4, Math.round(N(f.drawers, 2)))), gap = 0.025, bodyH = H - 0.08 - gap, dh = (bodyH - gap * (n - 1)) / n - gap;
+            const fr = (c => { const r = Math.min(255, ((c >> 16) & 255) + 22), g = Math.min(255, ((c >> 8) & 255) + 18), b = Math.min(255, (c & 255) + 14); return (r << 16) | (g << 8) | b; })(wood);
+            for (let k = 0; k < n; k++) {
+              const y = 0.05 + gap + k * (dh + gap * 2), dx = x + sx * (front + 0.006), dz = z + sz * (front + 0.006);
+              box(rm, dx, dz, ew ? 0.012 : across - 0.05, ew ? across - 0.05 : 0.012, dh, fr, y, { r: 0.6 });
+              box(rm, x + sx * (front + 0.02), z + sz * (front + 0.02), ew ? 0.02 : Math.min(0.14, across * 0.3), ew ? Math.min(0.14, across * 0.3) : 0.02, 0.02, hnd, y + dh / 2 - 0.01, { r: 0.3, m: 0.7 });
+            }
+            if (f.plug) phone(rm, x + sx * front * 0.35 + (ew ? 0 : across * 0.25), z + sz * front * 0.35 + (ew ? across * 0.25 : 0), H, ew, f); // the phone, on top, while it charges
+            if (f.lamp !== false) { // a small table lamp at the back of the top
+              const lx = x - sx * fw * 0.12, lz = z - sz * fd * 0.12, s = Math.min(1, Math.min(fw, fd) / 0.4), y0 = H;
+              cyl(rm, lx, lz, 0.06 * s, 0.02, 0xd6cfc4, y0, { r: 0.4, m: 0.3 });
+              cyl(rm, lx, lz, 0.012, 0.2 * s, 0xb08d57, y0 + 0.02, { r: 0.3, m: 0.6 });
+              const mat = new T.MeshStandardMaterial({ color: C(f.shade, 0xf5e6c8), emissive: 0xffc27a, emissiveIntensity: 0, roughness: 0.8, side: T.DoubleSide });
+              const m = add(rm, new T.CylinderGeometry(0.07 * s, 0.11 * s, 0.14 * s, 24, 1, true), mat, lx, y0 + 0.2 * s + 0.05 * s, lz);
+              this.lamps.push({ m, glow: floorGlow(lx, lz, 0.6, 0xffc27a), entity: f.entities.find(e => e.startsWith('light.') || e.startsWith('switch.')) || null, t: 0, col: new T.Color(0xffc27a) });
+            }
+            break;
+          }
           case 'lamp': { // floor lamp: the shade glows (in the light's colour) while its light is on
             const x = N(f.x, 0), z = N(f.z, 0), hh = N(f.h, 1.5), sc = N(f.size, 1), metal = C(f.color, 0x334155);
             cyl(rm, x, z, 0.16 * sc, 0.03, metal, 0, { r: 0.4, m: 0.5 });
@@ -3665,7 +3698,7 @@ class HouseScene {
       }
     }
     // phones on chargers: 0 = plug off, 1 = plug on (idle), 2 = charging
-    for (const P of this.chargers || []) P.t = !P.plug || c.v(P.plug) !== 'on' ? 0 : (c.n(P.power) ?? 0) > 1.5 ? 2 : 1;
+    for (const P of this.chargers || []) P.t = !P.plug || c.v(P.plug) !== 'on' ? 0 : !P.power || !c.s(P.power) ? 2 : (c.n(P.power) ?? 0) > P.min ? 2 : 1; // no power reading: plug on = charging
     this.lockT = (this.badges || []).map(B => B.t).join(); this.phoneT = (this.chargers || []).map(P => P.t).join();
     for (const D of this.doors) D.openT = c.v(D.d.id) === 'on' ? 1 : 0;
     for (const A of this.acs) {
@@ -3839,10 +3872,11 @@ class HouseScene {
       if (unl) anim = true;
     }
     for (const P of this.chargers || []) {
-      const pt = P.t === 2 ? 1.1 + 0.6 * Math.sin(tt * 2.5) : P.t === 1 ? 0.25 : 0;
+      for (const q of P.parts) q.visible = P.t === 2; // the phone is there only while it is plugged in and charging
+      const pt = P.t === 2 ? 1.1 + 0.6 * Math.sin(tt * 2.5) : 0;
       P.m.material.emissiveIntensity += (pt - P.m.material.emissiveIntensity) * Math.min(1, dt * 5);
       P.glow.material.opacity = Math.max(0, P.m.material.emissiveIntensity - 0.3) * 0.35;
-      if (P.t === 2 || Math.abs((P.t ? 0.25 : 0) - P.m.material.emissiveIntensity) > 0.01) anim = true;
+      if (P.t === 2 || P.m.material.emissiveIntensity > 0.01) anim = true;
     }
     for (const tv of this.tvs || []) {
       const t = tv.on ? 0.9 + 0.25 * Math.sin(tt * 7) * Math.sin(tt * 2.3) : 0; tv.m.material.emissiveIntensity += (t - tv.m.material.emissiveIntensity) * Math.min(1, dt * 6);
