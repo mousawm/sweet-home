@@ -40,10 +40,21 @@ try {
   await p.evaluate(() => card._select('living_room'));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=run]').click());
   check('scripts run from the popup', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'homeassistant' && c[2].entity_id === 'script.movie_night')));
+  check('rename and move are hidden outside edit mode', await p.evaluate(() => !card.shadowRoot.querySelector('#drawer [data-act=names]') && !card.shadowRoot.querySelector('[data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display === 'none'));
+  await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(100);
+  check('…and shown while the dashboard is edited', await p.evaluate(() => !!card.shadowRoot.querySelector('#drawer [data-act=names]') && !!card.shadowRoot.querySelector('#glance [data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display !== 'none'));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click());
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling'; i.dispatchEvent(new Event('change', { bubbles: true })); });
   await p.waitForTimeout(100);
-  check('renaming from the popup', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling')));
+  await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click()); await p.waitForTimeout(150);
+  check('renaming from the popup saves a dashboard name, not a Home Assistant name', await p.evaluate(() => !(window.ws || []).some(m => m.type === 'config/entity_registry/update') && (window.ws || []).some(m => m.type === 'lovelace/config')));
+  await p.evaluate(() => { card.editMode = false; }); await p.waitForTimeout(100);
+  check('leaving edit mode closes renaming', await p.evaluate(() => !card.shadowRoot.querySelector('[data-rename]') && !card._naming));
+  check('edit mode is also found from Home Assistant\'s edit wrapper around the card', await p.evaluate(async () => {
+    const w = document.createElement('hui-card-options'); card.before(w); w.appendChild(card); await new Promise(r => setTimeout(r, 50));
+    const inside = card.hasAttribute('editing'); w.before(card); w.remove(); await new Promise(r => setTimeout(r, 50));
+    return inside && !card.hasAttribute('editing');
+  }));
   check('LED strip stops where a wall is missing (doors on two sides)', await p.evaluate(() => card._three.rooms.living_room.strip.washes.length === 6));
   await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(200);
   check('water card: pumps with their power sensor, and other entities', await p.evaluate(() => {
@@ -66,8 +77,17 @@ try {
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
   }));
   await p.evaluate(() => card._setTab('home'));
-  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 5));
-  check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors.at(-1); return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < 7.4 && Math.max(w[0], w[2]) > 6.6); }));
+  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 6));
+  check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
+  check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
+  check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
+  // irrigation: its valves (a valve entity and a switch), named, and they open / start with a second tap
+  await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(150);
+  check('irrigation panel shows its valves', await p.evaluate(() => { const v = [...card.shadowRoot.querySelectorAll('#irrigation .valve')]; return v.length === 2 && v[0].textContent.includes('Front lawn') && v[0].textContent.includes('Watering') && v[1].textContent.includes('Drip Zone') && v[1].textContent.includes('Closed'); }));
+  // two taps 0.4 s apart (a quick double tap on a zone with a duration opens the duration instead)
+  for (const id of ['valve.garden', 'switch.drip_zone']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#irrigation .valve[data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
+  check('a valve closes with valve.close_valve, a switch zone starts with switch.turn_on', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'valve' && c[1] === 'close_valve' && c[2].entity_id === 'valve.garden') && (window.calls || []).some(c => c[0] === 'switch' && c[1] === 'turn_on' && c[2].entity_id === 'switch.drip_zone')));
+  await p.evaluate(() => card._setTab('home'));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -102,16 +122,69 @@ try {
   await p.evaluate(() => editor._goLevel(1));
   check('first floor shows its own rooms', await p.evaluate(() => [...editor.querySelectorAll('[data-room]')].map(b => b.textContent.trim()).join() === 'Office,Landing'));
   await p.waitForTimeout(1500);
-  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 7));
+  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 8));
   await p.evaluate(() => { editor._goLevel(0); editor._sel = 0; editor._mode = 'entities'; editor._render(); });
   await p.evaluate(() => { const i = editor.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); });
   await p.waitForTimeout(100);
-  check('renaming in the editor list (Home Assistant)', await p.evaluate(() => (window.ws || []).some(m => m.type === 'config/entity_registry/update' && m.entity_id === 'light.living_room' && m.name === 'Ceiling strip')));
+  check('renaming in the editor list: a name on this dashboard only', await p.evaluate(() => editor._config.house.rooms[0].names?.['light.living_room'] === 'Ceiling strip' && !(window.ws || []).some(m => m.type === 'config/entity_registry/update')));
   await p.evaluate(() => { const i = editor.querySelector('[data-rename="script.movie_night"]'); i.value = 'Cinema'; i.dispatchEvent(new Event('change')); });
   check('renaming an entity Home Assistant can\'t rename: a name in this card', await p.evaluate(() => editor._config.house.rooms[0].names?.['script.movie_night'] === 'Cinema'));
   await p.waitForTimeout(1500);
   await p.evaluate(() => card._select('living_room')); await p.waitForTimeout(200);
   check('the popup uses the card name', await p.evaluate(() => card.shadowRoot.getElementById('drawer').textContent.includes('Cinema')));
+  await p.evaluate(() => { card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
+  await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="sensor.living_room_temperature"]'); i.value = 'Room Temp'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
+  await p.waitForTimeout(400);
+  check('renaming from the popup (editor open): saved with Done, the room opens again', await p.evaluate(() => editor._config.house.rooms[0].names?.['sensor.living_room_temperature'] === 'Room Temp' && card._sel === 'living_room' && card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Room Temp'));
+  // renaming on the other panels (edit mode): a pencil on each panel, names for this dashboard only
+  await p.evaluate(() => card._setTab('climate'));
+  await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(150);
+  check('a rename pencil on the panels while editing', await p.evaluate(() => !!card.shadowRoot.querySelector('#climate [data-act=rnsec]') && !!card.shadowRoot.querySelector('#glance [data-act=rnsec]')));
+  await p.evaluate(() => card.shadowRoot.querySelector('#climate [data-act=rnsec]').click()); await p.waitForTimeout(100);
+  const rid = await p.evaluate(() => card.shadowRoot.querySelector('#sheet [data-rename]')?.dataset.rename);
+  check('the rename sheet lists what the panel shows', !!rid, rid);
+  await p.evaluate(id => { const i = card.shadowRoot.querySelector(`#sheet [data-rename="${id}"]`); i.value = 'Panel Name'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#sheet [data-act=rnsave]').click(); }, rid);
+  await p.waitForTimeout(1500);
+  check('renaming on a panel: a dashboard name used on every panel, Home Assistant untouched', await p.evaluate(id => {
+    const n = Object.assign({}, editor._config.names, ...editor._config.house.rooms.map(r => r.names || {}));
+    return n[id] === 'Panel Name' && card._hass.states[id].attributes.friendly_name === 'Panel Name' && window.hassObj.states[id].attributes.friendly_name !== 'Panel Name' && !(window.ws || []).some(m => m.type === 'config/entity_registry/update');
+  }, rid));
+  check('…and shown on the panel', await p.evaluate(() => { card._setTab('climate'); return card.shadowRoot.getElementById('climate').textContent.includes('Panel Name'); }));
+  await p.evaluate(() => { card.editMode = false; card._setTab('home'); editor._step = 'look'; editor._render(); }); await p.waitForTimeout(100);
+  check('Look: the tip switch is "Hide the tip", off by default', await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); return !!i && !i.checked && !editor.querySelector('ha-form input[name=hint]'); }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = true; i.dispatchEvent(new Event('change')); });
+  check('…turning it on hides the tip (hint: false)', await p.evaluate(() => editor._config.hint === false));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = false; i.dispatchEvent(new Event('change')); });
+  check('…turning it off shows it again', await p.evaluate(() => !('hint' in editor._config)));
+  check('the editor lists the names on this dashboard', await p.evaluate(id => !!editor.querySelector(`[data-nm="${id}"]`) && editor.querySelector(`[data-nm="${id}"]`).value === 'Panel Name', rid));
+  await p.evaluate(id => editor.querySelector(`[data-nmdel="${id}"]`).click(), rid);
+  check('…and clears one back to the default', await p.evaluate(id => ![editor._config, ...editor._config.house.rooms].some(h => h.names?.[id]), rid));
+  await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
+  // irrigation in the editor: valves are picked there, a zone's name and duration stay
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('the irrigation panel in the editor has a valves field', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=zones]')].some(i => i.value === 'valve.garden,switch.drip_zone')));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=zones]')][0]; i.value = 'valve.garden,switch.drip_zone,switch.well_pump'; i.dispatchEvent(new Event('change')); });
+  check('adding a valve keeps the other zones as they were', await p.evaluate(() => JSON.stringify(editor._config.panels.irrigation.zones) === '[{"entity":"valve.garden","name":"Front lawn","duration":"sensor.water_flow"},"switch.drip_zone","switch.well_pump"]'));
+  await p.waitForTimeout(1500);
+  check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
+  await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // room shapes: ready-made shapes, corners, bends, separate walls
+  await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
+  check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));
+  await drag([10, 2.5], [10.5, 3]);
+  check('dragging a corner', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points[2]) === '[10.5,3]'));
+  const mh = await p.evaluate(() => editor._midHandles()[0]);
+  await drag(mh, [mh[0], mh[1] - 1]);
+  check('dragging the middle of an edge bends it', await p.evaluate(() => editor._config.house.rooms[1].points[0][2] === 1));
+  await p.evaluate(() => { editor._sel = 0; editor._render(); editor.querySelector('[data-outline]').click(); });
+  check('rectangles turn into an outline', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0].points) === '[[0,0],[6,0],[6,5],[0,5]]'));
+  await p.evaluate(() => editor.querySelector('[data-stool=wall]').click());
+  const nw = await p.evaluate(() => editor._config.house.extra_walls.length);
+  await drag([1, 1.5], [3, 3.5]);
+  await p.evaluate(() => { const s = editor.querySelector('[data-wt]'); s.value = 'half'; s.dispatchEvent(new Event('change')); });
+  check('drawing a separate wall at an angle and making it a half wall', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
+  await p.waitForTimeout(1500);
+  check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

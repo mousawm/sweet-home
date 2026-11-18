@@ -82,9 +82,16 @@ The dashboard is generated for you until you take control of it:
       - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.
+        - **Ready-made shapes**: rectangle, L, T, U, cut corner, bay window, curved wall and round. Tap one to give the
+          room that shape in the space it takes now. **Turn** and **Mirror** change which way it faces.
+        - **Edit corners** gives a room free corners. Drag a corner to move it, which slants the walls next to it. Drag
+          the square in the middle of a wall to bend it into a curve, or tap the square to add a corner there.
+        - **Separate walls**: drag on the plan to draw a wall that stands on its own, in any direction. Use it for a
+          partition, a kitchen half wall, a glass screen or a curved garden wall. Tap one to set its kind, height and
+          bend, or drag it to move it. Doors and openings cut separate walls too.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
-        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity in Home
-        Assistant (or, for entities Home Assistant can't rename, in this card only). Set how each light is drawn (ceiling
+        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity on this
+        dashboard (Home Assistant is not changed). Set how each light is drawn (ceiling
         light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
         whether it stops where a wall is missing. A list shows devices that are in no room yet.
       - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
@@ -92,7 +99,7 @@ The dashboard is generated for you until you take control of it:
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
-        Drag any of them to move it.
+        Drag any of them to move it. On a slanted wall, the door follows the wall.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
       so you can line them up. Areas on a Home Assistant floor are added to that floor.
@@ -100,7 +107,9 @@ The dashboard is generated for you until you take control of it:
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
       rooms without a shape and devices that are in another room's area.
    2. **Panels**: turn panels on or off and pick their entities.
-   3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
+   3. **Look**: title, weather, start tab, wall height, automatic furniture, **Hide the "tap a room" tip** (on: the tip is never shown), or a 3D file.
+      **Names on this dashboard** lists every entity renamed here (in a room or on a panel). Change or clear a name,
+      or rename any other entity.
 5. Click **Save**, then **Done**.
 
 Everything the editor doesn't cover can be added in YAML (**Show code editor**, or the dashboard's **⋮ → Raw
@@ -124,6 +133,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `weather` | Weather entity for the header chip and weather sheet (default: the first one) |
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
+| `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
 | `modes` | Switches or input booleans shown as mode buttons (`entity`, `name`, `icon`) |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
@@ -142,6 +152,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
+| `extra_walls` | Walls that stand on their own, on top of the room walls: `from: [x, z]`, `to: [x, z]`, `type` (`wall`, `half` or `glass`), `height` (m), `bow` (bends the wall into an arc: how many metres its middle moves to one side, negative for the other side), `level`. A plain `[x1, z1, x2, z2]` works too. Doors and openings cut them. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
 | `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
@@ -158,13 +169,20 @@ shifted so that it starts at 0.
 ```yaml
 - area: bedroom               # devices in this area are found automatically
   name: Main Bedroom          # default: the area name
-  rects: [[0, 5, 5, 9]]       # one or more [x1, z1, x2, z2]
+  rects: [[0, 5, 5, 9]]       # one or more [x1, z1, x2, z2] (two that touch make an L, with no wall between them)
+  # or an outline, for slanted and curved walls: the corners in order. A third number bends the wall that starts
+  # at that corner into an arc (metres its middle bows out of the room; negative: into the room).
+  # points: [[0, 5], [5, 5], [5, 9], [1.2, 9], [0, 7.8, 0.7]]   # a cut corner and a curved wall
+  # points: [[0, 7, 2], [4, 7, 2]]                              # two bent corners make a round room
   icon: mdi:bed
   floor: carpet               # wood, tile, marble, carpet, stone, grass, asphalt (parking)
   outdoor: false
   level: 1                    # the floor (default 0, the ground floor)
-  stairs: both                # a flight of stairs: both (one up, one down into a stairwell), up or down
-                              # (automatic, both ways, for rooms named "Stairs")
+  stairs: true                # a flight of stairs, set by the floors: up from the lowest floor, down from the top
+                              # one, both ways in between (one up, one down into a stairwell). Or: both, up, down;
+                              # false: none. Rooms named "Stairs" get them on their own. With one floor (a flat in a
+                              # building) they go both ways. The flight going down shows only through its hole in the
+                              # floor, so nothing hangs below the house.
   furniture: [...]            # or `false` for none
   # overrides for what was discovered:
   lights: [light.bedroom]
@@ -179,10 +197,10 @@ shifted so that it starts at 0.
   light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
   light_names: {light.bedroom_led: LED Strip}
   names: {script.good_night: Bedtime}    # names for this card only: they replace the entity's name everywhere on
-                                         # the dashboard (the editor writes these for entities HA can't rename)
+                                         # the dashboard (renaming in the card editor or the popup writes these)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
-  strip_sides: nes                       # walls that have the LED strip
+  strip_sides: nes                       # walls that have the LED strip (an outline room: all of its walls)
   strip_mode: walls                      # stop the strip where a wall is missing (doors, openings); default: full side
   ac: {x: 0.2, z: 6, dx: 1, dz: 0}       # where the AC unit hangs and which way it blows
   anchor: [2.5, 7]                       # label position
@@ -231,7 +249,7 @@ furniture:
 | `sprinkler` | `x z radius entity`: sprays water in 3D while its valve or switch is on |
 | all types | `entity` / `entities`, `name`, `badge` |
 
-**Move furniture in 3D**: admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
+**Move furniture in 3D**: while the dashboard is in edit mode, admins get a **move** button on the 3D view. Turn it on and drag pieces across the floor.
 While the card editor is open, each move goes through it (with undo). Otherwise it is saved straight into the
 dashboard. Pieces from the automatic set can be moved once their room has its own furniture (card editor → Furniture).
 
@@ -260,7 +278,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`; the power
   sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
   pressure…)
-- **irrigation**: `zones` (`entity`, `name`, `duration`), `interval`, `weekday`, `tomorrow`, `next`, `notification`
+- **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`; pick them in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
 - **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
   colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
   `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`
@@ -290,7 +308,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
 | 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
 | Floors | The floor buttons on the 3D view switch floors; opening a room on another floor switches to it |
-| Rename | Admins: the pencil in a room's popup renames its devices in Home Assistant |
+| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices, and the pencil next to each panel's title (At a glance, Security, Climate, Energy, Water, Media, System…) renames what that panel shows. Names apply on this dashboard only (Done saves; Home Assistant is not changed) |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 

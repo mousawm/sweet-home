@@ -71,7 +71,7 @@ const AR = {
   'Water temperature': 'حرارة المياه', 'Battery alert below': 'تنبيه البطارية تحت', 'Weak Wi-Fi below': 'ضعف الواي فاي تحت', 'Cloudflare tunnels': 'أنفاق Cloudflare',
   'LED strip on': 'شريط LED على', 'Where there is no wall': 'حيث لا يوجد جدار', 'Keep going': 'يستمر', 'Stop at the gap': 'يتوقف عند الفراغ',
   North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
-  Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant',
+  Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant', 'renamed in Home Assistant and on this dashboard': 'تمت إعادة التسمية في Home Assistant وفي هذه اللوحة',
   'default name': 'الاسم الافتراضي', 'could not rename': 'تعذّرت إعادة التسمية', 'not found': 'غير موجود',
   Parked: 'مركونة', Tree: 'شجرة', Hedge: 'سياج نباتي', Pool: 'مسبح', Sprinkler: 'رشاش مياه', Asphalt: 'أسفلت',
   'Stairs going': 'اتجاه الدرج', 'Up and down': 'صعود ونزول', 'No stairs': 'بدون درج', 'Car sensor (shows the car while it is parked)': 'حساس السيارة (تظهر السيارة عندما تكون مركونة)',
@@ -80,6 +80,9 @@ const AR = {
   'Charging (on while it charges)': 'الشحن (يعمل أثناء الشحن)', 'Charging power': 'قدرة الشحن', 'Battery level': 'مستوى البطارية', Range: 'المدى',
   'Status (parked, driving…)': 'الحالة (مركونة، تسير…)', 'Charging time / time left': 'مدة الشحن / الوقت المتبقي', 'This charge: energy': 'هذا الشحن: الطاقة', 'This charge: cost': 'هذا الشحن: التكلفة',
   'This month: energy': 'هذا الشهر: الطاقة', 'This month: cost': 'هذا الشهر: التكلفة', 'This year: energy': 'هذا العام: الطاقة', 'This year: cost': 'هذا العام: التكلفة',
+  'Names change on this dashboard only. Clear a name to go back to the default.': 'تتغير الأسماء في هذه اللوحة فقط. امسح الاسم للعودة إلى الاسم الافتراضي.',
+  'Names saved': 'تم حفظ الأسماء', 'name on this dashboard': 'اسم في هذه اللوحة',
+  'Only if the room is named Stairs': 'فقط إذا كان اسم الغرفة درج', 'Yes, by the floors': 'نعم، حسب الطوابق',
   // device states
   Playing: 'قيد التشغيل', Paused: 'متوقف مؤقتًا', Idle: 'خامل', Standby: 'في وضع الاستعداد', Buffering: 'جارٍ التحميل', Cleaning: 'ينظّف', Docked: 'في القاعدة',
   Returning: 'يعود إلى القاعدة', Error: 'خطأ', Opening: 'يُفتح', Closing: 'يُغلق', Unavailable: 'غير متاح', Unknown: 'غير معروف', Heat: 'تدفئة', Cool: 'تبريد', Auto: 'تلقائي', 'Fan only': 'مروحة فقط',
@@ -112,6 +115,28 @@ const AR = {
   'Rooms are closed by walls: add a door or an opening wherever you can walk between them. Drag a door, window, opening or badge to move it.':
     'الغرف مغلقة بالجدران: أضف بابًا أو ممرًا مفتوحًا حيث يمكن التنقل بينها. اسحب الباب أو النافذة أو الممر أو الشارة لتحريكها.',
   'Windows are placed on long outer walls automatically. Add one to place them yourself.': 'تُضاف النوافذ تلقائيًا على الجدران الخارجية الطويلة. أضف نافذة لتحدد أماكنها بنفسك.',
+  // room shapes and separate walls
+  'Room shape': 'شكل الغرفة', 'Separate walls': 'جدران منفصلة', Rectangle: 'مستطيل', 'L shape': 'شكل L', 'T shape': 'شكل T', 'U shape': 'شكل U',
+  'Cut corner': 'زاوية مائلة', 'Bay window': 'نافذة بارزة', 'Curved wall': 'جدار منحنٍ', Round: 'دائرية', Mirror: 'عكس', 'Delete corner': 'حذف الزاوية',
+  'Edit corners': 'تعديل الزوايا', 'Free corners: slant or bend any wall': 'زوايا حرة: اجعل أي جدار مائلًا أو منحنيًا',
+  '{0} corners. Drag a corner to move it. Drag the square in the middle of an edge to bend it into a curve, tap it to add a corner.':
+    '{0} زوايا. اسحب الزاوية لتحريكها. اسحب المربع في منتصف الضلع لجعله منحنيًا، أو اضغط عليه لإضافة زاوية.',
+  'These rectangles don’t touch: join them first.': 'هذه المستطيلات غير متلاصقة: اجعلها متصلة أولًا.',
+  'Drag the corners of {0} to reshape it, drag inside it to move it. Pick a ready-made shape below to start over.': 'اسحب زوايا {0} لتغيير شكلها، واسحب من داخلها لتحريكها. اختر شكلًا جاهزًا بالأسفل للبدء من جديد.',
+  'Drag on the grid to draw a separate wall, in any direction (one square = {0} m).': 'اسحب على الشبكة لرسم جدار منفصل بأي اتجاه (المربع الواحد = {0} م).',
+  'Drag on the plan to draw a wall that stands on its own: a partition, a kitchen half wall, a glass screen, a curved garden wall. Tap a wall to change it, drag it or its ends to move it. Doors and openings cut it too.':
+    'اسحب على المخطط لرسم جدار قائم بذاته: فاصل، أو جدار مطبخ منخفض، أو حاجز زجاجي، أو جدار حديقة منحنٍ. اضغط على الجدار لتعديله، واسحبه أو اسحب طرفيه لتحريكه. الأبواب والممرات تقطعه أيضًا.',
+  '{0} separate wall(s) on this floor': '{0} جدار منفصل في هذا الطابق', Kind: 'النوع', Wall: 'جدار', 'Half wall': 'جدار منخفض', Glass: 'زجاج',
+  'Height (m, empty: automatic)': 'الارتفاع (م، فارغ: تلقائي)', 'Bend (m, + one side, − the other)': 'الانحناء (م، + لجهة و− للأخرى)', 'Delete wall': 'حذف الجدار',
+  // names on this dashboard
+  'Names on this dashboard': 'الأسماء في لوحة التحكم هذه', 'No names yet.': 'لا توجد أسماء بعد.', 'Rename another entity': 'إعادة تسمية كيان آخر', 'Default name': 'الاسم الافتراضي', Panel: 'اللوحة',
+  'Renamed in a room popup, on a panel (pencil while editing) or here. They replace the entity name everywhere on this dashboard; Home Assistant keeps its own names. Clear a name to go back to the default.':
+    'تُعاد التسمية من نافذة الغرفة، أو من أي لوحة (رمز القلم أثناء التعديل)، أو من هنا. تحل الأسماء محل اسم الكيان في كل مكان في لوحة التحكم هذه، ويحتفظ Home Assistant بأسمائه الأصلية. امسح الاسم للعودة إلى الاسم الافتراضي.',
+  // irrigation
+  Watering: 'جارٍ الري', 'Valves (one per zone)': 'المحابس (واحد لكل منطقة)', 'Reminder notification': 'إشعار التذكير', 'Watering time': 'وقت الري',
+  'Water every': 'الري كل', Schedule: 'الجدول', 'Day of the week': 'يوم الأسبوع', 'Water tomorrow (switch)': 'الري غدًا (مفتاح)', 'Next watering': 'الري القادم',
+  'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
+  'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

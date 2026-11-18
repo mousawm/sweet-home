@@ -146,11 +146,12 @@ function autoRooms(R, cfg) {
 
 // a flight of stairs filling a room's first rectangle, climbing along its longer side
 export function stairsFor(room) {
-  const [x1, z1, x2, z2] = room.rects[0], o = typeof room.stairs === 'object' ? room.stairs : {};
+  const [x1, z1, x2, z2] = room.rects[0], o = room.stairs && typeof room.stairs === 'object' ? room.stairs : {};
   const alongX = o.axis ? o.axis === 'x' : x2 - x1 >= z2 - z1, len = alongX ? x2 - x1 : z2 - z1;
   // `stairs: up | down | both` (or {mode, axis, steps}); by default both: one flight up, one down
-  const mode = { up: 'up', down: 'down', both: 'split', split: 'split' }[o.mode || room.stairs] || 'split';
-  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode, steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
+  const chosen = { up: 'up', down: 'down', both: 'split', split: 'split' }[o.mode || room.stairs];
+  // not chosen: set by the floors (see buildModel): up on the lowest floor, down on the top one, both in between
+  return { type: 'stairs', room: room.id, x0: x1 + 0.08, z0: z1 + 0.08, x1: x2 - 0.08, z1: z2 - 0.08, axis: alongX ? 'x' : 'z', mode: chosen || 'split', byFloors: !chosen, steps: o.steps || Math.max(4, Math.min(16, Math.round(len / 0.28))) };
 }
 
 /* automatic furniture for automatic / furniture-less rooms, from the room's name */
@@ -190,7 +191,7 @@ export function autoFurniture(room) {
   } else if (/patio|terrace|balcony/.test(n)) {
     f.push({ type: 'plant', room: R, x: x1 + 0.6, z: z1 + 0.6, size: 1 }, { type: 'plant', room: R, x: x2 - 0.6, z: z1 + 0.6, size: 0.9 });
     f.push({ type: 'table', room: R, x: cx, z: cz, w: 0.8, d: 0.8, h: 0.72, top: 0xf1f5f9, leg: 0x94a3b8 });
-  } else if (/stair/.test(n)) {
+  } else if (/stair/.test(n) && room.stairs !== false) {
     f.push(stairsFor(room));
   } else if (/garage|parking|carport|driveway/.test(n)) {
     f.push({ type: 'car', room: R, x: cx, z: cz, facing: d >= w ? 'n' : 'e', color: 0x2563eb });
@@ -201,7 +202,7 @@ export function autoFurniture(room) {
 // The automatic set for one room config, written the way YAML writes furniture (from / to corners, #hex colours),
 // so the card editor can turn it into pieces the user can move and change.
 export function autoFurnitureConfig(rc, name) {
-  const rects = arr(rc.rects || (rc.rect ? [rc.rect] : [])); if (!rects.length) return [];
+  const poly = roomOutline(rc), rects = poly ? polyRects(poly) : arr(rc.rects || (rc.rect ? [rc.rect] : [])); if (!rects.length) return [];
   const r2 = x => Math.round(x * 100) / 100;
   const hex = c => '#' + Number(c).toString(16).padStart(6, '0');
   return autoFurniture({ id: 'x', name: name || rc.name || rc.area || '', rects, media: typeof rc.media === 'string' ? rc.media : null }).map(f => {
@@ -217,96 +218,183 @@ export function autoFurnitureConfig(rc, name) {
 }
 
 /* ------------------------------------------------------------------ */
-/* walls from room rectangles                                          */
+/* room shapes                                                          */
+/* ------------------------------------------------------------------ */
+// A room is rectangles (`rects`, several make an L, T or U) or an outline (`points`: [[x, z], …], its corners in order),
+// which can have slanted edges. A third number on a point bends the edge that starts there into an arc: how many metres
+// the middle of the edge bows out of the room (negative: into it).
+const rnd4 = v => Math.round(v * 1e4) / 1e4;
+export function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const [x1, z1] = p[i], [x2, z2] = p[(i + 1) % p.length]; a += x1 * z2 - x2 * z1; } return a / 2; }
+// the points between a and b on an arc whose middle is `bow` metres off the straight line, towards the unit normal n
+export function bendEdge(a, b, bow, n) {
+  const c = Math.hypot(b[0] - a[0], b[1] - a[1]), s = Math.abs(bow); if (!s || c < 1e-6) return [];
+  const R = (c * c / 4 + s * s) / (2 * s), Phi = 4 * Math.atan(2 * s / c), sg = Math.sign(bow);
+  const u = [n[0] * sg, n[1] * sg], d = [(b[0] - a[0]) / c, (b[1] - a[1]) / c];
+  const ctr = [(a[0] + b[0]) / 2 - u[0] * (R - s), (a[1] + b[1]) / 2 - u[1] * (R - s)];
+  const k = Math.max(4, Math.min(48, Math.ceil(R * Phi / 0.3))), out = [];
+  for (let i = 1; i < k; i++) { const f = -Phi / 2 + Phi * i / k; out.push([ctr[0] + R * (Math.cos(f) * u[0] + Math.sin(f) * d[0]), ctr[1] + R * (Math.cos(f) * u[1] + Math.sin(f) * d[1])]); }
+  return out;
+}
+// the outline of a room given by `points`, with its bent edges cut into short straight pieces (null for rectangles)
+export function roomOutline(rc) {
+  const P = arr(rc?.points).filter(p => Array.isArray(p) && p.length >= 2 && !isNaN(Number(p[0])) && !isNaN(Number(p[1]))).map(p => p.map(Number));
+  if (P.length < 3 && !(P.length === 2 && P.some(p => p[2]))) return null; // two corners make a round room when bent
+  const sg = polyArea(P) >= 0 ? 1 : -1, out = [];
+  P.forEach((a, i) => {
+    const b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-6) return;
+    out.push([a[0], a[1]]);
+    if (a[2]) out.push(...bendEdge(a, b, a[2], [sg * (b[1] - a[1]) / L, -sg * (b[0] - a[0]) / L]));
+  });
+  return out.length >= 3 ? out.map(p => p.map(rnd4)) : null;
+}
+export function inPoly(x, z, p) {
+  let inside = false;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+    const [xi, zi] = p[i], [xj, zj] = p[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// rectangles that roughly fill an outline, biggest first (exact for L, T and U shapes): furniture, lights and
+// stairs that work on rectangles use them
+export function polyRects(poly) {
+  const zs = [...new Set(poly.map(p => rnd4(p[1])))].sort((a, b) => a - b), out = [];
+  for (let i = 0; i < zs.length - 1; i++) {
+    const z1 = zs[i], z2 = zs[i + 1]; if (z2 - z1 < 0.02) continue;
+    const zm = (z1 + z2) / 2, xs = [];
+    for (let k = 0; k < poly.length; k++) { const [xa, za] = poly[k], [xb, zb] = poly[(k + 1) % poly.length]; if ((za <= zm) !== (zb <= zm)) xs.push(xa + (zm - za) / (zb - za) * (xb - xa)); }
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const a = rnd4(xs[k]), b = rnd4(xs[k + 1]); if (b - a < 0.02) continue;
+      const up = out.find(q => Math.abs(q[0] - a) < 1e-3 && Math.abs(q[2] - b) < 1e-3 && Math.abs(q[3] - z1) < 1e-3);
+      if (up) up[3] = z2; else out.push([a, z1, b, z2]);
+    }
+  }
+  return out.sort((p, q) => (q[2] - q[0]) * (q[3] - q[1]) - (p[2] - p[0]) * (p[3] - p[1]));
+}
+// the edges of a room: its outline, or the sides of its rectangles
+export const roomEdges = r => r.poly ? r.poly.map((p, i) => [p[0], p[1], r.poly[(i + 1) % r.poly.length][0], r.poly[(i + 1) % r.poly.length][1]])
+  : r.rects.flatMap(([x1, z1, x2, z2]) => [[x1, z1, x2, z1], [x1, z2, x2, z2], [x1, z1, x1, z2], [x2, z1, x2, z2]]);
+
+// A straight line in any direction: unit direction (dx, dz) with dz ≥ 0, offset c along the normal (-dz, dx), and the
+// stretch [a, b] a segment covers along it. Axis lines come out exact (c = z for horizontal ones).
+export function lineOf(x1, z1, x2, z2) {
+  let dx = x2 - x1, dz = z2 - z1; const L = Math.hypot(dx, dz); if (L < 1e-6) return null;
+  dx /= L; dz /= L;
+  if (Math.abs(dz) < 1e-6) { dx = 1; dz = 0; } else if (Math.abs(dx) < 1e-6) { dx = 0; dz = 1; } else if (dz < 0) { dx = -dx; dz = -dz; }
+  const c = -x1 * dz + z1 * dx, t1 = x1 * dx + z1 * dz, t2 = x2 * dx + z2 * dz;
+  return { dx, dz, c, ang: Math.atan2(dz, dx), a: Math.min(t1, t2), b: Math.max(t1, t2) };
+}
+const sameLine = (p, q, tol = 0.02) => Math.abs(p.ang - q.ang) < 2e-3 && Math.abs(p.c - q.c) < tol;
+const lineKey = l => `${Math.round(l.ang * 1e3)}:${Math.round(l.c * 100)}`;
+const onLine = (l, t) => [rnd4(-l.c * l.dz + t * l.dx), rnd4(l.c * l.dx + t * l.dz)];
+
+/* ------------------------------------------------------------------ */
+/* walls from room shapes                                               */
 /* ------------------------------------------------------------------ */
 // Every room edge becomes wall; an edge shared by two rooms becomes one inner wall. Outdoor-only edges become
-// railings. Optional: openings (gaps), windows, open_plan (room pairs with no wall), automatic doorways / windows.
+// railings. Edges between two parts of the same room (an L made of two rectangles) get no wall. Optional: openings
+// (gaps), windows, open_plan (room pairs with no wall), automatic doorways / windows. Edges can run in any direction.
 export function wallsFromRooms(rooms, house = {}) {
   const E = 1e-3, key = v => Math.round(v * 1000) / 1000;
-  const lines = new Map(); // "h:z" or "v:x" → [{a,b,room}]
-  for (const r of rooms) for (const [x1, z1, x2, z2] of r.rects) {
-    for (const [o, c, a, b] of [['h', z1, x1, x2], ['h', z2, x1, x2], ['v', x1, z1, z2], ['v', x2, z1, z2]]) {
-      const k = o + ':' + key(c); (lines.get(k) || lines.set(k, []).get(k)).push({ a: Math.min(a, b), b: Math.max(a, b), room: r });
-    }
+  const lines = new Map(); // line key → { l, list: [{a, b, room}] }
+  for (const r of rooms) for (const [x1, z1, x2, z2] of roomEdges(r)) {
+    const l = lineOf(x1, z1, x2, z2); if (!l) continue;
+    const k = lineKey(l), e = lines.get(k) || lines.set(k, { l, list: [] }).get(k);
+    e.list.push({ a: l.a, b: l.b, room: r });
   }
   const openPlan = arr(house.open_plan).map(p => arr(p).map(String));
   const isOpen = (r1, r2) => openPlan.some(p => p.includes(r1.id) && p.includes(r2.id));
   const segs = [];
-  for (const [k, list] of lines) {
-    const [o, cs] = k.split(':'); const c = Number(cs);
+  for (const [, { l, list }] of lines) {
     const pts = [...new Set(list.flatMap(s => [key(s.a), key(s.b)]))].sort((x, y) => x - y);
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1]; if (b - a < E) continue;
       const on = list.filter(s => s.a <= a + E && s.b >= b - E).map(s => s.room);
       const uniq = [...new Set(on)];
+      if (!uniq.length) continue;
       let type = 'w';
       if (uniq.length >= 2) {
         if (uniq.every(r => r.outdoor)) continue;
         if (isOpen(uniq[0], uniq[1])) continue;
-        type = 'w';
-      } else if (uniq[0]?.outdoor) type = 'rail';
-      segs.push({ o, c, a, b, type, rooms: uniq });
+      } else if (on.length >= 2) continue; // inside one room: two of its parts meet here
+      else if (uniq[0]?.outdoor) type = 'rail';
+      segs.push({ l, a, b, type, rooms: uniq });
     }
   }
   // merge neighbours of the same type and room set
-  segs.sort((s, t) => (s.o + s.c).localeCompare(t.o + t.c) || s.c - t.c || s.a - t.a);
+  segs.sort((s, t) => lineKey(s.l).localeCompare(lineKey(t.l)) || s.a - t.a);
   const merged = [];
   for (const s of segs) {
     const m = merged[merged.length - 1];
-    if (m && m.o === s.o && Math.abs(m.c - s.c) < E && Math.abs(m.b - s.a) < E && m.type === s.type && m.rooms.map(r => r.id).join() === s.rooms.map(r => r.id).join()) m.b = s.b;
+    if (m && sameLine(m.l, s.l, E) && Math.abs(m.b - s.a) < E && m.type === s.type && m.rooms.map(r => r.id).join() === s.rooms.map(r => r.id).join()) m.b = s.b;
     else merged.push({ ...s });
   }
-  const cut = (list, o, c, a, b, type) => { // replace [a,b] on line (o,c) with `type` (null = gap)
+  const cut = (list, g, type) => { // replace the stretch of `g` (a line with [a, b]) with `type` (null = gap)
     const out = [];
     for (const s of list) {
-      if (s.o !== o || Math.abs(s.c - c) > 0.02 || s.b <= a + E || s.a >= b - E) { out.push(s); continue; }
-      if (s.a < a - E) out.push({ ...s, b: a });
-      if (type) out.push({ ...s, a: Math.max(a, s.a), b: Math.min(b, s.b), type });
-      if (s.b > b + E) out.push({ ...s, a: b });
+      if (!sameLine(s.l, g) || s.b <= g.a + E || s.a >= g.b - E) { out.push(s); continue; }
+      if (s.a < g.a - E) out.push({ ...s, b: g.a });
+      if (type) out.push({ ...s, a: Math.max(g.a, s.a), b: Math.min(g.b, s.b), type });
+      if (s.b > g.b + E) out.push({ ...s, a: g.b });
     }
     return out;
   };
   let res = merged;
-  const seg2 = ([x1, z1, x2, z2]) => Math.abs(z1 - z2) < E ? ['h', z1, Math.min(x1, x2), Math.max(x1, x2)] : ['v', x1, Math.min(z1, z2), Math.max(z1, z2)];
+  const segLine = q => (Array.isArray(q) && q.length >= 4 ? lineOf(...q.slice(0, 4).map(Number)) : null);
   // automatic doorways: a 0.9 m gap in the middle of each wall shared by two indoor rooms (unless an opening is given there)
-  const explicitOpen = arr(house.openings).map(seg2);
+  const explicitOpen = arr(house.openings).map(segLine).filter(Boolean);
   if (house.doorways !== 'none' && house.doorways !== false) {
     const done = new Set();
     for (const s of [...res]) {
       if (s.rooms.length < 2 || s.type !== 'w') continue;
       const pair = s.rooms.map(r => r.id).sort().join('|'); if (done.has(pair)) continue;
-      if (explicitOpen.some(([o, c, a, b]) => o === s.o && Math.abs(c - s.c) < 0.05 && b > s.a && a < s.b)) { done.add(pair); continue; }
+      if (explicitOpen.some(g => sameLine(g, s.l, 0.05) && g.b > s.a && g.a < s.b)) { done.add(pair); continue; }
       if (s.b - s.a < 1.2) continue;
       done.add(pair); const m = (s.a + s.b) / 2;
-      res = cut(res, s.o, s.c, m - 0.45, m + 0.45, null);
+      res = cut(res, { ...s.l, a: m - 0.45, b: m + 0.45 }, null);
     }
   }
-  for (const [o, c, a, b] of explicitOpen) res = cut(res, o, c, a, b, null);
-  // windows: given ones, or one in the middle of each long outer wall
-  const wins = arr(house.windows);
-  if (wins.length || house.windows === 'none') for (const w of wins) { const [o, c, a, b] = seg2(w); res = cut(res, o, c, a, b, 'win'); }
+  for (const g of explicitOpen) res = cut(res, g, null);
+  // windows: given ones (a list, empty = none), or one in the middle of each long outer wall
+  if (Array.isArray(house.windows) || house.windows === 'none') { for (const w of arr(Array.isArray(house.windows) ? house.windows : [])) { const g = segLine(w); if (g) res = cut(res, g, 'win'); } }
   else for (const s of [...res]) {
     if (s.type !== 'w' || s.rooms.length !== 1 || s.b - s.a < 2.6) continue;
     const m = (s.a + s.b) / 2, half = Math.min(1.0, (s.b - s.a) * 0.22);
-    res = cut(res, s.o, s.c, m - half, m + half, 'win');
+    res = cut(res, { ...s.l, a: m - half, b: m + half }, 'win');
   }
-  return res.filter(s => s.b - s.a > E).map(s => s.o === 'h' ? [s.a, s.c, s.b, s.c, s.type] : [s.c, s.a, s.c, s.b, s.type]);
+  return res.filter(s => s.b - s.a > E).map(s => [...onLine(s.l, s.a), ...onLine(s.l, s.b), s.type]);
 }
 
-// cuts gaps into wall segments [x1, z1, x2, z2, type, level] where the gap segments [x1, z1, x2, z2, level] lie on them
-function cutWalls(walls, gaps) {
+// cuts gaps into wall segments [x1, z1, x2, z2, type, level, …] where the gap segments [x1, z1, x2, z2, level] lie on them
+export function cutWalls(walls, gaps) {
   let out = walls;
-  for (const [gx1, gz1, gx2, gz2, gl] of gaps) {
-    const gh = Math.abs(gz1 - gz2) < 1e-3, ga = gh ? Math.min(gx1, gx2) : Math.min(gz1, gz2), gb = gh ? Math.max(gx1, gx2) : Math.max(gz1, gz2), gc = gh ? gz1 : gx1;
+  for (const q of gaps) {
+    const g = lineOf(q[0], q[1], q[2], q[3]); if (!g) continue;
     const next = [];
     for (const w of out) {
-      const [x1, z1, x2, z2, t, l] = w, h = Math.abs(z1 - z2) < 1e-3, c = h ? z1 : x1, a = h ? Math.min(x1, x2) : Math.min(z1, z2), b = h ? Math.max(x1, x2) : Math.max(z1, z2);
-      if (l !== gl || h !== gh || Math.abs(c - gc) > 0.02 || b <= ga + 1e-3 || a >= gb - 1e-3) { next.push(w); continue; }
-      const seg = (p, q) => (h ? [p, c, q, c, t, l] : [c, p, c, q, t, l]);
-      if (a < ga - 1e-3) next.push(seg(a, ga));
-      if (b > gb + 1e-3) next.push(seg(gb, b));
+      const l = lineOf(w[0], w[1], w[2], w[3]);
+      if (!l || w[5] !== q[4] || !sameLine(l, g) || l.b <= g.a + 1e-3 || l.a >= g.b - 1e-3) { next.push(w); continue; }
+      const seg = (p, r) => [...onLine(l, p), ...onLine(l, r), ...w.slice(4)];
+      if (l.a < g.a - 1e-3) next.push(seg(l.a, g.a));
+      if (l.b > g.b + 1e-3) next.push(seg(g.b, l.b));
     }
     out = next;
+  }
+  return out;
+}
+
+// separate walls (`extra_walls`): {from, to, type: wall | half | glass, height, bow, level} or [x1, z1, x2, z2]; a bent
+// one is cut into short straight pieces. → [x1, z1, x2, z2, type, level, {h}] with type w / half / glass
+export function extraWalls(list) {
+  const out = [];
+  for (const w of arr(list)) {
+    const o = Array.isArray(w) ? { from: [w[0], w[1]], to: [w[2], w[3]], level: w[4] } : (w || {});
+    const a = o.from, b = o.to; if (!a || !b || [a[0], a[1], b[0], b[1]].some(v => v == null || isNaN(Number(v)))) continue;
+    const A = a.map(Number), B = b.map(Number), L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 0.05) continue;
+    const type = { half: 'half', glass: 'glass', low: 'half' }[o.type] || 'w', bow = num(o.bow, 0);
+    const pts = [A, ...(bow ? bendEdge(A, B, bow, [(B[1] - A[1]) / L, -(B[0] - A[0]) / L]) : []), B];
+    for (let i = 0; i + 1 < pts.length; i++) out.push([rnd4(pts[i][0]), rnd4(pts[i][1]), rnd4(pts[i + 1][0]), rnd4(pts[i + 1][1]), type, o.level, { h: o.height != null ? num(o.height, null) : null, bent: !!bow }]);
   }
   return out;
 }
@@ -327,14 +415,16 @@ export function buildModel(cfg = {}, hass) {
   if (auto) rawRooms = autoRooms(R, house);
   const rooms = rawRooms.map((rc, i) => {
     const name = rc.name || R.areas[rc.area]?.name || `Room ${i + 1}`;
-    const rects = arr(rc.rects || (rc.rect ? [rc.rect] : [])).map(r => r.map(Number));
+    // an outline (`points`) wins over rectangles; its rectangles are only a rough fill for furniture and lights
+    const poly = roomOutline(rc);
+    const rects = poly ? polyRects(poly) : arr(rc.rects || (rc.rect ? [rc.rect] : [])).map(r => r.map(Number));
     const found = rc.area ? discoverRoom(R, rc.area) : {};
     const pick = (k, key) => (rc[k] !== undefined ? rc[k] : found[key ?? k]);
     const lightFx = rc.light_fx || rc.lightFx || null;
     const lvl = rc.level != null && rc.level !== '' && !isNaN(Number(rc.level)) ? Number(rc.level) : 0;
     const r = {
-      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs || false,
-      rects, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
+      id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs ?? null,
+      rects, poly: poly || undefined, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
       outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
@@ -356,20 +446,21 @@ export function buildModel(cfg = {}, hass) {
 
   /* ---------- normalise coordinates so the plan starts at (0,0) ---------- */
   let minx = Infinity, minz = Infinity, maxx = -Infinity, maxz = -Infinity;
-  for (const r of rooms) for (const [x1, z1, x2, z2] of r.rects) { minx = Math.min(minx, x1, x2); minz = Math.min(minz, z1, z2); maxx = Math.max(maxx, x1, x2); maxz = Math.max(maxz, z1, z2); }
+  for (const r of rooms) for (const [x1, z1, x2, z2] of [...r.rects, ...(r.poly || []).map(([x, z]) => [x, z, x, z])]) { minx = Math.min(minx, x1, x2); minz = Math.min(minz, z1, z2); maxx = Math.max(maxx, x1, x2); maxz = Math.max(maxz, z1, z2); }
   if (!isFinite(minx)) { minx = 0; minz = 0; maxx = 10; maxz = 8; }
   const ox = minx, oz = minz;
   const sx = x => Number(x) - ox, sz = z => Number(z) - oz;
   const shiftRect = ([x1, z1, x2, z2]) => [sx(Math.min(x1, x2)), sz(Math.min(z1, z2)), sx(Math.max(x1, x2)), sz(Math.max(z1, z2))];
   for (const r of rooms) {
     r.rects = r.rects.map(shiftRect);
+    if (r.poly) r.poly = r.poly.map(([x, z]) => [rnd4(sx(x)), rnd4(sz(z))]);
     if (r.floorRects) r.floorRects = r.floorRects.map(shiftRect);
     if (r.anchor) r.anchor = [sx(r.anchor[0]), sz(r.anchor[1])];
     if (r.tvGlow) r.tvGlow = { ...r.tvGlow, x: sx(r.tvGlow.x), z: sz(r.tvGlow.z) };
     if (r.ac && typeof r.ac === 'object') r.ac = { ...r.ac, x: sx(r.ac.x), z: sz(r.ac.z) };
   }
   const W = maxx - minx, D = maxz - minz;
-  const roomAt = (x, z, l) => rooms.find(r => (l == null || r.level === l) && r.rects.some(([a, b, c, d]) => x >= a - 0.05 && x <= c + 0.05 && z >= b - 0.05 && z <= d + 0.05))?.id || null;
+  const roomAt = (x, z, l) => rooms.find(r => (l == null || r.level === l) && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x >= a - 0.05 && x <= c + 0.05 && z >= b - 0.05 && z <= d + 0.05)))?.id || null;
 
   /* AC units: given position, or on the room's first wall facing in */
   for (const r of rooms) {
@@ -388,32 +479,39 @@ export function buildModel(cfg = {}, hass) {
     return { level: l, name: given?.name || haFloor?.name || (l === 0 ? 'Ground floor' : l < 0 ? (l === -1 ? 'Basement' : `Basement ${-l}`) : `Floor ${l}`), icon: given?.icon || haFloor?.icon || null };
   });
 
-  // the lines walls stand on, per floor: ['h', z, x from, x to] / ['v', x, z from, z to] (room edges, or your own walls)
+  // the lines walls stand on, per floor (room edges or your own walls, and separate walls), in any direction
   const customWalls = Array.isArray(house.walls) && house.walls.length ? house.walls.map(([x1, z1, x2, z2, t, l]) => [sx(x1), sz(z1), sx(x2), sz(z2), t || 'w', lvOf(l)]) : null;
-  const wallLines = l => customWalls
-    ? customWalls.filter(q => q[5] === l).map(([x1, z1, x2, z2]) => (Math.abs(z1 - z2) < 1e-3 ? ['h', z1, Math.min(x1, x2), Math.max(x1, x2)] : ['v', x1, Math.min(z1, z2), Math.max(z1, z2)]))
-    : rooms.filter(r => r.level === l).flatMap(r => r.rects.flatMap(([x1, z1, x2, z2]) => [['h', z1, x1, x2], ['h', z2, x1, x2], ['v', x1, z1, z2], ['v', x2, z1, z2]]));
+  const extra = extraWalls(house.extra_walls).map(([x1, z1, x2, z2, t, l, o]) => [rnd4(sx(x1)), rnd4(sz(z1)), rnd4(sx(x2)), rnd4(sz(z2)), t, lvOf(l), o]);
+  const wallLines = l => [...(customWalls ? customWalls.filter(q => q[5] === l) : rooms.filter(r => r.level === l).flatMap(roomEdges)), ...extra.filter(q => q[5] === l)]
+    .map(q => lineOf(q[0], q[1], q[2], q[3])).filter(Boolean);
 
   /* ---------- doors: a leaf that swings open with its contact sensor (or stays shut without one) ---------- */
   const doors = arr(house.doors).map(d => {
     const from = d.from || [d.x, d.z], to = d.to;
     if (from[0] == null || from[1] == null) return null;
-    let axis = d.axis, dir = d.dir, w = d.width ?? d.w;
-    if (to) { axis = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]) ? 'x' : 'z'; dir = (axis === 'x' ? to[0] - from[0] : to[1] - from[1]) >= 0 ? 1 : -1; w = Math.hypot(to[0] - from[0], to[1] - from[1]); }
-    axis = axis || 'x'; dir = dir ?? 1; w = num(w, 0.9);
+    let axis = d.axis || 'x', dir = d.dir ?? 1, w = num(d.width ?? d.w, 0.9);
     let x = sx(from[0]), z = sz(from[1]);
+    // the leaf runs from `from` towards `to`: along x or z, or slanted (on an angled wall)
+    let vx = axis === 'x' ? dir : 0, vz = axis === 'z' ? dir : 0;
+    if (to) { const ex = sx(to[0]) - x, ez = sz(to[1]) - z; w = Math.hypot(ex, ez) || w; vx = ex / w; vz = ez / w; }
     const level = lvOf(d.level);
     // a door placed a little off its wall (typed by hand, drawn on another grid) goes onto the nearest wall line within
     // 0.4 m, so it cuts its gap and isn't hidden inside the wall
-    const lines = wallLines(level), a0 = axis === 'x' ? Math.min(x, x + dir * w) : Math.min(z, z + dir * w), a1 = a0 + w;
+    const me = lineOf(x, z, x + vx * w, z + vz * w);
     let best = null;
-    for (const [o, c, p, q] of lines) {
-      if (o !== (axis === 'x' ? 'h' : 'v') || q < a0 + 0.05 || p > a1 - 0.05) continue;
-      const dist = Math.abs(c - (axis === 'x' ? z : x)); if (dist <= 0.4 && (!best || dist < best[0])) best = [dist, c];
+    for (const l of wallLines(level)) {
+      if (Math.abs(Math.sin(l.ang - me.ang)) > 0.09) continue; // not the same direction (within ~5°)
+      const t0 = x * l.dx + z * l.dz, t1 = t0 + (vx * l.dx + vz * l.dz) * w;
+      if (Math.max(t0, t1) < l.a + 0.05 || Math.min(t0, t1) > l.b - 0.05) continue;
+      const dist = Math.abs(-x * l.dz + z * l.dx - l.c); if (dist <= 0.4 && (!best || dist < best[0])) best = [dist, l];
     }
-    if (best) { if (axis === 'x') z = best[1]; else x = best[1]; }
-    return { id: d.entity || d.id || null, x, z, axis, dir, w, side: d.side ?? 1, main: !!d.main, level,
-      seg: axis === 'x' ? [x, z, x + dir * w, z] : [x, z, x, z + dir * w] };
+    if (best) {
+      const l = best[1], t0 = x * l.dx + z * l.dz, s = Math.sign(vx * l.dx + vz * l.dz) || 1;
+      [x, z] = onLine(l, t0); vx = l.dx * s; vz = l.dz * s;
+    }
+    if (Math.abs(vz) < 1e-6) { axis = 'x'; dir = vx >= 0 ? 1 : -1; } else if (Math.abs(vx) < 1e-6) { axis = 'z'; dir = vz >= 0 ? 1 : -1; } else axis = 'a';
+    return { id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level,
+      seg: [x, z, rnd4(x + vx * w), rnd4(z + vz * w)] };
   }).filter(Boolean);
 
   /* ---------- walls, per floor ---------- */
@@ -422,7 +520,8 @@ export function buildModel(cfg = {}, hass) {
   const shiftQ = ([a, b2, c, d]) => [sx(a), sz(b2), sx(c), sz(d)];
   let walls;
   // your own walls: doors and openings cut them too
-  if (customWalls) walls = cutWalls(customWalls, [...arr(house.openings).map(q => [...shiftQ(q), segLv(q)]), ...doors.map(d => [...d.seg, d.level])]);
+  const gaps = [...arr(house.openings).map(q => [...shiftQ(q), segLv(q)]), ...doors.map(d => [...d.seg, d.level])];
+  if (customWalls) walls = cutWalls(customWalls, gaps);
   else {
     walls = [];
     for (const l of levelIds) {
@@ -437,6 +536,8 @@ export function buildModel(cfg = {}, hass) {
       }).map(q => [...q, l]));
     }
   }
+  // separate walls stand on top of these; doors and openings cut them too
+  walls.push(...cutWalls(extra, gaps));
 
   const doorInfo = {};
   for (const d of arr(house.door_info)) if (d.entity) doorInfo[d.entity] = { name: d.name || R.name(d.entity), timeout: d.timeout };
@@ -461,7 +562,7 @@ export function buildModel(cfg = {}, hass) {
     if (Array.isArray(r.furniture)) furniture.push(...r.furniture.map((f, i) => ({ ...shiftF({ room: r.id, ...f }), src: r.ci != null ? { room: r.ci, i } : null })));
     else if ((auto || r.auto || house.auto_furniture) && r.furniture !== false) furniture.push(...autoFurniture(r));
     // stairs: rooms marked `stairs`, or named "Stairs" / "Staircase", get a flight of stairs
-    if (r.furniture !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
+    if (r.furniture !== false && r.stairs !== false && (r.stairs || /stair/i.test(r.name)) && !furniture.some(f => f.room === r.id && f.type === 'stairs')) furniture.push(stairsFor(r));
   }
   // a flight going down needs a hole in the floor: the room's floor leaves out the stairwell
   const minus = ([a, b, c, d], [p, q, u, v]) => {
@@ -471,13 +572,22 @@ export function buildModel(cfg = {}, hass) {
     if (p > a) out.push([a, qq, p, vv]); if (u < c) out.push([u, qq, c, vv]);
     return out.filter(([x1, z1, x2, z2]) => x2 - x1 > 0.02 && z2 - z1 > 0.02);
   };
+  // stairs and the floors: with several floors, stairs not set by hand go up from the lowest floor, down from the top
+  // one, and both ways in between. With one floor (a flat in a building) they go both ways.
+  const lvRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
+  for (const f of furniture) {
+    if (f.type !== 'stairs' || !f.byFloors || levelIds.length < 2) continue;
+    const l = lvRoom[f.room] ?? lvOf(f.level);
+    f.mode = l <= levelIds[0] ? 'up' : l >= levelIds[levelIds.length - 1] ? 'down' : 'split';
+  }
   for (const f of furniture) {
     if (f.type !== 'stairs' || !['down', 'split'].includes(f.mode) || !f.room) continue;
     const r = rooms.find(x => x.id === f.room); if (!r) continue;
     const x0 = num(f.x0, 0), z0 = num(f.z0, 0), x1 = num(f.x1, 2), z1 = num(f.z1, 1), alongX = (f.axis || 'x') === 'x';
     // split: the second half across the flight goes down
     const well = f.mode === 'down' ? [x0, z0, x1, z1] : alongX ? [x0, (z0 + z1) / 2, x1, z1] : [(x0 + x1) / 2, z0, x1, z1];
-    r.floorRects = (r.floorRects || r.rects).flatMap(q => minus(q, well));
+    if (r.poly) (r.holes ||= []).push(well); // an outline: the 3D view cuts the hole out of it
+    else r.floorRects = (r.floorRects || r.rects).flatMap(q => minus(q, well));
     f.well = well;
   }
   // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
@@ -557,6 +667,9 @@ export function buildModel(cfg = {}, hass) {
   const tvPlayer = media.player || first('media_player', id => R.dc(id) === 'tv') || null;
   const W2 = P.water || {};
   const IR = P.irrigation || {};
+  const irrGiven = IR.zones ?? IR.valves;
+  const irrZones = (irrGiven !== undefined ? arr(irrGiven) : P.irrigation === false ? [] : allOf('valve').map(entity => ({ entity, auto: true })))
+    .map(z => (typeof z === 'string' ? { entity: z } : z)).filter(z => z?.entity);
   const CAR = P.car || {};
   const EN = P.energy || {};
   const AT = P.attention || {};
@@ -605,7 +718,8 @@ export function buildModel(cfg = {}, hass) {
     lab,
     devices: arr(P.devices?.entities || cfg.devices).map(d => typeof d === 'string' ? { name: R.name(d).replace(/\s*battery( level)?$/i, ''), icon: 'mdi:cellphone', bat: d } : { name: d.name, icon: d.icon || 'mdi:cellphone', bat: d.battery, chg: d.charging, trk: d.tracker, chgState: d.charging_state }),
     irrigation: {
-      valves: arr(IR.zones).map((z, i) => [z.entity, z.name || `Zone ${i + 1}`]), durations: arr(IR.zones).map(z => z.duration || null),
+      // zones: `entity_id` or {entity, name, duration}; `valves` is the same list. Not given: every valve entity.
+      valves: irrZones.map((z, i) => [z.entity, z.name || (z.auto ? R.name(z.entity) : null) || R.name(z.entity) || `Zone ${i + 1}`]), durations: irrZones.map(z => z.duration || null),
       every: IR.interval || null, day: IR.weekday || null, tomorrow: IR.tomorrow || null, next: IR.next || null, notify: IR.notification || null, time: IR.time || null,
     },
     modes: arr(cfg.modes).map(m => typeof m === 'string' ? [m, R.name(m), states[m]?.attributes?.icon || 'mdi:toggle-switch-outline'] : [m.entity, m.name || R.name(m.entity), m.icon || 'mdi:toggle-switch-outline']),

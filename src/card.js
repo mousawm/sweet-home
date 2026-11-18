@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor, FURN_TYPES } from './model.js';
+import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
@@ -24,6 +24,8 @@ function useModel(m) {
   CX = m.plan.CX; CZ = m.plan.CZ; PLAN_W = m.plan.W; PLAN_D = m.plan.D; WALL_H = m.wallH; SPAN = Math.max(PLAN_W, PLAN_D, 6);
 }
 // sections shown on each tab
+// panels whose entities can be renamed for this dashboard (pencil in edit mode)
+const RN_SECS = ['glance', 'security', 'cams', 'climate', 'energy', 'car', 'ehist', 'water', 'irrigation', 'media', 'mserver', 'tvlight', 'alerts', 'lab', 'devices'];
 const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], climate: ['climate'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'lab', 'devices'] };
 
 /* ------------------------------------------------------------------ */
@@ -255,6 +257,32 @@ export class SweetHomeCard extends HTMLElement {
     if (this._built && prev !== this._cfgJSON) this._rebuild();
   }
   getCardSize() { return 20; }
+  // Renaming devices and moving furniture are for editing the dashboard: their buttons show only while it is in edit
+  // mode (Home Assistant sets `editMode` / `preview` on cards), while the card editor is open, or when the card sits in
+  // Home Assistant's edit-mode wrappers. Leaving edit mode turns them off.
+  set editMode(v) { this._editModeProp = !!v; this._syncEditing(); }
+  get editMode() { return !!this._editModeProp; }
+  set preview(v) { this._previewProp = !!v; this._syncEditing(); }
+  get preview() { return !!this._previewProp; }
+  _isEditing() {
+    if (this._editModeProp || this._previewProp || window.__sweetHomeEditor?.isConnected) return true;
+    if (/[?&]edit=1\b/.test(location.search)) return true;
+    for (let n = this.parentNode, i = 0; n && i < 60; i++) {
+      if (/^(hui-card-options|hui-card-edit-mode|hui-card-preview|hui-dialog-edit-card|hui-section-edit-mode)$/i.test(n.tagName || '')) return true;
+      n = n.host || n.parentNode; // up through shadow roots
+    }
+    return false;
+  }
+  _syncEditing() {
+    const e = this._isEditing(); if (e === this._editing) return;
+    this._editing = e; this.toggleAttribute('editing', e);
+    if (!e) { // left edit mode: stop moving furniture and renaming
+      if (this._arrange) { this._arrange = false; if (this._three) this._three.arrange = false; this.$?.('arrBtn')?.classList.remove('on'); }
+      if (this._naming) { this._naming = null; this._pendNames = null; }
+      if (this._info?.startsWith('rename:')) this._closeSheet();
+    }
+    if (this._sections?.length) this._rerender(); // the pencils on the panels come and go
+  }
   static getConfigElement() { return document.createElement('sweet-home-card-editor'); }
   static getStubConfig() { return { title: 'My Home' }; }
   // a new config (card editor): throw the old house away and build again
@@ -290,6 +318,7 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
+    this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
     useModel(this._model);
@@ -305,6 +334,7 @@ export class SweetHomeCard extends HTMLElement {
   get hass() { return this._hass; }
 
   connectedCallback() {
+    this._syncEditing(); setTimeout(() => this._syncEditing(), 300); // the edit-mode wrappers can arrive just after
     this._clockT = setInterval(() => this._tick(), 1000);
     this._camT = setInterval(() => this._refreshCams(), 4000);
     if (!this._visH) {
@@ -450,7 +480,7 @@ export class SweetHomeCard extends HTMLElement {
               <button class="ibtn" data-act="view" data-view="top" title="${tr('Top view')}">${ic('mdi:floor-plan')}</button>
               <button class="ibtn" data-act="view" data-view="reset" title="${tr('3D view')}">${ic('mdi:rotate-3d-variant')}</button>
               <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
-              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
+              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
           </div>
           <div class="viewport" id="viewport">
@@ -531,7 +561,7 @@ export class SweetHomeCard extends HTMLElement {
     const off = {
       security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
-      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !E.irrigation.valves.length, media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
+      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
@@ -543,6 +573,8 @@ export class SweetHomeCard extends HTMLElement {
     this._init3d();
     this._hintShow();
     this._renderLevels();
+    if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
+    this._reselect = null;
   }
 
   _acExtras(id) { // related switches such as jet mode / display light
@@ -613,7 +645,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind === 'lights' ? 'Lights' : kind === 'temps' ? 'Temperatures' : kind === 'weather' ? 'Weather' : kind === 'power' ? 'Power' : kind.startsWith('jf') ? 'Jellyfin library' : kind.startsWith('mup:') ? 'Coming up' : kind === 'swap' ? 'Swap usage' : kind === 'wanted' ? 'Wanted episodes' : 'Phone'}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? 'Lights' : kind === 'temps' ? 'Temperatures' : kind === 'weather' ? 'Weather' : kind === 'power' ? 'Power' : kind.startsWith('jf') ? 'Jellyfin library' : kind.startsWith('mup:') ? 'Coming up' : kind === 'swap' ? 'Swap usage' : kind === 'wanted' ? 'Wanted episodes' : 'Phone'}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind === 'wanted' && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || String(this._wanted.n) !== String(this.v(E.mserver.sonarr.wanted)))) this._loadWanted();
@@ -624,7 +656,8 @@ export class SweetHomeCard extends HTMLElement {
     const box = this.$('sheet')?.querySelector('.sheet'); if (!box || !this._info) return;
     const head = (icon, title, sub) => `<div class="sh-h">${ic(icon)}<div><b>${title}</b><span>${sub}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`;
     let html;
-    if (this._info === 'lights') {
+    if (this._info.startsWith('rename:')) html = this._rnSheet(head, this._info.slice(7));
+    else if (this._info === 'lights') {
       const rooms = ROOMS.filter(r => (r.lights || []).some(l => this.s(l)));
       const all = rooms.flatMap(r => r.lights.filter(l => this.s(l))), on = all.filter(l => this.v(l) === 'on').length;
       html = head('mdi:lightbulb-group', 'Lights', `${on} of ${all.length} on · tap to switch`) + rooms.map(r => {
@@ -678,7 +711,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     if (box._html === html) return; box._html = html;
     const tpl = document.createElement('template'); tpl.innerHTML = html;
-    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, null);
+    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, this._info.startsWith('rename:') ? this._dragging : null); // keeps the name being typed
   }
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
   // come live from weather/subscribe_forecast while the sheet is open.
@@ -971,7 +1004,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   _closeSheet() {
     const sh = this.$?.('sheet'); if (sh) { sh.classList.remove('open'); sh.innerHTML = ''; }
-    this._pick = null; this._pin = null; this._pinSvc = null; this._info = null;
+    this._pick = null; this._pin = null; this._pinSvc = null; this._info = null; this._rnIds = null;
     if (this._wxUnsub) { this._wxUnsub.forEach(u => { try { u(); } catch (e) { /* closed */ } }); this._wxUnsub = null; }
     if (this._keyH) { window.removeEventListener('keydown', this._keyH); this._keyH = null; }
   }
@@ -1024,7 +1057,10 @@ export class SweetHomeCard extends HTMLElement {
       if (!changed) continue;
       sec.force = false;
       this._prev.set(sec.el, sec.deps.map(d => h.states[d]));
-      const html = sec.render();
+      let html = sec.render();
+      // while the dashboard is edited, every panel gets a pencil next to its title: rename what it shows (this dashboard only)
+      if (this._editing && this._hass?.user?.is_admin && RN_SECS.includes(sec.el.id) && html.includes('</h3>'))
+        html = html.replace('</h3>', `</h3><button class="ibtn edit-only rnbtn" data-act="rnsec" data-sec="${sec.el.id}" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>`);
       if (sec.el._html === html) continue;
       const first = sec.el._html === undefined; sec.el._html = html;
       const tpl = document.createElement('template'); tpl.innerHTML = html;
@@ -1169,6 +1205,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'hintx': this._hintDone(); break;
       case 'level': this._setLevel(Number(t.dataset.level)); break;
       case 'arrange': {
+        if (!this._editing && !this._arrange) break;
         const on = this._arrange = !this._arrange; if (this._three) this._three.arrange = on; t.classList.toggle('on', on);
         if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
         break;
@@ -1177,7 +1214,12 @@ export class SweetHomeCard extends HTMLElement {
         if (!this._armConfirm(t, id, tr('Tap again to hide it'))) return;
         this._excludeDevice(id, t.dataset.kind); break;
       }
-      case 'names': this._naming = this._naming === this._sel ? null : this._sel; this._rerender('drawer'); break;
+      case 'names': {
+        if (!this._editing) break;
+        if (this._naming === this._sel) { this._naming = null; this._rerender('drawer'); this._saveNames(ROOM[this._sel]); } // ✓ Done
+        else { this._naming = this._sel; this._pendNames = null; this._rerender('drawer'); }
+        break;
+      }
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
@@ -1201,7 +1243,10 @@ export class SweetHomeCard extends HTMLElement {
       case 'valve': { // irrigation zones need a second tap, like the locks
         const on = this.on(id);
         if (!this._armConfirm(t, id, on ? 'Tap again to stop' : 'Tap again to water')) return;
-        this.call('switch', on ? 'turn_off' : 'turn_on', { entity_id: id }); break;
+        const d = id.split('.')[0]; // a valve opens / closes; a switch or helper turns on / off
+        if (d === 'valve') this.call('valve', on ? 'close_valve' : 'open_valve', { entity_id: id });
+        else this.call(d === 'input_boolean' ? 'input_boolean' : 'switch', on ? 'turn_off' : 'turn_on', { entity_id: id });
+        break;
       }
       case 'acexp': this._acOpen = this._acOpen === id ? null : id; this._rerender('drawer'); break;
       case 'acpow': this.call('climate', this.climOn(id) ? 'turn_off' : 'turn_on', { entity_id: id }); break;
@@ -1251,6 +1296,8 @@ export class SweetHomeCard extends HTMLElement {
       case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast('Restarting Home Assistant…'); break;
       case 'install': if (!this._armConfirm(t, id, 'Tap again to update')) return; this.call('update', 'install', { entity_id: id }); this._toast('Update started'); setTimeout(() => this._rerender('alerts'), 3000); break;
       case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast('Reboot sent'); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
+      case 'rnsec': if (!this._editing) break; this._pendNames = null; this._rnIds = null; this._openInfo('rename:' + t.dataset.sec); break;
+      case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
       case 'tab': this._setTab(t.dataset.tab); if (t.dataset.to) this._goCard(t.dataset.to); break;
@@ -1538,7 +1585,7 @@ export class SweetHomeCard extends HTMLElement {
 
   _rDrawer() {
     const r = ROOM[this._sel]; if (!r) return '';
-    if (this._naming === r.id) return this._rRename(r);
+    if (this._naming === r.id && this._editing) return this._rRename(r);
     const t = r.temp ? this.n(r.temp) : null, h = r.hum ? this.n(r.hum) : null;
     const lights = (r.lights || []).filter(l => this.s(l)).map(l => {
       const st = this.s(l); const on = st.state === 'on';
@@ -1607,7 +1654,7 @@ export class SweetHomeCard extends HTMLElement {
     };
     const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${tr(title)}</div>${fold(key, rows)}` : '');
     const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length;
-    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin ? `<button class="ibtn" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
+    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin && this._editing ? `<button class="ibtn edit-only" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
       ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
         ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>${tr('Temperature')}</span></div>` : ''}
@@ -1626,26 +1673,59 @@ export class SweetHomeCard extends HTMLElement {
 
   // Rename view of the room popup (admins): every entity of the room with its name in a text field. A new name is saved
   // in Home Assistant itself (entity registry), so it changes everywhere; an empty field goes back to the default name.
+  // Rename view of the room popup (edit mode): every entity of the room with its name in a text field. Names are for
+  // this dashboard only (room `names`, or the card's `names` for the house built from areas); Home Assistant is not
+  // changed. They are saved together with ✓ (Done); an empty field goes back to the entity's own name.
   _rRename(r) {
     const ids = [...new Set([...(r.lights || []), r.climate, r.temp, r.hum, ...(r.motion || []), ...(r.doors || []), ...(r.locks || []), ...(r.plugs || []).map(p => p.id), r.fan, r.media, ...(r.entities || []).map(e => e.id), ...(r.furnEnts || [])].filter(id => id && this.s(id)))];
+    const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = ids.map(id => {
-      const st = this.s(id), reg = this._hass.entities?.[id], d = id.split('.')[0];
-      const nm = st.attributes.friendly_name || id;
-      return reg ? `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(nm)}" aria-label="Name of ${esc(id)}" enterkeyhint="done"><small>${esc(id)}</small></label>`
-        : `<div class="rnrow na" title="This entity has no unique ID, so Home Assistant can't rename it">${ic('mdi:pencil-off-outline')}<span>${esc(nm)}</span><small>${esc(id)} · ${tr("can't be renamed")}</small></div>`;
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id;
+      const cur = pend[id] ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
-    return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}">${ic('mdi:check')}</button></div>
-      <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change in Home Assistant itself. Clear a name to go back to the default.')}</div>
+    return `<div class="dh">${ic('mdi:pencil-outline')}<h3>${tr('Rename · {0}', esc(r.name))}</h3><button class="ibtn on" data-act="names" title="${tr('Done')}" aria-label="${tr('Done')}">${ic('mdi:check')}</button></div>
+      <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change on this dashboard only. Clear a name to go back to the default.')}</div>
       ${rows || `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`}`;
   }
-  async _rename(id, name) {
-    const st = this.s(id); if (!st) return;
-    const v = name.trim();
-    if (v === (st.attributes.friendly_name || '')) return;
-    try {
-      await this._hass.callWS({ type: 'config/entity_registry/update', entity_id: id, name: v || null });
-      this.haptic('success'); this._toast(v ? tr('Renamed to {0}', v) : tr('Back to the default name'));
-    } catch (e) { this.haptic('failure'); this._toast(e?.message || tr('Could not rename it'), true); }
+  // Rename sheet of a panel (edit mode): every entity the panel shows, with its name in a text field. Like the room
+  // popup: names are for this dashboard only, saved together with Done; an empty field goes back to the entity's own name.
+  _rnSheet(head, sid) {
+    const el = this.$(sid), title = el?.querySelector('.ch h3')?.textContent?.trim() || tr('Panel');
+    if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
+      // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
+      const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
+      const ids = [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
+      this._rnIds = { sid, ids };
+    }
+    const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
+    const rows = this._rnIds.ids.map(id => {
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+    }).join('');
+    return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
+      + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
+  }
+  // a name typed in a rename view: kept until ✓ (Done)
+  _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
+  // Names for this dashboard: each one is kept in one place only — the room it was renamed in (`ci`), else where it
+  // already was, else the card's own `names` — so the same entity shows the same name on every panel.
+  _storeNames(cfg, pend, ci) {
+    const raw = this._hass._raw || this._hass, rooms = cfg.house?.rooms || [], holders = [cfg, ...rooms].filter(Boolean);
+    for (const [id, v] of Object.entries(pend)) {
+      const home = (ci != null && rooms[ci]) || holders.find(h => h.names?.[id] != null) || cfg;
+      for (const h of holders) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
+      if (v && v !== raw.states[id]?.attributes.friendly_name) (home.names ||= {})[id] = v;
+    }
+  }
+  async _saveNames(r) {
+    const pend = this._pendNames || {}; this._pendNames = null;
+    if (!Object.keys(pend).length) return;
+    const cfg = JSON.parse(JSON.stringify(this._config || {}));
+    this._storeNames(cfg, pend, r?.ci ?? null);
+    if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
+    if (r) this._reselect = r.id; // open the room again after the card is rebuilt with the new names
+    if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); } else this._reselect = null;
   }
 
   // One row for any entity: lights, switches, fans, covers… toggle; scripts / scenes run; buttons press; locks lock with a
@@ -2495,21 +2575,23 @@ export class SweetHomeCard extends HTMLElement {
     // a weekday only matters for weekly schedules: hide it for "N Days" intervals or when it reads "Set to days"
     const dayless = /set to days/i.test(this.v(I.day) || '') || /\bdays?\b/i.test(this.v(I.every) || '');
     const mins = id => { const s = this.n(id); return s == null ? null : Math.round(s / 60); };
-    const v = I.valves.filter(x => this.s(x[0])).map(([id, n], i) => {
-      const m = mins(I.durations[i]);
+    // a name given in the panel wins; else the entity's name (dashboard names included)
+    const v = I.valves.map((x, i) => [...x, i]).filter(x => this.s(x[0])).map(([id, n, i]) => {
+      const m = mins(I.durations[i]), cfgName = arr(this._config?.panels?.irrigation?.zones ?? this._config?.panels?.irrigation?.valves)[i]?.name;
+      const nm = cfgName || this.s(id).attributes.friendly_name || n, bad = BAD.includes(this.v(id));
       return `<button class="valve ${this.on(id) ? 'on' : ''}" data-act="valve" data-id="${id}"${I.durations[i] ? ` data-id2="${I.durations[i]}"` : ''}>
-      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${n}</b><span>${this.on(id) ? 'Watering' : 'Closed'}${m != null ? ` · ${m} min` : ''}</span></button>`;
+      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${m} min` : ''}</span></button>`;
     }).join('');
     const ok = id => this.ok(id) ? esc(this.v(id)) : '—';
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info
     return `<div class="ch">${ic('mdi:sprinkler')}<h3>Irrigation</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? 'Watering tomorrow' : 'Scheduled'}</button>`}</div>
-      <div class="valves">${v}</div>
+      ${v ? `<div class="valves">${v}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('No valves yet: add them in the card editor (Panels → Irrigation).')}</div>`}
       ${!(I.next || I.notify) ? '' : `<div class="nextirr">
-        <div class="ni" data-act="more" data-id="${I.next}" data-id2="${I.time}">${ic('mdi:calendar-clock')}<div><span>Next Irrigation</span><b>${ok(I.next)}</b></div></div>
-        <div class="ni" data-act="more" data-id="${I.notify}">${ic('mdi:bell-ring-outline')}<div><span>Reminder Notification</span><b>${ok(I.notify)}</b></div></div>
+        ${I.next ? `<div class="ni" data-act="more" data-id="${I.next}"${I.time ? ` data-id2="${I.time}"` : ''}>${ic('mdi:calendar-clock')}<div><span>${tr('Next watering')}</span><b>${ok(I.next)}</b></div></div>` : ''}
+        ${I.notify ? `<div class="ni" data-act="more" data-id="${I.notify}">${ic('mdi:bell-ring-outline')}<div><span>${tr('Reminder notification')}</span><b>${ok(I.notify)}</b></div></div>` : ''}
       </div>`}
-      ${!(I.every || I.day) ? '' : '<div class="dsec">Schedule</div>'}
-      <div class="picks col">${this.pickChip(I.every, 'select', 'Water every', 'mdi:calendar-sync')}${dayless ? '' : this.pickChip(I.day, 'select', 'Day of the week', 'mdi:calendar-today')}</div>`;
+      ${!(I.every || I.day) ? '' : `<div class="dsec">${tr('Schedule')}</div>`}
+      <div class="picks col">${this.pickChip(I.every, 'select', tr('Water every'), 'mdi:calendar-sync')}${dayless ? '' : this.pickChip(I.day, 'select', tr('Day of the week'), 'mdi:calendar-today')}</div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -2537,7 +2619,7 @@ class HouseScene {
     this.T = THREE; this.card = card;
     const T = THREE;
     this.vp = card.$('viewport'); this.cv = card.$('cv'); this.lblLayer = card.$('labels');
-    const r = this.renderer = new T.WebGLRenderer({ canvas: this.cv, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    const r = this.renderer = new T.WebGLRenderer({ canvas: this.cv, antialias: true, alpha: true, powerPreference: 'high-performance', stencil: true }); // stencil: stairwells
     // battery: 1.5× resolution on touch devices (phones / tablets), 2× on a PC
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
     r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
@@ -2693,13 +2775,26 @@ class HouseScene {
       const grp = new T.Group(); this._at().add(grp);
       const mats = [];
       let minx = 1e9, minz = 1e9, maxx = -1e9, maxz = -1e9, area = 0, sx = 0, sz = 0;
-      for (const [x1, z1, x2, z2] of (r.floorRects || r.rects)) {
+      const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : r.floor === 'asphalt' ? 4 : 2.5;
+      const floorMat = map => new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : r.floor === 'asphalt' ? 0.85 : 0.95, metalness: 0.0, emissive: 0x000000 });
+      if (r.poly) { // an outline (slanted or bent edges): one floor slab cut to its shape, with a hole for each stairwell
+        const P = r.poly.map(([x, z]) => this.w(x, z)), sh = new T.Shape(P.map(([x, z]) => new T.Vector2(x, -z)));
+        for (const [x1, z1, x2, z2] of r.holes || []) { const [a, b] = this.w(x1, z1), [c, d] = this.w(x2, z2); sh.holes.push(new T.Path([new T.Vector2(a, -b), new T.Vector2(c, -b), new T.Vector2(c, -d), new T.Vector2(a, -d)])); }
+        texCache[r.floor] = texCache[r.floor] || this._tex(r.floor);
+        const map = texCache[r.floor].clone(); map.needsUpdate = true; map.repeat.set(1 / rep, 1 / rep);
+        const mat = floorMat(map), m = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: false }), mat);
+        m.rotation.x = -Math.PI / 2; m.position.y = -0.1; m.receiveShadow = true; m.userData.room = r.id;
+        grp.add(m); this.pick.push(m); mats.push(mat);
+        let a2 = 0; // centroid of the outline
+        r.poly.forEach(([x1, z1], i) => { const [x2, z2] = r.poly[(i + 1) % r.poly.length], c = x1 * z2 - x2 * z1; a2 += c; sx += (x1 + x2) * c; sz += (z1 + z2) * c; minx = Math.min(minx, x1); minz = Math.min(minz, z1); maxx = Math.max(maxx, x1); maxz = Math.max(maxz, z1); });
+        area = 3 * a2;
+      }
+      for (const [x1, z1, x2, z2] of (r.poly ? [] : r.floorRects || r.rects)) {
         const w = x2 - x1, d = z2 - z1;
         texCache[r.floor] = texCache[r.floor] || this._tex(r.floor);
         const map = texCache[r.floor].clone(); map.needsUpdate = true;
-        const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : r.floor === 'asphalt' ? 4 : 2.5;
         map.repeat.set(w / rep, d / rep);
-        const mat = new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : r.floor === 'asphalt' ? 0.85 : 0.95, metalness: 0.0, emissive: 0x000000 });
+        const mat = floorMat(map);
         const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
         const yOff = r.id === 'stairs' ? 0 : 0;
         const m = new T.Mesh(new T.BoxGeometry(w - 0.02, 0.1, d - 0.02), mat);
@@ -2711,7 +2806,8 @@ class HouseScene {
       const [ccx, ccz] = r.anchor ? this.w(...r.anchor) : this.w(sx / area, sz / area);
       // outline
       const pts = [];
-      for (const [x1, z1, x2, z2] of r.rects) {
+      if (r.poly) r.poly.forEach(([x1, z1], i) => { const [x2, z2] = r.poly[(i + 1) % r.poly.length], a = this.w(x1, z1), b = this.w(x2, z2); pts.push(a[0], 0.02, a[1], b[0], 0.02, b[1]); });
+      for (const [x1, z1, x2, z2] of r.poly ? [] : r.rects) {
         const a = this.w(x1 + 0.08, z1 + 0.08), b = this.w(x2 - 0.08, z2 - 0.08);
         pts.push(a[0], 0.02, a[1], b[0], 0.02, a[1], b[0], 0.02, a[1], b[0], 0.02, b[1], b[0], 0.02, b[1], a[0], 0.02, b[1], a[0], 0.02, b[1], a[0], 0.02, a[1]);
       }
@@ -2756,7 +2852,30 @@ class HouseScene {
       const sidesOf = i => Array.isArray(r.stripSides) ? (r.stripSides[i] || '') : (r.stripSides || 'nesw');
       const lineMat = new T.MeshBasicMaterial({ color: R.stripCol, transparent: true, opacity: 0, toneMapped: false });
       const planes = [], washes = [], ribbons = [];
-      r.rects.forEach(([x1, z1, x2, z2], ri) => {
+      if (r.poly) { // an outline: the strip follows every edge (slanted and bent ones too)
+        const P = polyArea(r.poly) >= 0 ? r.poly : [...r.poly].reverse(), inset = 0.12;
+        const glow = (len, wd, x, y, z, ang, tex) => { const m = new T.Mesh(new T.PlaneGeometry(len, wd), new T.MeshBasicMaterial({ map: this._grad(tex), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending })); m.rotation.order = 'YXZ'; m.rotation.y = -ang; m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); this._at().add(m); return m; };
+        P.forEach(([x1, z1], i) => {
+          const [x2, z2] = P[(i + 1) % P.length], L = Math.hypot(x2 - x1, z2 - z1); if (L < 0.05) return;
+          const dx = (x2 - x1) / L, dz = (z2 - z1) / L, ix = -dz, iz = dx, ang = Math.atan2(dz, dx); // (ix, iz): into the room
+          let runs = [[0, L]];
+          if (r.stripMode === 'walls') { // only where a wall stands on this edge
+            const me = lineOf(x1, z1, x2, z2), t0 = x1 * me.dx + z1 * me.dz, s = dx * me.dx + dz * me.dz;
+            runs = WALLS.filter(q => (q[5] ?? 0) === r.level && q[4] !== 'rail').map(q => [q, lineOf(q[0], q[1], q[2], q[3])])
+              .filter(([, l]) => l && Math.abs(l.ang - me.ang) < 2e-3 && Math.abs(l.c - me.c) < 0.03)
+              .map(([, l]) => [(l.a - t0) * s, (l.b - t0) * s].sort((u, v) => u - v)).map(([a, b]) => [Math.max(0, a), Math.min(L, b)]).filter(([a, b]) => b - a > 0.05);
+          }
+          for (const [a, b] of runs) {
+            const len = b - a, m = (a + b) / 2, cx = x1 + dx * m, cz = z1 + dz * m;
+            const [fx, fz] = this.w(cx + ix * 0.3, cz + iz * 0.3); planes.push(glow(len, 0.6, fx, 0.025, fz, ang, 'v'));
+            const [wx, wz] = this.w(cx + ix * inset, cz + iz * inset);
+            const wash = new T.Mesh(new T.PlaneGeometry(len, WALL_H - 0.18), new T.MeshBasicMaterial({ map: this._grad('v'), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
+            wash.position.set(wx, (WALL_H - 0.18) / 2, wz); wash.rotation.y = -ang; this._at().add(wash); washes.push(wash);
+            const [rx, rz] = this.w(cx + ix * 0.3, cz + iz * 0.3); ribbons.push(glow(len, 0.36, rx, WALL_H - 0.14, rz, ang, 'h'));
+          }
+        });
+      }
+      (r.poly ? [] : r.rects).forEach(([x1, z1, x2, z2], ri) => {
         const sides = sidesOf(ri); if (!sides) return;
         // floor glow: transparent in the middle, bright along the chosen edges (edge width kept ~0.9 m in world units)
         const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.globalCompositeOperation = 'lighter';
@@ -2809,7 +2928,7 @@ class HouseScene {
     }
     if (types.includes('spots')) {
       const pts = [];
-      for (const [x1, z1, x2, z2] of r.rects) {
+      for (const [x1, z1, x2, z2] of r.poly && r.rects.length > 4 ? r.rects.slice(0, 1) : r.rects) {
         const w = x2 - x1, d = z2 - z1;
         if (Math.min(w, d) < 3) { // narrow corridor: one line down the middle
           const alongX = w >= d, len = alongX ? w : d, n = Math.max(2, Math.round((len - 1.2) / 1.6) + 1);
@@ -2861,18 +2980,28 @@ class HouseScene {
     const capMat = new T.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
     const glassMat = new T.MeshPhysicalMaterial({ color: 0x9ad7ff, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.15 });
     const frameMat = new T.MeshStandardMaterial({ color: 0x5b6472, roughness: 0.5, metalness: 0.4 });
-    const add = (mat, x1, z1, x2, z2, y0, h, thick, cast = true) => {
-      const len = Math.hypot(x2 - x1, z2 - z1); const horiz = z1 === z2;
-      const geo = new T.BoxGeometry(horiz ? len + thick : thick, h, horiz ? thick : len + thick);
-      const m = new T.Mesh(geo, mat);
+    // a wall piece in any direction (slanted and bent walls too: a bent one is many short pieces that overlap a little)
+    const add = (mat, x1, z1, x2, z2, y0, h, thick, cast = true, over = thick) => {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const m = new T.Mesh(new T.BoxGeometry(len + over, h, thick), mat);
       const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
-      m.position.set(cx, y0 + h / 2, cz); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
+      m.position.set(cx, y0 + h / 2, cz); m.rotation.y = -Math.atan2(z2 - z1, x2 - x1); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
     };
-    for (const [x1, z1, x2, z2, type, lvl] of WALLS) {
+    // an outer wall has no room on one of its sides: it is drawn thicker
+    const inside = (x, z, l) => ROOMS.some(r => r.level === l && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x > a && x < c && z > b && z < d)));
+    const glassWall = new T.MeshPhysicalMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.08, depthWrite: false });
+    for (const [x1, z1, x2, z2, type, lvl, o] of WALLS) {
       this._cl = lvl ?? 0;
-      const outer = x1 === x2 ? (x1 === 0 || x1 === PLAN_W) : (z1 === 0 || z1 === PLAN_D);
-      const t = outer ? 0.22 : 0.12;
-      if (type === 'rail') {
+      const len = Math.hypot(x2 - x1, z2 - z1) || 1, nx = -(z2 - z1) / len * 0.3, nz = (x2 - x1) / len * 0.3, mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+      const outer = !o && (!inside(mx + nx, mz + nz, lvl ?? 0) || !inside(mx - nx, mz - nz, lvl ?? 0));
+      const t = o ? 0.1 : outer ? 0.22 : 0.12, over = o?.bent ? t * 0.6 : t;
+      if (type === 'half') { // a low wall (kitchen bar, stair rail): `height`, else about two thirds of the wall
+        const h = Math.min(WALL_H, o?.h ?? Math.max(0.5, WALL_H * 0.62));
+        add(wallMat, x1, z1, x2, z2, 0, h, t, true, over); add(capMat, x1, z1, x2, z2, h, 0.04, t + 0.01, false, over);
+      } else if (type === 'glass') { // a glass partition: a thin frame at the floor and the top, glass between
+        const h = Math.min(WALL_H, o?.h ?? WALL_H);
+        add(frameMat, x1, z1, x2, z2, 0, 0.06, 0.07, false, over); add(glassWall, x1, z1, x2, z2, 0.06, h - 0.1, 0.03, false, over); add(frameMat, x1, z1, x2, z2, h - 0.04, 0.04, 0.07, false, over);
+      } else if (type === 'rail') {
         add(wallMat, x1, z1, x2, z2, 0, 0.18, 0.18);
         add(glassMat, x1, z1, x2, z2, 0.18, 0.72, 0.03, false);
         add(frameMat, x1, z1, x2, z2, 0.9, 0.05, 0.07, false);
@@ -2882,8 +3011,9 @@ class HouseScene {
         add(glassMat, x1, z1, x2, z2, 0.79, WALL_H - 0.79, 0.04, false);
         add(capMat, x1, z1, x2, z2, WALL_H, 0.04, t);
       } else {
-        add(wallMat, x1, z1, x2, z2, 0, WALL_H, t);
-        add(capMat, x1, z1, x2, z2, WALL_H, 0.04, t + 0.005, false);
+        const h = o?.h ? Math.min(WALL_H, o.h) : WALL_H;
+        add(wallMat, x1, z1, x2, z2, 0, h, t, true, over);
+        add(capMat, x1, z1, x2, z2, h, 0.04, t + 0.005, false, over);
       }
     }
   }
@@ -3133,15 +3263,20 @@ class HouseScene {
   _stairs(f) {
     const T = this.T, N = (v, d) => (v == null || isNaN(Number(v)) ? d : Number(v));
     const stone = new T.MeshStandardMaterial({ color: 0xd6cfc2, roughness: 0.7 }), edge = new T.MeshStandardMaterial({ color: 0x8b7f6e, roughness: 0.6 });
+    // Below the floor (a flight going down, its stairwell) is drawn only where you look into it through the hole in the
+    // floor: the hole writes 1 into the stencil buffer, and those parts draw only where the stencil is 1. From the side
+    // or from below nothing hangs out of the house.
+    const inWell = m => Object.assign(m, { stencilWrite: true, stencilRef: 1, stencilFunc: T.EqualStencilFunc, stencilFail: T.KeepStencilOp, stencilZFail: T.KeepStencilOp, stencilZPass: T.KeepStencilOp });
+    const stoneDown = inWell(stone.clone()), edgeDown = inWell(edge.clone());
     const rail = new T.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
     const x0 = N(f.x0, 0), z0 = N(f.z0, 0), x1 = N(f.x1, 2), z1 = N(f.z1, 1), alongX = (f.axis || 'x') === 'x', mode = f.mode || 'up';
     const n = N(f.steps, 10), len = alongX ? x1 - x0 : z1 - z0, wid = alongX ? z1 - z0 : x1 - x0, run = len / n, rise = N(f.rise, 0.13);
     const room = f.room || null;
     const step = (along, a0, a1, y) => { // along: position along the climb; a0..a1: across
       const geo = alongX ? new T.BoxGeometry(run, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, run);
-      const s = new T.Mesh(geo, stone); const [cx, cz] = alongX ? this.w(along, (a0 + a1) / 2) : this.w((a0 + a1) / 2, along);
+      const below = y < 0, s = new T.Mesh(geo, below ? stoneDown : stone); if (below) s.renderOrder = 2; const [cx, cz] = alongX ? this.w(along, (a0 + a1) / 2) : this.w((a0 + a1) / 2, along);
       s.position.set(cx, y, cz); s.castShadow = s.receiveShadow = true; s.userData.room = room; if (f.idx != null) s.userData.fi = f.idx; this._at().add(s); this.pick.push(s);
-      const nose = new T.Mesh(alongX ? new T.BoxGeometry(0.03, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, 0.03), edge);
+      const nose = new T.Mesh(alongX ? new T.BoxGeometry(0.03, 0.16, a1 - a0) : new T.BoxGeometry(a1 - a0, 0.16, 0.03), below ? edgeDown : edge); if (below) nose.renderOrder = 2;
       nose.position.set(cx - (alongX ? run / 2 : 0), y, cz - (alongX ? 0 : run / 2)); this._at().add(nose);
     };
     const a0 = alongX ? z0 : x0, a1 = alongX ? z1 : x1, mid = (a0 + a1) / 2, s0 = alongX ? x0 : z0;
@@ -3154,25 +3289,27 @@ class HouseScene {
       const [hx, hz] = alongX ? this.w(s0 + len / 2, mid) : this.w(mid, s0 + len / 2);
       const hr = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.05, 0.05) : new T.BoxGeometry(0.05, 0.05, len), rail); hr.position.set(hx, 0.95, hz); this._at().add(hr);
       for (let i = 0; i <= 4; i++) { const q = s0 + len * i / 4; const [px, pz] = alongX ? this.w(q, mid) : this.w(mid, q); const pst = new T.Mesh(new T.BoxGeometry(0.04, 0.95, 0.04), rail); pst.position.set(px, 0.475, pz); this._at().add(pst); }
-      const voidM = new T.Mesh(alongX ? new T.BoxGeometry(len, 0.02, (a1 - a0) / 2) : new T.BoxGeometry((a1 - a0) / 2, 0.02, len), new T.MeshBasicMaterial({ color: 0x05070c }));
-      const [vx, vz] = alongX ? this.w(s0 + len / 2, (mid + a1) / 2) : this.w((mid + a1) / 2, s0 + len / 2); voidM.position.set(vx, -n * rise - 0.1, vz); this._at().add(voidM);
     }
     // the stairwell of a flight going down: an open dark shaft under the hole in the floor
     if (f.well) {
       const [wx0, wz0, wx1, wz1] = f.well, depth = n * rise + 0.25;
-      const shaft = new T.Mesh(new T.BoxGeometry(wx1 - wx0, depth, wz1 - wz0), new T.MeshStandardMaterial({ color: 0x0b1020, roughness: 1, side: T.BackSide }));
-      const [sxw, szw] = this.w((wx0 + wx1) / 2, (wz0 + wz1) / 2); shaft.position.set(sxw, -depth / 2, szw); shaft.userData.room = room; if (f.idx != null) shaft.userData.fi = f.idx;
+      const shaft = new T.Mesh(new T.BoxGeometry(wx1 - wx0, depth, wz1 - wz0), inWell(new T.MeshStandardMaterial({ color: 0x0b1020, roughness: 1, side: T.BackSide })));
+      const [sxw, szw] = this.w((wx0 + wx1) / 2, (wz0 + wz1) / 2); shaft.position.set(sxw, -depth / 2, szw); shaft.renderOrder = 2; shaft.userData.room = room; if (f.idx != null) shaft.userData.fi = f.idx;
       this._at().add(shaft);
+      // the opening: invisible, it only marks the stencil where the hole in the floor is seen
+      const hole = new T.Mesh(new T.PlaneGeometry(wx1 - wx0, wz1 - wz0), new T.MeshBasicMaterial({ colorWrite: false, depthWrite: false, stencilWrite: true, stencilRef: 1, stencilFunc: T.AlwaysStencilFunc, stencilZPass: T.ReplaceStencilOp }));
+      hole.rotation.x = -Math.PI / 2; hole.position.set(sxw, 0.001, szw); hole.renderOrder = 1; this._at().add(hole);
     }
     // arrows on the flights: teal going up, amber going down
     const arrow = (across, y, up) => {
       const sh = new T.Shape(); sh.moveTo(0, 0.22); sh.lineTo(0.16, -0.06); sh.lineTo(0.06, -0.06); sh.lineTo(0.06, -0.22); sh.lineTo(-0.06, -0.22); sh.lineTo(-0.06, -0.06); sh.lineTo(-0.16, -0.06); sh.closePath();
-      const m = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: up ? 0x2dd4bf : 0xfbbf24, transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide }));
+      const mat = new T.MeshBasicMaterial({ color: up ? 0x2dd4bf : 0xfbbf24, transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide });
+      const m = new T.Mesh(new T.ShapeGeometry(sh), up ? mat : inWell(mat));
       const along = s0 + len / 2, [ax, az] = alongX ? this.w(along, across) : this.w(across, along);
       m.rotation.x = -Math.PI / 2; // lying flat; the shape's +y points along -z
       // both point the way you walk: up the rising flight, down the sinking one (both run along +x / +z)
       m.rotation.z = alongX ? -Math.PI / 2 : Math.PI;
-      m.position.set(ax, y + 0.1, az); m.renderOrder = 2; this._at().add(m);
+      m.position.set(ax, y + 0.1, az); m.renderOrder = up ? 2 : 3; this._at().add(m);
     };
     const midY = (n / 2) * rise;
     if (mode === 'split') { arrow((a0 + mid) / 2, 0.08 + midY, true); arrow((mid + a1) / 2, -0.08 - midY, false); }
@@ -3205,6 +3342,13 @@ class HouseScene {
     for (const d of DOORS) {
       this._cl = d.level ?? 0;
       const pivot = new T.Group(); const [px, pz] = this.w(d.x, d.z); pivot.position.set(px, 0, pz);
+      if (d.axis === 'a') { // on a slanted wall: a base turned along the wall, the leaf swings inside it
+        const base = new T.Group(); base.position.copy(pivot.position); base.rotation.y = -Math.atan2(d.vz, d.vx); pivot.position.set(0, 0, 0); base.add(pivot); this._at().add(base);
+        const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
+        const dh = Math.max(0.5, WALL_H - 0.08), panel = new T.Mesh(new T.BoxGeometry(d.w - 0.04, dh, 0.06), mat); panel.castShadow = true;
+        panel.position.set(d.w / 2, dh / 2, 0); pivot.add(panel);
+        this.doors.push({ d, pivot, mat, a: 0, ang: -1.35 * d.side }); continue;
+      }
       const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
       const dh = Math.max(0.5, WALL_H - 0.08);
       const geo = d.axis === 'z' ? new T.BoxGeometry(0.06, dh, d.w - 0.04) : new T.BoxGeometry(d.w - 0.04, dh, 0.06);
@@ -4099,11 +4243,13 @@ main{scroll-margin-top:84px}
 @media (pointer:coarse){.lvls button{min-height:44px}}
 .hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-radius:14px;background:rgba(8,12,24,.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
 .hint.on{display:flex;opacity:1;transform:translate(-50%,0)}.hint>ha-icon{color:var(--teal);flex:none}.hint span{flex:1}.hint .ibtn{flex:none;width:32px;height:32px}
+.ch .rnbtn{flex:none}.rnsave{width:100%;display:flex;justify-content:center;gap:8px;margin-top:10px}.rnsave span{flex:none}
 .rnrow{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px}
 .rnrow ha-icon{color:var(--mu);grid-row:span 2}.rnrow small{grid-column:2;font-size:10.5px;color:var(--mu);margin:2px 0 0;opacity:.8}
 .rnrow input{font:inherit;font-size:13px;color:var(--tx);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
 .rnrow input:focus{outline:none;border-color:var(--teal);background:rgba(45,212,191,.08)}.rnrow.na{opacity:.6}
 .wents{margin-top:12px}
+:host(:not([editing])) .edit-only{display:none!important}
 .hbtn{flex:none;display:grid;place-items:center;width:32px;height:32px;margin:-6px -6px -6px 2px;border-radius:9px;color:var(--mu);opacity:.65}
 .hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15)}
 @media (pointer:coarse){.hbtn{width:40px;height:40px}}
