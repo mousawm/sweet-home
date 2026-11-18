@@ -688,6 +688,19 @@ export function buildModel(cfg = {}, hass) {
     if ((aEnd === 'start' && (B.back || 'n') === 'w') || (aEnd === 'end' && B.back === 'e')) A.cornerBack = aEnd;
     A.lJoin = B.lJoin = true;
   }
+  // Two counters (or cabinets) at a right angle whose ends overlap make one corner counter: the one along x keeps the
+  // corner, the other starts at its edge, so their tops don't overlap. Counters of a different height or level stay apart.
+  const blocks = furniture.filter(f => ['block', 'counter'].includes(f.type) && f.x0 != null && f.z0 != null);
+  for (const A of blocks) for (const B of blocks) {
+    if (A === B || A.room !== B.room || B.cJoin) continue;
+    if (Math.abs(num(A.h, 0.9) - num(B.h, 0.9)) > 0.02 || Math.abs(num(A.y, 0) - num(B.y, 0)) > 0.02) continue;
+    const a = ext(A), b = ext(B); if (a[2] - a[0] < a[3] - a[1] || b[2] - b[0] >= b[3] - b[1]) continue; // A along x, B along z
+    const ox0 = Math.max(a[0], b[0]), oz0 = Math.max(a[1], b[1]), ox1 = Math.min(a[2], b[2]), oz1 = Math.min(a[3], b[3]);
+    if (ox1 - ox0 < 0.05 || oz1 - oz0 < 0.05) continue;
+    const bTop = (oz0 + oz1) / 2 < (b[1] + b[3]) / 2;
+    if (bTop) { B.z0 = Math.min(a[3], b[3] - 0.1); B.z1 = b[3]; } else { B.z1 = Math.max(a[1], b[1] + 0.1); B.z0 = b[1]; }
+    B.x0 = b[0]; B.x1 = b[2]; B.cJoin = true;
+  }
   // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
   const lvOfRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));
   // a flight of stairs stays within the wall height (a cut-away house has low walls)

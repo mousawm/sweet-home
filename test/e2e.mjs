@@ -351,6 +351,13 @@ try {
   const hd = await p.evaluate(() => editor._handles()[0]);
   await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
   check('resizing a turned sofa keeps its width (0.9 m) and changes only its length', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.w === 0.9 && f.d === 3; }));
+  // the same for a counter (written with corners, as the suggested kitchen set writes it) and a counter at its default size
+  for (const piece of [{ type: 'block', from: [1, 1], to: [3.5, 1.6], h: 0.9 }, { type: 'block', x: 3, z: 3, w: 2, d: 0.6 }]) {
+    await p.evaluate(pc => { const r = editor._config.house.rooms[0]; r.furniture = [pc]; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); }, piece);
+    const h2 = await p.evaluate(() => editor._handles()[0]);
+    await drag(h2, [h2[0] + 0.1, h2[1] + 1]);
+    check(`resizing a turned counter keeps its depth (${piece.from ? 'corners' : 'centre and size'})`, await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0], b = f.from ? [Math.abs(f.to[0] - f.from[0]), Math.abs(f.to[1] - f.from[1])] : [f.w, f.d]; return Math.abs(b[0] - 0.6) < 1e-6 && b[1] > 2.5; }));
+  }
   await p.evaluate(() => { delete editor._config.house.rooms[0].furniture; editor._mode = 'shape'; editor._fsel = null; editor._emit(); editor._render(); });
   // drawing a room's walls corner by corner (straight walls snap to 45°), and rotating a room by any angle
   await p.evaluate(() => { editor._sel = 2; editor._mode = 'shape'; editor._stool = 'draw'; editor._render(); });
