@@ -1223,7 +1223,13 @@ class SweetHomeCardEditor extends HTMLElement {
       }, { entity: 'Contact sensor (optional: the door opens in 3D while it is open)', main: 'Main entrance' }));
     } else if (it.k === 'badge') {
       const b = H.lock_badges[it.i];
-      slot.appendChild(this._form([{ name: 'lock', selector: { entity: { domain: 'lock' } } }], { lock: b.lock || b.entity || '' }, v => { b.lock = v.lock || ''; delete b.entity; this._emit(); }, { lock: 'Lock' }));
+      slot.appendChild(this._form([{ name: 'lock', selector: { entity: { domain: 'lock' } } }, { name: 'name', selector: { text: {} } }, { name: 'label', selector: { boolean: {} } }],
+        { lock: b.lock || b.entity || '', name: b.name || '', label: b.label !== false }, (v, typing) => {
+          b.lock = v.lock || ''; delete b.entity;
+          if (v.name) b.name = v.name; else delete b.name;
+          if (v.label === false) b.label = false; else delete b.label;
+          this._emit(typing);
+        }, { lock: 'Lock', name: 'Name shown in 3D (empty: the lock’s name)', label: 'Show the name above the badge' }));
     }
   }
   _delDoorItem() {

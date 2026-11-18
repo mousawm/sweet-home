@@ -150,6 +150,15 @@ try {
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="sensor.living_room_temperature"]'); i.value = 'Room Temp'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
   await p.waitForTimeout(400);
   check('renaming from the popup (editor open): saved with Done, the room opens again', await p.evaluate(() => editor._config.house.rooms[0].names?.['sensor.living_room_temperature'] === 'Room Temp' && card._sel === 'living_room' && card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Room Temp'));
+  // lock badges: their name floats above them in 3D; renamed there while editing, or in the editor
+  await p.evaluate(() => { card.editMode = false; card._setTab('home'); }); await p.waitForTimeout(200);
+  check('a lock badge shows its lock\'s name in 3D, no pencil outside edit mode', await p.evaluate(() => { const l = card.shadowRoot.querySelector('.blbl'); return !!l && l.textContent.includes('Front Door') && l.dataset.id === 'lock.front_door'; }));
+  await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(200);
+  await p.evaluate(() => card.shadowRoot.querySelector('.blbl [data-act=rnbadge]').click()); await p.waitForTimeout(100);
+  await p.evaluate(() => { const i = card.shadowRoot.querySelector('#sheet [data-rename="badge:0"]'); i.value = 'Main entrance'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#sheet [data-act=rnbsave]').click(); });
+  await p.waitForTimeout(1500);
+  check('renaming a lock badge in 3D: saved on the badge, shown above it', await p.evaluate(() => editor._config.house.lock_badges[0].name === 'Main entrance' && card.shadowRoot.querySelector('.blbl').textContent.includes('Main entrance') && !(window.ws || []).some(m => m.type === 'config/entity_registry/update')));
+  await p.evaluate(() => { card.editMode = false; });
   // renaming on the other panels (edit mode): a pencil on each panel, names for this dashboard only
   await p.evaluate(() => card._setTab('climate'));
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(150);

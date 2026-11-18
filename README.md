@@ -157,7 +157,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
 | `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
 | `door_info` | Names and timeout sensors for doors in the room popup (`entity`, `name`, `timeout`) |
-| `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level` |
+| `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level`, `name` (shown above the badge; default the lock's name), `label: false` (no name). Tap the name for the lock's details; while the dashboard is edited, its pencil renames the badge (this dashboard only). |
 | `furniture` | Furniture anywhere in the house (the same pieces as in rooms) |
 | `type: gltf`, `url`, `scale`, `rotation`, `offset`, `mesh_rooms` | Use your own 3D file instead of the drawn walls. See [examples/gltf.yaml](examples/gltf.yaml). |
 

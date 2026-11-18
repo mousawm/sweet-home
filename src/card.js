@@ -664,6 +664,7 @@ export class SweetHomeCard extends HTMLElement {
     const head = (icon, title, sub) => `<div class="sh-h">${ic(icon)}<div><b>${title}</b><span>${sub}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`;
     let html;
     if (this._info.startsWith('rename:')) html = this._rnSheet(head, this._info.slice(7));
+    else if (this._info.startsWith('rnbadge:')) html = this._rnBadgeSheet(head, Number(this._info.slice(8)));
     else if (this._info === 'lights') {
       const rooms = ROOMS.filter(r => (r.lights || []).some(l => this.s(l)));
       const all = rooms.flatMap(r => r.lights.filter(l => this.s(l))), on = all.filter(l => this.v(l) === 'on').length;
@@ -718,7 +719,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     if (box._html === html) return; box._html = html;
     const tpl = document.createElement('template'); tpl.innerHTML = html;
-    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, this._info.startsWith('rename:') ? this._dragging : null); // keeps the name being typed
+    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, /^(rename|rnbadge):/.test(this._info) ? this._dragging : null); // keeps the name being typed
   }
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
   // come live from weather/subscribe_forecast while the sheet is open.
@@ -1315,6 +1316,8 @@ export class SweetHomeCard extends HTMLElement {
       case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast('Restarting Home Assistant…'); break;
       case 'install': if (!this._armConfirm(t, id, 'Tap again to update')) return; this.call('update', 'install', { entity_id: id }); this._toast('Update started'); setTimeout(() => this._rerender('alerts'), 3000); break;
       case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast('Reboot sent'); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
+      case 'rnbadge': if (!this._editing) break; this._pendNames = null; this._openInfo('rnbadge:' + t.dataset.i); break;
+      case 'rnbsave': { const i = Number(t.dataset.i), v = this._pendNames?.['badge:' + i]; this._pendNames = null; this._closeSheet(); if (v !== undefined) this._saveBadgeName(i, v); break; }
       case 'rnsec': if (!this._editing) break; this._pendNames = null; this._rnIds = null; this._openInfo('rename:' + t.dataset.sec); break;
       case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
@@ -1730,6 +1733,21 @@ export class SweetHomeCard extends HTMLElement {
     }).join('');
     return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
       + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
+  }
+  // Rename sheet of a lock badge (edit mode, pencil on its label in 3D): the name shown above the badge
+  _rnBadgeSheet(head, i) {
+    const b = BADGES.find(x => x.i === i); if (!b) return head('mdi:lock', tr('Lock badge'), '');
+    const own = this.s(b.lock)?.attributes.friendly_name || b.lock, cur = this._pendNames?.['badge:' + i] ?? b.name ?? own;
+    return head('mdi:pencil-outline', esc(tr('Rename · {0}', tr('Lock badge'))), esc(tr('The name above the badge in the 3D view, on this dashboard only. Clear it to show the lock’s name.')))
+      + `<label class="rnrow">${ic('mdi:lock')}<input data-rename="badge:${i}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', b.lock))}" enterkeyhint="done"><small>${esc(b.lock)}</small></label>
+      <button class="lrow on rnsave" data-act="rnbsave" data-i="${i}">${ic('mdi:check')}<span>${tr('Done')}</span></button>`;
+  }
+  async _saveBadgeName(i, v) {
+    const cfg = JSON.parse(JSON.stringify(this._config || {})), b = cfg.house?.lock_badges?.[i]; if (!b) return;
+    const own = (this._hass._raw || this._hass).states[b.lock || b.entity]?.attributes.friendly_name;
+    if (!v || v === own) delete b.name; else b.name = v;
+    if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
+    if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); }
   }
   // a name typed in a rename view: kept until ✓ (Done)
   _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
@@ -3387,7 +3405,11 @@ class HouseScene {
     // smart-lock badges (house.lock_badges): green while locked, pulsing red while unlocked
     this.badges = BADGES.map(b => {
       const m = new this.T.Mesh(b.axis === 'x' ? new this.T.BoxGeometry(0.13, 0.22, 0.05) : new this.T.BoxGeometry(0.05, 0.22, 0.13), new this.T.MeshStandardMaterial({ color: 0x111827, roughness: 0.3, metalness: 0.5, emissive: 0x34d399, emissiveIntensity: 0 }));
-      const [bx, bz] = this.w(b.x, b.z); m.position.set(bx, b.y, bz); this._cl = b.level ?? 0; this._at().add(m); return { b, m, t: 0 };
+      const [bx, bz] = this.w(b.x, b.z); m.position.set(bx, b.y, bz); this._cl = b.level ?? 0; this._at().add(m);
+      // its name above it: tap = the lock's details; while editing, a pencil renames the badge
+      let el = null;
+      if (b.label) { el = document.createElement('div'); el.className = 'blbl'; el.dataset.act = 'more'; el.dataset.id = b.lock; this.lblLayer.appendChild(el); }
+      return { b, m, t: 0, el, x: bx, z: bz };
     });
     // (the floor glow under the badge was removed on request, v1.12.26: the badge alone shows the state)
   }
@@ -3577,7 +3599,16 @@ class HouseScene {
           <span class="ics">${R.anyLit ? '<ha-icon icon="mdi:lightbulb-on"></ha-icon>' : ''}${ac ? acIcon(c.s(r.climate)) : ''}${R.motion ? '<ha-icon class="mo" icon="mdi:motion-sensor"></ha-icon>' : ''}${chg ? '<ha-icon class="chg" icon="mdi:battery-charging"></ha-icon>' : ''}${unl ? '<ha-icon class="unl" icon="mdi:lock-open-variant"></ha-icon>' : lkd ? '<ha-icon class="lkd" icon="mdi:lock"></ha-icon>' : ''}${dOpen ? '<ha-icon class="unl" icon="mdi:door-open"></ha-icon>' : ''}</span>`;
       }
     }
-    for (const B of this.badges || []) { const v = c.v(B.b.lock); B.t = v === 'locked' ? 1 : v === 'unlocked' ? 2 : 0; }
+    for (const B of this.badges || []) {
+      const v = c.v(B.b.lock); B.t = v === 'locked' ? 1 : v === 'unlocked' ? 2 : 0;
+      if (B.el) {
+        const nm = B.b.name || c.s(B.b.lock)?.attributes.friendly_name || B.b.lock, sig = `${nm}|${B.t}|${c._editing ? 1 : 0}`;
+        if (B.el._sig !== sig) {
+          B.el._sig = sig; B.el.className = `blbl ${B.t === 2 ? 'unl' : B.t === 1 ? 'lkd' : 'na'}`;
+          B.el.innerHTML = `${ic(B.t === 2 ? 'mdi:lock-open-variant' : 'mdi:lock')}<span>${esc(nm)}</span>${c._editing && c._hass?.user?.is_admin ? `<button class="edit-only" data-act="rnbadge" data-i="${B.b.i}" title="${tr('Rename')}" aria-label="${tr('Rename')}">${ic('mdi:pencil-outline')}</button>` : ''}`;
+        }
+      }
+    }
     // phones on chargers: 0 = plug off, 1 = plug on (idle), 2 = charging
     for (const P of this.chargers || []) P.t = !P.plug || c.v(P.plug) !== 'on' ? 0 : (c.n(P.power) ?? 0) > 1.5 ? 2 : 1;
     this.lockT = (this.badges || []).map(B => B.t).join(); this.phoneT = (this.chargers || []).map(P => P.t).join();
@@ -3823,6 +3854,13 @@ class HouseScene {
       if (v.z > 1 || R.r.level !== this.level) { el.style.display = 'none'; continue; }
       el.style.display = '';
       el.style.transform = `translate(-50%,-100%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
+    }
+    for (const B of this.badges || []) { // lock badge names, just above the badge
+      if (!B.el) continue;
+      v.set(B.x, B.b.y + 0.2, B.z).project(this.cam);
+      if (v.z > 1 || (B.b.level ?? 0) !== this.level) { B.el.style.display = 'none'; continue; }
+      B.el.style.display = '';
+      B.el.style.transform = `translate(-50%,-100%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
     }
     for (const P of this.fpieces || []) {
       if (!P.el) continue;
@@ -4253,6 +4291,9 @@ main{scroll-margin-top:84px}
 .dac .tgt.sm{gap:6px}.dac .ibtn{width:30px;height:30px}.dac .pow{width:30px;height:30px}
 .dac-chev{--mdc-icon-size:18px;color:var(--mu);margin-left:2px}
 .dac.open .acctl{padding-top:2px;border-top:1px solid var(--line)}
+.blbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:rgba(8,12,24,.72);border:1px solid rgba(52,211,153,.5);color:var(--tx);backdrop-filter:blur(6px);will-change:transform}
+.blbl ha-icon{--mdc-icon-size:13px;color:var(--green)}.blbl.unl{border-color:rgba(251,113,133,.7)}.blbl.unl ha-icon{color:var(--rose)}.blbl.na{border-color:var(--line)}.blbl.na ha-icon{color:var(--mu)}
+.blbl button{display:inline-flex;margin-inline-start:2px;color:var(--mu)}.blbl button ha-icon{color:inherit}
 .fb{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;width:10px;height:10px;border-radius:50%;background:rgba(148,163,184,.85);border:2px solid rgba(8,12,24,.8);box-shadow:0 2px 8px rgba(0,0,0,.5);display:grid;place-items:center;will-change:transform;transition:width .2s,height .2s,background .2s}
 .fb::before{content:'';position:absolute;inset:-12px;border-radius:50%} /* a bigger tap area than the dot */
 .fb.big{width:26px;height:26px;background:rgba(8,12,24,.8);border:1px solid rgba(255,255,255,.18)}.fb ha-icon{--mdc-icon-size:15px;color:var(--mu)}

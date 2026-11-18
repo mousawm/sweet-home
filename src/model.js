@@ -623,7 +623,9 @@ export function buildModel(cfg = {}, hass) {
   for (const f of furniture) if (f.type === 'stairs' && f.rise == null) f.rise = Math.min(0.13, (wallH * 0.92) / num(f.steps, 10));
   furniture.forEach((f, i) => { f.idx = i; f.level = f.room ? lvOfRoom[f.room] ?? lvOf(f.level) : lvOf(f.level); if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
   for (const r of rooms) r.furnEnts = furniture.filter(f => f.room === r.id).flatMap(f => f.entities);
-  const badges = arr(house.lock_badges).map(b => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z', level: lvOf(b.level) })).filter(b => b.lock);
+  // lock badges float in 3D with their name above them (`name`, else the lock's name; `label: false` hides it); `i` is
+  // the badge's place in the config, so the 3D view can rename it
+  const badges = arr(house.lock_badges).map((b, i) => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z', level: lvOf(b.level), name: b.name || null, label: b.label !== false, i })).filter(b => b.lock);
 
   /* ---------- entity map ---------- */
   const P = cfg.panels || {};
