@@ -364,6 +364,13 @@ export class SweetHomeCard extends HTMLElement {
     const u = unit ? (st.attributes.unit_of_measurement || '') : '';
     return `${x.toFixed(d)}${u ? `<small>${esc(u)}</small>` : ''}`;
   }
+  // an entrance (gate, garage door…): open / closed / moving / bad (unavailable) / unknown (a relay without a sensor)
+  entState(g) {
+    const src = g.sensor || (g.cover || g.id.startsWith('lock.') ? g.id : null); if (!src) return BAD.includes(this.v(g.id)) ? 'bad' : 'unknown';
+    const v = this.v(src); if (BAD.includes(v)) return 'bad';
+    if (v === 'opening' || v === 'closing') return 'moving';
+    return ['open', 'on', 'unlocked'].includes(v) ? 'open' : 'closed';
+  }
   on(id) { const v = this.v(id); return v === 'on' || v === 'open' || v === 'playing' || v === 'home'; }
   ok(id) { const v = this.v(id); return v !== undefined && !BAD.includes(v); }
   climOn(id) { const v = this.v(id); return v && v !== 'off' && !BAD.includes(v); }
@@ -541,7 +548,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('tabs'), deps: glanceEnts, render: () => this._rTabs() },
       { el: $('glance'), deps: glanceEnts, render: () => this._rGlance() },
       { el: $('hdr'), deps: all(E.weather, E.persons, E.alarm, E.doors.map(d => d.id), roomEnts, E.energy.grid, E.energy.solar, E.face, E.car.parking, E.locks.map(l => l.id)), render: () => this._rHeader() },
-      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.gate.relay, E.gate.sensor), render: () => this._rSecurity() },
+      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, g.sensor])), render: () => this._rSecurity() },
       { el: $('climate'), deps: all(acEnts, roomEnts), render: () => this._rClimate() },
       { el: $('modes'), deps: all(E.modes.map(m => m[0])), render: () => this._rModes() },
       { el: $('drawer'), deps: all(roomEnts, acEnts, E.media.tv), render: () => this._rDrawer() },
@@ -559,7 +566,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
     ];
     const off = {
-      security: !(E.alarm || E.locks.length || E.doors.length || E.gate.relay), cams: !E.cameras.length, climate: !MODEL.has.climate,
+      security: !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: !E.cameras.length, climate: !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
       water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
@@ -1235,6 +1242,18 @@ export class SweetHomeCard extends HTMLElement {
         this.call('lock', locked ? 'unlock' : 'lock', { entity_id: id }); break;
       }
       case 'relay': if (!this._armConfirm(t, id, id === E.gate.relay ? 'Tap again to open the gate' : 'Tap again to open')) return; this.call('switch', 'turn_on', { entity_id: id }); this._toast(id === E.gate.relay ? 'Opening the gate' : 'Opening'); break;
+      case 'entrance': { // a gate / garage door: second tap to open, close, or stop it while it moves
+        const g = E.entrances.find(x => x.id === id); if (!g) break;
+        const st = this.entState(g), d = id.split('.')[0], nm = this.s(id)?.attributes.friendly_name || g.name;
+        const verb = st === 'moving' ? 'stop' : st === 'open' ? 'close' : 'open';
+        if (!this._armConfirm(t, id, tr({ open: 'Tap again to open', close: 'Tap again to close', stop: 'Tap again to stop' }[verb]))) return;
+        if (d === 'cover') this.call('cover', { open: 'open_cover', close: 'close_cover', stop: 'stop_cover' }[verb], { entity_id: id });
+        else if (d === 'button' || d === 'input_button') this.call(d, 'press', { entity_id: id });
+        else if (d === 'script' || d === 'scene') this.call(d, 'turn_on', { entity_id: id });
+        else if (d === 'lock') this.call('lock', verb === 'open' ? 'unlock' : 'lock', { entity_id: id });
+        else this.call(d === 'input_boolean' ? 'input_boolean' : 'switch', d === 'switch' || d === 'input_boolean' ? (this.on(id) && !g.sensor ? 'turn_off' : 'turn_on') : 'turn_on', { entity_id: id });
+        this._toast(tr({ open: 'Opening {0}', close: 'Closing {0}', stop: 'Stopping {0}' }[verb], nm)); break;
+      }
       case 'pump': { // water pumps: a second tap to start, one tap to stop; double tap / long press still open more-info
         const on = this.on(id);
         if (!on && !this._armConfirm(t, id, 'Tap again to start')) return;
@@ -1471,17 +1490,23 @@ export class SweetHomeCard extends HTMLElement {
     const st = this.v(E.alarm);
     const al = ALARM[st] || [st || '—', 'mdi:shield', '#94a3b8'];
     const btn = (svc, icon, label, match) => `<button class="abtn ${st === match ? 'on' : ''}" data-act="alarm" data-svc="${svc}" title="${label}">${ic(icon)}<span>${label}</span></button>`;
+    // a lock shows what it locks (door, gate, garage…) with a small padlock that tells its state; a plain lock is a padlock
     const locks = E.locks.map(l => {
       const s = this.v(l.id); const locked = s === 'locked'; const bad = !this.ok(l.id);
       const cls = bad ? 'na' : locked ? 'good' : s === 'unlocked' ? 'bad' : 'warn';
-      return `<button class="lock ${cls}" data-act="lock" data-id="${l.id}">
-        <div class="lk-ic">${ic(locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock-clock')}</div>
+      const pad = locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : s === 'jammed' ? 'mdi:lock-alert' : 'mdi:lock-clock';
+      return `<button class="lock ${cls}" data-act="lock" data-id="${l.id}" data-kind="${l.kind || 'padlock'}">
+        <div class="lk-ic">${l.icon ? `${ic(l.icon)}<i class="lk-b">${ic(pad)}</i>` : ic(pad)}</div>
         <b>${esc(l.name)}</b><span>${esc(s || '—')}</span></button>`;
     }).join('');
-    const G = E.gate, gs = this.v(G.sensor), gOpen = /^open$/i.test(gs || ''), gBad = !this.ok(G.sensor);
-    const gate = this.s(G.relay) ? `<button class="lock ${gBad ? 'warn' : gOpen ? 'bad' : 'good'}" data-act="relay" data-id="${G.relay}" data-id2="${G.sensor}">
-        <div class="lk-ic">${ic(gOpen ? 'mdi:gate-open' : 'mdi:gate')}</div>
-        <b>${esc(G.name)}</b><span>${gBad ? 'Unknown' : gOpen ? 'Open' : 'Closed'}</span></button>` : '';
+    // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
+    const gate = E.entrances.filter(g => this.s(g.id)).map(g => {
+      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' ? 'good' : st === 'moving' ? 'warn' : st === 'open' ? 'bad' : '';
+      const label = { open: 'Open', closed: 'Closed', moving: pretty(this.v(g.id)), bad: 'Unavailable', unknown: 'Tap to open' }[st];
+      return `<button class="lock ${cls}" data-act="entrance" data-id="${g.id}"${g.sensor ? ` data-id2="${g.sensor}"` : ''}>
+        <div class="lk-ic">${ic(st === 'open' || st === 'moving' ? g.icons[1] : g.icons[0])}</div>
+        <b>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</b><span>${esc(tr(label))}</span></button>`;
+    }).join('');
     const doors = E.doors.map(d => {
       const o = this.doorOpen(d); const bad = !this.ok(d.id);
       return `<div class="door ${bad ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${d.id}">${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(d.name)}</span></div>`;
@@ -1491,13 +1516,13 @@ export class SweetHomeCard extends HTMLElement {
         <div class="shield ${st === 'triggered' ? 'blink' : ''}" data-act="more" data-id="${E.alarm}">${ic(al[1])}</div>
         <div class="abtns">${btn('alarm_disarm', 'mdi:shield-off-outline', 'Off', 'disarmed')}${btn('alarm_arm_away', 'mdi:lock', 'Away', 'armed_away')}${btn('alarm_arm_night', 'mdi:weather-night', 'Night', 'armed_night')}${btn('alarm_arm_vacation', 'mdi:airplane', 'Trip', 'armed_vacation')}</div>
       </div>`}
-      <div class="locks" style="grid-template-columns:repeat(${E.locks.length + (gate ? 1 : 0)},1fr)">${locks}${gate}</div>
+      ${locks || gate ? `<div class="locks">${locks}${gate}</div>` : ''}
       ${doors ? `<div class="dsec">Doors</div><div class="doors">${doors}</div>` : ''}`;
   }
 
   _rTabs() {
     const badge = {};
-    const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length;
+    const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length + E.entrances.filter(g => this.entState(g) === 'open').length;
     if (open) badge.security = ['warn', open];
     const acOn = E.acs.filter(a => this.climOn(a.id)).length; if (acOn) badge.climate = ['info', acOn];
     if (this.on(E.car.charging)) badge.energy = ['good', ic('mdi:lightning-bolt')];
@@ -1511,7 +1536,7 @@ export class SweetHomeCard extends HTMLElement {
 
   _rGlance() {
     const al = ALARM[this.v(E.alarm)] || [this.v(E.alarm) || '—', 'mdi:shield', '#94a3b8'];
-    const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length;
+    const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length + E.entrances.filter(g => this.entState(g) === 'open').length;
     const temps = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
     const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     const acOn = E.acs.filter(a => this.climOn(a.id)).length;
@@ -3976,9 +4001,10 @@ main{scroll-margin-top:84px}
 .abtn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-size:10.5px;color:var(--mu);transition:.2s}
 .abtn ha-icon{--mdc-icon-size:18px}@media (hover:hover){.abtn:hover{color:var(--tx)}}
 .abtn.on{background:color-mix(in srgb,var(--c) 25%,transparent);color:#fff;border-color:var(--c)}
-.locks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.locks{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:12px}
 .lock{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 4px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);transition:.2s}
-.lk-ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;margin-bottom:4px}
+.lk-ic{position:relative;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;margin-bottom:4px}
+.lk-b{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--panel2,#1e293b);border:1.5px solid currentColor;font-style:normal}.lk-b ha-icon{--mdc-icon-size:11px}
 .lock b{font-size:12px;font-weight:600}.lock span{font-size:11px;color:var(--mu);text-transform:capitalize}
 .lock.good .lk-ic{background:rgba(52,211,153,.15);color:var(--green)}
 .lock.bad{border-color:rgba(251,113,133,.5);background:rgba(244,63,94,.1)}.lock.bad .lk-ic{background:rgba(244,63,94,.2);color:var(--rose);box-shadow:0 0 18px -4px var(--rose)}

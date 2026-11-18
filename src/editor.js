@@ -1225,7 +1225,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const list = body.querySelector('.sh-pl');
     const set = (k, v) => { if (v === undefined || (typeof v === 'object' && !Object.keys(v).length)) delete P[k]; else P[k] = v; if (!Object.keys(P).length) delete this._config.panels; this._emit(); };
     const schemas = {
-      security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }],
+      security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'entrances', selector: { entity: { domain: ['cover', 'switch', 'button', 'input_button', 'input_boolean', 'script'], multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
       car: [{ name: 'name', selector: { text: {} } }, { name: 'color', selector: { color_rgb: {} } },
@@ -1259,6 +1259,7 @@ class SweetHomeCardEditor extends HTMLElement {
         const data = { ...cur };
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
+        if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
         if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
         det.appendChild(this._form(schemas[k], data, v => {
@@ -1266,6 +1267,7 @@ class SweetHomeCardEditor extends HTMLElement {
           for (const [kk, vv] of Object.entries(v)) {
             let val = vv;
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
             if (k === 'irrigation' && kk === 'zones') { val = arr(vv).map(id => arr(next.zones ?? next.valves).find(o => typeof o === 'object' && entityId(o) === id) || id); delete next.valves; } // a zone's name and duration are kept
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
             if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
@@ -1274,7 +1276,7 @@ class SweetHomeCardEditor extends HTMLElement {
           set(k, next);
         }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
           name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
-          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
+          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           pumps: 'Pumps', entities: 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', temperature: 'Water temperature' }));
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');

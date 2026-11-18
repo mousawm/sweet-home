@@ -137,6 +137,9 @@ const AR = {
   'Water every': 'الري كل', Schedule: 'الجدول', 'Day of the week': 'يوم الأسبوع', 'Water tomorrow (switch)': 'الري غدًا (مفتاح)', 'Next watering': 'الري القادم',
   'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
   'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”',
+  // entrances
+  'Gates, garage doors, barriers, shutters': 'البوابات، أبواب المرآب، الحواجز، الأبواب الدوّارة', 'Tap again to open': 'اضغط مرة أخرى للفتح', 'Tap again to close': 'اضغط مرة أخرى للإغلاق', 'Tap again to stop': 'اضغط مرة أخرى للإيقاف',
+  'Opening {0}': 'جارٍ فتح {0}', 'Closing {0}': 'جارٍ إغلاق {0}', 'Stopping {0}': 'جارٍ إيقاف {0}', 'Tap to open': 'اضغط للفتح',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

@@ -623,7 +623,25 @@ export function buildModel(cfg = {}, hass) {
     id, name: R.name(id), room: roomOfEntity(id),
     power: R.sameDevice(id, e => e.startsWith('sensor.') && R.dc(e) === 'power')[0] || null,
   }));
-  const lockList = (sec.locks ? arr(sec.locks) : allOf('lock')).map(l => typeof l === 'string' ? { id: l, name: R.name(l) } : { id: l.entity || l.id, name: l.name || R.name(l.entity || l.id) });
+  // locks: `entity_id` or {entity, name, kind, icon}. The kind (what is locked) picks the icon: door, sliding door, gate,
+  // garage, window, safe, car, locker, else a padlock. Not given: guessed from the lock's id and name.
+  const LOCK_ICON = { door: 'mdi:door-closed', sliding: 'mdi:door-sliding', gate: 'mdi:gate', garage: 'mdi:garage', window: 'mdi:window-closed-variant', safe: 'mdi:safe', car: 'mdi:car', locker: 'mdi:locker', padlock: null };
+  const lockKind = (id, name) => { const t = `${id} ${name}`.toLowerCase(); return /garage/.test(t) ? 'garage' : /sliding|patio/.test(t) ? 'sliding' : /gate/.test(t) ? 'gate' : /window/.test(t) ? 'window' : /safe\b|vault/.test(t) ? 'safe' : /\bcar\b|vehicle|tesla/.test(t) ? 'car' : /locker|cabinet|drawer|box/.test(t) ? 'locker' : /door|front|back|entr|deadbolt|porch|main/.test(t) ? 'door' : 'padlock'; };
+  const lockList = (sec.locks ? arr(sec.locks) : allOf('lock')).map(l => (typeof l === 'string' ? { entity: l } : l)).filter(l => l?.entity || l?.id).map(l => {
+    const id = l.entity || l.id, name = l.name || R.name(id), kind = LOCK_ICON[l.kind] !== undefined ? l.kind : lockKind(id, name);
+    return { id, name, kind, icon: l.icon || (l.kind ? LOCK_ICON[l.kind] : null) || states[id]?.attributes?.icon || LOCK_ICON[kind] || null };
+  });
+  // entrances next to the locks: gates, garage doors, barriers, shutters. A cover opens / closes itself; a relay
+  // (switch / button / script) is pulsed and an optional `sensor` says whether it is open. Not given: every cover that is a
+  // garage door or a gate. The older single `gate: {relay, sensor, name}` is kept as one of them.
+  const ENT_ICON = { garage: ['mdi:garage', 'mdi:garage-open'], gate: ['mdi:gate', 'mdi:gate-open'], door: ['mdi:door-closed', 'mdi:door-open'], shutter: ['mdi:window-shutter', 'mdi:window-shutter-open'], barrier: ['mdi:boom-gate', 'mdi:boom-gate-up'] };
+  const kindOf = (id, name) => { const t = `${R.dc(id) || ''} ${id} ${name}`.toLowerCase(); return /garage/.test(t) ? 'garage' : /barrier|boom/.test(t) ? 'barrier' : /shutter|rolling|blind/.test(t) ? 'shutter' : /gate/.test(t) ? 'gate' : /door/.test(t) ? 'door' : 'gate'; };
+  const entranceList = [...(sec.entrances !== undefined ? arr(sec.entrances) : P.security === false ? [] : allOf('cover', id => ['garage', 'gate'].includes(R.dc(id)))), ...(sec.gate?.relay ? [{ entity: sec.gate.relay, sensor: sec.gate.sensor, name: sec.gate.name || 'Gate', kind: 'gate' }] : [])]
+    .map(e => (typeof e === 'string' ? { entity: e } : e)).filter(e => e?.entity || e?.id).map(e => {
+      const id = e.entity || e.id, name = e.name || R.name(id), kind = e.kind || e.type || kindOf(e.sensor || id, name);
+      const own = !e.kind && !e.type && states[id]?.attributes?.icon; // an icon set on the entity in Home Assistant
+      return { id, name, cfgName: e.name || null, sensor: e.sensor || null, kind, icons: e.icon ? [e.icon, e.icon] : own ? [own, own] : ENT_ICON[kind] || ENT_ICON.gate, cover: id.startsWith('cover.') };
+    });
   const doorList = (sec.doors ? arr(sec.doors) : allOf('binary_sensor', id => ['door', 'garage_door'].includes(R.dc(id)))).slice(0, 24)
     .map(d => typeof d === 'string' ? { id: d, name: R.name(d) } : { id: d.entity || d.id, name: d.name || R.name(d.entity || d.id), open: d.open_state });
   const camList = (sec.cameras ? arr(sec.cameras) : allOf('camera')).map(c => {
@@ -679,6 +697,7 @@ export function buildModel(cfg = {}, hass) {
     persons, phones,
     alarm: sec.alarm || first('alarm_control_panel'),
     locks: lockList,
+    entrances: entranceList,
     gate: sec.gate ? { name: sec.gate.name || 'Gate', relay: sec.gate.relay, sensor: sec.gate.sensor } : { name: 'Gate', relay: null, sensor: null },
     doors: doorList,
     acs,
@@ -739,7 +758,7 @@ export function buildModel(cfg = {}, hass) {
 
   /* ---------- which tabs have something to show ---------- */
   const has = {
-    security: panel('security') && !!(E.alarm || E.locks.length || E.doors.length || E.cameras.length || E.gate.relay),
+    security: panel('security') && !!(E.alarm || E.locks.length || E.doors.length || E.cameras.length || E.gate.relay || E.entrances.length),
     climate: panel('climate') && !!(E.acs.length || rooms.some(r => r.temp)),
     energy: panel('energy'),
     water: !!(E.water.tank || E.water.pumps.length || E.water.entities.length || E.irrigation.valves.length),
