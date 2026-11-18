@@ -158,7 +158,7 @@ const AR = {
   'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)': 'البطاريات المعروضة (فارغ: كل هاتف وجهاز لوحي وساعة عليها تطبيق Home Assistant)',
   // people
   People: 'الأشخاص', 'Who shows at the top, and each person’s phone panel (long press their picture)': 'من يظهر في الأعلى، ولوحة هاتف كل شخص (اضغط مطولًا على صورته)',
-  'People at the top (empty: everyone)': 'الأشخاص في الأعلى (فارغ: الجميع)', 'Phone panel: empty fields are found on the phone': 'لوحة الهاتف: الحقول الفارغة تُكتشف من الهاتف',
+  'People at the top (empty: everyone)': 'الأشخاص في الأعلى (فارغ: الجميع)', 'Phone panel: leave every field empty to find them on the phone; once you pick one, only what you pick shows': 'لوحة الهاتف: اترك كل الحقول فارغة لتُكتشف من الهاتف؛ وعند اختيار أحدها يظهر ما تختاره فقط',
   'Name on the panel (empty: the phone’s name)': 'الاسم في اللوحة (فارغ: اسم الهاتف)', 'Phone tracker': 'متتبع الهاتف', Battery: 'البطارية', Address: 'العنوان', 'Ringer mode': 'وضع الرنين', 'Wi-Fi': 'الواي فاي',
   'More rows (any entity)': 'صفوف إضافية (أي كيان)', 'Buttons (ring the phone, find it, scripts…)': 'أزرار (رنين الهاتف، العثور عليه، سكربتات…)',
 };

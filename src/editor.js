@@ -1135,7 +1135,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const sensor = { entity: { domain: ['sensor', 'binary_sensor'] } };
     for (const p of arr(C.persons).length ? arr(C.persons) : all) {
       const o = { ...(C.people?.[p] || {}) }, d = document.createElement('details'); d.className = 'sh-panel'; d.style.margin = '8px 0 0';
-      d.innerHTML = `<summary><span><b>${esc(this._reg.name(p))}</b><br><small>${t('Phone panel: empty fields are found on the phone')}</small></span></summary>`;
+      d.innerHTML = `<summary><span><b>${esc(this._reg.name(p))}</b><br><small>${t('Phone panel: leave every field empty to find them on the phone; once you pick one, only what you pick shows')}</small></span></summary>`;
       d.appendChild(this._form([
         { name: 'name', selector: { text: {} } }, { name: 'tracker', selector: { entity: { domain: 'device_tracker' } } },
         { type: 'grid', name: '', schema: [{ name: 'battery', selector: sensor }, { name: 'charging', selector: sensor }, { name: 'location', selector: sensor }, { name: 'ringer', selector: sensor }, { name: 'wifi', selector: sensor }] },

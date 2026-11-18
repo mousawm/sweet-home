@@ -687,10 +687,13 @@ export function buildModel(cfg = {}, hass) {
   const phones = {}, people = cfg.people && typeof cfg.people === 'object' ? cfg.people : {};
   for (const p of persons) {
     const o = people[p] && typeof people[p] === 'object' ? people[p] : {};
-    const trk = o.tracker || arr(states[p]?.attributes?.device_trackers).find(t => R.platform(t) === 'mobile_app');
+    // pick any of the phone's rows yourself and only what you picked shows (nothing else is found); pick none and
+    // they are all found on the person's phone
+    const own = ['tracker', 'battery', 'charging', 'location', 'ringer', 'wifi'].some(k => o[k]);
+    const trk = own ? o.tracker || null : arr(states[p]?.attributes?.device_trackers).find(t => R.platform(t) === 'mobile_app');
     if (!trk && !Object.keys(o).length) continue;
     const on = (pred) => (trk ? R.sameDevice(trk, pred)[0] || null : null);
-    const pick = (k, found) => (o[k] === false ? null : o[k] || found);
+    const pick = (k, found) => (own ? o[k] || null : o[k] === false ? null : found);
     phones[p] = {
       name: o.name || (trk && (R.devs[R.ents[trk]?.device_id]?.name_by_user || R.devs[R.ents[trk]?.device_id]?.name || R.name(trk))) || R.name(p), tracker: trk || null,
       battery: pick('battery', on(e => /battery_level$/.test(e))), charging: pick('charging', on(e => /is_charging$/.test(e) || (e.startsWith('binary_sensor.') && R.dc(e) === 'battery_charging'))),
