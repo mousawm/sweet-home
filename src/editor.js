@@ -573,6 +573,8 @@ class SweetHomeCardEditor extends HTMLElement {
       const nm = this._roomName(r, i);
       if (!hasShape(r)) out.push([i, `${nm} has no shape yet: draw it in Shape mode, or it won't show.`]);
       if (r.area && !this._hass.areas?.[r.area]) out.push([i, `${nm} is linked to an area that no longer exists (${r.area}).`]);
+      const first = r.area ? rooms.findIndex(x => x.area === r.area) : -1;
+      if (first >= 0 && first < i) out.push([i, `${nm} and ${this._roomName(rooms[first], first)} are both linked to the area ${this._hass.areas?.[r.area]?.name || r.area}: its devices show in both. Link one of them to another area, or to none.`]);
       for (const [key] of ROLES) {
         if (r[key] === undefined || r[key] === null) continue;
         for (const e of arr(r[key])) {

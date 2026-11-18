@@ -126,6 +126,14 @@ try {
     for (const t of ['home', 'security', 'climate', 'energy', 'water', 'system']) { card._setTab(t); await new Promise(r => setTimeout(r, 120)); if (/NaN|undefined/.test(card.shadowRoot.textContent)) ok = false; }
     card.hass = window.hassObj; card._setTab('home'); await new Promise(r => setTimeout(r, 150)); return ok;
   }));
+  check('two rooms on the same area: each keeps its own label, none left empty in the corner', await p.evaluate(async () => {
+    const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(card._config));
+    cfg.house.rooms.push({ area: 'living_room', name: 'Living room corridor', rects: [[0, 14, 3, 16]] });
+    el.setConfig(cfg); card.remove(); document.body.appendChild(el); window.card = el; el.hass = window.hassObj; await new Promise(r => setTimeout(r, 900));
+    const L = [...el.shadowRoot.querySelectorAll('.lbl')], t = L.map(l => l.textContent);
+    const ok = !L.some(l => !l.textContent.trim()) && t.some(x => x.includes('Living Room')) && t.some(x => x.includes('Living room corridor'));
+    el.remove(); const c = new T(); c.setConfig(JSON.parse(JSON.stringify(cfg)).house ? (cfg.house.rooms.pop(), cfg) : cfg); document.body.appendChild(c); window.card = c; c.hass = window.hassObj; await new Promise(r => setTimeout(r, 600)); return ok;
+  }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
