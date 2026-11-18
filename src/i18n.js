@@ -28,7 +28,7 @@ const AR = {
   'Show {0} more': 'عرض {0} إضافية', 'Show less': 'عرض أقل', AC: 'المكيّف',
   'No devices mapped to this room yet. Link it to an area, or add entities in the card editor (Rooms → Entities).': 'لا توجد أجهزة مرتبطة بهذه الغرفة بعد. اربطها بمنطقة، أو أضف كيانات من محرر البطاقة (الغرف ← الكيانات).',
   On: 'يعمل', Off: 'مطفأ', Detected: 'تم الرصد', Clear: 'لا حركة', Open: 'مفتوح', Closed: 'مغلق', Locked: 'مقفل', Unlocked: 'غير مقفل', 'Locked · tap to unlock': 'مقفل · اضغط لفتح القفل',
-  '{0} · tap to lock': '{0} · اضغط للقفل', 'Charging · {0} W': 'يشحن · {0} واط', 'On · idle': 'يعمل · خامل', 'People Detected': 'أشخاص مرصودون', Run: 'تشغيل', Running: 'قيد التشغيل',
+  '{0} · tap to lock': '{0} · اضغط للقفل', 'Charging · {0} W': 'يشحن · {0} واط', 'On · {0} W': 'يعمل · {0} واط', 'On · idle': 'يعمل · خامل', 'People Detected': 'أشخاص مرصودون', Run: 'تشغيل', Running: 'قيد التشغيل',
   Activate: 'تفعيل', Press: 'ضغط', 'Not found': 'غير موجود', 'Open too long': 'مفتوح لفترة طويلة', 'At home': 'في المنزل', Away: 'خارج المنزل', Wet: 'رطب', Dry: 'جاف', Smoke: 'دخان',
   Gas: 'غاز', Low: 'منخفضة', Normal: 'طبيعية', 'Plugged in': 'موصول', Unplugged: 'غير موصول', Power: 'كهرباء', 'No power': 'لا كهرباء', Problem: 'مشكلة', OK: 'سليم',
   Connected: 'متصل', Disconnected: 'غير متصل', Vibration: 'اهتزاز', Still: 'ثابت',

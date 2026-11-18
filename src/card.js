@@ -1699,8 +1699,9 @@ export class SweetHomeCard extends HTMLElement {
       }),
     ];
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
-      const on = this.on(p.id); const w = this.n(p.power); const chg = on && (w ?? 0) > 1.5;
-      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${on ? (chg ? tr('Charging · {0} W', w.toFixed(1)) : tr('On · idle')) : tr('Off')}</b></button>`;
+      const on = this.on(p.id); const w = this.n(p.power); const drawing = on && (w ?? 0) > 1.5, charger = /charg/i.test(`${p.icon} ${p.id} ${p.name}`), chg = drawing && charger;
+      const val = !on ? tr('Off') : chg ? tr('Charging · {0} W', w.toFixed(1)) : drawing ? tr('On · {0} W', w < 10 ? w.toFixed(1) : Math.round(w)) : p.power ? tr('On · idle') : tr('On');
+      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon)}<span>${esc(p.name)}</span><b>${val}</b></button>`;
     });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
