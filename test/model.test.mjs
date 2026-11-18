@@ -1,6 +1,8 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
-import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects } from '../src/model.js';
+import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls } from '../src/model.js';
+// is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
+const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
 
 let failed = 0;
 const test = (name, fn) => { try { fn(); console.log('  ok  ', name); } catch (e) { failed++; console.log('  FAIL', name, '\n      ', e.message); } };
@@ -127,6 +129,33 @@ test('locks: what they lock picks the icon (guessed, or kind / icon given)', () 
   const h = { ...hass, states: { ...hass.states, 'lock.front': st('locked', { friendly_name: 'Front Door' }), 'lock.x': st('locked', { friendly_name: 'Thing' }) } };
   const m = buildModel({ panels: { security: { locks: ['lock.front', 'lock.x', { entity: 'lock.x', kind: 'gate' }, { entity: 'lock.x', icon: 'mdi:star' }] } } }, h);
   assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', 'mdi:door-closed'], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']]);
+});
+test('open passages on every kind of wall: inner, outer, outdoor railings, slanted, curved, separate (straight and bent)', () => {
+  const rooms = [{ name: 'Living', rects: [[0, 0, 6, 5]] }, { name: 'Balcony', outdoor: true, rects: [[6, 0, 9, 5]] }, { name: 'Bed', points: [[0, 5], [6, 5], [6, 9, 1], [0, 9]] }, { name: 'Den', points: [[9, 0], [12, 0], [12, 3], [10, 5], [9, 5]] }, { name: 'Garden', rects: [[0, 10, 12, 14]] }, { name: 'Up', level: 1, points: [[0, 0, -0.8], [4, 0], [4, 4], [0, 4]] }];
+  const extra = [{ from: [0.5, 12], to: [3, 12] }, { from: [4, 12], to: [8, 12], bow: 0.5 }];
+  // the chord between two points of an arc: the arc of a bent edge a→b with `bow` at fractions f0, f1 (as the editor draws it)
+  // a point of the arc of a bent edge (outline from corner a to corner b) or of a bent separate wall, f from 0 to 1
+  const arcOf = (pts, a, b) => { const o = roomOutline({ points: pts }), i = o.findIndex(p => p[0] === a[0] && p[1] === a[1]), j = o.findIndex(p => p[0] === b[0] && p[1] === b[1]); return j > i ? o.slice(i, j + 1) : [...o.slice(i), ...o.slice(0, j + 1)]; };
+  const bed = arcOf([[0, 5], [6, 5], [6, 9, 1], [0, 9]], [6, 9], [0, 9]), sep = extraWalls([extra[1]]).map(w => [w[0], w[1]]).concat([[8, 12]]);
+  const at = (arc, f) => arc[Math.round(f * (arc.length - 1))];
+  const cases = {
+    'outer wall': [2, 0, 3, 0], 'between a room and a balcony': [6, 1, 6, 2], 'balcony railing': [7, 5, 8, 5], 'balcony outer railing': [7, 0, 8, 0],
+    'garden edge (outdoor)': [2, 14, 4, 14], 'slanted wall': [11.6, 3.4, 10.9, 4.1], 'separate wall': [1, 12, 2, 12],
+    'curved room wall': [...at(bed, 0.35), ...at(bed, 0.6)],
+    'bent separate wall': [...at(sep, 0.3), ...at(sep, 0.55)],
+  };
+  for (const [name, op] of Object.entries(cases)) {
+    const cfg = lv => ({ house: { windows: 'none', rooms, extra_walls: extra, openings: [[...op, ...(lv ? [lv] : [])]] } });
+    const before = buildModel({ house: { windows: 'none', rooms, extra_walls: extra } }, hass), m = buildModel(cfg(0), hass);
+    const ox = m.rooms.find(r => r.id === 'living').rects[0][0], oz = m.rooms.find(r => r.id === 'living').rects[0][1], g = [op[0] + ox, op[1] + oz, op[2] + ox, op[3] + oz];
+    assert.ok(wallBeside(before.walls, g), `${name}: there is a wall before`);
+    assert.ok(!wallBeside(m.walls, g), `${name}: the passage opens it`);
+  }
+  const upArc = arcOf([[0, 0, -0.8], [4, 0], [4, 4], [0, 4]], [0, 0], [4, 0]), up = [...at(upArc, 0.3), ...at(upArc, 0.6)];
+  const m1 = buildModel({ house: { windows: 'none', rooms, openings: [[...up, 1]] } }, hass), sh = m1.rooms.find(r => r.id === 'up').poly.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1])], [1e9, 1e9]);
+  const o1 = roomOutline({ points: [[0, 0, -0.8], [4, 0], [4, 4], [0, 4]] }).reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1])], [1e9, 1e9]);
+  const g1 = [up[0] - o1[0] + sh[0], up[1] - o1[1] + sh[1], up[2] - o1[0] + sh[0], up[3] - o1[1] + sh[1]];
+  assert.ok(!wallBeside(m1.walls, g1, 1), 'a curved wall upstairs opens on its own floor');
 });
 test('furniture keeps its place in the config and its entities', () => {
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], furniture: [{ type: 'lamp', x: 1, z: 1, entity: 'light.living' }, { type: 'bed', x: 2, z: 2, entities: ['light.bed', 'light.living'] }] }] } }, hass);

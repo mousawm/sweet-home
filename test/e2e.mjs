@@ -181,6 +181,21 @@ try {
   await p.waitForTimeout(1500);
   check('…the card shows the picked one and the older gate', await p.evaluate(() => { card._setTab('security'); return [...card.shadowRoot.querySelectorAll('#security [data-act=entrance]')].map(b => b.dataset.id).join() === 'cover.garage_door,switch.gate_relay'; }));
   await p.evaluate(() => card._setTab('home'));
+  // open passages on curved and outdoor walls: drawn along the wall, cut in the plan and in 3D
+  await p.evaluate(() => { editor._step = 'rooms'; editor._mode = 'doors'; editor._dtool = 'opening'; editor._render(); });
+  const nOp = await p.evaluate(() => (editor._config.house.openings || []).length);
+  for (const [a, c] of [[[-0.6, 6.0], [-0.6, 7.0]], [[2, 12.15], [3.4, 12.05]], [[10, 6], [10, 7]], [[2, 14], [4, 14]]]) await drag(a, c);
+  check('drawing open passages on a curved room wall, a curved garden wall and outdoor railings', await p.evaluate(n => (editor._config.house.openings || []).length === n + 4, nOp));
+  await p.waitForTimeout(1500);
+  check('…each one opens the wall in the editor plan and in 3D', await p.evaluate(n => {
+    const near = (walls, o, ox = 0, oz = 0) => { const x = (o[0] + o[2]) / 2 + ox, z = (o[1] + o[3]) / 2 + oz; return walls.some(w => (w[5] ?? 0) === 0 && (() => { const [x1, z1, x2, z2] = w, dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L)); return Math.hypot(x1 + t * dx - x, z1 + t * dz - z) < 0.15; })()); };
+    const liv = card._model.rooms.find(r => r.id === 'living_room').rects[0], plan = editor._walls();
+    return editor._config.house.openings.slice(n).every(o => !near(plan, o) && !near(card._model.walls, o, liv[0], liv[1]));
+  }, nOp));
+  const arcOp = await p.evaluate(n => editor._config.house.openings[n], nOp);
+  await drag([(arcOp[0] + arcOp[2]) / 2, (arcOp[1] + arcOp[3]) / 2], [(arcOp[0] + arcOp[2]) / 2 + 0.2, (arcOp[1] + arcOp[3]) / 2 + 0.5]);
+  check('moving a passage on a curved wall keeps both ends on the arc', await p.evaluate(n => { const o = editor._config.house.openings[n]; return o[1] > 6.2 && [[o[0], o[1]], [o[2], o[3]]].every(q => editor._nearWall(q, 0.03)); }, nOp));
+  await p.evaluate(() => { editor._mode = 'shape'; editor._render(); });
   // irrigation in the editor: valves are picked there, a zone's name and duration stay
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
   check('the irrigation panel in the editor has a valves field', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=zones]')].some(i => i.value === 'valve.garden,switch.drip_zone')));
