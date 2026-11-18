@@ -1564,6 +1564,10 @@ export class SweetHomeCard extends HTMLElement {
     const doors = E.doors.map(d => {
       const o = this.doorOpen(d); const bad = !this.ok(d.id);
       return `<div class="door ${bad ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${d.id}">${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(d.name)}</span></div>`;
+    }).join('') + E.entrances.filter(g => this.s(g.id) && (g.sensors?.length || g.sensor)).filter(g => !(g.sensors || [g.sensor]).some(x => E.doors.some(d => d.id === x))).map(g => {
+      // a gate / door with an open / closed sensor (a contact, or a camera's classification) is listed with the doors too
+      const st = this.entState(g), src = g.sensors?.find(x => this.ok(x)) || g.sensors?.[0] || g.sensor, o = st === 'open' || st === 'moving';
+      return `<div class="door ${st === 'bad' ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${src}">${ic(o ? g.icons?.[1] || 'mdi:door-open' : g.icons?.[0] || 'mdi:door-closed')}<span>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</span></div>`;
     }).join('');
     return `<div class="ch">${ic('mdi:shield-home')}<h3>Security</h3>${E.alarm ? `<span class="pill" style="--c:${al[2]}">${al[0]}</span>` : ''}</div>
       ${!E.alarm ? '' : `<div class="alarm" style="--c:${al[2]}">
@@ -1790,7 +1794,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = this._rnIds.ids.map(id => {
-      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? (sid === 'modes' && E.modes.find(m => m[0] === id)?.[1]) ?? st.attributes.friendly_name ?? id;
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? st.attributes.friendly_name ?? id;
       return `<label class="rnrow">${ic((SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
     return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
