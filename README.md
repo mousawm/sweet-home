@@ -31,6 +31,10 @@ security, climate, energy, water, media and your home lab.
 | ![Security tab: alarm, locks, doors and live cameras](docs/screenshots/security.webp) | ![Climate tab: room temperatures and one card per AC](docs/screenshots/climate.webp) |
 | **Energy** | **Water & Garden** |
 | ![Energy tab: live power flow, today's chart and the car charger](docs/screenshots/energy.webp) | ![Water & Garden tab: tank trend, pumps and irrigation](docs/screenshots/water.webp) |
+| **3D house** | **Furniture that reacts** |
+| ![The demo house in 3D: rooms with live temperatures, locks, a pool and a parked car](docs/screenshots/overview-3d.webp) | ![A bathroom: toilet, vanity with a glowing mirror, towel warmer, steaming shower, washing machine and bathtub](docs/screenshots/bathroom-3d.webp) |
+| **Floor plan editor** | **On a phone** |
+| ![The card editor: rooms, walls, doors, windows and furniture drawn on a plan](docs/screenshots/editor-plan.webp) | ![A room popup on a phone: lights with brightness, the front door lock and blinds](docs/screenshots/phone-room.webp) |
 
 ## Install
 
@@ -321,8 +325,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **media**:
   - `player`, `speakers`
   - optional screen-time limits: `watch_timer`, `watch_limit`, `limit_select`, `block_switch`, `unblock_switch`
-- **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. `jellyfin_tv` can start the
-  Jellyfin app on an Android TV before playing.
+- **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. Movies and episodes play on
+  the TV set in the card editor (Panels → Media Server → *TV to play on*), stored as `jellyfin_tv: {session, name}`:
+  `session` is the Jellyfin player's name (found by name, because its entity id changes with each app session); without
+  it, the Jellyfin app used last. `app_player` (an Android TV media player) starts the Jellyfin app before playing.
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`.
 - **tv_light**: `light`, `selects`
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.

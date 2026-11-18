@@ -5,6 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
 import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr, cleanConfig } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
@@ -72,8 +73,11 @@ const ic = (i, cls = '') => `<ha-icon class="${cls}" icon="${i}"></ha-icon>`;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const BAD = ['unavailable', 'unknown', 'none', 'None', ''];
 const TEMP_STOPS = [[16, [59, 130, 246]], [19.5, [34, 211, 238]], [22.5, [52, 211, 153]], [25.5, [251, 191, 36]], [29, [244, 63, 94]]];
+// the colour of a temperature (cold blue → comfortable green → hot red); in a °F home it is read as °F
+let FAHR = false;
 function tempRGB(t) {
   if (t == null || isNaN(t)) return [120, 130, 150];
+  if (FAHR) t = (t - 32) * 5 / 9;
   if (t <= TEMP_STOPS[0][0]) return TEMP_STOPS[0][1];
   for (let i = 1; i < TEMP_STOPS.length; i++) {
     const [t1, c1] = TEMP_STOPS[i];
@@ -343,6 +347,7 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
+    FAHR = String(h?.config?.unit_system?.temperature || '').toUpperCase().includes('F');
     this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
@@ -488,16 +493,12 @@ export class SweetHomeCard extends HTMLElement {
   /* ---------- build ---------- */
   _build() {
     this._built = true;
-    if (!document.getElementById('h3d-font')) {
-      const l = document.createElement('link'); l.id = 'h3d-font'; l.rel = 'stylesheet';
-      l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap';
+    if (!document.getElementById('h3d-font')) { // Inter, bundled with the card: nothing is loaded from outside (works offline, no third party)
+      const l = document.createElement('style'); l.id = 'h3d-font';
+      l.textContent = `@font-face{font-family:'Inter';font-style:normal;font-display:swap;font-weight:100 900;src:url(${INTER}) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}`;
       document.head.appendChild(l);
     }
-    if (isRTL() && !document.getElementById('h3d-font-ar')) {
-      const l = document.createElement('link'); l.id = 'h3d-font-ar'; l.rel = 'stylesheet';
-      l.href = 'https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700&display=swap';
-      document.head.appendChild(l);
-    }
+    // Arabic uses the device's own Arabic font (SF Arabic on Apple, Noto on Android, Segoe UI on Windows): nothing loaded from outside
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
     <div class="app" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
@@ -859,7 +860,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   // ---------- Jellyfin library browser ----------
   // Shows / Movies tiles → poster grid (media_source/browse_media on media-source://jellyfin); a movie or an episode
-  // plays on the SHIELD through the Jellyfin app's session player; a show opens its seasons and episodes.
+  // plays on the TV (panels.media_server.jellyfin_tv) through the Jellyfin app's session player; a show opens its seasons and episodes.
   _jfBrowse(id) {
     const c = this._jfc || (this._jfc = {}); if (!this._jfcAt || !Object.keys(c).length) this._jfcAt = Date.now();
     if (c[id]) return c[id].data;
@@ -873,9 +874,9 @@ export class SweetHomeCard extends HTMLElement {
   // (seen 2026-11-15: session went unavailable the second play_media arrived). It plays fine right after a fresh
   // start, so unless something is playing / paused, the app is force-stopped over ADB, reopened, and the card waits
   // for its new session before sending play_media.
-  // The SHIELD's Jellyfin session player: its entity id changes whenever the app starts a new session
-  // (media_player.shield, _5, _6 … — HA makes a new one per Jellyfin device id), so it is found by name instead:
-  // a jellyfin-platform player named "SHIELD…" that is available and can play media (feature bit 512); newest first.
+  // The TV's Jellyfin session player: its entity id changes whenever the app starts a new session (media_player.tv,
+  // _5, _6 … — HA makes a new one per Jellyfin device id), so it is found by name (`jellyfin_tv.session`) instead; with
+  // no name set, any Jellyfin player that is available and can play media (feature bit 512); newest first.
   // With `since`, only one that changed after that time (a session started after the restart).
   _jfShield(since) {
     const ents = this._hass?.entities || {}, J = E.mserver.jellyfin;
@@ -959,7 +960,7 @@ export class SweetHomeCard extends HTMLElement {
       const si = clamp(this._jfSeason?.[sid] ?? 0, 0, Math.max(0, seasons.length - 1));
       let eps = direct, loading = false;
       if (!direct.length && seasons.length) { const d = this._jfBrowse(seasons[si].media_content_id); if (d) eps = d.children || []; else loading = true; }
-      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(show.title)}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on the SHIELD</em></div></div>`;
+      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(show.title)}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
       const chips = seasons.length > 1 ? `<div class="jfseas">${seasons.map((c, i) => `<button class="${i === si ? 'on' : ''}" data-act="jfseason" data-show="${sid}" data-i="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
       const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(c.title)}">
           ${img(c.thumbnail, 'mdi:play-circle-outline')}<div><b>${i + 1}. ${esc(c.title)}</b></div>${ic('mdi:play', 'jfepp')}</button>`).join('');
@@ -1320,7 +1321,7 @@ export class SweetHomeCard extends HTMLElement {
         const st = this.s(id); if (!st) break; const step = st.attributes.target_temp_step || 1;
         const base = +(this._acT(id) ?? 24);
         const P = this._acPend || (this._acPend = {}), p = P[id] || (P[id] = {});
-        const next = clamp(base + step * Number(t.dataset.d), st.attributes.min_temp ?? 16, st.attributes.max_temp ?? 30);
+        const next = clamp(base + step * Number(t.dataset.d), st.attributes.min_temp ?? (FAHR ? 61 : 16), st.attributes.max_temp ?? (FAHR ? 86 : 30));
         clearTimeout(p.timer); clearTimeout(p.drop); p.t = Math.round(next * 10) / 10; p.sent = false;
         p.timer = setTimeout(() => {
           p.sent = true;
@@ -1628,7 +1629,7 @@ export class SweetHomeCard extends HTMLElement {
     const extras = this._acExtras(id).filter(e => this.ok(e));
     return `<div class="acctl">
       <div class="tgt"><button class="ibtn" data-act="actemp" data-id="${id}" data-d="-1" aria-label="Lower temperature">${ic('mdi:minus')}</button>
-        <div class="tv ${this._acPend?.[id] ? 'pend' : ''}"><b>${this._acT(id) ?? '—'}<small>°</small></b><span>target · ${a.min_temp ?? 16}–${a.max_temp ?? 30}°</span></div>
+        <div class="tv ${this._acPend?.[id] ? 'pend' : ''}"><b>${this._acT(id) ?? '—'}<small>°</small></b><span>target · ${a.min_temp ?? (FAHR ? 61 : 16)}–${a.max_temp ?? (FAHR ? 86 : 30)}°</span></div>
         <button class="ibtn" data-act="actemp" data-id="${id}" data-d="1" aria-label="Raise temperature">${ic('mdi:plus')}</button></div>
       <div class="modes">${modes.map(m => `<button class="mbtn ${mode === m ? 'on' : ''}" style="--c:${m === 'off' ? '#94a3b8' : HVAC_COLOR[m] || '#60a5fa'}" data-act="acmode" data-id="${id}" data-mode="${m}">${ic(HVAC_ICON[m] || 'mdi:thermostat')}<em>${esc(pretty(m))}</em></button>`).join('')}</div>
       <div class="picks">${this.pickChip(id, 'fan', 'Fan', 'mdi:fan')}${this.pickChip(id, 'swing', 'Swing ↕', 'mdi:arrow-up-down')}${this.pickChip(id, 'swingh', 'Swing ↔', 'mdi:arrow-left-right')}${this.pickChip(id, 'preset', 'Preset', 'mdi:star-four-points-outline')}</div>
@@ -4517,7 +4518,7 @@ main{scroll-margin-top:84px}
 [dir=rtl] .drawer{right:auto;left:12px;transform:translateX(calc(-100% - 20px));box-shadow:20px 0 50px -20px rgba(0,0,0,.6)}[dir=rtl] .drawer.open{transform:none}
 [dir=rtl] .lvls{right:auto;left:12px}[dir=rtl] .legend{left:auto;right:12px}[dir=rtl] .lrow,[dir=rtl] .mrow{text-align:right}
 [dir=rtl] #cv,[dir=rtl] .labels{direction:ltr}[dir=rtl] .lbl,[dir=rtl] .fb{direction:rtl}
-[dir=rtl]{font-family:'Noto Kufi Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
+[dir=rtl]{font-family:'Noto Kufi Arabic','SF Arabic','Noto Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}
 .lvls button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--mu);min-height:36px}
 .lvls button.on{background:rgba(45,212,191,.2);color:var(--teal)}.lvls ha-icon{--mdc-icon-size:16px}

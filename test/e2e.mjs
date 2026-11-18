@@ -23,6 +23,7 @@ const browser = await chromium.launch();
 async function open(query, viewport = { width: 1500, height: 2200 }) {
   const p = await browser.newPage({ viewport });
   p.errors = []; p.on('pageerror', e => p.errors.push(e.message));
+  p.outside = []; p.on('request', r => { if (!/^(http:\/\/127\.0\.0\.1|data:|blob:)/.test(r.url())) p.outside.push(r.url()); });
   await p.goto(base + query); await p.waitForFunction(() => window.ready); await p.waitForFunction(() => window.card._three, null, { timeout: 15000 });
   return p;
 }
@@ -184,6 +185,12 @@ try {
     return off === 'mdi:home-heart' && card.shadowRoot.querySelector('#modes .tile ha-icon')?.getAttribute('icon') === 'mdi:account-multiple';
   }));
   await p.evaluate(async c => { card.setConfig(JSON.parse(c)); await new Promise(r => setTimeout(r, 1200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); }, cfg0);
+  check('nothing is loaded from outside (fonts are bundled)', !p.outside.length, p.outside.join(' '));
+  check('a °F home: 72 °F is the colour of 22 °C (comfortable), not of a heat wave', await p.evaluate(async () => {
+    const h = window.hassObj, col = async (t, unit) => { card.hass = { ...h, config: { ...(h.config || {}), unit_system: { temperature: unit } }, states: { ...h.states, 'sensor.living_room_temperature': { ...h.states['sensor.living_room_temperature'], state: String(t) } } }; await new Promise(r => setTimeout(r, 200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); return card.shadowRoot.querySelector('#drawer .dstats b')?.style.color; };
+    const f = await col(71.6, '°F'), c = await col(22, '°C'), hot = await col(71.6, '°C'); card._select(null); card.hass = h;
+    return f && f === c && f !== hot;
+  }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -283,6 +290,12 @@ try {
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // security in the editor: gates and garage doors picked there, a gate's sensor and name kept
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('media server: the TV to play on is picked in the editor and saved by its name (without the session number)', await p.evaluate(() => {
+    const h = editor._hass; h.states['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', state: 'idle', attributes: { friendly_name: 'Living Room TV 3', supported_features: 512 } };
+    h.entities['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', platform: 'jellyfin' }; editor._R = null; editor._render();
+    const i = editor.querySelector('ha-form input[name=tv_player]'); if (!i) return false; i.value = 'media_player.living_room_tv_3'; i.dispatchEvent(new Event('change'));
+    return editor._config.panels.media_server?.jellyfin_tv?.session === 'Living Room TV';
+  }));
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
   await p.waitForTimeout(1500);
