@@ -79,6 +79,11 @@ The dashboard is generated for you until you take control of it:
 3. Click **Edit** at the left end of the bar under the card. The ⋮ at its right end only has move, copy and delete.
 4. The Sweet Home editor opens with three steps:
    1. **Rooms**: a floor plan with four modes. A setup guide walks you through them the first time.
+      **Room by room** (in the setup guide, or **+ Room by room** above the plan) goes through your Home Assistant
+      areas one at a time. For each, pick a shape (rectangle, L, T, U, cut corner, bay, curved, round), a size (a
+      starting size comes from the room's name) and where it goes (right of / below / left of / above a room already
+      on the map; a dashed preview shows the spot). **Add to the map** or **Skip**; **Add a room that isn't an area**
+      for anything else; **Finish** whenever you like.
       - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.

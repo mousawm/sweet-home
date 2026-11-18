@@ -164,6 +164,16 @@ const AR = {
   'Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.': 'اترك كل الحقول فارغة لتُكتشف تلقائيًا. وعند اختيار أحدها يظهر ما تختاره فقط.',
   'Name on this dashboard': 'الاسم في لوحة التحكم هذه', 'Icon (empty: picked from what it does)': 'الأيقونة (فارغ: تُختار حسب وظيفته)',
   Button: 'زر',
+  'Turn a quarter clockwise': 'تدوير ربع دورة مع عقارب الساعة',
+  // room by room
+  'Add my rooms one by one': 'أضف غرفي واحدة تلو الأخرى', '+ Room by room': '+ غرفة تلو الأخرى', 'Room by room': 'غرفة تلو الأخرى',
+  'Go through your Home Assistant areas one by one: pick the ones you want, give each a shape and a size, and place it next to the last one. Skip any, stop when you like.': 'مرّ على مناطق Home Assistant واحدة تلو الأخرى: اختر ما تريد، وحدد لكل غرفة شكلًا وحجمًا، وضعها بجانب السابقة. تخطَّ ما تشاء وتوقف متى أردت.',
+  '{0} added · {1} skipped · {2} to go': 'أُضيفت {0} · تُخطيت {1} · متبقية {2}', 'Name of the room': 'اسم الغرفة', 'Place it': 'ضعها',
+  'to the right of': 'يمين', below: 'أسفل', 'to the left of': 'يسار', above: 'أعلى', 'The first room goes at the top left of the plan.': 'توضع الغرفة الأولى في أعلى يسار المخطط.',
+  'Add to the map': 'أضف إلى الخريطة', Skip: 'تخطَّ', Finish: 'إنهاء', 'Add a room that isn’t an area': 'أضف غرفة ليست منطقة',
+  'That was the last area. Drag the rooms on the plan to fine-tune them, then add doors, devices and furniture.': 'كانت هذه آخر منطقة. اسحب الغرف على المخطط لضبطها، ثم أضف الأبواب والأجهزة والأثاث.',
+  'No areas left to add.': 'لا توجد مناطق متبقية للإضافة.', 'After adding, drag the room on the plan below to move it or its corners to resize it.': 'بعد الإضافة، اسحب الغرفة على المخطط بالأسفل لتحريكها أو اسحب زواياها لتغيير حجمها.', Room: 'غرفة',
+  'New room': 'غرفة جديدة',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

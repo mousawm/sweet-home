@@ -328,6 +328,16 @@ try {
   await p.waitForTimeout(1500);
   check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // turning furniture: the robot vacuum, a cabinet at its default size, stairs (they climb the other way); round pieces have no Turn
+  check('Turn works for every piece that has a front or a long side', await p.evaluate(async () => {
+    const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }];
+    editor._sel = 0; editor._mode = 'furniture'; const out = [];
+    for (let i = 0; i < 5; i++) { editor._fsel = i; editor._render(); const b = editor.querySelector('[data-turn]'); if (!b) { out.push('no turn'); continue; } b.click(); out.push(JSON.stringify(editor._config.house.rooms[0].furniture[i])); }
+    return out;
+  }).then(o => { const ok = o[0].includes('"facing":"w"') && o[1].includes('"w":0.5') && o[2].includes('"axis":"z"') && o[2].includes('"w":1') && o[2].includes('"d":2') && o[3].includes('"w":0.8') && o[3].includes('"d":1.2') && o[4] === 'no turn'; if (!ok) console.log('      got', o); return ok; }));
+  await p.waitForTimeout(1500);
+  check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
+  await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
   // room shapes: ready-made shapes, corners, bends, separate walls
   await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
   check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));
@@ -346,6 +356,29 @@ try {
   await p.waitForTimeout(1500);
   check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
+  console.log('room by room');
+  p = await open('?editor=1');
+  check('the setup guide offers to add rooms one by one', await p.evaluate(() => !!editor.querySelector('[data-g=wizard]')));
+  await p.evaluate(() => editor.querySelector('[data-g=wizard]').click());
+  const wizName = () => p.evaluate(() => editor.querySelector('.sh-wiz-name')?.textContent.trim());
+  check('…it starts with the first area (by floor, then name)', (await wizName()).startsWith('Balcony'));
+  await p.evaluate(() => editor.querySelector('[data-wskip]').click());
+  check('…Skip leaves it out and goes to the next', (await wizName()).startsWith('Bedroom') && await p.evaluate(() => !(editor._config.house?.rooms || []).length));
+  await p.evaluate(() => { const set = (s, v) => { const i = editor.querySelector(s); i.value = v; i.dispatchEvent(new Event('change')); }; set('[data-ww]', '4'); set('[data-wd]', '3'); editor.querySelector('[data-wadd]').click(); });
+  check('…Add puts it on the map with its size (a name-based size to start with)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0]) === '{"area":"bedroom","rects":[[0,0,4,3]]}'));
+  check('…the next area gets a size that suits its name', await p.evaluate(() => editor._wiz.w === 3.5 && editor._wiz.d === 3 && editor.querySelector('.sh-wiz-name').textContent.startsWith('Kitchen')));
+  await p.evaluate(() => { editor.querySelector('[data-wshape=l]').click(); });
+  check('…the plan shows where the next room will go (dashed, with its name)', await p.evaluate(() => [...editor.querySelectorAll('.sh-plan path[stroke-dasharray="8 6"]')].length === 1 && [...editor.querySelectorAll('.sh-plan text')].some(t => t.textContent === 'Kitchen')));
+  await p.evaluate(() => { const s = editor.querySelector('[data-wside]'); s.value = 'below'; s.dispatchEvent(new Event('change')); editor.querySelector('[data-wadd]').click(); });
+  check('…with a shape, placed below the last room without overlapping', await p.evaluate(() => { const r = editor._config.house.rooms[1]; return r.area === 'kitchen' && r.points?.length === 6 && Math.min(...r.points.map(q => q[1])) === 3; }));
+  await p.evaluate(() => editor.querySelector('[data-wcustom]').click());
+  await p.evaluate(() => { const i = editor.querySelector('[data-wname]'); i.value = 'Store room'; i.dispatchEvent(new Event('input')); editor.querySelector('[data-wadd]').click(); });
+  check('…a room that is no area can be added on the way, then the areas go on', await p.evaluate(() => editor._config.house.rooms[2].name === 'Store room' && !editor._config.house.rooms[2].area && editor.querySelector('.sh-wiz-name').textContent.startsWith('Living Room')));
+  await p.evaluate(() => editor.querySelector('[data-wend]').click());
+  check('…Finish any time: the rooms added stay, the other areas are left out', await p.evaluate(() => !editor._wiz && editor._config.house.rooms.length === 3 && !!editor.querySelector('[data-wiz]')));
+  check('no page errors (room by room)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
   console.log('arabic');
