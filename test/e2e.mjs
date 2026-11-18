@@ -253,6 +253,30 @@ try {
   await p.waitForTimeout(1500);
   check('…the card shows them: the iPad as before and the door sensor by its device name', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('Door Sensor'); }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // People: the phone panel found on the person's phone, then set up in the editor (name, more rows, buttons)
+  check('a person\'s phone panel is found on their phone', await p.evaluate(async () => { card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent; card._closeSheet(); return t.includes('Mousa’s iPad') && t.includes('30%'); }));
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Who shows at the top')); d.open = true; });
+  await p.evaluate(() => {
+    const f = [...editor.querySelectorAll('details.sh-panel details.sh-panel')].find(x => x.textContent.includes('Alex'));
+    const set = (n, v) => { const i = f.querySelector(`ha-form input[name=${n}]`); i.value = v; i.dispatchEvent(new Event('change')); };
+    set('name', 'Areen phone'); set('entities', 'sensor.water_flow'); set('buttons', 'script.movie_night');
+  });
+  check('…set up in the editor (Panels → People)', await p.evaluate(() => JSON.stringify(editor._config.people) === '{"person.alex":{"name":"Areen phone","entities":["sensor.water_flow"],"buttons":["script.movie_night"]}}'));
+  await p.waitForTimeout(1500);
+  check('…the phone panel shows the name, the extra row and a button that runs the script', await p.evaluate(async () => {
+    card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const sh = card.shadowRoot.getElementById('sheet'), t = sh.textContent;
+    const ok = t.includes('Areen phone') && t.includes('Water Flow') && t.includes('30%') && sh.querySelector('.phbtn[data-id="script.movie_night"]')?.dataset.act === 'run'; card._closeSheet(); return ok;
+  }));
+  await p.evaluate(() => {
+    const f = [...editor.querySelectorAll('details.sh-panel details.sh-panel')].find(x => x.textContent.includes('Alex'));
+    const i = f.querySelector('ha-form input[name=wifi]'); i.value = 'sensor.water_flow'; i.dispatchEvent(new Event('change'));
+  });
+  await p.waitForTimeout(1500);
+  check('…once one phone row is picked, only picked rows show (battery, place… are no longer found)', await p.evaluate(async () => {
+    card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent; card._closeSheet();
+    return t.includes('Wi-Fi') && !t.includes('Battery') && !t.includes('30%') && !t.includes('Location') && t.includes('Areen phone');
+  }));
+  await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // modes in the editor (Panels → Modes): picked there, written to the card's own `modes`, a mode's icon kept
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
   check('the editor lists the mode buttons', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=modes]')].some(i => i.value === 'input_boolean.guests,input_boolean.motion_stop,scene.good_night')));

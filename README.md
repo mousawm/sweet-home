@@ -132,6 +132,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `title` | Name in the 3D view header (default `My Home`) |
 | `weather` | Weather entity for the header chip and weather sheet (default: the first one) |
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
+| `people` | Each person's phone panel (long press their picture): `{person.x: {name, tracker, battery, charging, location, ringer, wifi, entities, buttons}}`. With none of `tracker`, `battery`, `charging`, `location`, `ringer`, `wifi` given they are all found on the person's phone (Companion app); once you give one, only the ones you give show; `entities` adds rows, `buttons` adds buttons (ring the phone, scripts…). Set it up in the card editor: Panels → People. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
 | `modes` | Mode buttons on the Home tab, under At a glance (`entity_id` or `{entity, name, icon}`): switches, helpers, lights and automations light up while on; scenes, scripts and buttons run with one tap. Pick them in the card editor: Panels → Modes. |
@@ -264,6 +265,8 @@ dashboard. Pieces from the automatic set can be moved once their room has its ow
   tank are on the **Water & Garden** tab (Panels → Irrigation and Water in the card editor).
 
 ### `panels`
+
+Panels with several fields (Security, Media, Irrigation, Energy's live power, and each person's phone panel) follow one rule: leave every field empty and they are found on their own; pick one and only what you pick shows, the empty fields stay empty.
 
 See [examples/panels.yaml](examples/panels.yaml) for every panel.
 
