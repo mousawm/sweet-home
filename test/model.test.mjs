@@ -1,6 +1,6 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
-import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls } from '../src/model.js';
+import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
 
@@ -125,10 +125,10 @@ test('a door on a slanted wall snaps onto it and cuts it', () => {
   const diag = m.walls.filter(w => w[0] !== w[2] && w[1] !== w[3]);
   assert.equal(diag.length, 2, 'the slanted wall has a gap');
 });
-test('locks: what they lock picks the icon (guessed, or kind / icon given)', () => {
+test('locks: a padlock, or what they lock when kind / icon is given', () => {
   const h = { ...hass, states: { ...hass.states, 'lock.front': st('locked', { friendly_name: 'Front Door' }), 'lock.x': st('locked', { friendly_name: 'Thing' }) } };
   const m = buildModel({ panels: { security: { locks: ['lock.front', 'lock.x', { entity: 'lock.x', kind: 'gate' }, { entity: 'lock.x', icon: 'mdi:star' }] } } }, h);
-  assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', 'mdi:door-closed'], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']]);
+  assert.deepEqual(m.E.locks.map(l => [l.kind, l.icon]), [['door', null], ['padlock', null], ['gate', 'mdi:gate'], ['padlock', 'mdi:star']], 'a padlock unless kind / icon is given');
 });
 test('open passages on every kind of wall: inner, outer, outdoor railings, slanted, curved, separate (straight and bent)', () => {
   const rooms = [{ name: 'Living', rects: [[0, 0, 6, 5]] }, { name: 'Balcony', outdoor: true, rects: [[6, 0, 9, 5]] }, { name: 'Bed', points: [[0, 5], [6, 5], [6, 9, 1], [0, 9]] }, { name: 'Den', points: [[9, 0], [12, 0], [12, 3], [10, 5], [9, 5]] }, { name: 'Garden', rects: [[0, 10, 12, 14]] }, { name: 'Up', level: 1, points: [[0, 0, -0.8], [4, 0], [4, 4], [0, 4]] }];
@@ -156,6 +156,24 @@ test('open passages on every kind of wall: inner, outer, outdoor railings, slant
   const o1 = roomOutline({ points: [[0, 0, -0.8], [4, 0], [4, 4], [0, 4]] }).reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1])], [1e9, 1e9]);
   const g1 = [up[0] - o1[0] + sh[0], up[1] - o1[1] + sh[1], up[2] - o1[0] + sh[0], up[3] - o1[1] + sh[1]];
   assert.ok(!wallBeside(m1.walls, g1, 1), 'a curved wall upstairs opens on its own floor');
+});
+test('a config with broken values: what can be used is kept, the rest left out, nothing throws', () => {
+  const junk = { names: 'oops', panels: { security: 'yes', water: { pumps: [null, 'switch.p'] } }, house: { rooms: [null, 'x', { name: 'A', rects: [['a', 1, 2, 3], [0, 0, 4, 4]], furniture: [null, 'lamp', { type: 'lamp', x: 1, z: 1 }], lights: [null, 42, 'light.living'] }, { name: 'B', level: 'two', points: [[5, 0], ['x', 1], [9, 0], [9, 4]] }],
+    doors: [null, { to: [1, 1] }, { from: [4, 1], to: [4, 2] }], lock_badges: [{ lock: 'lock.x' }, { lock: 'lock.y', x: 1, z: 1 }], openings: [[1, 2], 'x', [0, 0, 1, 0]], extra_walls: [null, { from: [1, 1] }, [1, 1, 2, 2]] } };
+  const c = cleanConfig(junk);
+  assert.equal(c.names, undefined); assert.equal(c.panels.security, undefined); assert.deepEqual(c.panels.water.pumps, ['switch.p']);
+  assert.deepEqual(c.house.rooms.map(r => r.name), ['A', 'B']); assert.deepEqual(c.house.rooms[0].rects, [[0, 0, 4, 4]]); assert.equal(c.house.rooms[0].furniture.length, 1); assert.deepEqual(c.house.rooms[0].lights, ['light.living']);
+  assert.equal(c.house.rooms[1].level, undefined); assert.equal(c.house.rooms[1].points.length, 3);
+  assert.equal(c.house.doors.length, 1); assert.equal(c.house.lock_badges.length, 1); assert.deepEqual(c.house.openings, [[0, 0, 1, 0]]); assert.equal(c.house.extra_walls.length, 1);
+  const m = buildModel(junk, hass);
+  assert.equal(m.rooms.length, 2); assert.equal(m.doors.length, 1);
+});
+test('areas without devices still become rooms (a new home), and Security off hides its cameras', () => {
+  const h = { ...hass, states: { 'camera.porch': st('idle') }, entities: {} };
+  assert.equal(buildModel({}, h).rooms.length, 4, 'every area while none has devices');
+  assert.equal(buildModel({}, hass).rooms.length, 4, 'with devices: the areas that have them');
+  assert.equal(buildModel({ panels: { security: false } }, h).E.cameras.length, 0);
+  assert.equal(buildModel({}, h).E.cameras.length, 1);
 });
 test('furniture keeps its place in the config and its entities', () => {
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], furniture: [{ type: 'lamp', x: 1, z: 1, entity: 'light.living' }, { type: 'bed', x: 2, z: 2, entities: ['light.bed', 'light.living'] }] }] } }, hass);

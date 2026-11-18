@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr } from './model.js';
+import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr, cleanConfig } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
@@ -253,7 +253,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   setConfig(config) {
     const prev = this._cfgJSON;
-    this._config = config || {}; this._cfgJSON = JSON.stringify(this._config);
+    this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
     if (this._built && prev !== this._cfgJSON) this._rebuild();
   }
   getCardSize() { return 20; }
@@ -365,11 +365,24 @@ export class SweetHomeCard extends HTMLElement {
     return `${x.toFixed(d)}${u ? `<small>${esc(u)}</small>` : ''}`;
   }
   // an entrance (gate, garage door…): open / closed / moving / bad (unavailable) / unknown (a relay without a sensor)
+  // Sensors: a contact sensor (on = open), a cover or lock, or a text sensor such as Frigate's state classification
+  // ("open" / "closed" / "partially open" …). The first sensor with a clear reading wins; with sensors but no clear
+  // reading it is 'unsure' (the tile shows what the sensor says).
   entState(g) {
-    const src = g.sensor || (g.cover || g.id.startsWith('lock.') ? g.id : null); if (!src) return BAD.includes(this.v(g.id)) ? 'bad' : 'unknown';
-    const v = this.v(src); if (BAD.includes(v)) return 'bad';
-    if (v === 'opening' || v === 'closing') return 'moving';
-    return ['open', 'on', 'unlocked'].includes(v) ? 'open' : 'closed';
+    const srcs = g.sensors?.length ? g.sensors : g.sensor ? [g.sensor] : g.cover || g.id.startsWith('lock.') ? [g.id] : [];
+    if (!srcs.length) return BAD.includes(this.v(g.id)) ? 'bad' : 'unknown';
+    let seen = false;
+    for (const src of srcs) {
+      const raw = this.v(src); if (raw == null || BAD.includes(raw)) continue; seen = true;
+      const v = String(raw).toLowerCase().trim(), d = src.split('.')[0];
+      if (g.openWords?.includes(v)) return 'open';
+      if (g.closedWords?.includes(v)) return 'closed';
+      if (/^(opening|closing|moving)$/.test(v)) return 'moving';
+      if (d === 'binary_sensor' || d === 'input_boolean' || d === 'switch') return v === 'on' ? 'open' : 'closed';
+      if (/^(open|opened|on|unlocked|ajar|partially[ _]?open|half[ _]?open)$/.test(v)) return 'open';
+      if (/^(closed|close|shut|off|locked)$/.test(v)) return 'closed';
+    }
+    return seen ? 'unsure' : 'bad';
   }
   on(id) { const v = this.v(id); return v === 'on' || v === 'open' || v === 'playing' || v === 'home'; }
   ok(id) { const v = this.v(id); return v !== undefined && !BAD.includes(v); }
@@ -548,7 +561,7 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('tabs'), deps: glanceEnts, render: () => this._rTabs() },
       { el: $('glance'), deps: glanceEnts, render: () => this._rGlance() },
       { el: $('hdr'), deps: all(E.weather, E.persons, E.alarm, E.doors.map(d => d.id), roomEnts, E.energy.grid, E.energy.solar, E.face, E.car.parking, E.locks.map(l => l.id)), render: () => this._rHeader() },
-      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, g.sensor])), render: () => this._rSecurity() },
+      { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, ...(g.sensors || [])])), render: () => this._rSecurity() },
       { el: $('climate'), deps: all(acEnts, roomEnts), render: () => this._rClimate() },
       { el: $('modes'), deps: all(E.modes.map(m => m[0])), render: () => this._rModes() },
       { el: $('drawer'), deps: all(roomEnts, acEnts, E.media.tv), render: () => this._rDrawer() },
@@ -565,11 +578,12 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('devices'), deps: all(E.devices.map(d => [d.bat, d.chg, d.trk, d.chgState]), E.persons), render: () => this._rDevices() },
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
     ];
+    const offP = k => this._config?.panels?.[k] === false; // a panel switched off in the card editor
     const off = {
-      security: !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: !E.cameras.length, climate: !MODEL.has.climate,
+      security: offP('security') || !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: offP('security') || offP('cameras') || !E.cameras.length, climate: offP('climate') || !MODEL.has.climate,
       modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
-      water: !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
-      mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: !E.devices.length,
+      water: offP('water') || !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: offP('irrigation') || !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
+      mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: offP('devices') || !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
@@ -713,7 +727,7 @@ export class SweetHomeCard extends HTMLElement {
       const inside = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
       const avg = inside.length ? inside.reduce((a, b) => a + b, 0) / inside.length : null;
       const w = this.s(E.weather);
-      const out = w ? `<div class="dsec">Outside</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}<b style="color:${rgb(tempRGB(w.attributes.temperature))}">${Number(w.attributes.temperature).toFixed(1)}°</b></div>` : '';
+      const out = w ? `<div class="dsec">Outside</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}${isFinite(parseFloat(w.attributes.temperature)) ? `<b style="color:${rgb(tempRGB(Number(w.attributes.temperature)))}">${Number(w.attributes.temperature).toFixed(1)}°</b>` : '<b>—</b>'}</div>` : '';
       html = head('mdi:home-thermometer', 'Temperatures', avg != null ? `Average ${avg.toFixed(1)}° · ${Math.min(...inside).toFixed(1)}° – ${Math.max(...inside).toFixed(1)}°` : 'No readings')
         + `<div class="dsec">Rooms</div>${rows}${out}`;
     }
@@ -1443,7 +1457,7 @@ export class SweetHomeCard extends HTMLElement {
   // first-use hint on the 3D view; gone for good after the first room is opened or when closed
   _hintShow() {
     let seen = false; try { seen = localStorage.getItem('sweet-home-hint') === '1'; } catch (e) { /* storage blocked */ }
-    const el = this.$('hint'); if (!el || seen || this._config?.hint === false) return;
+    const el = this.$('hint'); if (!el || seen || this._config?.hint === false || (MODEL && !MODEL.gltf && !ROOMS.length)) return; // no rooms: nothing to tap yet
     const pieces = FURN.some(f => f.entities?.length);
     el.innerHTML = `${ic('mdi:gesture-tap')}<span>${tr("Tap a room to see and control what's in it.")}${pieces ? ' ' + tr('Furniture with a dot can be tapped too.') : ''} ${tr('Long press any row for details.')}</span><button class="ibtn" data-act="hintx" aria-label="${tr('Close hint')}">${ic('mdi:close')}</button>`;
     el.classList.add('on');
@@ -1463,7 +1477,7 @@ export class SweetHomeCard extends HTMLElement {
   _rHeader() {
     const w = this.s(E.weather);
     const wx = w ? `<div class="chip big" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}
-      <div><b>${Math.round(w.attributes.temperature)}°</b><span>${esc(wxName(w.state))} · ${w.attributes.humidity ?? '—'}%</span></div></div>` : '';
+      <div><b>${isFinite(parseFloat(w.attributes.temperature)) ? Math.round(w.attributes.temperature) + '°' : '—'}</b><span>${esc(wxName(w.state))}${isFinite(parseFloat(w.attributes.humidity)) ? ` · ${Math.round(w.attributes.humidity)}%` : ''}</span></div></div>` : '';
     const persons = E.persons.map(p => {
       const st = this.s(p); if (!st) return '';
       const home = st.state === 'home'; const pic = st.attributes.entity_picture;
@@ -1504,8 +1518,10 @@ export class SweetHomeCard extends HTMLElement {
     }).join('');
     // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
     const gate = E.entrances.filter(g => this.s(g.id)).map(g => {
-      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' ? 'good' : st === 'moving' ? 'warn' : st === 'open' ? 'bad' : '';
-      const label = { open: 'Open', closed: 'Closed', moving: pretty(this.v(g.id)), bad: 'Unavailable', unknown: 'Tap to open' }[st];
+      // a relay gate without an open sensor can't tell: it shows as closed (green) until a sensor says otherwise
+      const st = this.entState(g), cls = st === 'bad' ? 'na' : st === 'closed' || st === 'unknown' ? 'good' : st === 'moving' || st === 'unsure' ? 'warn' : 'bad';
+      const said = this.v(g.sensors?.find(x => this.ok(x)) || g.id);
+      const label = { open: 'Open', closed: 'Closed', moving: pretty(said), bad: 'Unavailable', unknown: 'Closed', unsure: pretty(said) }[st];
       return `<button class="lock ${cls}" data-act="entrance" data-id="${g.id}"${g.sensor ? ` data-id2="${g.sensor}"` : ''}>
         <div class="lk-ic">${ic(st === 'open' || st === 'moving' ? g.icons[1] : g.icons[0])}</div>
         <b>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</b><span>${esc(tr(label))}</span></button>`;
@@ -1552,7 +1568,7 @@ export class SweetHomeCard extends HTMLElement {
     // each tile opens its tab and scrolls to the card it summarises (data-to = that card's id)
     const tile = (tab, icon, color, label, value, sub, to = tab) => `<button class="gl" data-act="tab" data-tab="${tab}" data-to="${to}" style="--c:${color}">
       <span class="gi">${ic(icon)}</span><div><span>${tr(tc(label))}</span><b>${value}</b><em>${sub}</em></div></button>`;
-    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>${tr('At a glance')}</h3></div><div class="glance">
+    const tiles = `
       ${this._secOff('security') ? '' : tile('security', al[1], al[2], 'Security', tr(al[0]), open ? tr('{0} open / unlocked', open) : esc(tr('All closed & locked')))}
       ${this._secOff('climate') ? '' : tile('climate', 'mdi:home-thermometer', '#22d3ee', 'Climate', avg != null ? avg.toFixed(1) + '°' : '—', acOn ? tr('{0} AC running', acOn) : tr('All ACs off'))}
       ${this._secOff('energy') ? '' : tile('energy', 'mdi:lightning-bolt', '#fbbf24', 'Power now', fmtW(home), tr('Today {0}', this._eKwh('d', 1)))}
@@ -1560,8 +1576,9 @@ export class SweetHomeCard extends HTMLElement {
       ${this._secOff('car') ? '' : tile('energy', 'mdi:car-electric', '#34d399', 'Car', ch ? tr('Charging') : esc(this.v(E.car.parking) || '—'), ch ? fmtW(this.n(E.car.power)) : tr('Charger idle'), 'car')}
       ${!E.cameras.length ? '' : tile('security', 'mdi:cctv', det ? '#fb7185' : '#94a3b8', 'Cameras', det ? (det > 1 ? tr('{0} persons', det) : tr('1 person')) : tr('All quiet'), tr('{0} cameras live', E.cameras.length), 'cams')}
       ${!tv ? '' : tile('media', 'mdi:television-play', '#f472b6', 'TV', esc(tr(pretty(tv?.state))), esc(tv?.attributes.app_name || tc(tv?.attributes.friendly_name || '')))}
-      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? tr('Online') : tr('Offline'), 'lab')}
-    </div>`;
+      ${!E.lab.cpu ? '' : tile('system', 'mdi:server', '#a78bfa', 'Home Lab', cpu != null ? `CPU ${cpu.toFixed(0)}%` : '—', this.on(E.lab.status) ? tr('Online') : tr('Offline'), 'lab')}`;
+    // nothing to sum up yet (a new home): say what fills this card instead of an empty box
+    return `<div class="ch">${ic('mdi:view-dashboard-outline')}<h3>${tr('At a glance')}</h3></div>${tiles.trim() ? `<div class="glance">${tiles}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Your alarm, locks, temperatures, power, cameras and TV show up here once Home Assistant has them.')}</div>`}`;
   }
 
   _acControls(id) {
@@ -2649,6 +2666,10 @@ export class SweetHomeCard extends HTMLElement {
     this._three = scene;
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
+    if (!MODEL.gltf && !ROOMS.length) { // no rooms yet: say how to get them instead of an empty 3D view
+      const L = this.$('loading'); L.classList.remove('gone'); L.classList.add('noroom'); this.$('hint')?.classList.add('gone');
+      L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
+    }
     this._renderLegend();
     this._three.sync();
   }
@@ -4272,8 +4293,9 @@ main{scroll-margin-top:84px}
 .dot.amber{background:var(--amber);box-shadow:0 0 8px var(--amber)}.dot.gray{background:#475569}.dot.teal{background:var(--teal)}.dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}.dot.red{background:var(--rose)}
 .pulse{animation:pulse 1.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(45,212,191,.7)}100%{box-shadow:0 0 0 10px rgba(45,212,191,0)}}
+.loading.noroom{padding:24px;text-align:center;gap:8px}.loading.noroom ha-icon{--mdc-icon-size:40px;color:var(--teal)}.loading.noroom b{color:var(--tx);font-size:16px}.loading.noroom span{max-width:420px;line-height:1.5}
 .loading{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;color:var(--mu);font-size:13px;transition:opacity .6s}
-.loading.gone{opacity:0;pointer-events:none}
+.loading.gone,.hint.gone{opacity:0;pointer-events:none}
 .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);animation:spin 1s linear infinite}
 .drawer{position:absolute;top:12px;right:12px;bottom:12px;width:290px;max-width:calc(100% - 24px);padding:16px;border-radius:18px;background:rgba(10,15,30,.82);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transform:translateX(calc(100% + 20px));transition:transform .35s cubic-bezier(.2,.8,.2,1);overflow:auto;box-shadow:-20px 0 50px -20px rgba(0,0,0,.6)}
 .drawer.open{transform:none}
