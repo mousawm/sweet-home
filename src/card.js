@@ -1708,21 +1708,24 @@ export class SweetHomeCard extends HTMLElement {
     if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(tr(pretty(this.v(r.media))))}</b></div>`);
     // furniture with entities: the piece tapped in 3D comes first, highlighted
     // (an entity that already has its own row above — a light, a door, the TV… — is not repeated under Furniture / Other)
-    const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum].filter(Boolean));
+    const shown = new Set([...(r.lights || []), ...(r.locks || []), ...(r.doors || []), ...(r.motion || []), ...(r.plugs || []).map(p => p.id), r.climate, r.fan, r.media, r.temp, r.hum, r.count].filter(Boolean));
     const pieces = FURN.filter(f => f.room === r.id && f.entities?.length);
     const focus = pieces.find(f => f.idx === this._fsel);
     const carVal = (f, id) => (f.type === 'car' ? (this.carParked(id, f.parked_state) ? { val: tr('Parked'), on: true, icon: 'mdi:car' } : { val: tr('Away'), icon: 'mdi:car-off' }) : {});
     const piece = (f, ids, cls = '') => `<div class="fgrp ${cls}"><div class="fhd">${ic(furnIcon(f))}<span>${esc(furnName(f))}</span></div>${ids.map(id => this._entRow(id, { name: r.names?.[id], ...carVal(f, id) })).join('')}</div>`;
     const furn = pieces.filter(f => f !== focus).map(f => [f, f.entities.filter(id => !shown.has(id))]).filter(([, ids]) => ids.length).map(([f, ids]) => piece(f, ids));
     const inFurn = new Set(pieces.flatMap(f => f.entities));
-    const other = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)).map(e => this._entRow(e.id, { ...e, name: e.name || r.names?.[e.id] }));
+    // the rest: sensors (people counts, illuminance, power…) go with the room's other sensors, everything else under Other
+    const rest = (r.entities || []).filter(e => !shown.has(e.id) && !inFurn.has(e.id)), isSensor = e => /^(binary_)?sensor\./.test(e.id);
+    const row = e => this._entRow(e.id, { ...e, name: e.name || r.names?.[e.id] });
+    const sensors = rest.filter(isSensor).map(row), other = rest.filter(e => !isSensor(e)).map(row);
     // a long list shows its first rows and a "Show more" button
     const fold = (key, rows) => {
       if (rows.length <= 6 || this._dOpen?.has(r.id + key)) return rows.join('') + (rows.length > 6 ? `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-up')}${tr('Show less')}</button>` : '');
       return rows.slice(0, 5).join('') + `<button class="dfold" data-act="dfold" data-k="${r.id + key}">${ic('mdi:chevron-down')}${tr('Show {0} more', rows.length - 5)}</button>`;
     };
     const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${tr(title)}</div>${fold(key, rows)}` : '');
-    const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length;
+    const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length && !sensors.length;
     return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin && this._editing ? `<button class="ibtn edit-only" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
       ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
@@ -1735,7 +1738,7 @@ export class SweetHomeCard extends HTMLElement {
       ${sec('Plugs', 'p', plugs)}
       ${sec('Furniture', 'f', furn)}
       ${sec('Devices', 'v', devs)}
-      ${sec('Sensors', 's', [...motion, ...extra])}
+      ${sec('Sensors', 's', [...motion, ...extra, ...sensors])}
       ${sec('Other', 'o', other)}
       ${empty ? `<div class="empty">${ic('mdi:information-outline')} ${tr('No devices mapped to this room yet. Link it to an area, or add entities in the card editor (Rooms → Entities).')}</div>` : ''}`;
   }

@@ -39,6 +39,12 @@ try {
   check('a linked piece opens its room with the piece on top', await p.evaluate(() => card._sel === 'kitchen' && card.shadowRoot.querySelector('.fgrp.focus .fhd')?.textContent.includes('Fridge')));
   await p.evaluate(() => card._select('living_room'));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=run]').click());
+  check('a room\'s other sensors (a people count) are under Sensors, scripts stay under Other', await p.evaluate(async () => {
+    const h = window.hassObj; h.states['sensor.living_people'] = { entity_id: 'sensor.living_people', state: '2', attributes: { friendly_name: 'People Detected' } }; h.entities['sensor.living_people'] = { entity_id: 'sensor.living_people', area_id: 'living_room' };
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; const c = JSON.parse(JSON.stringify(card._config)); c.house.rooms.find(r => r.area === 'living_room').entities = ['script.movie_night', 'cover.living_room_blinds', 'sensor.living_people']; card.setConfig(c); await new Promise(r => setTimeout(r, 800)); card._select('living_room'); await new Promise(r => setTimeout(r, 200));
+    const secOf = id => { let n = card.shadowRoot.querySelector(`#drawer [data-id="${id}"]`); while (n && !n.classList?.contains('dsec')) n = n.previousElementSibling || n.parentElement; return n?.textContent; };
+    return secOf('sensor.living_people') === 'Sensors' && secOf('script.movie_night') === 'Other';
+  }));
   check('scripts run from the popup', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'homeassistant' && c[2].entity_id === 'script.movie_night')));
   check('rename and move are hidden outside edit mode', await p.evaluate(() => !card.shadowRoot.querySelector('#drawer [data-act=names]') && !card.shadowRoot.querySelector('[data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display === 'none'));
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(100);
