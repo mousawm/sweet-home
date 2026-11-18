@@ -99,7 +99,7 @@ The dashboard is generated for you until you take control of it:
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
-        Drag any of them to move it. On a slanted wall, the door follows the wall.
+        Drag any of them to move it. On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
       so you can line them up. Areas on a Home Assistant floor are added to that floor.

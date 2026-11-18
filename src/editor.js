@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls } from './model.js';
+import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -593,7 +593,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const rooms = this._rooms.map((r, i) => ({ id: roomIdOf(r, i, this._hass), ...shapeOf(r), outdoor: r.outdoor ?? /garden|yard|patio|terrace|balcony|outside|outdoor/i.test(this._roomName(r, i)), lv: this._lvOf(r) })).filter(r => r.rects.length && r.lv === this._lvl);
     const doorSegs = arr(H.doors).filter(d => d.from && d.to && this._onLv(d)).map(d => this._snapSeg([...d.from, ...d.to]));
     const wins = Array.isArray(H.windows) ? H.windows.filter(w => this._onLv(w)) : null;
-    try { return wallsFromRooms(rooms, { ...H, doorways: H.doorways ?? 'none', openings: [...arr(H.openings).filter(o => this._onLv(o)), ...doorSegs], windows: wins ? (wins.length ? wins : 'none') : H.windows }); } catch (e) { return []; }
+    try { const gaps = [...arr(H.openings).filter(o => this._onLv(o)).map(o => o.slice(0, 4)), ...doorSegs.map(q => q.slice(0, 4))]; return cutNear(wallsFromRooms(rooms, { ...H, doorways: H.doorways ?? 'none', openings: gaps, windows: wins ? (wins.length ? wins : 'none') : H.windows }), gaps); } catch (e) { return []; }
   }
   _handles() {
     const r = this._rooms[this._sel]; if (!r) return [];
@@ -718,22 +718,28 @@ class SweetHomeCardEditor extends HTMLElement {
             this._dsel = item; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]);
             if (item.k === 'badge') { o.x = r2(N(orig.x, 0) + dx); o.z = r2(N(orig.z, 0) + dz); }
             else if (item.k === 'door') { const q = this._snapSeg([orig.from[0] + dx, orig.from[1] + dz, orig.to[0] + dx, orig.to[1] + dz]).map(r2); o.from = [q[0], q[1]]; o.to = [q[2], q[3]]; }
-            else { const q = this._snapSeg([orig[0] + dx, orig[1] + dz, orig[2] + dx, orig[3] + dz]).map(r2); o[0] = q[0]; o[1] = q[1]; o[2] = q[2]; o[3] = q[3]; }
+            else {
+              const t = [orig[0] + dx, orig[1] + dz, orig[2] + dx, orig[3] + dz], na = this._nearWall([t[0], t[1]]), nb = this._nearWall([t[2], t[3]]);
+              // on a bent wall each end stays on the arc; else the whole segment goes onto its wall line
+              const q = na && nb && (this._bentPiece(na.seg) || this._bentPiece(nb.seg)) ? [...na.pt, ...nb.pt] : this._snapSeg(t).map(r2);
+              o[0] = q[0]; o[1] = q[1]; o[2] = q[2]; o[3] = q[3];
+            }
           },
           end: () => { this._dsel = item; return JSON.stringify(o) !== start; },
         };
       }
       if (this._dtool === 'badge') return { end: (moved, m) => { const b = { lock: '', x: snap(m[0]), z: snap(m[1]) }; this._setLv(b, this._lvl); (H.lock_badges ||= []).push(b); this._dsel = { k: 'badge', i: H.lock_badges.length - 1 }; return true; } };
-      const a = [snap(p[0]), snap(p[1])], sl = this._slantAt(p);
+      const a = [snap(p[0]), snap(p[1])], nw = this._nearWall(p), bent = nw && this._bentPiece(nw.seg), sl = bent ? null : this._slantAt(p);
       const seg = m => {
+        if (bent) { const e = this._nearWall(m, 1.5); return [...nw.pt, ...(e ? e.pt : [r2(m[0]), r2(m[1])])]; } // on a bent wall: from point to point of the arc
         if (sl) { const on = v => { const t = Math.round((v[0] * sl.dx + v[1] * sl.dz) / 0.05) * 0.05; return [r2(-sl.c * sl.dz + t * sl.dx), r2(sl.c * sl.dx + t * sl.dz)]; }; return [...on(p), ...on(m)]; } // along a slanted wall
         const b = [snap(m[0]), snap(m[1])]; return Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? [a[0], a[1], b[0], a[1]] : [a[0], a[1], a[0], b[1]];
       };
       return {
-        move: m => { this._ghost = this._snapSeg(seg(m)); },
+        move: m => { this._ghost = bent ? seg(m) : this._snapSeg(seg(m)); },
         end: (moved, m) => {
           if (!moved) { this._dsel = null; return false; }
-          const s = this._snapSeg(seg(m)); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
+          const s = bent ? seg(m) : this._snapSeg(seg(m)); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
           if (this._dtool === 'door') { const d = { from: [s[0], s[1]], to: [s[2], s[3]] }; this._setLv(d, this._lvl); (H.doors ||= []).push(d); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
           else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; this._setLv(s, this._lvl); H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
           else { this._setLv(s, this._lvl); (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
@@ -769,6 +775,18 @@ class SweetHomeCardEditor extends HTMLElement {
     const l = best[1], on = t => [r2(-l.c * l.dz + t * l.dx), r2(l.c * l.dx + t * l.dz)];
     return [...on(q[0] * l.dx + q[1] * l.dz), ...on(q[2] * l.dx + q[3] * l.dz), ...q.slice(4)];
   }
+  // the nearest point on a wall of this floor within `max` metres: {pt, seg}, or null
+  _nearWall(p, max = 0.45) {
+    let best = null;
+    for (const s of this._wallSegsHere()) {
+      const dx = s[2] - s[0], dz = s[3] - s[1], L = dx * dx + dz * dz; if (!L) continue;
+      const t = Math.max(0, Math.min(1, ((p[0] - s[0]) * dx + (p[1] - s[1]) * dz) / L)), q = [s[0] + t * dx, s[1] + t * dz], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d <= max && (!best || d < best.d)) best = { d, pt: [r2(q[0]), r2(q[1])], seg: s };
+    }
+    return best;
+  }
+  // a bent wall is many short pieces: is this one of them?
+  _bentPiece(s) { return Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.6 && s[0] !== s[2] && s[1] !== s[3]; }
   // a slanted wall under the press (doors and windows are drawn along it), or null
   _slantAt(p) {
     for (const s of this._wallSegsHere()) {

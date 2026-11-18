@@ -384,6 +384,30 @@ export function cutWalls(walls, gaps) {
   return out;
 }
 
+// Cuts gaps [x1, z1, x2, z2, level] out of the wall pieces that run along them, also when the wall is bent (cut into
+// short pieces) and the gap is a straight line between two points on it: a piece within `tol` of the gap and running
+// its way (within 60°) loses the stretch that lies beside the gap. A gap without a level cuts every floor.
+export function cutNear(walls, gaps, tol = 0.35) {
+  let out = walls;
+  for (const q of gaps) {
+    const gx = q[2] - q[0], gz = q[3] - q[1], gl = Math.hypot(gx, gz); if (gl < 0.05) continue;
+    const ux = gx / gl, uz = gz / gl, next = [];
+    for (const w of out) {
+      if (q[4] != null && w[5] != null && w[5] !== q[4]) { next.push(w); continue; }
+      const [x1, z1, x2, z2] = w, L = Math.hypot(x2 - x1, z2 - z1);
+      const ta = (x1 - q[0]) * ux + (z1 - q[1]) * uz, tb = (x2 - q[0]) * ux + (z2 - q[1]) * uz;
+      const da = Math.abs(-(x1 - q[0]) * uz + (z1 - q[1]) * ux), db = Math.abs(-(x2 - q[0]) * uz + (z2 - q[1]) * ux);
+      if (L < 1e-6 || Math.max(da, db) > tol || Math.abs(tb - ta) < L * 0.5 || Math.max(ta, tb) <= 1e-3 || Math.min(ta, tb) >= gl - 1e-3) { next.push(w); continue; }
+      const at = t => (t - ta) / (tb - ta), pt = s => [rnd4(x1 + (x2 - x1) * s), rnd4(z1 + (z2 - z1) * s)];
+      const s0 = at(0), s1 = at(gl), lo = Math.min(s0, s1), hi = Math.max(s0, s1);
+      if (lo > 1e-3) next.push([...pt(0), ...pt(Math.min(1, lo)), ...w.slice(4)]);
+      if (hi < 1 - 1e-3) next.push([...pt(Math.max(0, hi)), ...pt(1), ...w.slice(4)]);
+    }
+    out = next.filter(w => Math.hypot(w[2] - w[0], w[3] - w[1]) > 0.02);
+  }
+  return out;
+}
+
 // separate walls (`extra_walls`): {from, to, type: wall | half | glass, height, bow, level} or [x1, z1, x2, z2]; a bent
 // one is cut into short straight pieces. → [x1, z1, x2, z2, type, level, {h}] with type w / half / glass
 export function extraWalls(list) {
@@ -538,6 +562,8 @@ export function buildModel(cfg = {}, hass) {
   }
   // separate walls stand on top of these; doors and openings cut them too
   walls.push(...cutWalls(extra, gaps));
+  // …and on bent walls (room outlines or separate walls), where a gap is a straight line between two points of the arc
+  walls = cutNear(walls, gaps);
 
   const doorInfo = {};
   for (const d of arr(house.door_info)) if (d.entity) doorInfo[d.entity] = { name: d.name || R.name(d.entity), timeout: d.timeout };
