@@ -91,7 +91,7 @@ const PIECE_FIELDS = {
   bed: [['width', num()], ['length', num()], ['head', sel(DIR_OPTS)]], plant: [['size', num(0, 0.1, 0.2, 3, '×')]],
   tv: [['w', num()], ['h', num()], ['y', num()], ['facing', sel(DIR_OPTS)]], lamp: [['h', num()], ['size', num(0, 0.1, 0.3, 3, '×')]],
   fan: [['radius', num()], ['y', num()]], marker: [['y', num()]], blinds: [['y', num()], ['h', num()]],
-  car: [['facing', sel(DIR_OPTS)], ['length', num()], ['width', num()]], tree: [['size', num(0, 0.1, 0.3, 4, '×')]], hedge: [['h', num()]], sprinkler: [['radius', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
+  car: [['facing', sel(DIR_OPTS)], ['length', num()], ['width', num()]], vacuum: [['facing', sel(DIR_OPTS)]], tree: [['size', num(0, 0.1, 0.3, 4, '×')]], hedge: [['h', num()]], sprinkler: [['radius', num()]], cylinder: [['radius', num()], ['h', num()], ['y', num()]], ball: [['radius', num()], ['y', num()]],
   stairs: [['axis', sel([['x', 'Along x'], ['z', 'Along z']])], ['mode', sel([['up', 'Up'], ['down', 'Down'], ['split', 'Split']])], ['steps', num(0, 1, 2, 30, '')]],
 };
 const ENTITY_FILTER = { lamp: { domain: 'light' }, fan: { domain: 'fan' }, tv: { domain: 'media_player' }, blinds: { domain: 'cover' }, vacuum: { domain: 'vacuum' },
@@ -121,7 +121,7 @@ function footprint(f) {
   if (t === 'lamp') return circ(0.2 * N(f.size, 1));
   if (t === 'fan') return circ(N(f.radius, 0.6));
   if (t === 'marker') return circ(0.14);
-  if (t === 'vacuum') return { rect: [x - 0.2, z - 0.1, x + 0.2, z + 0.42] };
+  if (t === 'vacuum') return { rect: { s: [x - 0.2, z - 0.1, x + 0.2, z + 0.42], n: [x - 0.2, z - 0.42, x + 0.2, z + 0.1], e: [x - 0.1, z - 0.2, x + 0.42, z + 0.2], w: [x - 0.42, z - 0.2, x + 0.1, z + 0.2] }[f.facing || 's'] || [x - 0.2, z - 0.1, x + 0.2, z + 0.42] }; // dock + robot in front of it
   if (t === 'tree') return circ(0.8 * N(f.size, 1));
   if (t === 'sprinkler') return circ(0.15);
   if (t === 'car') { const L = N(f.length, 4.3), W = N(f.width, 1.8), ew = ['e', 'w'].includes(f.facing); return { rect: ew ? [x - L / 2, z - W / 2, x + L / 2, z + W / 2] : [x - W / 2, z - L / 2, x + W / 2, z + L / 2] }; }
@@ -159,13 +159,21 @@ function sizePiece(f, x1, z1, x2, z2) {
   else { f.w = w; f.d = d; }
 }
 // turn a piece a quarter to the right
+// round pieces look the same whichever way they face: there is nothing to turn
+const ROUND = ['lamp', 'fan', 'marker', 'plant', 'tree', 'sprinkler', 'cylinder', 'ball'];
+// a quarter turn clockwise: the side a piece faces moves on (n → e → s → w), its footprint swaps width and depth
 function turnPiece(f) {
-  const next = v => DIRS[(DIRS.indexOf(v || 'n') + 1) % 4];
-  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && f.type === 'bed') || (k === 'back' && f.type === 'sofa') || (k === 'face' && f.type === 'chair') || (k === 'facing' && (f.type === 'tv' || f.type === 'car'))) f[k] = next(f[k]);
+  const t = String(f.type || 'box').toLowerCase(); if (ROUND.includes(t)) return false;
+  const next = (v, d = 'n') => DIRS[(DIRS.indexOf(v || d) + 1) % 4];
+  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && t === 'bed') || (k === 'back' && t === 'sofa') || (k === 'face' && t === 'chair') || (k === 'facing' && ['tv', 'car', 'vacuum'].includes(t))) f[k] = next(f[k], t === 'vacuum' ? 's' : 'n');
+  if (t === 'stairs') f.axis = (f.axis || 'x') === 'x' ? 'z' : 'x'; // the flight climbs the other way too
   if (f.from && f.to) {
     const [a, b, c, d] = footprint(f).rect, cx = (a + c) / 2, cz = (b + d) / 2, hw = (c - a) / 2, hd = (d - b) / 2;
     f.from = [r2(cx - hd), r2(cz - hw)]; f.to = [r2(cx + hd), r2(cz + hw)];
-  } else if (['box', 'table', 'rug', 'block', 'sofa'].includes(f.type) && (f.w != null || f.d != null)) { const w = f.w; f.w = f.d; f.d = w; }
+  } else if (['box', 'table', 'rug', 'block', 'sofa', 'stairs', 'counter', 'hedge', 'pool'].includes(t)) {
+    const [a, b, c, d] = footprint(f).rect; f.w = r2(d - b); f.d = r2(c - a); // its size as drawn, also when it was the default size
+  }
+  return true;
 }
 const segDist = ([px, pz], [x1, z1, x2, z2]) => {
   const dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz; let t = L ? ((px - x1) * dx + (pz - z1) * dz) / L : 0; t = Math.max(0, Math.min(1, t));
@@ -555,8 +563,8 @@ class SweetHomeCardEditor extends HTMLElement {
       }
       if (fur) {
         const b = fpBox(fp), dir = f.head || f.back || f.face || f.facing;
-        if ((dir || f.type === 'car') && ['bed', 'sofa', 'chair', 'tv', 'car'].includes(f.type)) { // a tick on the side the piece's back / head / screen / front is on
-          const [cx, cz] = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], e = { n: [cx, b[1]], s: [cx, b[3]], e: [b[2], cz], w: [b[0], cz] }[f.type === 'tv' ? { n: 's', s: 'n', e: 'w', w: 'e' }[dir] : dir || 'n'];
+        if ((dir || f.type === 'car' || f.type === 'vacuum') && ['bed', 'sofa', 'chair', 'tv', 'car', 'vacuum'].includes(f.type)) { // a tick on the side the piece's back / head / screen / front is on
+          const [cx, cz] = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], e = { n: [cx, b[1]], s: [cx, b[3]], e: [b[2], cz], w: [b[0], cz] }[f.type === 'tv' ? { n: 's', s: 'n', e: 'w', w: 'e' }[dir] : dir || (f.type === 'vacuum' ? 's' : 'n')];
           if (e) h += `<circle cx="${X(e[0])}" cy="${Z(e[1])}" r="4" fill="var(--primary-text-color)" fill-opacity=".7" pointer-events="none"/>`;
         }
         if (linked) h += `<circle cx="${X(b[2])}" cy="${Z(b[1])}" r="5" fill="var(--primary-color)" stroke="var(--card-background-color)" stroke-width="1.5" pointer-events="none"/>`;
@@ -1252,10 +1260,10 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(ents.length ? [{ name: 'badge', selector: { boolean: {} } }] : []),
     ];
     const head = document.createElement('div'); head.className = 'sh-row'; head.style.marginBottom = '6px';
-    head.innerHTML = `<b style="flex:1">${esc(t(FURN_TYPES[ty]?.[0] || ty))}</b><button data-turn><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button>
+    head.innerHTML = `<b style="flex:1">${esc(t(FURN_TYPES[ty]?.[0] || ty))}</b>${ROUND.includes(ty) ? '' : `<button data-turn title="${t('Turn a quarter clockwise')}"><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button>`}
       <button data-copy><ha-icon icon="mdi:content-copy"></ha-icon>${t('Duplicate')}</button><button class="del" data-delp><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
     slot.appendChild(head);
-    head.querySelector('[data-turn]').addEventListener('click', () => { turnPiece(f); this._emit(); this._render(); });
+    head.querySelector('[data-turn]')?.addEventListener('click', () => { turnPiece(f); this._emit(); this._render(); });
     head.querySelector('[data-copy]').addEventListener('click', () => { const c = clone(f); movePiece(c, this._grid * 2, this._grid * 2); r.furniture.push(c); this._fsel = r.furniture.length - 1; this._emit(); this._render(); });
     head.querySelector('[data-delp]').addEventListener('click', () => { r.furniture.splice(this._fsel, 1); this._fsel = null; this._emit(); this._render(); });
     slot.appendChild(this._form(schema, data, (v, typing) => {

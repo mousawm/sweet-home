@@ -328,6 +328,16 @@ try {
   await p.waitForTimeout(1500);
   check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // turning furniture: the robot vacuum, a cabinet at its default size, stairs (they climb the other way); round pieces have no Turn
+  check('Turn works for every piece that has a front or a long side', await p.evaluate(async () => {
+    const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }];
+    editor._sel = 0; editor._mode = 'furniture'; const out = [];
+    for (let i = 0; i < 5; i++) { editor._fsel = i; editor._render(); const b = editor.querySelector('[data-turn]'); if (!b) { out.push('no turn'); continue; } b.click(); out.push(JSON.stringify(editor._config.house.rooms[0].furniture[i])); }
+    return out;
+  }).then(o => { const ok = o[0].includes('"facing":"w"') && o[1].includes('"w":0.5') && o[2].includes('"axis":"z"') && o[2].includes('"w":1') && o[2].includes('"d":2') && o[3].includes('"w":0.8') && o[3].includes('"d":1.2') && o[4] === 'no turn'; if (!ok) console.log('      got', o); return ok; }));
+  await p.waitForTimeout(1500);
+  check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
+  await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
   // room shapes: ready-made shapes, corners, bends, separate walls
   await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
   check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));

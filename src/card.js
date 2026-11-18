@@ -3277,9 +3277,11 @@ class HouseScene {
             break;
           }
           case 'vacuum': { // a robot vacuum: drives around its room while it cleans, back to its dock after
-            const x = N(f.x, 0), z = N(f.z, 0);
-            box(rm, x, z, 0.36, 0.14, 0.1, 0x1f2937, 0, { r: 0.4 }); // the dock
-            const g = new T.Group(); const [gx, gz] = this.w(x, z + 0.24); g.position.set(gx, 0, gz); this._at().add(g);
+            // `facing`: the side the robot leaves its dock to (s by default); the dock stands against the opposite side
+            const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', ns = fc === 'n' || fc === 's';
+            const [ox, oz] = { s: [0, 0.24], n: [0, -0.24], e: [0.24, 0], w: [-0.24, 0] }[fc] || [0, 0.24];
+            box(rm, x, z, ns ? 0.36 : 0.14, ns ? 0.14 : 0.36, 0.1, 0x1f2937, 0, { r: 0.4 }); // the dock
+            const g = new T.Group(); const [gx, gz] = this.w(x + ox, z + oz); g.position.set(gx, 0, gz); this._at().add(g);
             const body = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.08, 28), M(C(f.color, 0xe5e7eb), { r: 0.35 })); body.position.y = 0.05; body.castShadow = true;
             const led = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.02, 16), new T.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x2dd4bf, emissiveIntensity: 0.2 })); led.position.y = 0.1;
             body.userData.room = rm; led.userData.room = rm; g.add(body, led); this.pick.push(body); tag(body);

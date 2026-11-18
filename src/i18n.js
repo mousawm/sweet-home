@@ -164,6 +164,7 @@ const AR = {
   'Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.': 'اترك كل الحقول فارغة لتُكتشف تلقائيًا. وعند اختيار أحدها يظهر ما تختاره فقط.',
   'Name on this dashboard': 'الاسم في لوحة التحكم هذه', 'Icon (empty: picked from what it does)': 'الأيقونة (فارغ: تُختار حسب وظيفته)',
   Button: 'زر',
+  'Turn a quarter clockwise': 'تدوير ربع دورة مع عقارب الساعة',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
