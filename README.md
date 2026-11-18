@@ -108,6 +108,8 @@ The dashboard is generated for you until you take control of it:
       rooms without a shape and devices that are in another room's area.
    2. **Panels**: turn panels on or off and pick their entities.
    3. **Look**: title, weather, start tab, wall height, automatic furniture, the first-use tip, or a 3D file.
+      **Names on this dashboard** lists every entity renamed here (in a room or on a panel). Change or clear a name,
+      or rename any other entity.
 5. Click **Save**, then **Done**.
 
 Everything the editor doesn't cover can be added in YAML (**Show code editor**, or the dashboard's **⋮ → Raw
@@ -131,6 +133,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `weather` | Weather entity for the header chip and weather sheet (default: the first one) |
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
+| `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
 | `modes` | Switches or input booleans shown as mode buttons (`entity`, `name`, `icon`) |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
@@ -305,7 +308,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 | 3D view | Drag to rotate, two fingers or right-drag to pan, pinch or wheel to zoom, tap a room to open it |
 | 3D furniture | Tap a linked piece (or its badge) to open its room with the piece at the top |
 | Floors | The floor buttons on the 3D view switch floors; opening a room on another floor switches to it |
-| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices on this dashboard (✓ saves; Home Assistant is not changed) |
+| Rename | While the dashboard is in edit mode (admins): the pencil in a room's popup renames its devices, and the pencil next to each panel's title (At a glance, Security, Climate, Energy, Water, Media, System…) renames what that panel shows. Names apply on this dashboard only (Done saves; Home Assistant is not changed) |
 
 Locks, gate relays and other risky switches need a second tap to confirm.
 

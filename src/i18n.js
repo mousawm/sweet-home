@@ -128,6 +128,10 @@ const AR = {
     'اسحب على المخطط لرسم جدار قائم بذاته: فاصل، أو جدار مطبخ منخفض، أو حاجز زجاجي، أو جدار حديقة منحنٍ. اضغط على الجدار لتعديله، واسحبه أو اسحب طرفيه لتحريكه. الأبواب والممرات تقطعه أيضًا.',
   '{0} separate wall(s) on this floor': '{0} جدار منفصل في هذا الطابق', Kind: 'النوع', Wall: 'جدار', 'Half wall': 'جدار منخفض', Glass: 'زجاج',
   'Height (m, empty: automatic)': 'الارتفاع (م، فارغ: تلقائي)', 'Bend (m, + one side, − the other)': 'الانحناء (م، + لجهة و− للأخرى)', 'Delete wall': 'حذف الجدار',
+  // names on this dashboard
+  'Names on this dashboard': 'الأسماء في لوحة التحكم هذه', 'No names yet.': 'لا توجد أسماء بعد.', 'Rename another entity': 'إعادة تسمية كيان آخر', 'Default name': 'الاسم الافتراضي', Panel: 'اللوحة',
+  'Renamed in a room popup, on a panel (pencil while editing) or here. They replace the entity name everywhere on this dashboard; Home Assistant keeps its own names. Clear a name to go back to the default.':
+    'تُعاد التسمية من نافذة الغرفة، أو من أي لوحة (رمز القلم أثناء التعديل)، أو من هنا. تحل الأسماء محل اسم الكيان في كل مكان في لوحة التحكم هذه، ويحتفظ Home Assistant بأسمائه الأصلية. امسح الاسم للعودة إلى الاسم الافتراضي.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

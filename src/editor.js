@@ -1069,8 +1069,13 @@ class SweetHomeCardEditor extends HTMLElement {
     if (!v || v === this._reg.name(id)) delete names[id]; else names[id] = v;
     if (r.light_names?.[id] != null) { const ln = { ...r.light_names }; delete ln[id]; if (Object.keys(ln).length) r.light_names = ln; else delete r.light_names; }
     if (Object.keys(names).length) r.names = names; else delete r.names;
+    this._dropName(id, r); // one name per entity on this dashboard: the one given here
     this._emit();
     if (small) { small.textContent = `${id} · ${t(names[id] ? 'name on this dashboard' : 'default name')}`; small.style.color = 'var(--success-color, #43a047)'; }
+  }
+  // removes an entity's dashboard name everywhere except in `keep` (the card's `names`, other rooms' `names` / `light_names`)
+  _dropName(id, keep) {
+    for (const h of [this._config, ...this._rooms]) if (h !== keep) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
   }
   // a plug written as {entity, name, power} keeps its extra settings when the list changes
   _keepObj(r, key, id) { return arr(r[key]).find(e => typeof e === 'object' && entityId(e) === id) || id; }
@@ -1301,6 +1306,30 @@ class SweetHomeCardEditor extends HTMLElement {
       this._emit(typing);
       if (was !== H.type) this._render();
     }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hint: 'Show the “tap a room” tip on first use' }, true));
+    this._mNames(body);
+  }
+  // Names on this dashboard: every entity renamed here, in a room or on a panel. Home Assistant keeps its own names.
+  _mNames(body) {
+    const C = this._config, list = [];
+    for (const [i, r] of this._rooms.entries()) for (const k of ['light_names', 'names']) for (const [id, v] of Object.entries(r[k] || {})) list.push([id, v, this._roomName(r, i)]);
+    for (const [id, v] of Object.entries(C.names || {})) list.push([id, v, '']);
+    if (this._newName && !list.some(x => x[0] === this._newName)) list.push([this._newName, '', '']);
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '18px';
+    box.innerHTML = `<div style="font-weight:600;font-size:15px;margin-bottom:4px">${t('Names on this dashboard')}</div>
+      <div class="sh-hint">${t('Renamed in a room popup, on a panel (pencil while editing) or here. They replace the entity name everywhere on this dashboard; Home Assistant keeps its own names. Clear a name to go back to the default.')}</div>
+      ${list.map(([id, v, room]) => `<div class="sh-ent"><span class="nm">${esc(this._reg.name(id))}<small>${esc(id)}${room ? ' · ' + esc(room) : ''}</small></span><input data-nm="${esc(id)}" value="${esc(v)}" placeholder="${esc(this._reg.name(id))}" style="flex:1;min-width:140px;padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit"><button data-nmdel="${esc(id)}" class="del" title="${t('Default name')}"><ha-icon icon="mdi:close"></ha-icon></button></div>`).join('') || `<div class="sh-hint">${t('No names yet.')}</div>`}`;
+    body.appendChild(box);
+    const add = this._form([{ name: 'entity', selector: { entity: {} } }], {}, v => { if (v.entity) { this._newName = v.entity; this._render(); } }, { entity: 'Rename another entity' });
+    box.appendChild(add);
+    const set = (id, v) => {
+      const holder = [this._config, ...this._rooms].find(h => h.names?.[id] != null || h.light_names?.[id] != null) || this._config;
+      this._dropName(id, null);
+      if (v && v !== this._reg.name(id)) (holder.names ||= {})[id] = v;
+      if (this._newName === id) this._newName = null;
+      this._emit(); this._render();
+    };
+    box.querySelectorAll('[data-nm]').forEach(i => i.addEventListener('change', () => set(i.dataset.nm, i.value.trim())));
+    box.querySelectorAll('[data-nmdel]').forEach(b => b.addEventListener('click', () => set(b.dataset.nmdel, '')));
   }
 }
 if (!customElements.get('sweet-home-card-editor')) customElements.define('sweet-home-card-editor', SweetHomeCardEditor);

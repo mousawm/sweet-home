@@ -24,6 +24,8 @@ function useModel(m) {
   CX = m.plan.CX; CZ = m.plan.CZ; PLAN_W = m.plan.W; PLAN_D = m.plan.D; WALL_H = m.wallH; SPAN = Math.max(PLAN_W, PLAN_D, 6);
 }
 // sections shown on each tab
+// panels whose entities can be renamed for this dashboard (pencil in edit mode)
+const RN_SECS = ['glance', 'security', 'cams', 'climate', 'energy', 'car', 'ehist', 'water', 'irrigation', 'media', 'mserver', 'tvlight', 'alerts', 'lab', 'devices'];
 const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], climate: ['climate'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'lab', 'devices'] };
 
 /* ------------------------------------------------------------------ */
@@ -277,8 +279,9 @@ export class SweetHomeCard extends HTMLElement {
     if (!e) { // left edit mode: stop moving furniture and renaming
       if (this._arrange) { this._arrange = false; if (this._three) this._three.arrange = false; this.$?.('arrBtn')?.classList.remove('on'); }
       if (this._naming) { this._naming = null; this._pendNames = null; }
+      if (this._info?.startsWith('rename:')) this._closeSheet();
     }
-    if (this._sections?.length) this._rerender('drawer');
+    if (this._sections?.length) this._rerender(); // the pencils on the panels come and go
   }
   static getConfigElement() { return document.createElement('sweet-home-card-editor'); }
   static getStubConfig() { return { title: 'My Home' }; }
@@ -642,7 +645,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind === 'lights' ? 'Lights' : kind === 'temps' ? 'Temperatures' : kind === 'weather' ? 'Weather' : kind === 'power' ? 'Power' : kind.startsWith('jf') ? 'Jellyfin library' : kind.startsWith('mup:') ? 'Coming up' : kind === 'swap' ? 'Swap usage' : kind === 'wanted' ? 'Wanted episodes' : 'Phone'}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? 'Lights' : kind === 'temps' ? 'Temperatures' : kind === 'weather' ? 'Weather' : kind === 'power' ? 'Power' : kind.startsWith('jf') ? 'Jellyfin library' : kind.startsWith('mup:') ? 'Coming up' : kind === 'swap' ? 'Swap usage' : kind === 'wanted' ? 'Wanted episodes' : 'Phone'}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind === 'wanted' && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || String(this._wanted.n) !== String(this.v(E.mserver.sonarr.wanted)))) this._loadWanted();
@@ -653,7 +656,8 @@ export class SweetHomeCard extends HTMLElement {
     const box = this.$('sheet')?.querySelector('.sheet'); if (!box || !this._info) return;
     const head = (icon, title, sub) => `<div class="sh-h">${ic(icon)}<div><b>${title}</b><span>${sub}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`;
     let html;
-    if (this._info === 'lights') {
+    if (this._info.startsWith('rename:')) html = this._rnSheet(head, this._info.slice(7));
+    else if (this._info === 'lights') {
       const rooms = ROOMS.filter(r => (r.lights || []).some(l => this.s(l)));
       const all = rooms.flatMap(r => r.lights.filter(l => this.s(l))), on = all.filter(l => this.v(l) === 'on').length;
       html = head('mdi:lightbulb-group', 'Lights', `${on} of ${all.length} on · tap to switch`) + rooms.map(r => {
@@ -707,7 +711,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     if (box._html === html) return; box._html = html;
     const tpl = document.createElement('template'); tpl.innerHTML = html;
-    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, null);
+    if (!box.firstChild) box.replaceChildren(tpl.content); else morph(box, tpl.content, this._info.startsWith('rename:') ? this._dragging : null); // keeps the name being typed
   }
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
   // come live from weather/subscribe_forecast while the sheet is open.
@@ -1000,7 +1004,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   _closeSheet() {
     const sh = this.$?.('sheet'); if (sh) { sh.classList.remove('open'); sh.innerHTML = ''; }
-    this._pick = null; this._pin = null; this._pinSvc = null; this._info = null;
+    this._pick = null; this._pin = null; this._pinSvc = null; this._info = null; this._rnIds = null;
     if (this._wxUnsub) { this._wxUnsub.forEach(u => { try { u(); } catch (e) { /* closed */ } }); this._wxUnsub = null; }
     if (this._keyH) { window.removeEventListener('keydown', this._keyH); this._keyH = null; }
   }
@@ -1053,7 +1057,10 @@ export class SweetHomeCard extends HTMLElement {
       if (!changed) continue;
       sec.force = false;
       this._prev.set(sec.el, sec.deps.map(d => h.states[d]));
-      const html = sec.render();
+      let html = sec.render();
+      // while the dashboard is edited, every panel gets a pencil next to its title: rename what it shows (this dashboard only)
+      if (this._editing && this._hass?.user?.is_admin && RN_SECS.includes(sec.el.id) && html.includes('</h3>'))
+        html = html.replace('</h3>', `</h3><button class="ibtn edit-only rnbtn" data-act="rnsec" data-sec="${sec.el.id}" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>`);
       if (sec.el._html === html) continue;
       const first = sec.el._html === undefined; sec.el._html = html;
       const tpl = document.createElement('template'); tpl.innerHTML = html;
@@ -1286,6 +1293,8 @@ export class SweetHomeCard extends HTMLElement {
       case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast('Restarting Home Assistant…'); break;
       case 'install': if (!this._armConfirm(t, id, 'Tap again to update')) return; this.call('update', 'install', { entity_id: id }); this._toast('Update started'); setTimeout(() => this._rerender('alerts'), 3000); break;
       case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast('Reboot sent'); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
+      case 'rnsec': if (!this._editing) break; this._pendNames = null; this._rnIds = null; this._openInfo('rename:' + t.dataset.sec); break;
+      case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
       case 'tab': this._setTab(t.dataset.tab); if (t.dataset.to) this._goCard(t.dataset.to); break;
@@ -1676,22 +1685,43 @@ export class SweetHomeCard extends HTMLElement {
       <div class="sub" style="margin-bottom:10px;font-size:12px;color:var(--mu)">${tr('Names change on this dashboard only. Clear a name to go back to the default.')}</div>
       ${rows || `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`}`;
   }
-  // a name typed in the rename view: kept until ✓ (Done)
+  // Rename sheet of a panel (edit mode): every entity the panel shows, with its name in a text field. Like the room
+  // popup: names are for this dashboard only, saved together with Done; an empty field goes back to the entity's own name.
+  _rnSheet(head, sid) {
+    const el = this.$(sid), title = el?.querySelector('.ch h3')?.textContent?.trim() || tr('Panel');
+    if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
+      // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
+      const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
+      const ids = [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
+      this._rnIds = { sid, ids };
+    }
+    const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
+    const rows = this._rnIds.ids.map(id => {
+      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+    }).join('');
+    return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
+      + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
+  }
+  // a name typed in a rename view: kept until ✓ (Done)
   _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
+  // Names for this dashboard: each one is kept in one place only — the room it was renamed in (`ci`), else where it
+  // already was, else the card's own `names` — so the same entity shows the same name on every panel.
+  _storeNames(cfg, pend, ci) {
+    const raw = this._hass._raw || this._hass, rooms = cfg.house?.rooms || [], holders = [cfg, ...rooms].filter(Boolean);
+    for (const [id, v] of Object.entries(pend)) {
+      const home = (ci != null && rooms[ci]) || holders.find(h => h.names?.[id] != null) || cfg;
+      for (const h of holders) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
+      if (v && v !== raw.states[id]?.attributes.friendly_name) (home.names ||= {})[id] = v;
+    }
+  }
   async _saveNames(r) {
     const pend = this._pendNames || {}; this._pendNames = null;
-    const ids = Object.keys(pend); if (!ids.length) return;
-    const raw = this._hass._raw || this._hass, cfg = JSON.parse(JSON.stringify(this._config || {}));
-    const rc = r.ci != null ? cfg.house?.rooms?.[r.ci] : null, holder = rc || cfg;
-    const names = { ...(holder.names || {}) };
-    for (const id of ids) {
-      const v = pend[id];
-      if (!v || v === raw.states[id]?.attributes.friendly_name) delete names[id]; else names[id] = v;
-      if (holder.light_names?.[id] != null) { delete holder.light_names[id]; if (!Object.keys(holder.light_names).length) delete holder.light_names; }
-    }
-    if (Object.keys(names).length) holder.names = names; else delete holder.names;
+    if (!Object.keys(pend).length) return;
+    const cfg = JSON.parse(JSON.stringify(this._config || {}));
+    this._storeNames(cfg, pend, r?.ci ?? null);
     if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
-    this._reselect = r.id; // open the room again after the card is rebuilt with the new names
+    if (r) this._reselect = r.id; // open the room again after the card is rebuilt with the new names
     if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); } else this._reselect = null;
   }
 
@@ -4208,6 +4238,7 @@ main{scroll-margin-top:84px}
 @media (pointer:coarse){.lvls button{min-height:44px}}
 .hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-radius:14px;background:rgba(8,12,24,.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
 .hint.on{display:flex;opacity:1;transform:translate(-50%,0)}.hint>ha-icon{color:var(--teal);flex:none}.hint span{flex:1}.hint .ibtn{flex:none;width:32px;height:32px}
+.ch .rnbtn{flex:none}.rnsave{width:100%;display:flex;justify-content:center;gap:8px;margin-top:10px}.rnsave span{flex:none}
 .rnrow{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px}
 .rnrow ha-icon{color:var(--mu);grid-row:span 2}.rnrow small{grid-column:2;font-size:10.5px;color:var(--mu);margin:2px 0 0;opacity:.8}
 .rnrow input{font:inherit;font-size:13px;color:var(--tx);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
