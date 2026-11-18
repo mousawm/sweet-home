@@ -48,6 +48,7 @@ const PANELS = [
   ['media_server', 'Media Server', 'Jellyfin, Sonarr, Radarr, qBittorrent'],
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
+  ['modes', 'Modes', 'One-tap buttons on the Home tab: guests, holiday, scenes, scripts'],
 ];
 // room settings that hold entities, as the Entities mode shows them: [YAML key, title, key in the discovered set, icon]
 const ROLES = [
@@ -1296,6 +1297,7 @@ class SweetHomeCardEditor extends HTMLElement {
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
       media_server: [],
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
+      modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
         { name: 'battery_exclude_devices', selector: { device: { multiple: true } } },
         { name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
@@ -1315,6 +1317,17 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
+        if (k === 'modes') { // modes live in the card's own `modes` list (not under panels): a name or icon given in YAML stays
+          det.appendChild(this._form(schemas.modes, { modes: arr(this._config.modes).map(entityId).filter(Boolean) }, v => {
+            const old = arr(this._config.modes), val = arr(v.modes).map(id => old.find(o => typeof o === 'object' && entityId(o) === id) || id);
+            if (val.length) this._config.modes = val; else delete this._config.modes; this._emit();
+          }, { modes: 'Mode buttons (switches, helpers, scenes, scripts)' }));
+          if (!arr(this._config.modes).length) { // a head start: the on / off helpers the home already has
+            const sugg = Object.keys(this._hass.states).filter(x => x.startsWith('input_boolean.')).slice(0, 6);
+            if (sugg.length) { const b = document.createElement('div'); b.className = 'sh-hint'; b.innerHTML = `${t('Suggested')}: ${sugg.map(x => `<button class="sh-chip" data-msg="${esc(x)}">${esc(this._reg.name(x))}</button>`).join(' ')}`; b.querySelectorAll('[data-msg]').forEach(c => c.addEventListener('click', () => { this._config.modes = [...arr(this._config.modes), c.dataset.msg]; this._emit(); this._render(); })); det.appendChild(b); }
+          }
+          list.appendChild(det); continue;
+        }
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
         if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
         det.appendChild(this._form(schemas[k], data, v => {

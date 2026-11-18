@@ -150,6 +150,9 @@ const AR = {
   // gate sensors
   'Open / closed sensors': 'حساسات الفتح والإغلاق', Suggested: 'مقترح', 'Open / closed sensor': 'حساس الفتح والإغلاق', 'Second sensor (backup)': 'حساس ثانٍ (احتياطي)',
   'Tell each gate whether it is open: a door or contact sensor, or a camera that recognises the gate’s state (Frigate state classification: a sensor that reads open / closed). Add a second one as a backup.': 'حدّد لكل بوابة ما يخبر بحالتها: حساس باب أو تلامس، أو كاميرا تتعرف على حالة البوابة (تصنيف الحالة في Frigate: حساس يقرأ مفتوح / مغلق). أضف حساسًا ثانيًا كاحتياطي.',
+  // modes
+  'One-tap buttons on the Home tab: guests, holiday, scenes, scripts': 'أزرار بلمسة واحدة في التبويب الرئيسي: الضيوف، العطلة، المشاهد، السكربتات', 'Mode buttons (switches, helpers, scenes, scripts)': 'أزرار الأوضاع (مفاتيح، مساعدات، مشاهد، سكربتات)',
+  Modes: 'الأوضاع',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

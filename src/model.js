@@ -473,6 +473,7 @@ export function cleanConfig(cfg) {
   return c;
 }
 
+const MODE_ICON = { scene: 'mdi:palette', script: 'mdi:script-text-play', automation: 'mdi:robot', input_boolean: 'mdi:toggle-switch-outline', switch: 'mdi:toggle-switch-outline', light: 'mdi:lightbulb', fan: 'mdi:fan', input_button: 'mdi:gesture-tap-button', button: 'mdi:gesture-tap-button' };
 export function buildModel(cfg = {}, hass) {
   cfg = cleanConfig(cfg);
   const R = registry(hass);
@@ -821,7 +822,9 @@ export function buildModel(cfg = {}, hass) {
       valves: irrZones.map((z, i) => [z.entity, z.name || (z.auto ? R.name(z.entity) : null) || R.name(z.entity) || `Zone ${i + 1}`]), durations: irrZones.map(z => z.duration || null),
       every: IR.interval || null, day: IR.weekday || null, tomorrow: IR.tomorrow || null, next: IR.next || null, notify: IR.notification || null, time: IR.time || null,
     },
-    modes: arr(cfg.modes).map(m => typeof m === 'string' ? [m, R.name(m), states[m]?.attributes?.icon || 'mdi:toggle-switch-outline'] : [m.entity, m.name || R.name(m.entity), m.icon || 'mdi:toggle-switch-outline']),
+    // modes on the Home tab: switches, helpers, scenes, scripts, automations; `entity_id` or {entity, name, icon}
+    modes: P.modes === false ? [] : arr(cfg.modes).map(m => (typeof m === 'string' ? { entity: m } : m)).filter(m => typeof m?.entity === 'string' && m.entity.includes('.'))
+      .map(m => [m.entity, m.name || null, m.icon || states[m.entity]?.attributes?.icon || MODE_ICON[m.entity.split('.')[0]] || 'mdi:toggle-switch-outline']),
     face: sec.face || null,
     forecast,
     tvLight: { light: P.tv_light?.light || null, selects: arr(P.tv_light?.selects).map(s => typeof s === 'string' ? [s, R.name(s), 'mdi:tune'] : [s.entity, s.name || R.name(s.entity), s.icon || 'mdi:tune']) },

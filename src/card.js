@@ -581,7 +581,7 @@ export class SweetHomeCard extends HTMLElement {
     const offP = k => this._config?.panels?.[k] === false; // a panel switched off in the card editor
     const off = {
       security: offP('security') || !(E.alarm || E.locks.length || E.doors.length || E.entrances.length), cams: offP('security') || offP('cameras') || !E.cameras.length, climate: offP('climate') || !MODEL.has.climate,
-      modes: !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
+      modes: offP('modes') || !E.modes.length, tvlight: !(E.tvLight.light || E.media.echoes.length), car: !(E.car.charging || E.car.power || E.car.battery) || this._config?.panels?.car === false,
       water: offP('water') || !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: offP('irrigation') || !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: offP('devices') || !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
@@ -1623,9 +1623,14 @@ export class SweetHomeCard extends HTMLElement {
       <div class="acs full">${rows}</div>`;
   }
 
+  // Modes on the Home tab: on / off switches light up while on; scenes, scripts and buttons run with one tap
   _rModes() {
-    const t = E.modes.filter(m => this.s(m[0])).map(([id, n, i]) => `<button class="tile ${this.on(id) ? 'on' : ''}" data-act="toggle" data-id="${id}">${ic(i)}<span>${n}</span></button>`).join('');
-    return `<div class="ch">${ic('mdi:tune-variant')}<h3>Modes</h3></div><div class="tiles">${t}</div>`;
+    const t = E.modes.filter(m => this.s(m[0])).map(([id, n, i]) => {
+      const d = id.split('.')[0], st = this.s(id), run = ['scene', 'script', 'button', 'input_button'].includes(d), bad = BAD.includes(st.state);
+      const act = d === 'scene' || d === 'script' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle';
+      return `<button class="tile ${!run && this.on(id) ? 'on' : ''} ${bad ? 'na' : ''}" data-act="${act}" data-id="${id}" title="${esc(st.attributes.friendly_name || id)}">${ic(i)}<span>${esc(n || st.attributes.friendly_name || id)}</span></button>`;
+    }).join('');
+    return `<div class="ch">${ic('mdi:tune-variant')}<h3>${tr('Modes')}</h3></div><div class="tiles">${t}</div>`;
   }
 
   _rDrawer() {
