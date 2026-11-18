@@ -358,6 +358,29 @@ try {
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('room by room');
+  p = await open('?editor=1');
+  check('the setup guide offers to add rooms one by one', await p.evaluate(() => !!editor.querySelector('[data-g=wizard]')));
+  await p.evaluate(() => editor.querySelector('[data-g=wizard]').click());
+  const wizName = () => p.evaluate(() => editor.querySelector('.sh-wiz-name')?.textContent.trim());
+  check('…it starts with the first area (by floor, then name)', (await wizName()).startsWith('Balcony'));
+  await p.evaluate(() => editor.querySelector('[data-wskip]').click());
+  check('…Skip leaves it out and goes to the next', (await wizName()).startsWith('Bedroom') && await p.evaluate(() => !(editor._config.house?.rooms || []).length));
+  await p.evaluate(() => { const set = (s, v) => { const i = editor.querySelector(s); i.value = v; i.dispatchEvent(new Event('change')); }; set('[data-ww]', '4'); set('[data-wd]', '3'); editor.querySelector('[data-wadd]').click(); });
+  check('…Add puts it on the map with its size (a name-based size to start with)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0]) === '{"area":"bedroom","rects":[[0,0,4,3]]}'));
+  check('…the next area gets a size that suits its name', await p.evaluate(() => editor._wiz.w === 3.5 && editor._wiz.d === 3 && editor.querySelector('.sh-wiz-name').textContent.startsWith('Kitchen')));
+  await p.evaluate(() => { editor.querySelector('[data-wshape=l]').click(); });
+  check('…the plan shows where the next room will go (dashed, with its name)', await p.evaluate(() => [...editor.querySelectorAll('.sh-plan path[stroke-dasharray="8 6"]')].length === 1 && [...editor.querySelectorAll('.sh-plan text')].some(t => t.textContent === 'Kitchen')));
+  await p.evaluate(() => { const s = editor.querySelector('[data-wside]'); s.value = 'below'; s.dispatchEvent(new Event('change')); editor.querySelector('[data-wadd]').click(); });
+  check('…with a shape, placed below the last room without overlapping', await p.evaluate(() => { const r = editor._config.house.rooms[1]; return r.area === 'kitchen' && r.points?.length === 6 && Math.min(...r.points.map(q => q[1])) === 3; }));
+  await p.evaluate(() => editor.querySelector('[data-wcustom]').click());
+  await p.evaluate(() => { const i = editor.querySelector('[data-wname]'); i.value = 'Store room'; i.dispatchEvent(new Event('input')); editor.querySelector('[data-wadd]').click(); });
+  check('…a room that is no area can be added on the way, then the areas go on', await p.evaluate(() => editor._config.house.rooms[2].name === 'Store room' && !editor._config.house.rooms[2].area && editor.querySelector('.sh-wiz-name').textContent.startsWith('Living Room')));
+  await p.evaluate(() => editor.querySelector('[data-wend]').click());
+  check('…Finish any time: the rooms added stay, the other areas are left out', await p.evaluate(() => !editor._wiz && editor._config.house.rooms.length === 3 && !!editor.querySelector('[data-wiz]')));
+  check('no page errors (room by room)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
   check('right-to-left layout and Arabic text', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'rtl' && card.shadowRoot.querySelector('#tabs').textContent.includes('الرئيسية')));
