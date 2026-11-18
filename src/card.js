@@ -3242,6 +3242,30 @@ class HouseScene {
             this.chargers.push({ m, glow, plug: f.plug, power: f.power, t: 0 }); break;
           }
           case 'stairs': this._stairs(f); break;
+          case 'nightstand': { // bedside table: drawers on its front (`facing`), a table lamp on top that glows with its light
+            const x = N(f.x, 0), z = N(f.z, 0), fc = f.facing || 's', ew = fc === 'e' || fc === 'w', W = N(f.w, 0.5), D = N(f.d, 0.4), H = Math.max(0.25, N(f.h, 0.55));
+            const [fw, fd] = ew ? [D, W] : [W, D], wood = C(f.color, 0x7c5a3c), top = f.top != null ? C(f.top) : wood, hnd = C(f.handle, 0xd4b483);
+            const sx = fc === 'e' ? 1 : fc === 'w' ? -1 : 0, sz = fc === 's' ? 1 : fc === 'n' ? -1 : 0, front = ew ? fw / 2 : fd / 2, across = ew ? fd : fw;
+            box(rm, x, z, fw - 0.06, fd - 0.06, 0.05, 0x2a1f16, 0, { r: 0.9 }); // plinth, set back
+            box(rm, x, z, fw, fd, H - 0.08, wood, 0.05, { r: 0.7 });
+            box(rm, x, z, fw + 0.03, fd + 0.03, 0.03, top, H - 0.03, { r: 0.45 });
+            const n = Math.max(1, Math.min(4, Math.round(N(f.drawers, 2)))), gap = 0.025, bodyH = H - 0.08 - gap, dh = (bodyH - gap * (n - 1)) / n - gap;
+            const fr = (c => { const r = Math.min(255, ((c >> 16) & 255) + 22), g = Math.min(255, ((c >> 8) & 255) + 18), b = Math.min(255, (c & 255) + 14); return (r << 16) | (g << 8) | b; })(wood);
+            for (let k = 0; k < n; k++) {
+              const y = 0.05 + gap + k * (dh + gap * 2), dx = x + sx * (front + 0.006), dz = z + sz * (front + 0.006);
+              box(rm, dx, dz, ew ? 0.012 : across - 0.05, ew ? across - 0.05 : 0.012, dh, fr, y, { r: 0.6 });
+              box(rm, x + sx * (front + 0.02), z + sz * (front + 0.02), ew ? 0.02 : Math.min(0.14, across * 0.3), ew ? Math.min(0.14, across * 0.3) : 0.02, 0.02, hnd, y + dh / 2 - 0.01, { r: 0.3, m: 0.7 });
+            }
+            if (f.lamp !== false) { // a small table lamp at the back of the top
+              const lx = x - sx * fw * 0.12, lz = z - sz * fd * 0.12, s = Math.min(1, Math.min(fw, fd) / 0.4), y0 = H;
+              cyl(rm, lx, lz, 0.06 * s, 0.02, 0xd6cfc4, y0, { r: 0.4, m: 0.3 });
+              cyl(rm, lx, lz, 0.012, 0.2 * s, 0xb08d57, y0 + 0.02, { r: 0.3, m: 0.6 });
+              const mat = new T.MeshStandardMaterial({ color: C(f.shade, 0xf5e6c8), emissive: 0xffc27a, emissiveIntensity: 0, roughness: 0.8, side: T.DoubleSide });
+              const m = add(rm, new T.CylinderGeometry(0.07 * s, 0.11 * s, 0.14 * s, 24, 1, true), mat, lx, y0 + 0.2 * s + 0.05 * s, lz);
+              this.lamps.push({ m, glow: floorGlow(lx, lz, 0.6, 0xffc27a), entity: f.entities.find(e => e.startsWith('light.') || e.startsWith('switch.')) || null, t: 0, col: new T.Color(0xffc27a) });
+            }
+            break;
+          }
           case 'lamp': { // floor lamp: the shade glows (in the light's colour) while its light is on
             const x = N(f.x, 0), z = N(f.z, 0), hh = N(f.h, 1.5), sc = N(f.size, 1), metal = C(f.color, 0x334155);
             cyl(rm, x, z, 0.16 * sc, 0.03, metal, 0, { r: 0.4, m: 0.5 });

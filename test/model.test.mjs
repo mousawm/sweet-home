@@ -220,5 +220,13 @@ test('suggested furniture is written like YAML', () => {
   assert.match(f.find(p => p.type === 'sofa').color, /^#[0-9a-f]{6}$/);
 });
 
+test('automatic bedrooms get bedside tables next to the bed', () => {
+  const big = autoFurnitureConfig({ name: 'Master bedroom', rects: [[0, 0, 5, 4]] }), small = autoFurnitureConfig({ name: 'Kids room', rects: [[0, 0, 3, 3]] });
+  const ns = big.filter(p => p.type === 'nightstand'), bed = big.find(p => p.type === 'bed');
+  assert.equal(ns.length, 2);
+  for (const n of ns) { assert.ok(Math.abs(Math.abs(n.x - bed.x) - (bed.width / 2 + 0.3)) < 0.02); assert.ok(n.z > bed.z); }
+  assert.equal(small.filter(p => p.type === 'nightstand').length, 1);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

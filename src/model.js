@@ -106,7 +106,7 @@ export const furnEntities = f => arr(f.entities ?? f.entity ?? (f.type === 'char
 // furniture types: [name, icon] (the card's popup and the card editor's palette)
 export const FURN_TYPES = { bed: ['Bed', 'mdi:bed'], sofa: ['Sofa', 'mdi:sofa'], table: ['Table', 'mdi:table-furniture'], chair: ['Chair', 'mdi:chair-rolling'],
   tv: ['TV', 'mdi:television'], lamp: ['Lamp', 'mdi:floor-lamp'], fan: ['Ceiling fan', 'mdi:ceiling-fan'], marker: ['Device', 'mdi:map-marker-radius'], plant: ['Plant', 'mdi:sprout'],
-  rug: ['Rug', 'mdi:rug'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
+  rug: ['Rug', 'mdi:rug'], nightstand: ['Bedside table', 'mdi:table-furniture'], box: ['Cabinet', 'mdi:wardrobe'], block: ['Counter', 'mdi:countertop'], cylinder: ['Cylinder', 'mdi:cylinder'], ball: ['Ball', 'mdi:circle'],
   charger: ['Phone charger', 'mdi:cellphone-charging'], stairs: ['Stairs', 'mdi:stairs'], blinds: ['Blinds', 'mdi:blinds'], vacuum: ['Robot vacuum', 'mdi:robot-vacuum'],
   car: ['Car', 'mdi:car'], tree: ['Tree', 'mdi:tree'], hedge: ['Hedge', 'mdi:grass'], pool: ['Pool', 'mdi:pool'], sprinkler: ['Sprinkler', 'mdi:sprinkler-variant'] };
 
@@ -180,6 +180,9 @@ export function autoFurniture(room) {
     const big = /master|parent|main/.test(n);
     f.push({ type: 'rug', room: R, x: cx, z: cz + 0.3, w: w * 0.6, d: d * 0.5, color: 0xa5a9b2 });
     f.push({ type: 'bed', room: R, x: cx, z: z2 - 1.15, width: big ? 1.8 : 1.1, length: 2.0, head: 's', frame: 0x7c5a3c, duvet: big ? 0xf3c5d2 : 0x93c5fd, headboard: 0xe8dcc8 });
+    // a bedside table each side of the bed's head, where there is room
+    const bw = big ? 1.8 : 1.1;
+    for (const s of big ? [-1, 1] : [1]) { const nx = cx + s * (bw / 2 + 0.3); if (nx - 0.25 > x1 + 0.05 && nx + 0.25 < x2 - 0.05) f.push({ type: 'nightstand', room: R, x: nx, z: z2 - 0.26, w: 0.5, d: 0.4, h: 0.55, facing: 'n', color: 0x7c5a3c }); }
     f.push({ type: 'block', room: R, x0: x1 + 0.1, z0: z1 + 0.1, x1: x1 + Math.min(2.4, w * 0.6), z1: z1 + 0.65, h: 1.3, color: 0x8b6b45 });
   } else if (/office|study|work/.test(n)) {
     f.push({ type: 'box', room: R, x: cx, z: z1 + 0.4, w: 1.4, d: 0.65, h: 0.75, color: 0x111111 });
@@ -631,7 +634,7 @@ export function buildModel(cfg = {}, hass) {
     // centre + size → extents for the extent-based pieces
     if (['sofa', 'block', 'stairs', 'counter'].includes(o.type) && o.x0 == null && o.x != null) { o.x0 = o.x - num(o.w, 1) / 2; o.x1 = o.x + num(o.w, 1) / 2; o.z0 = o.z - num(o.d, 1) / 2; o.z1 = o.z + num(o.d, 1) / 2; }
     if (!o.room) { const px = o.x ?? ((o.x0 + o.x1) / 2), pz = o.z ?? ((o.z0 + o.z1) / 2); o.room = roomAt(px, pz, f.level != null ? lvOf(f.level) : null); }
-    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade']) if (o[k] != null) o[k] = toColor(o[k], undefined);
+    for (const k of ['color', 'cushion', 'pillow', 'top', 'leg', 'frame', 'duvet', 'headboard', 'seat', 'emissive', 'shade', 'handle']) if (o[k] != null) o[k] = toColor(o[k], undefined);
     o.entities = furnEntities(f);
     return o;
   };

@@ -66,7 +66,8 @@ const demo = { title: 'Demo Home', modes: ['input_boolean.guests', { entity: 'in
     { type: 'table', x: 8, z: 2.8, w: 1.2, d: 0.8 }] },
   { area: 'bedroom', points: [[0, 5], [6, 5], [6, 9], [1.2, 9], [0, 7.8, 0.7]], light_fx: { 'light.bedroom': 'strip' }, furniture: [
     { type: 'bed', x: 3, z: 7.8, width: 1.8, length: 2, head: 's', entity: 'light.bedroom' },
-    { type: 'lamp', x: 1.6, z: 8.5, h: 1.2, entity: 'light.bedside_lamp' },
+    { type: 'nightstand', x: 1.8, z: 8.73, facing: 'n', entity: 'light.bedside_lamp' },
+    { type: 'nightstand', x: 4.2, z: 8.73, facing: 'n', drawers: 3, lamp: false },
     { type: 'fan', x: 3, z: 6.8, entity: 'fan.bedroom_fan' },
     { type: 'rug', x: 3, z: 6.4, w: 3, d: 1.5, color: '#a5a9b2' }] },
   { area: 'balcony', rects: [[6, 5, 10, 9]], outdoor: true, furniture: [

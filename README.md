@@ -248,6 +248,7 @@ furniture:
 | `chair` | `x z face (n/s/e/w) color seat` |
 | `sofa` | `from to back (n/s/e/w) color cushion pillow arms (both/start/end/none)` |
 | `bed` | `x z width length head (n/s/e/w) frame duvet headboard pillow house_headboard` |
+| `nightstand` | `x z w d h facing (n/s/e/w: where the drawers look) drawers (1-4) lamp (false hides it) color top handle shade entity`: a bedside table with a table lamp that glows with its light. Automatic bedrooms get one each side of the bed. |
 | `plant` | `x z size` |
 | `cylinder`, `ball` | `x z radius h y color` |
 | `tv` | `x z w h y facing entity`: the screen flickers while the player plays |

@@ -46,7 +46,7 @@ const AR = {
   // floors
   'Ground floor': 'الطابق الأرضي', Basement: 'القبو', 'Floor {0}': 'الطابق {0}',
   // furniture
-  Bed: 'سرير', Sofa: 'كنبة', Table: 'طاولة', Chair: 'كرسي', Lamp: 'مصباح', 'Ceiling fan': 'مروحة سقف', Device: 'جهاز', Plant: 'نبتة', Rug: 'سجادة', Cabinet: 'خزانة',
+  Bed: 'سرير', Sofa: 'كنبة', Table: 'طاولة', Chair: 'كرسي', Lamp: 'مصباح', 'Ceiling fan': 'مروحة سقف', Device: 'جهاز', Plant: 'نبتة', Rug: 'سجادة', Cabinet: 'خزانة', 'Bedside table': 'طاولة جانبية للسرير', Drawers: 'الأدراج', 'Table lamp on top': 'مصباح طاولة فوقها', 'Drawers face': 'اتجاه الأدراج', Handles: 'المقابض', Top: 'السطح', 'Linked entities (a light makes its lamp glow)': 'الكيانات المرتبطة (الضوء يجعل مصباحها يتوهّج)',
   Counter: 'سطح عمل', Cylinder: 'أسطوانة', Ball: 'كرة', 'Phone charger': 'شاحن هاتف', Stairs: 'درج', Blinds: 'ستائر', 'Robot vacuum': 'مكنسة روبوت',
   // card editor
   Rooms: 'الغرف', Panels: 'اللوحات', Look: 'المظهر', Shape: 'الشكل', Entities: 'الكيانات', 'Doors & windows': 'الأبواب والنوافذ',
