@@ -237,6 +237,7 @@ class SweetHomeCardEditor extends HTMLElement {
   _deleteSelected(e) {
     const r = this._rooms[this._sel]; if (!r) return;
     if (this._mode === 'furniture' && this._fsel != null && Array.isArray(r.furniture)) { e.preventDefault(); r.furniture.splice(this._fsel, 1); this._fsel = null; }
+    else if (this._mode === 'shape' && this._stool === 'draw' && this._draft?.length) { e.preventDefault(); this._draft.pop(); this._render(); return; }
     else if (this._mode === 'shape' && this._stool === 'wall' && this._wsel != null) { e.preventDefault(); this._H.extra_walls.splice(this._wsel, 1); if (!this._H.extra_walls.length) delete this._H.extra_walls; this._wsel = null; }
     else if (this._mode === 'shape' && r.points && this._psel != null) { e.preventDefault(); if (r.points.length > 3) r.points.splice(this._psel, 1); this._psel = null; }
     else if (this._mode === 'shape' && this._rsel != null && r.rects) { e.preventDefault(); r.rects.splice(this._rsel, 1); this._rsel = null; }
@@ -409,6 +410,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const rn = this._roomName(r, this._sel);
     hint.textContent = {
       shape: this._stool === 'wall' ? t('Drag on the grid to draw a separate wall, in any direction (one square = {0} m).', this._grid)
+        : this._stool === 'draw' ? t('Drawing the walls of {0}: tap each corner on the plan (one square = {1} m).', rn, this._grid)
         : r.points ? t('Drag the corners of {0} to reshape it, drag inside it to move it. Pick a ready-made shape below to start over.', rn)
         : t('Drag on an empty part of the grid to draw {0} (one square = {1} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.', rn, this._grid),
       entities: t("What {0} shows in its popup. Devices in its Home Assistant area are found on their own; remove what you don't want or add anything else.", rn),
@@ -471,6 +473,7 @@ class SweetHomeCardEditor extends HTMLElement {
       ${a || W.customing ? `<div class="sh-wiz-name">${a ? esc(area?.name || a) : `<input data-wname placeholder="${t('Name of the room')}" value="${esc(W.custom || '')}">`}${floorName && this._levels().length > 1 ? `<small>${esc(floorName)}</small>` : ''}</div>
       <div class="sh-hint">${t('Shape')}</div>
       <div class="sh-shapes">${SHAPES.map(([k, n]) => `<button data-wshape="${k}" class="${W.shape === k ? 'on' : ''}" title="${t(n)}" aria-label="${t(n)}"><svg viewBox="-0.15 -0.15 1.7 1.6"><path d="${prev(k)}" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width=".07" stroke-linejoin="round"/></svg></button>`).join('')}</div>
+      <div class="sh-row" style="margin-top:6px"><button class="sh-btn" data-wturn title="${t('Turn a quarter clockwise')}"><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}${W.rot ? ` · ${W.rot * 90}°` : ''}</button></div>
       <div class="sh-row" style="margin-top:8px"><span class="sh-hint">${t('Size')}</span><input data-ww type="number" min="0.5" max="30" step="0.5" value="${W.w}"><span class="sh-hint">×</span><input data-wd type="number" min="0.5" max="30" step="0.5" value="${W.d}"><span class="sh-hint">m</span></div>
       ${anchors.length ? `<div class="sh-row"><span class="sh-hint">${t('Place it')}</span><select data-wside>${[['right', 'to the right of'], ['below', 'below'], ['left', 'to the left of'], ['above', 'above']].map(([v, l]) => `<option value="${v}" ${W.side === v ? 'selected' : ''}>${t(l)}</option>`).join('')}</select>
         <select data-wanchor>${anchors.map(([r, i]) => `<option value="${i}" ${W.anchor === i ? 'selected' : ''}>${esc(this._roomName(r, i))}</option>`).join('')}</select></div>` : `<div class="sh-hint">${t('The first room goes at the top left of the plan.')}</div>`}
@@ -487,15 +490,24 @@ class SweetHomeCardEditor extends HTMLElement {
     q('[data-wside]')?.addEventListener('change', e => { W.side = e.target.value; this._render(); });
     q('[data-wanchor]')?.addEventListener('change', e => { W.anchor = Number(e.target.value); this._render(); });
     q('[data-wname]')?.addEventListener('input', e => { W.custom = e.target.value; });
-    q('[data-wskip]')?.addEventListener('click', () => { W.i++; W.skipped++; W.shape = 'rect'; this._wizSize(); this._render(); });
+    q('[data-wskip]')?.addEventListener('click', () => { W.i++; W.skipped++; W.shape = 'rect'; W.rot = 0; this._wizSize(); this._render(); });
+    q('[data-wturn]')?.addEventListener('click', () => { W.rot = ((W.rot || 0) + 1) % 4; this._render(); });
     q('[data-wend]').addEventListener('click', () => { this._wiz = null; this._render(); });
     q('[data-wcustom]')?.addEventListener('click', () => { W.customing = true; W.list.splice(W.i, 0, null); W.custom = ''; this._render(); });
     q('[data-wadd]')?.addEventListener('click', () => this._wizAdd(a, lvl));
   }
   // the room goes beside the chosen one, on the chosen side; if something is already there it moves further along
   // where the next room goes: beside the chosen room, moved further along while something is already there
+  // the guide's shape turned a quarter `rot` times (clockwise): its points at x, z, and its width and depth as turned
+  _wizDims() { const W = this._wiz; return W.rot % 2 ? [W.d, W.w] : [W.w, W.d]; }
+  _wizPts(x, z) {
+    const W = this._wiz; if (W.shape === 'rect') return null;
+    let P = shapePoints(W.shape, 0, 0, W.w, W.d);
+    for (let k = 0; k < (W.rot || 0) % 4; k++) { const b = roomBox({ points: P }); P = P.map(q => [r2(b[0] + (b[3] - q[1])), r2(b[1] + (q[0] - b[0])), ...q.slice(2)]); }
+    const b = roomBox({ points: P }); return P.map(q => [r2(q[0] - b[0] + x), r2(q[1] - b[1] + z), ...q.slice(2)]);
+  }
   _wizSpot(lvl) {
-    const W = this._wiz, rooms = this._rooms, w = W.w, d = W.d;
+    const W = this._wiz, rooms = this._rooms, [w, d] = this._wizDims();
     const ab = W.anchor != null && rooms[W.anchor] ? roomBox(rooms[W.anchor]) : null;
     let [x, z] = !ab ? [0, 0] : { right: [ab[2], ab[1]], below: [ab[0], ab[3]], left: [ab[0] - w, ab[1]], above: [ab[0], ab[1] - d] }[W.side];
     const step = { right: [0.5, 0], below: [0, 0.5], left: [-0.5, 0], above: [0, -0.5] }[W.side] || [0.5, 0];
@@ -505,12 +517,12 @@ class SweetHomeCardEditor extends HTMLElement {
     return [r2(x), r2(z)];
   }
   _wizAdd(a, lvl) {
-    const W = this._wiz, rooms = this._rooms, w = W.w, d = W.d;
+    const W = this._wiz, rooms = this._rooms, [w, d] = this._wizDims();
     const [x, z] = this._wizSpot(lvl);
     const nr = a ? { area: a } : { name: (W.custom || '').trim() || `${t('Room')} ${rooms.length + 1}` };
-    if (W.shape === 'rect') nr.rects = [[x, z, r2(x + w), r2(z + d)]]; else nr.points = shapePoints(W.shape, x, z, w, d);
+    if (W.shape === 'rect') nr.rects = [[x, z, r2(x + w), r2(z + d)]]; else nr.points = this._wizPts(x, z);
     this._setLv(nr, lvl); rooms.push(nr);
-    this._sel = rooms.length - 1; this._lvl = lvl; W.anchor = this._sel; W.added++; W.i++; W.shape = 'rect'; W.customing = false; W.custom = '';
+    this._sel = rooms.length - 1; this._lvl = lvl; W.anchor = this._sel; W.added++; W.i++; W.shape = 'rect'; W.rot = 0; W.customing = false; W.custom = '';
     if (!a) W.list.splice(W.i - 1, 1), W.i--; // the extra room was no area: the list goes on where it was
     this._wizSize(); this._emit(); this._render();
   }
@@ -593,7 +605,7 @@ class SweetHomeCardEditor extends HTMLElement {
     }
     for (const d of arr(H.doors)) for (const p of [d.from, d.to]) if (p) { xs.push(p[0]); zs.push(p[1]); }
     for (const w of extraWalls(H.extra_walls)) { xs.push(w[0], w[2]); zs.push(w[1], w[3]); }
-    if (this._wiz) { const [x0, z0] = this._wizSpot(this._lvl); xs.push(x0, x0 + this._wiz.w); zs.push(z0, z0 + this._wiz.d + 1); } // the next room's preview fits too
+    if (this._wiz) { const [x0, z0] = this._wizSpot(this._lvl), [ww, wd] = this._wizDims(); xs.push(x0, x0 + ww); zs.push(z0, z0 + wd + 1); } // the next room's preview fits too
     this._B = { minX: Math.min(...xs) - 1, minZ: Math.min(...zs) - 1, maxX: Math.max(...xs) + 2, maxZ: Math.max(...zs) + 2, S: 40 };
   }
   _drawPlan(svg) {
@@ -668,14 +680,22 @@ class SweetHomeCardEditor extends HTMLElement {
     if (shape && this._psel != null && rooms[this._sel]?.points?.[this._psel]) { const [x, z] = rooms[this._sel].points[this._psel]; h += `<circle cx="${X(x)}" cy="${Z(z)}" r="8" fill="var(--primary-color)" stroke="var(--card-background-color)" stroke-width="2" pointer-events="none"/>`; }
     // the middle of each edge of an outline: drag it to bend the edge, tap it to add a corner
     for (const [x, z] of this._midHandles()) h += `<rect x="${X(x) - 6}" y="${Z(z) - 6}" width="12" height="12" rx="3" fill="var(--primary-color)" fill-opacity=".85" stroke="var(--card-background-color)" stroke-width="2"/>`;
+    // drawing a room's walls: the corners so far, and the next wall following the pointer
+    if (this._mode === 'shape' && this._stool === 'draw' && this._draft?.length) {
+      const D = this._draft, pts = [...D, ...(this._hover ? [this._hover] : [])];
+      h += `<polyline points="${pts.map(([x, z]) => `${X(x)},${Z(z)}`).join(' ')}" fill="none" stroke="var(--primary-color)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`;
+      if (D.length >= 3) h += `<line x1="${X(pts[pts.length - 1][0])}" y1="${Z(pts[pts.length - 1][1])}" x2="${X(D[0][0])}" y2="${Z(D[0][1])}" stroke="var(--primary-color)" stroke-opacity=".4" stroke-width="2" stroke-dasharray="6 6"/>`;
+      D.forEach(([x, z], i) => { h += `<circle cx="${X(x)}" cy="${Z(z)}" r="${i ? 6 : 10}" fill="${i ? 'var(--card-background-color)' : 'var(--primary-color)'}" stroke="var(--primary-color)" stroke-width="3" pointer-events="none"/>`; });
+      if (this._hover && D.length) { const [ax, az] = D[D.length - 1], [bx, bz] = this._hover; h += `<text x="${X((ax + bx) / 2)}" y="${Z((az + bz) / 2) - 8}" text-anchor="middle" font-size="12" fill="var(--primary-color)" pointer-events="none" paint-order="stroke" stroke="var(--secondary-background-color)" stroke-width="3">${r2(Math.hypot(bx - ax, bz - az))} m</text>`; }
+    }
     // room by room: where the next room will go (dashed, with its name)
     const W = this._wiz, wa = W && (W.list[W.i] || W.customing ? W.list[W.i] : undefined);
     if (W && (wa || W.customing)) {
       const lv = wa ? areaLevel(this._reg, wa) ?? this._lvl : this._lvl;
       if (lv === this._lvl) {
-        const [x0, z0] = this._wizSpot(lv), poly = W.shape === 'rect' ? [[x0, z0], [x0 + W.w, z0], [x0 + W.w, z0 + W.d], [x0, z0 + W.d]] : roomOutline({ points: shapePoints(W.shape, x0, z0, W.w, W.d) });
+        const [x0, z0] = this._wizSpot(lv), [ww, wd] = this._wizDims(), poly = W.shape === 'rect' ? [[x0, z0], [x0 + ww, z0], [x0 + ww, z0 + wd], [x0, z0 + wd]] : roomOutline({ points: this._wizPts(x0, z0) });
         h += `<path d="${pathOf(poly)}" fill="var(--primary-color)" fill-opacity=".1" stroke="var(--primary-color)" stroke-width="2.5" stroke-dasharray="8 6" pointer-events="none"/>`;
-        h += `<text x="${X(x0 + W.w / 2)}" y="${Z(z0 + W.d / 2)}" text-anchor="middle" dominant-baseline="middle" font-size="${S * 0.36}" fill="var(--primary-color)" pointer-events="none">${esc(wa ? this._hass.areas[wa]?.name || wa : W.custom || t('New room'))}</text>`;
+        h += `<text x="${X(x0 + ww / 2)}" y="${Z(z0 + wd / 2)}" text-anchor="middle" dominant-baseline="middle" font-size="${S * 0.36}" fill="var(--primary-color)" pointer-events="none">${esc(wa ? this._hass.areas[wa]?.name || wa : W.custom || t('New room'))}</text>`;
       }
     }
     // what is being drawn right now
@@ -697,6 +717,7 @@ class SweetHomeCardEditor extends HTMLElement {
   _handles() {
     const r = this._rooms[this._sel]; if (!r) return [];
     if (this._mode === 'shape' && this._stool === 'wall') { const w = arr(this._H.extra_walls)[this._wsel]; const o = Array.isArray(w) ? { from: [w[0], w[1]], to: [w[2], w[3]] } : w; return o?.from && o?.to ? [o.from, o.to] : []; }
+    if (this._mode === 'shape' && this._stool === 'draw') return []; // drawing: the old corners don't get in the way
     if (this._mode === 'shape' && r.points) return r.points.map(p => [p[0], p[1]]);
     if (this._mode === 'shape' && this._rsel != null) { const q = r.rects?.[this._rsel]; if (q) return [[q[0], q[1]], [q[2], q[1]], [q[0], q[3]], [q[2], q[3]]]; }
     if (this._mode === 'furniture' && this._fsel != null) {
@@ -710,7 +731,7 @@ class SweetHomeCardEditor extends HTMLElement {
 
   // the bend handles of the selected outline: the middle of each edge (on the arc for a bent one)
   _midHandles() {
-    const r = this._rooms[this._sel]; if (this._mode !== 'shape' || this._stool === 'wall' || !r?.points || !this._onLv(r)) return [];
+    const r = this._rooms[this._sel]; if (this._mode !== 'shape' || this._stool === 'wall' || this._stool === 'draw' || !r?.points || !this._onLv(r)) return [];
     const P = r.points, sg = polyArea(P) >= 0 ? 1 : -1;
     return P.map((a, i) => { const b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, bow = Number(a[2]) || 0; return [(a[0] + b[0]) / 2 + sg * (b[1] - a[1]) / L * bow, (a[1] + b[1]) / 2 - sg * (b[0] - a[0]) / L * bow]; });
   }
@@ -726,6 +747,9 @@ class SweetHomeCardEditor extends HTMLElement {
       op.p0 = p; op.moved = false; svg.setPointerCapture(e.pointerId); e.preventDefault();
     });
     svg.addEventListener('pointermove', e => {
+      if (!op && this._mode === 'shape' && this._stool === 'draw' && this._draft?.length) { // the next wall follows the pointer
+        this._hover = this._drawSnap(pt(e), snap); if (!this._hoverRaf) this._hoverRaf = requestAnimationFrame(() => { this._hoverRaf = null; this._drawPlan(svg); }); return;
+      }
       if (!op) return; const p = pt(e);
       if (!op.moved && Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < tol() * 0.5) return;
       op.moved = true; op.move?.(p); this._drawPlan(svg);
@@ -748,6 +772,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const rooms = this._rooms, r = rooms[this._sel], H = this._H;
     const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tol;
     if (this._mode === 'shape' && this._stool === 'wall') return this._wallOp(p, tol, snap);
+    if (this._mode === 'shape' && this._stool === 'draw') return { end: (moved, m) => this._drawTap(m, tol, snap) };
     if (this._mode === 'shape' && r?.points) return this._outlineOp(r, p, near, snap);
     if (this._mode === 'shape') {
       // 1. a corner of the selected rectangle: resize
@@ -973,12 +998,13 @@ class SweetHomeCardEditor extends HTMLElement {
 
   /* ---------------- Shape mode ---------------- */
   _mShape(box, r) {
-    const tools = [['rect', 'Room shape', 'mdi:vector-square'], ['wall', 'Separate walls', 'mdi:wall']];
+    const tools = [['rect', 'Room shape', 'mdi:vector-square'], ['draw', 'Draw walls', 'mdi:draw'], ['wall', 'Separate walls', 'mdi:wall']];
     const tb = document.createElement('div'); tb.className = 'sh-modes'; tb.style.marginBottom = '10px';
     tb.innerHTML = tools.map(([k, n, i]) => `<button data-stool="${k}" class="${this._stool === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('');
-    tb.querySelectorAll('[data-stool]').forEach(b => b.addEventListener('click', () => { this._stool = b.dataset.stool; this._wsel = null; this._psel = null; this._rsel = null; this._render(); }));
+    tb.querySelectorAll('[data-stool]').forEach(b => b.addEventListener('click', () => { this._stool = b.dataset.stool; this._wsel = null; this._psel = null; this._rsel = null; this._draft = null; this._render(); }));
     box.appendChild(tb);
     if (this._stool === 'wall') return this._mWalls(box);
+    if (this._stool === 'draw') return this._mDraw(box, r);
     const L = this._levels();
     const stairsNow = r.stairs === true || (r.stairs && typeof r.stairs === 'object') ? 'auto' : r.stairs === false ? 'none' : ['both', 'up', 'down'].includes(r.stairs) ? r.stairs : '';
     const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: stairsNow, level: String(this._lvOf(r)) };
@@ -1013,11 +1039,11 @@ class SweetHomeCardEditor extends HTMLElement {
     const row = document.createElement('div'); row.className = 'sh-row'; row.style.marginTop = '10px';
     const q = this._rsel != null && !r.points ? r.rects?.[this._rsel] : null;
     row.innerHTML = (r.points ? `<span class="sh-hint">${t('{0} corners. Drag a corner to move it. Drag the square in the middle of an edge to bend it into a curve, tap it to add a corner.', r.points.length)}</span>
-      <button data-rot><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button><button data-flip><ha-icon icon="mdi:flip-horizontal"></ha-icon>${t('Mirror')}</button>
+      <button data-rot><ha-icon icon="mdi:rotate-right"></ha-icon>${t('Turn')}</button><button data-rotby="-15" title="${t('Rotate 15° anticlockwise')}"><ha-icon icon="mdi:rotate-left"></ha-icon>15°</button><button data-rotby="15" title="${t('Rotate 15° clockwise')}"><ha-icon icon="mdi:rotate-right"></ha-icon>15°</button><input data-rotdeg type="number" step="1" placeholder="°" title="${t('Rotate by an angle (degrees, clockwise)')}" style="width:64px"><button data-flip><ha-icon icon="mdi:flip-horizontal"></ha-icon>${t('Mirror')}</button>
       ${this._psel != null && r.points.length > 3 ? `<button data-delpt class="del"><ha-icon icon="mdi:vector-point-minus"></ha-icon>${t('Delete corner')}</button>` : ''}
       <span style="flex:1"></span>` : `<span class="sh-hint">${t('{0} rectangle(s)', (r.rects || []).length)}${q ? ` · selected ${r2(q[2] - q[0])} × ${r2(q[3] - q[1])} m` : ''}</span>
       ${q ? `<button data-delrect class="del"><ha-icon icon="mdi:vector-square-remove"></ha-icon>${t('Delete rectangle')}</button>` : ''}
-      ${(r.rects || []).length ? `<button data-outline title="${t('Free corners: slant or bend any wall')}"><ha-icon icon="mdi:vector-polygon"></ha-icon>${t('Edit corners')}</button>` : ''}
+      ${(r.rects || []).length ? `<button data-outline title="${t('Free corners: slant or bend any wall')}"><ha-icon icon="mdi:vector-polygon"></ha-icon>${t('Edit corners')}</button><button data-rotby="-15" title="${t('Rotate 15° anticlockwise')}"><ha-icon icon="mdi:rotate-left"></ha-icon>15°</button><button data-rotby="15" title="${t('Rotate 15° clockwise')}"><ha-icon icon="mdi:rotate-right"></ha-icon>15°</button>` : ''}
       <span style="flex:1"></span>`) + `
       <button data-dup><ha-icon icon="mdi:content-copy"></ha-icon>${t('Duplicate room')}</button>
       <button class="sh-btn del" data-del><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete room')}</button>`;
@@ -1029,6 +1055,15 @@ class SweetHomeCardEditor extends HTMLElement {
     const turn = f => { const b = roomBox(r); r.points = r.points.map(q => [...f(q[0], q[1], b).map(v => r2(v)), ...q.slice(2)]); this._pbox = null; this._emit(); this._render(); };
     row.querySelector('[data-rot]')?.addEventListener('click', () => turn((x, z, b) => [b[0] + (b[3] - z), b[1] + (x - b[0])]));
     row.querySelector('[data-flip]')?.addEventListener('click', () => turn((x, z, b) => [b[0] + (b[2] - x), z]));
+    // rotate by any angle around the middle of the room (rectangles become free corners first)
+    const rotBy = deg => {
+      if (!r.points && !this._toOutline(r)) { this._toast = t('These rectangles don’t touch: join them first.'); return this._render(); }
+      const b = roomBox(r), cx = (b[0] + b[2]) / 2, cz = (b[1] + b[3]) / 2, a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      r.points = r.points.map(q => [r2(cx + (q[0] - cx) * c - (q[1] - cz) * s), r2(cz + (q[0] - cx) * s + (q[1] - cz) * c), ...q.slice(2)]);
+      this._pbox = null; this._emit(); this._render();
+    };
+    row.querySelectorAll('[data-rotby]').forEach(b => b.addEventListener('click', () => rotBy(Number(b.dataset.rotby))));
+    row.querySelector('[data-rotdeg]')?.addEventListener('change', e => { const v = Number(e.target.value); if (v) rotBy(v); });
     if (this._toast) { const n = document.createElement('div'); n.className = 'sh-hint'; n.style.color = 'var(--warning-color, #f59e0b)'; n.textContent = this._toast; box.appendChild(n); this._toast = null; }
     row.querySelector('[data-dup]').addEventListener('click', () => this._dupRoom());
     row.querySelector('[data-del]').addEventListener('click', () => { this._rooms.splice(this._sel, 1); this._sel = Math.max(0, this._sel - 1); this._rsel = null; this._emit(); this._render(); });
@@ -1059,6 +1094,42 @@ class SweetHomeCardEditor extends HTMLElement {
     const out = pts.filter((p, i) => { const a = pts[(i - 1 + pts.length) % pts.length], b = pts[(i + 1) % pts.length]; return Math.abs((p[0] - a[0]) * (b[1] - p[1]) - (p[1] - a[1]) * (b[0] - p[0])) > 1e-6; });
     if (out.length < 3) return false;
     r.points = out.map(p => [r2(p[0]), r2(p[1])]); delete r.rects; this._rsel = null; return true;
+  }
+  /* drawing a room's walls corner by corner */
+  // the next corner: on the grid, and with "straight walls" on, on a line from the last corner at a multiple of 45°
+  _drawSnap(p, snap) {
+    const D = this._draft || [], last = D[D.length - 1];
+    if (!last || this._drawFree) return [snap(p[0]), snap(p[1])];
+    const dx = p[0] - last[0], dz = p[1] - last[1], L = Math.hypot(dx, dz); if (L < 1e-6) return [last[0], last[1]];
+    const a = Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4), diag = Math.abs(Math.sin(a) * Math.cos(a)) > 0.1;
+    const len = diag ? Math.max(this._grid, Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid) : Math.round(L * Math.cos(Math.atan2(dz, dx) - a) / this._grid) * this._grid;
+    return [r2(last[0] + Math.cos(a) * len), r2(last[1] + Math.sin(a) * len)];
+  }
+  _drawTap(m, tol, snap) {
+    const D = (this._draft ||= []), q = this._drawSnap(m, snap);
+    if (D.length >= 3 && Math.hypot(m[0] - D[0][0], m[1] - D[0][1]) <= tol) return this._drawClose(); // back on the first corner: the room is closed
+    const last = D[D.length - 1]; if (last && Math.hypot(q[0] - last[0], q[1] - last[1]) < 0.05) return false;
+    D.push(q); this._hover = null; return false;
+  }
+  _drawClose() {
+    const r = this._rooms[this._sel], D = this._draft || [];
+    if (!r || D.length < 3) return false;
+    r.points = D.map(p => [r2(p[0]), r2(p[1])]); delete r.rects; this._draft = null; this._hover = null; this._stool = 'rect'; this._psel = null;
+    return true;
+  }
+  _mDraw(box, r) {
+    const D = this._draft || [], d = document.createElement('div'); d.className = 'sh-ed';
+    d.innerHTML = `<div class="sh-hint">${t('Tap each corner of {0} in turn: the walls follow. Tap the first corner again (or Done) to close the room. Its shape is replaced by what you draw.', esc(this._roomName(r, this._sel)))}</div>
+      <div class="sh-row"><span class="sh-hint" style="flex:1">${t('{0} corners', D.length)}</span>
+        <label class="sh-hint" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-dstraight ${this._drawFree ? '' : 'checked'}>${t('Straight walls (every 45°)')}</label></div>
+      <div class="sh-row"><button class="sh-btn pri" data-ddone ${D.length >= 3 ? '' : 'disabled'}><ha-icon icon="mdi:check"></ha-icon>${t('Done')}</button>
+        <button class="sh-btn" data-dback ${D.length ? '' : 'disabled'}><ha-icon icon="mdi:undo"></ha-icon>${t('Remove last corner')}</button><span style="flex:1"></span>
+        <button class="sh-btn" data-dcancel>${t('Cancel')}</button></div>`;
+    box.appendChild(d);
+    d.querySelector('[data-dstraight]').addEventListener('change', e => { this._drawFree = !e.target.checked; });
+    d.querySelector('[data-ddone]').addEventListener('click', () => { if (this._drawClose()) this._emit(); this._render(); });
+    d.querySelector('[data-dback]').addEventListener('click', () => { D.pop(); this._render(); });
+    d.querySelector('[data-dcancel]').addEventListener('click', () => { this._draft = null; this._hover = null; this._stool = 'rect'; this._render(); });
   }
   /* separate walls: a partition, a kitchen half wall, a glass screen, a curved garden wall */
   _mWalls(box) {
