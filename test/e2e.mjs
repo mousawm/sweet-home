@@ -129,6 +129,18 @@ try {
     el._setTab('home');
     return JSON.stringify(r);
   }).then(r => { const ok = r === JSON.stringify(['Closed|Closed', 'Open|Open', 'Open|Unavailable', 'Partially|Partially', 'Closed|Open']); if (!ok) console.log('      got', r); return ok; }));
+  check('a gate with an open / closed sensor is listed with the doors, open while its sensor says open', await p.evaluate(async () => {
+    const H = window.hassObj; card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: 'open' }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } };
+    await new Promise(r => setTimeout(r, 250)); card._setTab('security'); await new Promise(r => setTimeout(r, 150));
+    const chip = [...card.shadowRoot.querySelectorAll('#security .door')].find(d => d.textContent.trim() === 'Gate'); card._setTab('home');
+    return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state';
+  }));
+  check('rename sheets show each entity\'s name (not "false")', await p.evaluate(async () => {
+    card.editMode = true; card._setTab('security'); await new Promise(r => setTimeout(r, 200));
+    card.shadowRoot.querySelector('#security [data-act=rnsec]').click(); await new Promise(r => setTimeout(r, 200));
+    const vals = [...card.shadowRoot.querySelectorAll('#sheet [data-rename]')].map(i => i.value); card._closeSheet(); card.editMode = false; card._setTab('home');
+    return vals.length > 0 && !vals.includes('false') && vals.every(v => v);
+  }));
   // irrigation: its valves (a valve entity and a switch), named, and they open / start with a second tap
   await p.evaluate(() => card._setTab('water')); await p.waitForTimeout(150);
   check('irrigation panel shows its valves', await p.evaluate(() => { const v = [...card.shadowRoot.querySelectorAll('#irrigation .valve')]; return v.length === 2 && v[0].textContent.includes('Front lawn') && v[0].textContent.includes('Watering') && v[1].textContent.includes('Drip Zone') && v[1].textContent.includes('Closed'); }));
