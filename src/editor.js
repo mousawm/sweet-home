@@ -824,10 +824,14 @@ class SweetHomeCardEditor extends HTMLElement {
       // a piece (the selected room's first, then any room's, topmost first): select it and drag to move
       const hit = this._pieceAt(p, tol * 0.4);
       if (hit) {
-        const [ri, fi] = hit, pc = rooms[ri].furniture[fi], start = JSON.stringify(pc);
-        let last = [0, 0];
+        const [ri, fi] = hit, pc = rooms[ri].furniture[fi], start = JSON.stringify(pc), orig = JSON.parse(start);
         return {
-          move: m => { this._sel = ri; this._fsel = fi; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]); movePiece(pc, dx - last[0], dz - last[1]); last = [dx, dz]; },
+          // moved by whole grid steps, then pulled flat against a wall that is close (see _toWall)
+          move: m => {
+            this._sel = ri; this._fsel = fi; const dx = snap(m[0] - p[0]), dz = snap(m[1] - p[1]);
+            for (const k of ['x', 'z', 'from', 'to']) if (orig[k] !== undefined) pc[k] = clone(orig[k]);
+            movePiece(pc, dx, dz); this._toWall(pc);
+          },
           end: () => {
             this._sel = ri; this._fsel = fi;
             if (JSON.stringify(pc) === start) return false;
@@ -1396,7 +1400,23 @@ class SweetHomeCardEditor extends HTMLElement {
     const list = this._ownFurniture(i);
     const o = clone(NEW_PIECE[type] || {}), span = o._span; delete o._span;
     list.push(span ? { type, from: [r2(x - span[0]), r2(z - span[1])], to: [r2(x + span[0]), r2(z + span[1])], ...o } : { type, x, z, ...o });
-    this._sel = i; this._fsel = list.length - 1;
+    this._sel = i; this._fsel = list.length - 1; this._toWall(list[list.length - 1]);
+  }
+  // A piece close to a wall (up to 35 cm) is pulled flat against it: counters, cabinets, sofas, beds… go where a wall
+  // is, not a grid step away from it. It stops at the wall's inner face (walls are drawn on the room's edge lines).
+  _toWall(f) {
+    const t = String(f.type || 'box'); if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'tree', 'sprinkler', 'rug', 'pool', 'car', 'blinds', 'stairs'].includes(t)) return;
+    const b = fpBox(footprint(f)), MAG = 0.35, IN = 0.06; let dx = 0, dz = 0, bx = MAG, bz = MAG;
+    for (const [x1, z1, x2, z2] of this._wallSegsHere()) {
+      if (Math.abs(x1 - x2) < 1e-6) { // a wall along z at x = x1: the piece's left or right side goes to it
+        if (Math.min(z1, z2) > b[3] - 0.05 || Math.max(z1, z2) < b[1] + 0.05) continue;
+        for (const d of [x1 + IN - b[0], x1 - IN - b[2]]) if (Math.abs(d) < bx) { bx = Math.abs(d); dx = d; }
+      } else if (Math.abs(z1 - z2) < 1e-6) { // a wall along x at z = z1
+        if (Math.min(x1, x2) > b[2] - 0.05 || Math.max(x1, x2) < b[0] + 0.05) continue;
+        for (const d of [z1 + IN - b[1], z1 - IN - b[3]]) if (Math.abs(d) < bz) { bz = Math.abs(d); dz = d; }
+      }
+    }
+    if (dx || dz) movePiece(f, r2(dx), r2(dz));
   }
   _mFurniture(box, r) {
     const auto = !Array.isArray(r.furniture) && this._H.auto_furniture && r.furniture !== false;

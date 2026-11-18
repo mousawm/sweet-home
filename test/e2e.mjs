@@ -351,6 +351,13 @@ try {
   const hd = await p.evaluate(() => editor._handles()[0]);
   await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
   check('resizing a turned sofa keeps its width (0.9 m) and changes only its length', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.w === 0.9 && f.d === 3; }));
+  // a counter dropped near a wall is pulled flat against it (the grid alone left a gap)
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'block', from: [1, 3], to: [3, 3.6], h: 0.9 }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); });
+  await drag([2, 3.3], [2, 4.3]);
+  check('a counter dragged near a wall goes flat against it', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return Math.abs(Math.max(f.from[1], f.to[1]) - 4.94) < 1e-6 && Math.abs(Math.abs(f.to[1] - f.from[1]) - 0.6) < 1e-6; }));
+  await drag([2, 4.6], [2, 2.6]);
+  check('…and away from walls it just follows the grid', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return Math.abs(Math.min(f.from[1], f.to[1]) - 2.34) < 1e-6; }));
+  await p.evaluate(() => { delete editor._config.house.rooms[0].furniture; editor._sel = 0; editor._render(); });
   // a sofa's parts each get a colour: frame and back, seat cushions, pillows
   await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._fsel = 0; editor._render(); });
   check('a sofa has colours for its seat cushions and pillows, showing the 3D defaults', await p.evaluate(() => { const c = editor.querySelector('ha-form input[name=c_cushion]'), pl = editor.querySelector('ha-form input[name=c_pillow]'); return c?.value === '#64748b' && pl?.value === '#e2e8f0'; }));
