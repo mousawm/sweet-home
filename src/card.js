@@ -5,7 +5,7 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildModel, toColor, FURN_TYPES } from './model.js';
+import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
@@ -2740,13 +2740,26 @@ class HouseScene {
       const grp = new T.Group(); this._at().add(grp);
       const mats = [];
       let minx = 1e9, minz = 1e9, maxx = -1e9, maxz = -1e9, area = 0, sx = 0, sz = 0;
-      for (const [x1, z1, x2, z2] of (r.floorRects || r.rects)) {
+      const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : r.floor === 'asphalt' ? 4 : 2.5;
+      const floorMat = map => new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : r.floor === 'asphalt' ? 0.85 : 0.95, metalness: 0.0, emissive: 0x000000 });
+      if (r.poly) { // an outline (slanted or bent edges): one floor slab cut to its shape, with a hole for each stairwell
+        const P = r.poly.map(([x, z]) => this.w(x, z)), sh = new T.Shape(P.map(([x, z]) => new T.Vector2(x, -z)));
+        for (const [x1, z1, x2, z2] of r.holes || []) { const [a, b] = this.w(x1, z1), [c, d] = this.w(x2, z2); sh.holes.push(new T.Path([new T.Vector2(a, -b), new T.Vector2(c, -b), new T.Vector2(c, -d), new T.Vector2(a, -d)])); }
+        texCache[r.floor] = texCache[r.floor] || this._tex(r.floor);
+        const map = texCache[r.floor].clone(); map.needsUpdate = true; map.repeat.set(1 / rep, 1 / rep);
+        const mat = floorMat(map), m = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: false }), mat);
+        m.rotation.x = -Math.PI / 2; m.position.y = -0.1; m.receiveShadow = true; m.userData.room = r.id;
+        grp.add(m); this.pick.push(m); mats.push(mat);
+        let a2 = 0; // centroid of the outline
+        r.poly.forEach(([x1, z1], i) => { const [x2, z2] = r.poly[(i + 1) % r.poly.length], c = x1 * z2 - x2 * z1; a2 += c; sx += (x1 + x2) * c; sz += (z1 + z2) * c; minx = Math.min(minx, x1); minz = Math.min(minz, z1); maxx = Math.max(maxx, x1); maxz = Math.max(maxz, z1); });
+        area = 3 * a2;
+      }
+      for (const [x1, z1, x2, z2] of (r.poly ? [] : r.floorRects || r.rects)) {
         const w = x2 - x1, d = z2 - z1;
         texCache[r.floor] = texCache[r.floor] || this._tex(r.floor);
         const map = texCache[r.floor].clone(); map.needsUpdate = true;
-        const rep = r.floor === 'marble' ? 1.6 : r.floor === 'tile' ? 1.2 : r.floor === 'wood' ? 2.2 : r.floor === 'asphalt' ? 4 : 2.5;
         map.repeat.set(w / rep, d / rep);
-        const mat = new T.MeshStandardMaterial({ map, roughness: r.floor === 'marble' || r.floor === 'tile' ? 0.35 : r.floor === 'asphalt' ? 0.85 : 0.95, metalness: 0.0, emissive: 0x000000 });
+        const mat = floorMat(map);
         const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
         const yOff = r.id === 'stairs' ? 0 : 0;
         const m = new T.Mesh(new T.BoxGeometry(w - 0.02, 0.1, d - 0.02), mat);
@@ -2758,7 +2771,8 @@ class HouseScene {
       const [ccx, ccz] = r.anchor ? this.w(...r.anchor) : this.w(sx / area, sz / area);
       // outline
       const pts = [];
-      for (const [x1, z1, x2, z2] of r.rects) {
+      if (r.poly) r.poly.forEach(([x1, z1], i) => { const [x2, z2] = r.poly[(i + 1) % r.poly.length], a = this.w(x1, z1), b = this.w(x2, z2); pts.push(a[0], 0.02, a[1], b[0], 0.02, b[1]); });
+      for (const [x1, z1, x2, z2] of r.poly ? [] : r.rects) {
         const a = this.w(x1 + 0.08, z1 + 0.08), b = this.w(x2 - 0.08, z2 - 0.08);
         pts.push(a[0], 0.02, a[1], b[0], 0.02, a[1], b[0], 0.02, a[1], b[0], 0.02, b[1], b[0], 0.02, b[1], a[0], 0.02, b[1], a[0], 0.02, b[1], a[0], 0.02, a[1]);
       }
@@ -2803,7 +2817,30 @@ class HouseScene {
       const sidesOf = i => Array.isArray(r.stripSides) ? (r.stripSides[i] || '') : (r.stripSides || 'nesw');
       const lineMat = new T.MeshBasicMaterial({ color: R.stripCol, transparent: true, opacity: 0, toneMapped: false });
       const planes = [], washes = [], ribbons = [];
-      r.rects.forEach(([x1, z1, x2, z2], ri) => {
+      if (r.poly) { // an outline: the strip follows every edge (slanted and bent ones too)
+        const P = polyArea(r.poly) >= 0 ? r.poly : [...r.poly].reverse(), inset = 0.12;
+        const glow = (len, wd, x, y, z, ang, tex) => { const m = new T.Mesh(new T.PlaneGeometry(len, wd), new T.MeshBasicMaterial({ map: this._grad(tex), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending })); m.rotation.order = 'YXZ'; m.rotation.y = -ang; m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); this._at().add(m); return m; };
+        P.forEach(([x1, z1], i) => {
+          const [x2, z2] = P[(i + 1) % P.length], L = Math.hypot(x2 - x1, z2 - z1); if (L < 0.05) return;
+          const dx = (x2 - x1) / L, dz = (z2 - z1) / L, ix = -dz, iz = dx, ang = Math.atan2(dz, dx); // (ix, iz): into the room
+          let runs = [[0, L]];
+          if (r.stripMode === 'walls') { // only where a wall stands on this edge
+            const me = lineOf(x1, z1, x2, z2), t0 = x1 * me.dx + z1 * me.dz, s = dx * me.dx + dz * me.dz;
+            runs = WALLS.filter(q => (q[5] ?? 0) === r.level && q[4] !== 'rail').map(q => [q, lineOf(q[0], q[1], q[2], q[3])])
+              .filter(([, l]) => l && Math.abs(l.ang - me.ang) < 2e-3 && Math.abs(l.c - me.c) < 0.03)
+              .map(([, l]) => [(l.a - t0) * s, (l.b - t0) * s].sort((u, v) => u - v)).map(([a, b]) => [Math.max(0, a), Math.min(L, b)]).filter(([a, b]) => b - a > 0.05);
+          }
+          for (const [a, b] of runs) {
+            const len = b - a, m = (a + b) / 2, cx = x1 + dx * m, cz = z1 + dz * m;
+            const [fx, fz] = this.w(cx + ix * 0.3, cz + iz * 0.3); planes.push(glow(len, 0.6, fx, 0.025, fz, ang, 'v'));
+            const [wx, wz] = this.w(cx + ix * inset, cz + iz * inset);
+            const wash = new T.Mesh(new T.PlaneGeometry(len, WALL_H - 0.18), new T.MeshBasicMaterial({ map: this._grad('v'), color: R.stripCol.clone(), transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
+            wash.position.set(wx, (WALL_H - 0.18) / 2, wz); wash.rotation.y = -ang; this._at().add(wash); washes.push(wash);
+            const [rx, rz] = this.w(cx + ix * 0.3, cz + iz * 0.3); ribbons.push(glow(len, 0.36, rx, WALL_H - 0.14, rz, ang, 'h'));
+          }
+        });
+      }
+      (r.poly ? [] : r.rects).forEach(([x1, z1, x2, z2], ri) => {
         const sides = sidesOf(ri); if (!sides) return;
         // floor glow: transparent in the middle, bright along the chosen edges (edge width kept ~0.9 m in world units)
         const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.globalCompositeOperation = 'lighter';
@@ -2856,7 +2893,7 @@ class HouseScene {
     }
     if (types.includes('spots')) {
       const pts = [];
-      for (const [x1, z1, x2, z2] of r.rects) {
+      for (const [x1, z1, x2, z2] of r.poly && r.rects.length > 4 ? r.rects.slice(0, 1) : r.rects) {
         const w = x2 - x1, d = z2 - z1;
         if (Math.min(w, d) < 3) { // narrow corridor: one line down the middle
           const alongX = w >= d, len = alongX ? w : d, n = Math.max(2, Math.round((len - 1.2) / 1.6) + 1);
@@ -2908,18 +2945,28 @@ class HouseScene {
     const capMat = new T.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
     const glassMat = new T.MeshPhysicalMaterial({ color: 0x9ad7ff, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.15 });
     const frameMat = new T.MeshStandardMaterial({ color: 0x5b6472, roughness: 0.5, metalness: 0.4 });
-    const add = (mat, x1, z1, x2, z2, y0, h, thick, cast = true) => {
-      const len = Math.hypot(x2 - x1, z2 - z1); const horiz = z1 === z2;
-      const geo = new T.BoxGeometry(horiz ? len + thick : thick, h, horiz ? thick : len + thick);
-      const m = new T.Mesh(geo, mat);
+    // a wall piece in any direction (slanted and bent walls too: a bent one is many short pieces that overlap a little)
+    const add = (mat, x1, z1, x2, z2, y0, h, thick, cast = true, over = thick) => {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const m = new T.Mesh(new T.BoxGeometry(len + over, h, thick), mat);
       const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
-      m.position.set(cx, y0 + h / 2, cz); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
+      m.position.set(cx, y0 + h / 2, cz); m.rotation.y = -Math.atan2(z2 - z1, x2 - x1); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
     };
-    for (const [x1, z1, x2, z2, type, lvl] of WALLS) {
+    // an outer wall has no room on one of its sides: it is drawn thicker
+    const inside = (x, z, l) => ROOMS.some(r => r.level === l && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x > a && x < c && z > b && z < d)));
+    const glassWall = new T.MeshPhysicalMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.08, depthWrite: false });
+    for (const [x1, z1, x2, z2, type, lvl, o] of WALLS) {
       this._cl = lvl ?? 0;
-      const outer = x1 === x2 ? (x1 === 0 || x1 === PLAN_W) : (z1 === 0 || z1 === PLAN_D);
-      const t = outer ? 0.22 : 0.12;
-      if (type === 'rail') {
+      const len = Math.hypot(x2 - x1, z2 - z1) || 1, nx = -(z2 - z1) / len * 0.3, nz = (x2 - x1) / len * 0.3, mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+      const outer = !o && (!inside(mx + nx, mz + nz, lvl ?? 0) || !inside(mx - nx, mz - nz, lvl ?? 0));
+      const t = o ? 0.1 : outer ? 0.22 : 0.12, over = o?.bent ? t * 0.6 : t;
+      if (type === 'half') { // a low wall (kitchen bar, stair rail): `height`, else about two thirds of the wall
+        const h = Math.min(WALL_H, o?.h ?? Math.max(0.5, WALL_H * 0.62));
+        add(wallMat, x1, z1, x2, z2, 0, h, t, true, over); add(capMat, x1, z1, x2, z2, h, 0.04, t + 0.01, false, over);
+      } else if (type === 'glass') { // a glass partition: a thin frame at the floor and the top, glass between
+        const h = Math.min(WALL_H, o?.h ?? WALL_H);
+        add(frameMat, x1, z1, x2, z2, 0, 0.06, 0.07, false, over); add(glassWall, x1, z1, x2, z2, 0.06, h - 0.1, 0.03, false, over); add(frameMat, x1, z1, x2, z2, h - 0.04, 0.04, 0.07, false, over);
+      } else if (type === 'rail') {
         add(wallMat, x1, z1, x2, z2, 0, 0.18, 0.18);
         add(glassMat, x1, z1, x2, z2, 0.18, 0.72, 0.03, false);
         add(frameMat, x1, z1, x2, z2, 0.9, 0.05, 0.07, false);
@@ -2929,8 +2976,9 @@ class HouseScene {
         add(glassMat, x1, z1, x2, z2, 0.79, WALL_H - 0.79, 0.04, false);
         add(capMat, x1, z1, x2, z2, WALL_H, 0.04, t);
       } else {
-        add(wallMat, x1, z1, x2, z2, 0, WALL_H, t);
-        add(capMat, x1, z1, x2, z2, WALL_H, 0.04, t + 0.005, false);
+        const h = o?.h ? Math.min(WALL_H, o.h) : WALL_H;
+        add(wallMat, x1, z1, x2, z2, 0, h, t, true, over);
+        add(capMat, x1, z1, x2, z2, h, 0.04, t + 0.005, false, over);
       }
     }
   }
@@ -3259,6 +3307,13 @@ class HouseScene {
     for (const d of DOORS) {
       this._cl = d.level ?? 0;
       const pivot = new T.Group(); const [px, pz] = this.w(d.x, d.z); pivot.position.set(px, 0, pz);
+      if (d.axis === 'a') { // on a slanted wall: a base turned along the wall, the leaf swings inside it
+        const base = new T.Group(); base.position.copy(pivot.position); base.rotation.y = -Math.atan2(d.vz, d.vx); pivot.position.set(0, 0, 0); base.add(pivot); this._at().add(base);
+        const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
+        const dh = Math.max(0.5, WALL_H - 0.08), panel = new T.Mesh(new T.BoxGeometry(d.w - 0.04, dh, 0.06), mat); panel.castShadow = true;
+        panel.position.set(d.w / 2, dh / 2, 0); pivot.add(panel);
+        this.doors.push({ d, pivot, mat, a: 0, ang: -1.35 * d.side }); continue;
+      }
       const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
       const dh = Math.max(0.5, WALL_H - 0.08);
       const geo = d.axis === 'z' ? new T.BoxGeometry(0.06, dh, d.w - 0.04) : new T.BoxGeometry(d.w - 0.04, dh, 0.06);

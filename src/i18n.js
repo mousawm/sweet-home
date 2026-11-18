@@ -115,6 +115,19 @@ const AR = {
   'Rooms are closed by walls: add a door or an opening wherever you can walk between them. Drag a door, window, opening or badge to move it.':
     'الغرف مغلقة بالجدران: أضف بابًا أو ممرًا مفتوحًا حيث يمكن التنقل بينها. اسحب الباب أو النافذة أو الممر أو الشارة لتحريكها.',
   'Windows are placed on long outer walls automatically. Add one to place them yourself.': 'تُضاف النوافذ تلقائيًا على الجدران الخارجية الطويلة. أضف نافذة لتحدد أماكنها بنفسك.',
+  // room shapes and separate walls
+  'Room shape': 'شكل الغرفة', 'Separate walls': 'جدران منفصلة', Rectangle: 'مستطيل', 'L shape': 'شكل L', 'T shape': 'شكل T', 'U shape': 'شكل U',
+  'Cut corner': 'زاوية مائلة', 'Bay window': 'نافذة بارزة', 'Curved wall': 'جدار منحنٍ', Round: 'دائرية', Mirror: 'عكس', 'Delete corner': 'حذف الزاوية',
+  'Edit corners': 'تعديل الزوايا', 'Free corners: slant or bend any wall': 'زوايا حرة: اجعل أي جدار مائلًا أو منحنيًا',
+  '{0} corners. Drag a corner to move it. Drag the square in the middle of an edge to bend it into a curve, tap it to add a corner.':
+    '{0} زوايا. اسحب الزاوية لتحريكها. اسحب المربع في منتصف الضلع لجعله منحنيًا، أو اضغط عليه لإضافة زاوية.',
+  'These rectangles don’t touch: join them first.': 'هذه المستطيلات غير متلاصقة: اجعلها متصلة أولًا.',
+  'Drag the corners of {0} to reshape it, drag inside it to move it. Pick a ready-made shape below to start over.': 'اسحب زوايا {0} لتغيير شكلها، واسحب من داخلها لتحريكها. اختر شكلًا جاهزًا بالأسفل للبدء من جديد.',
+  'Drag on the grid to draw a separate wall, in any direction (one square = {0} m).': 'اسحب على الشبكة لرسم جدار منفصل بأي اتجاه (المربع الواحد = {0} م).',
+  'Drag on the plan to draw a wall that stands on its own: a partition, a kitchen half wall, a glass screen, a curved garden wall. Tap a wall to change it, drag it or its ends to move it. Doors and openings cut it too.':
+    'اسحب على المخطط لرسم جدار قائم بذاته: فاصل، أو جدار مطبخ منخفض، أو حاجز زجاجي، أو جدار حديقة منحنٍ. اضغط على الجدار لتعديله، واسحبه أو اسحب طرفيه لتحريكه. الأبواب والممرات تقطعه أيضًا.',
+  '{0} separate wall(s) on this floor': '{0} جدار منفصل في هذا الطابق', Kind: 'النوع', Wall: 'جدار', 'Half wall': 'جدار منخفض', Glass: 'زجاج',
+  'Height (m, empty: automatic)': 'الارتفاع (م، فارغ: تلقائي)', 'Bend (m, + one side, − the other)': 'الانحناء (م، + لجهة و− للأخرى)', 'Delete wall': 'حذف الجدار',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

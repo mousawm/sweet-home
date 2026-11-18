@@ -77,8 +77,10 @@ try {
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
   }));
   await p.evaluate(() => card._setTab('home'));
-  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 5));
-  check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors.at(-1); return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < 7.4 && Math.max(w[0], w[2]) > 6.6); }));
+  check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 6));
+  check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
+  check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
+  check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -113,7 +115,7 @@ try {
   await p.evaluate(() => editor._goLevel(1));
   check('first floor shows its own rooms', await p.evaluate(() => [...editor.querySelectorAll('[data-room]')].map(b => b.textContent.trim()).join() === 'Office,Landing'));
   await p.waitForTimeout(1500);
-  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 7));
+  check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 8));
   await p.evaluate(() => { editor._goLevel(0); editor._sel = 0; editor._mode = 'entities'; editor._render(); });
   await p.evaluate(() => { const i = editor.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); });
   await p.waitForTimeout(100);
@@ -127,6 +129,23 @@ try {
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="sensor.living_room_temperature"]'); i.value = 'Room Temp'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#drawer [data-act=names]').click(); });
   await p.waitForTimeout(400);
   check('renaming from the popup (editor open): saved with Done, the room opens again', await p.evaluate(() => editor._config.house.rooms[0].names?.['sensor.living_room_temperature'] === 'Room Temp' && card._sel === 'living_room' && card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Room Temp'));
+  // room shapes: ready-made shapes, corners, bends, separate walls
+  await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
+  check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));
+  await drag([10, 2.5], [10.5, 3]);
+  check('dragging a corner', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points[2]) === '[10.5,3]'));
+  const mh = await p.evaluate(() => editor._midHandles()[0]);
+  await drag(mh, [mh[0], mh[1] - 1]);
+  check('dragging the middle of an edge bends it', await p.evaluate(() => editor._config.house.rooms[1].points[0][2] === 1));
+  await p.evaluate(() => { editor._sel = 0; editor._render(); editor.querySelector('[data-outline]').click(); });
+  check('rectangles turn into an outline', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0].points) === '[[0,0],[6,0],[6,5],[0,5]]'));
+  await p.evaluate(() => editor.querySelector('[data-stool=wall]').click());
+  const nw = await p.evaluate(() => editor._config.house.extra_walls.length);
+  await drag([1, 1.5], [3, 3.5]);
+  await p.evaluate(() => { const s = editor.querySelector('[data-wt]'); s.value = 'half'; s.dispatchEvent(new Event('change')); });
+  check('drawing a separate wall at an angle and making it a half wall', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
+  await p.waitForTimeout(1500);
+  check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

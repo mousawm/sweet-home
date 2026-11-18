@@ -82,6 +82,13 @@ The dashboard is generated for you until you take control of it:
       - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
         a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
         Duplicate or delete rooms.
+        - **Ready-made shapes**: rectangle, L, T, U, cut corner, bay window, curved wall and round. Tap one to give the
+          room that shape in the space it takes now. **Turn** and **Mirror** change which way it faces.
+        - **Edit corners** gives a room free corners. Drag a corner to move it, which slants the walls next to it. Drag
+          the square in the middle of a wall to bend it into a curve, or tap the square to add a corner there.
+        - **Separate walls**: drag on the plan to draw a wall that stands on its own, in any direction. Use it for a
+          partition, a kitchen half wall, a glass screen or a curved garden wall. Tap one to set its kind, height and
+          bend, or drag it to move it. Doors and openings cut separate walls too.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
         what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity on this
         dashboard (Home Assistant is not changed). Set how each light is drawn (ceiling
@@ -92,7 +99,7 @@ The dashboard is generated for you until you take control of it:
         lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
-        Drag any of them to move it.
+        Drag any of them to move it. On a slanted wall, the door follows the wall.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
       so you can line them up. Areas on a Home Assistant floor are added to that floor.
@@ -142,6 +149,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
+| `extra_walls` | Walls that stand on their own, on top of the room walls: `from: [x, z]`, `to: [x, z]`, `type` (`wall`, `half` or `glass`), `height` (m), `bow` (bends the wall into an arc: how many metres its middle moves to one side, negative for the other side), `level`. A plain `[x1, z1, x2, z2]` works too. Doors and openings cut them. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
 | `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
@@ -158,7 +166,11 @@ shifted so that it starts at 0.
 ```yaml
 - area: bedroom               # devices in this area are found automatically
   name: Main Bedroom          # default: the area name
-  rects: [[0, 5, 5, 9]]       # one or more [x1, z1, x2, z2]
+  rects: [[0, 5, 5, 9]]       # one or more [x1, z1, x2, z2] (two that touch make an L, with no wall between them)
+  # or an outline, for slanted and curved walls: the corners in order. A third number bends the wall that starts
+  # at that corner into an arc (metres its middle bows out of the room; negative: into the room).
+  # points: [[0, 5], [5, 5], [5, 9], [1.2, 9], [0, 7.8, 0.7]]   # a cut corner and a curved wall
+  # points: [[0, 7, 2], [4, 7, 2]]                              # two bent corners make a round room
   icon: mdi:bed
   floor: carpet               # wood, tile, marble, carpet, stone, grass, asphalt (parking)
   outdoor: false
@@ -185,7 +197,7 @@ shifted so that it starts at 0.
                                          # the dashboard (renaming in the card editor or the popup writes these)
   color_lights: [light.bedroom_led]      # show colour swatches
   simple_lights: [light.tv_backlight]    # on/off only
-  strip_sides: nes                       # walls that have the LED strip
+  strip_sides: nes                       # walls that have the LED strip (an outline room: all of its walls)
   strip_mode: walls                      # stop the strip where a wall is missing (doors, openings); default: full side
   ac: {x: 0.2, z: 6, dx: 1, dz: 0}       # where the AC unit hangs and which way it blows
   anchor: [2.5, 7]                       # label position
