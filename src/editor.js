@@ -1560,7 +1560,7 @@ class SweetHomeCardEditor extends HTMLElement {
         { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'zones', selector: { entity: { domain: ['valve', 'switch', 'input_boolean'], multiple: true } } }, { name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }, { name: 'notification', selector: { entity: {} } }, { name: 'time', selector: { entity: {} } }],
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
-      media_server: [],
+      media_server: [{ name: 'jellyfin_tv' }], // its own form below
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
@@ -1595,6 +1595,23 @@ class SweetHomeCardEditor extends HTMLElement {
             const sugg = Object.keys(this._hass.states).filter(x => x.startsWith('input_boolean.')).slice(0, 6);
             if (sugg.length) { const b = document.createElement('div'); b.className = 'sh-hint'; b.innerHTML = `${t('Suggested')}: ${sugg.map(x => `<button class="sh-chip" data-msg="${esc(x)}">${esc(this._reg.name(x))}</button>`).join(' ')}`; b.querySelectorAll('[data-msg]').forEach(c => c.addEventListener('click', () => { this._config.modes = [...arr(this._config.modes), c.dataset.msg]; this._emit(); this._render(); })); det.appendChild(b); }
           }
+          list.appendChild(det); continue;
+        }
+        if (k === 'media_server') { // the TV that Jellyfin plays on: found by name (its entity id changes with each app session)
+          const tv = typeof cur.jellyfin_tv === 'object' && cur.jellyfin_tv ? cur.jellyfin_tv : {};
+          const players = Object.keys(this._hass.states).filter(x => x.startsWith('media_player.') && this._reg.platform(x) === 'jellyfin');
+          const pick = players.find(x => tv.session && new RegExp(tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(this._reg.name(x)));
+          det.appendChild(this._form([
+            { name: 'tv_player', selector: { entity: { domain: 'media_player', integration: 'jellyfin' } } }, { name: 'tv_name', selector: { text: {} } },
+            { name: 'app_player', selector: { entity: { domain: 'media_player', integration: 'androidtv' } } },
+          ], { tv_player: pick || '', tv_name: tv.name || '', app_player: tv.app_player || '' }, (v, typing) => {
+            const o = { ...tv }; delete o.session; delete o.name; delete o.app_player;
+            // the player's name without the session number HA adds ("Living Room TV 3" → "Living Room TV")
+            if (v.tv_player) o.session = this._reg.name(v.tv_player).replace(/\s*\d+$/, '').trim() || this._reg.name(v.tv_player);
+            if (v.tv_name) o.name = v.tv_name; if (v.app_player) o.app_player = v.app_player;
+            const ms = { ...cur }; if (Object.keys(o).length) ms.jellyfin_tv = o; else delete ms.jellyfin_tv;
+            set(k, Object.keys(ms).length ? ms : undefined);
+          }, { tv_player: 'TV to play on (a Jellyfin player; empty: the Jellyfin app used last)', tv_name: 'Name of the TV (shown as “play on …”)', app_player: 'Android TV to start Jellyfin on before playing (optional, needs the Android TV integration)' }));
           list.appendChild(det); continue;
         }
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }

@@ -12,5 +12,6 @@ await build({
   legalComments: 'eof',
   outfile: 'dist/sweet-home-card.js',
   define: { __SH_VERSION__: JSON.stringify(version) },
+  loader: { '.woff2': 'dataurl' }, // the Inter font is bundled (no request to an outside font server)
   logLevel: 'info',
 });
