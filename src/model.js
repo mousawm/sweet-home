@@ -683,7 +683,9 @@ export function buildModel(cfg = {}, hass) {
     dropArm(A, aEnd); dropArm(B, bTop ? 'start' : 'end');
     // B stops where A's seat ends (on the side away from A's back)
     if (bTop) { B.z0 = Math.min(a[3], b[3] - 0.3); B.z1 = b[3]; } else { B.z1 = Math.max(a[1], b[1] + 0.3); B.z0 = b[1]; }
-    B.x0 = b[0]; B.x1 = b[2]; A.x0 = a[0]; A.x1 = a[2]; A.z0 = a[1]; A.z1 = a[3];
+    // A ends exactly at B's outer side (shortened if it ran past B, lengthened if it stopped inside it): a square corner
+    B.x0 = b[0]; B.x1 = b[2]; A.z0 = a[1]; A.z1 = a[3];
+    if (aEnd === 'end') { A.x0 = a[0]; A.x1 = b[2]; } else { A.x0 = b[0]; A.x1 = a[2]; }
     // the corner's outer side gets a back when B's back is on that side
     if ((aEnd === 'start' && (B.back || 'n') === 'w') || (aEnd === 'end' && B.back === 'e')) A.cornerBack = aEnd;
     A.lJoin = B.lJoin = true;
@@ -697,9 +699,10 @@ export function buildModel(cfg = {}, hass) {
     const a = ext(A), b = ext(B); if (a[2] - a[0] < a[3] - a[1] || b[2] - b[0] >= b[3] - b[1]) continue; // A along x, B along z
     const ox0 = Math.max(a[0], b[0]), oz0 = Math.max(a[1], b[1]), ox1 = Math.min(a[2], b[2]), oz1 = Math.min(a[3], b[3]);
     if (ox1 - ox0 < 0.05 || oz1 - oz0 < 0.05) continue;
-    const bTop = (oz0 + oz1) / 2 < (b[1] + b[3]) / 2;
+    const bTop = (oz0 + oz1) / 2 < (b[1] + b[3]) / 2, aEnd = (ox0 + ox1) / 2 < (a[0] + a[2]) / 2 ? 'start' : 'end';
     if (bTop) { B.z0 = Math.min(a[3], b[3] - 0.1); B.z1 = b[3]; } else { B.z1 = Math.max(a[1], b[1] + 0.1); B.z0 = b[1]; }
     B.x0 = b[0]; B.x1 = b[2]; B.cJoin = true;
+    if (aEnd === 'end') { A.x0 = a[0]; A.x1 = b[2]; } else { A.x0 = b[0]; A.x1 = a[2]; } // a square corner: A ends at B's outer side
   }
   // every piece gets its index (the 3D view and the popup refer to it), its floor and its linked entities
   const lvOfRoom = Object.fromEntries(rooms.map(r => [r.id, r.level]));

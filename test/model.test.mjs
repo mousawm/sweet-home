@@ -192,6 +192,12 @@ test('two sofas overlapping at a right angle become one L-shaped sofa', () => {
   const [A, B, C] = m.furniture.filter(f => f.type === 'sofa');
   assert.deepEqual([A.arms, A.cornerBack, B.arms, B.z0, B.z1], ['end', 'start', 'end', 1.1, 3], 'A keeps the corner, B starts at its edge, no arms at the joint');
   assert.equal(C.arms, undefined, 'a sofa on its own keeps both arms');
+  // a sofa along the top that runs past the side sofa ends at its outer edge; one that stops inside it reaches it
+  for (const [topTo, sideFrom, sideTo] of [[[5.6, 1.05], [4.5, 0.15], [5.4, 3.6]], [[5.0, 1.05], [4.5, 0.15], [5.4, 3.6]]]) {
+    const m2 = buildModel({ house: { windows: 'none', rooms: [{ name: 'Lounge', rects: [[0, 0, 6, 5]], furniture: [{ type: 'sofa', from: [0.8, 0.15], to: topTo, back: 'n' }, { type: 'sofa', from: sideFrom, to: sideTo, back: 'e' }] }] } }, hass);
+    const [T, S] = m2.furniture.filter(f => f.type === 'sofa');
+    assert.deepEqual([T.x0, T.x1, T.cornerBack, S.z0, S.x1], [0.8, 5.4, 'end', 1.05, 5.4], `top to ${topTo[0]}: a square corner`);
+  }
 });
 test('two counters overlapping at a right angle become one corner counter (tops of another height stay apart)', () => {
   const m = buildModel({ house: { windows: 'none', rooms: [{ name: 'Kitchen', rects: [[0, 0, 6, 5]], furniture: [

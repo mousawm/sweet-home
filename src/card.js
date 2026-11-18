@@ -3131,6 +3131,9 @@ class HouseScene {
     // sofa: footprint extents, back side n/s/e/w, arms on the two ends
     const sofa = (room, x0, z0, x1, z1, back, color, cushion, pillow, arms = 'both', cornerBack = null) => {
       const seatH = 0.42, backT = 0.22, armT = 0.18;
+      // cushions the same colour as the frame would melt into it: they are drawn a shade lighter, so the seats show
+      const ch = c => [(c >> 16) & 255, (c >> 8) & 255, c & 255], [cr, cg, cb] = ch(cushion), [fr, fg, fb] = ch(color);
+      if (Math.abs(cr - fr) + Math.abs(cg - fg) + Math.abs(cb - fb) < 60) cushion = (Math.round(cr + (255 - cr) * 0.28) << 16) | (Math.round(cg + (255 - cg) * 0.28) << 8) | Math.round(cb + (255 - cb) * 0.28);
       ext(room, x0, z0, x1, z1, 0.3, color);
       const horiz = back === 'n' || back === 's';
       // the corner of an L-shaped sofa: a back on its outer end too
