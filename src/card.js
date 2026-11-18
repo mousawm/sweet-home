@@ -209,6 +209,15 @@ const DOM_ICON = { light: ['mdi:lightbulb-on', 'mdi:lightbulb-outline'], switch:
 const DC_ICON = { temperature: 'mdi:thermometer', humidity: 'mdi:water-percent', power: 'mdi:flash', energy: 'mdi:lightning-bolt', battery: 'mdi:battery', illuminance: 'mdi:brightness-5',
   motion: 'mdi:motion-sensor', occupancy: 'mdi:home-account', door: 'mdi:door', window: 'mdi:window-closed-variant', moisture: 'mdi:water-alert', carbon_dioxide: 'mdi:molecule-co2',
   pm25: 'mdi:blur', smoke: 'mdi:smoke-detector', opening: 'mdi:square-outline', plug: 'mdi:power-plug', outlet: 'mdi:power-socket-eu', signal_strength: 'mdi:wifi', voltage: 'mdi:sine-wave', current: 'mdi:current-ac' };
+// An icon that says what a button does, from its name and id (when it has no icon of its own)
+const BTN_ICONS = [[/ring|bell|alert|chime/, 'mdi:bell-ring'], [/locat|gps|find|where|track/, 'mdi:crosshairs-gps'], [/update|refresh|sync|reload/, 'mdi:refresh'],
+  [/flash|torch/, 'mdi:flashlight'], [/unlock/, 'mdi:lock-open-variant'], [/lock/, 'mdi:lock'], [/garage/, 'mdi:garage'], [/gate/, 'mdi:gate'], [/door/, 'mdi:door'],
+  [/restart|reboot/, 'mdi:restart'], [/shut ?down|power ?off/, 'mdi:power'], [/notif|message|send/, 'mdi:message-text'], [/speak|tts|say|announce/, 'mdi:account-voice'],
+  [/mute|silen/, 'mdi:volume-off'], [/vibrat/, 'mdi:vibrate'], [/volume/, 'mdi:volume-high'], [/wi-?fi/, 'mdi:wifi'], [/bluetooth/, 'mdi:bluetooth'], [/camera|photo|snap/, 'mdi:camera'],
+  [/light|lamp/, 'mdi:lightbulb'], [/alarm/, 'mdi:alarm'], [/dnd|do not disturb/, 'mdi:minus-circle'], [/battery|charg/, 'mdi:battery-charging'], [/car/, 'mdi:car'], [/clean|vacuum/, 'mdi:robot-vacuum'], [/water|valve/, 'mdi:water'], [/fan/, 'mdi:fan'], [/tv|media|play/, 'mdi:play-circle']];
+const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
+// a button's label without the noise: "button Areen phone ring mod" → "Ring Mod" (the word "button" and the phone / person's name go)
+const cleanLabel = (name, strip = []) => { let s = ` ${String(name || '')} `; for (const w of ['button', ...strip.filter(Boolean)]) s = s.replace(new RegExp(`\\s${String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[’']s?/g, "[’']?s?")}(?=\\s)`, 'gi'), ' '); s = s.trim().replace(/\s+/g, ' '); return s ? s.replace(/(^|\s)\S/g, c => c.toUpperCase()) : String(name || ''); };
 const domIcon = (d, v, a = {}) => {
   const on = ['on', 'open', 'opening', 'playing', 'unlocked', 'home'].includes(v) || (d === 'climate' && v && v !== 'off');
   if (a.device_class && DC_ICON[a.device_class]) return DC_ICON[a.device_class];
@@ -712,14 +721,18 @@ export class SweetHomeCard extends HTMLElement {
       const rg = RING[ring] || [tc(pretty(ring || '—')), 'mdi:volume-high'];
       const row = (id, icon, label, val, cls = '') => id && this.s(id) ? `<div class="mrow ${cls}" data-act="more" data-id="${id}">${ic(icon)}<span>${label}</span><b>${esc(val)}</b></div>` : '';
       const where = this.v(P.tracker) || ps?.state;
-      html = `<div class="sh-h">${pic ? `<img src="${esc(pic)}" alt="">` : ic('mdi:cellphone')}<div><b>${esc(P.name)}</b><span>${esc(tc(pretty(ps?.state || '—')))}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`
+      html = `<div class="sh-h">${pic ? `<img src="${esc(pic)}" alt="">` : ic('mdi:cellphone')}<div><b>${esc(P.name)}</b><span>${esc(tc(pretty(ps?.state || '—')))}</span></div>${this._editing && this._hass?.user?.is_admin ? `<button class="ibtn" data-act="rnphone" data-id="${pid}" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`
         + row(P.battery, chg ? 'mdi:battery-charging' : b != null && b < 20 ? 'mdi:battery-alert' : 'mdi:battery', 'Battery', b != null ? `${Math.round(b)}%${chg ? ' · Charging' : ''}` : '—', b != null && b < 20 && !chg ? 'open' : chg ? 'on' : '')
         + row(P.tracker, 'mdi:map-marker', 'Location', tc(pretty(where || '—')))
         + row(P.location, 'mdi:map', 'Address', this.ok(P.location) ? this.v(P.location) : '—')
         + row(P.ringer, rg[1], 'Ringer Mode', rg[0])
         + row(P.wifi, 'mdi:wifi', 'Wi-Fi', this.ok(P.wifi) && this.v(P.wifi) !== '<not connected>' ? this.v(P.wifi) : 'Not connected')
         + (P.entities || []).map(id => this._entRow(id)).join('')
-        + `<div class="phbtns">${P.buttons.filter(([id]) => this.s(id)).map(([id, n, i]) => { const d = id.split('.')[0], nm = n || this.s(id).attributes.friendly_name || id; return `<button class="phbtn" data-act="${d === 'script' || d === 'scene' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle'}" data-id="${id}" data-label="${esc(nm)}">${ic(i)}<span>${esc(nm)}</span></button>`; }).join('')}</div>`;
+        + `<div class="phbtns">${P.buttons.filter(([id]) => this.s(id)).map(([id, n, i0]) => {
+          const d = id.split('.')[0], fn = this.s(id).attributes.friendly_name || id;
+          // a name of your own (here or a dashboard name) as written; else the entity's name without "button" and the phone / person's name
+          const dev = this._hass.devices?.[this._hass.entities?.[id]?.device_id] || {};
+          const nm = n || (this._nameMap?.[id] ? fn : cleanLabel(fn, [dev.name_by_user, dev.name, P.name, ps?.attributes.friendly_name, String(pid).split('.')[1]?.replace(/_/g, ' ')])), i = i0 || btnIcon(id, nm); return `<button class="phbtn" data-act="${d === 'script' || d === 'scene' ? 'run' : d === 'button' || d === 'input_button' ? 'press' : 'toggle'}" data-id="${id}" data-label="${esc(nm)}">${ic(i)}<span>${esc(nm)}</span></button>`; }).join('')}</div>`;
     } else {
       const rows = ROOMS.filter(r => r.temp && this.s(r.temp)).map(r => {
         const t = this.n(r.temp), h = r.hum ? this.n(r.hum) : null, ac = r.climate && this.climOn(r.climate);
@@ -1333,6 +1346,11 @@ export class SweetHomeCard extends HTMLElement {
       case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast('Reboot sent'); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
       case 'rnbadge': if (!this._editing) break; this._pendNames = null; this._openInfo('rnbadge:' + t.dataset.i); break;
       case 'rnbsave': { const i = Number(t.dataset.i), v = this._pendNames?.['badge:' + i]; this._pendNames = null; this._closeSheet(); if (v !== undefined) this._saveBadgeName(i, v); break; }
+      case 'rnphone': { // the phone panel's rows and buttons, renamed for this dashboard
+        if (!this._editing) break; const P = E.phones[t.dataset.id]; if (!P) break;
+        const ids = [P.battery, P.charging, P.tracker, P.location, P.ringer, P.wifi, ...(P.entities || []), ...P.buttons.map(b => b[0])].filter(x => x && this.s(x));
+        this._pendNames = null; this._openInfo('rename:phone'); this._rnIds = { sid: 'phone', ids: [...new Set(ids)], title: P.name }; this._renderInfo(); break;
+      }
       case 'rnsec': if (!this._editing) break; this._pendNames = null; this._rnIds = null; this._openInfo('rename:' + t.dataset.sec); break;
       case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
@@ -1742,7 +1760,7 @@ export class SweetHomeCard extends HTMLElement {
   // Rename sheet of a panel (edit mode): every entity the panel shows, with its name in a text field. Like the room
   // popup: names are for this dashboard only, saved together with Done; an empty field goes back to the entity's own name.
   _rnSheet(head, sid) {
-    const el = this.$(sid), title = el?.querySelector('.ch h3')?.textContent?.trim() || tr('Panel');
+    const el = this.$(sid), title = (this._rnIds?.sid === sid && this._rnIds.title) || el?.querySelector('.ch h3')?.textContent?.trim() || tr('Panel');
     if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
       // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
       const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };

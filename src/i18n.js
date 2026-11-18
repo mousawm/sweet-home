@@ -162,6 +162,8 @@ const AR = {
   'Name on the panel (empty: the phone’s name)': 'الاسم في اللوحة (فارغ: اسم الهاتف)', 'Phone tracker': 'متتبع الهاتف', Battery: 'البطارية', Address: 'العنوان', 'Ringer mode': 'وضع الرنين', 'Wi-Fi': 'الواي فاي',
   'More rows (any entity)': 'صفوف إضافية (أي كيان)', 'Buttons (ring the phone, find it, scripts…)': 'أزرار (رنين الهاتف، العثور عليه، سكربتات…)',
   'Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.': 'اترك كل الحقول فارغة لتُكتشف تلقائيًا. وعند اختيار أحدها يظهر ما تختاره فقط.',
+  'Name on this dashboard': 'الاسم في لوحة التحكم هذه', 'Icon (empty: picked from what it does)': 'الأيقونة (فارغ: تُختار حسب وظيفته)',
+  Button: 'زر',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
