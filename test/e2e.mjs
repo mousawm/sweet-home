@@ -96,11 +96,13 @@ try {
     const icons = () => { t.lbls[id]._sig = ''; t.sync(); return [...t.lbls[id].querySelectorAll('ha-icon')].map(i => i.getAttribute('icon')); };
     r.plugs = [{ id: 'switch.badge_fan', name: 'Fan', icon: 'mdi:power-socket-eu', power: 'sensor.badge_fan_power' }];
     const fan = icons();
+    // drawn like the badge's other icons: no tile around it (a class name shared with another panel gave it one)
+    const fi = t.lbls[id].querySelector('ha-icon[icon="mdi:fan"]'), cs = fi && getComputedStyle(fi), plain = cs && cs.backgroundColor === 'rgba(0, 0, 0, 0)' && parseFloat(cs.paddingLeft) === 0 && cs.borderTopStyle === 'none';
     r.plugs = [{ id: 'switch.badge_fan', name: 'Phone charger', icon: 'mdi:power-socket-eu', power: 'sensor.badge_fan_power' }];
     const chg = icons();
     r.plugs = keep; icons();
-    return fan.includes('mdi:fan') && !fan.includes('mdi:battery-charging') && chg.includes('mdi:battery-charging') || JSON.stringify({ fan, chg });
-  }); check('room badge: a fan plug that is on shows a fan, not a charging battery; only a charger shows the battery', r === true, r); }
+    return fan.includes('mdi:fan') && !fan.includes('mdi:battery-charging') && chg.includes('mdi:battery-charging') && plain || JSON.stringify({ fan, chg, plain });
+  }); check('room badge: a fan plug that is on shows a plain fan icon (no tile), not a charging battery; only a charger shows the battery', r === true, r); }
   check('bedside table: the phone shows while its charger plug draws power (power sensor found from the plug)', await p.evaluate(() => card._model.furniture.find(f => f.type === 'nightstand' && f.plug)?.power === 'sensor.phone_charger_power' && card._three.chargers[0].parts[0].visible));
   await p.evaluate(() => { const h = window.hassObj; h.states['sensor.phone_charger_power'] = { ...h.states['sensor.phone_charger_power'], state: '0.2' }; card.hass = { ...h, states: { ...h.states } }; });
   check('…and is gone once it stops charging', await p.waitForFunction(() => !card._three.chargers[0].parts[0].visible, null, { timeout: 5000 }).then(() => true, () => false));
