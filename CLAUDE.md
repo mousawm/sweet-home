@@ -13,3 +13,9 @@
 2. In `CHANGELOG.md`, rename `## Unreleased` to `## v<version> — <YYYY-MM-DD>`, drop empty subsections, and add a fresh empty `## Unreleased` block (with the three subsections) above it.
 3. `npm run build`, `npm test`, commit as `Release v<version>`.
 4. Once merged to `main`, the workflow creates the release with that CHANGELOG section as its notes.
+
+## Pull requests and merging
+
+- When asked to "create a PR and merge it": open the PR, then **wait for its GitHub checks (Build and HACS validation) to finish and pass before merging**. Running `npm test` locally first is still required, but it does not replace CI (CI runs on a clean machine and also checks that `dist/` is up to date).
+- If a check fails: find the cause, fix it on the branch, and wait for the checks again. Never merge on red or on checks still running; if it can't be fixed, report why instead of merging.
+- After merging, confirm the checks on `main` passed too.
