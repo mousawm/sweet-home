@@ -929,7 +929,10 @@ export class SweetHomeCard extends HTMLElement {
     const c = this._jfc || (this._jfc = {}); if (!this._jfcAt || !Object.keys(c).length) this._jfcAt = Date.now();
     if (c[id]) return c[id].data;
     c[id] = { data: null };
-    this._hass.callWS({ type: 'media_source/browse_media', media_content_id: id })
+    // JellyHA: its library browser player's own tree (jellyha://movies, jellyha://series, jellyha://show/<id> …)
+    const J = E.mserver.jellyfin, ha = id.startsWith('jellyha://');
+    const ent = ha && (J.browser || this._jfPlayers().find(x => /library_browser/.test(x)) || this._jfPlayers()[0]);
+    (ha ? this._hass.callWS({ type: 'media_player/browse_media', entity_id: ent, media_content_id: id }) : this._hass.callWS({ type: 'media_source/browse_media', media_content_id: id }))
       .then(r => { c[id].data = r; }, () => { c[id].data = { children: [], error: true }; })
       .then(() => { if (this._info?.startsWith('jf')) this._renderInfo(); });
     return null;
@@ -950,7 +953,7 @@ export class SweetHomeCard extends HTMLElement {
     const src = st => (st?.attributes.source_list || []).find(s => /jellyfin/i.test(s));
     if (T.app_player) { const st = this.s(T.app_player); return st ? { id: T.app_player, plat: plat(T.app_player), source: T.source || src(st) || 'Jellyfin' } : null; }
     const rank = p => p === 'androidtv' ? 0 : p === 'androidtv_remote' ? 1 : 2;
-    const c = Object.keys(this._hass?.states || {}).filter(id => id.startsWith('media_player.') && plat(id) !== 'jellyfin')
+    const c = Object.keys(this._hass?.states || {}).filter(id => id.startsWith('media_player.') && !['jellyfin', 'jellyha'].includes(plat(id)))
       .map(id => this.s(id)).filter(st => !BAD.includes(st.state) && src(st))
       .sort((a, b) => rank(plat(a.entity_id)) - rank(plat(b.entity_id)) || (a.state === 'off') - (b.state === 'off'));
     return c[0] ? { id: c[0].entity_id, plat: plat(c[0].entity_id), source: src(c[0]) } : null;
@@ -958,14 +961,16 @@ export class SweetHomeCard extends HTMLElement {
   // Jellyfin players that can be sent a video now (available + PLAY_MEDIA, bit 512), best first:
   // configured name, then TV apps, then the most recently updated.
   _jfSessions() {
-    const h = this._hass, ents = h?.entities || {}, T = E.mserver.jellyfin.tv || {};
+    const h = this._hass, ents = h?.entities || {}, J = E.mserver.jellyfin, T = J.tv || {}, ha = J.kind === 'jellyha';
     const re = T.session ? new RegExp(T.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
-    return Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === 'jellyfin')
-      .map(id => this.s(id)).filter(st => st && !BAD.includes(st.state) && (st.attributes.supported_features & 512))
+    // JellyHA: its user and device players, with a live session that takes remote control (not the library browser)
+    return this._jfPlayers().filter(id => !ha || !/library_browser/.test(id))
+      .map(id => this.s(id)).filter(st => st && !BAD.includes(st.state) && (st.attributes.supported_features & 512)
+        && (!ha || (st.attributes.session_id && st.attributes.supports_remote_control !== false)))
       .map(st => {
-        const dev = h.devices?.[ents[st.entity_id]?.device_id] || {};
-        const tv = /\btv\b|android ?tv|roku|webos|tizen|kodi|xbox|playstation|fire/i.test(`${dev.model || ''}`);
-        return { st, score: (re && re.test(st.attributes.friendly_name || st.entity_id) ? 4 : 0) + (tv ? 2 : 0) };
+        const dev = h.devices?.[ents[st.entity_id]?.device_id] || {}, a = st.attributes;
+        const tv = /\btv\b|android ?tv|roku|webos|tizen|kodi|xbox|playstation|fire/i.test(`${dev.model || ''} ${ha ? `${a.client || ''} ${a.device_name || ''}` : ''}`);
+        return { st, score: (re && re.test(`${a.friendly_name || st.entity_id} ${a.device_name || ''}`) ? 4 : 0) + (tv ? 2 : 0) + (ha && /jellyha_device_/.test(st.entity_id) ? 1 : 0) };
       })
       .sort((a, b) => b.score - a.score || new Date(b.st.last_updated) - new Date(a.st.last_updated));
   }
@@ -1018,12 +1023,12 @@ export class SweetHomeCard extends HTMLElement {
         const c = this._jfSessions().filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0);
         ses = c[0]?.st || null; return !!ses;
       };
-      const ref = J.clients || Object.keys(this._hass.entities || {}).find(id => this._hass.entities[id].platform === 'jellyfin');
+      const ref = J.clients || Object.keys(this._hass.entities || {}).find(id => this._hass.entities[id].platform === J.platform);
       const nudge = setInterval(() => { if (ref) this._hass.callService('homeassistant', 'update_entity', { entity_id: ref }).catch(() => {}); }, 4e3);
       this._jfReconnect = async () => {
         this._jfWait = { msg: 'Reconnecting Home Assistant to Jellyfin…', busy: true }; this._renderInfo();
         try {
-          const [entry] = await this._hass.callWS({ type: 'config_entries/get', domain: 'jellyfin' });
+          const [entry] = await this._hass.callWS({ type: 'config_entries/get', domain: J.platform });
           if (entry) { after = Date.now(); before.clear(); await this._hass.callService('homeassistant', 'reload_config_entry', { entry_id: entry.entry_id }); }
         } catch (e) { this._toast(e?.message || 'Reconnect failed', true); }
         this._jfWait = { msg: 'Reconnected — waiting for Jellyfin on the TV…', busy: true }; this._renderInfo();
@@ -1059,30 +1064,33 @@ export class SweetHomeCard extends HTMLElement {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred()) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 300); }; chk(); });
   }
   _jfHTML(head) {
-    const k = this._info, id8 = x => String(x || '').replace('media-source://jellyfin/', '');
+    // ids in data-item / data-kind: the Jellyfin item id (JellyHA: jellyha://item/<id>, jellyha://show/<id> → <id>)
+    const ha = E.mserver.jellyfin.kind === 'jellyha';
+    const k = this._info, id8 = x => String(x || '').replace(ha ? /^jellyha:\/\/(item|show|season)\// : 'media-source://jellyfin/', '');
+    const tt = x => ha ? String(x || '').replace(/\s*\(\)$/, '') : x; // JellyHA titles: "Name (2020)", "Name ()" with no year
     const wait = `<div class="jfgrid">${Array.from({ length: 9 }, () => `<div class="jfpo"><div class="jfimg skl"></div>${skl('75%', 10)}</div>`).join('')}</div>`;
     const img = (src, icon) => `<div class="jfimg">${ic(icon)}${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : ''}</div>`;
     if (k === 'jflib:movies' || k === 'jflib:shows') {
       const movies = k.endsWith('movies');
-      const root = this._jfBrowse('media-source://jellyfin');
+      const root = ha ? { children: [{ title: movies ? 'Movies' : 'TV Series', media_content_id: movies ? 'jellyha://movies' : 'jellyha://series' }] } : this._jfBrowse('media-source://jellyfin');
       const H = t => head(movies ? 'mdi:movie-open' : 'mdi:television-classic', movies ? 'Movies' : 'Shows', t);
       if (!root) return H('Jellyfin') + wait;
-      const libs = (root.children || []).filter(l => /movie/i.test(l.title) === movies);
+      const libs = ha ? root.children : (root.children || []).filter(l => /movie/i.test(l.title) === movies);
       let n = 0, loading = false;
       const secs = libs.map(l => {
         const d = this._jfBrowse(l.media_content_id); if (!d) { loading = true; return ''; }
         const items = (d.children || []).slice().sort((a, b) => a.title.localeCompare(b.title)); n += items.length;
         const grid = items.map(c => {
           const play = c.can_play && !c.can_expand;
-          return `<button class="jfpo" ${play ? `data-act="jfplay" data-mk="${c.media_class === 'episode' ? 'episode' : 'movie'}"` : `data-act="info" data-kind="jfshow:${id8(c.media_content_id)}"`} data-item="${id8(c.media_content_id)}" data-title="${esc(c.title)}">
-            ${img(c.thumbnail, movies ? 'mdi:movie-open' : 'mdi:television-classic')}${play ? `<i class="jfplayi">${ic('mdi:play')}</i>` : ''}<span>${esc(c.title)}</span></button>`;
+          return `<button class="jfpo" ${play ? `data-act="jfplay" data-mk="${c.media_class === 'episode' ? 'episode' : 'movie'}"` : `data-act="info" data-kind="jfshow:${id8(c.media_content_id)}"`} data-item="${id8(c.media_content_id)}" data-title="${esc(tt(c.title))}">
+            ${img(c.thumbnail, movies ? 'mdi:movie-open' : 'mdi:television-classic')}${play ? `<i class="jfplayi">${ic('mdi:play')}</i>` : ''}<span>${esc(tt(c.title))}</span></button>`;
         }).join('');
         return `${libs.length > 1 ? `<div class="dsec">${esc(tc(l.title))} · ${items.length}</div>` : ''}<div class="jfgrid">${grid}</div>`;
       }).join('');
       return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
     }
     if (k.startsWith('jfshow:')) {
-      const sid = k.slice(7), show = this._jfBrowse('media-source://jellyfin/' + sid);
+      const sid = k.slice(7), show = this._jfBrowse((ha ? 'jellyha://show/' : 'media-source://jellyfin/') + sid);
       const back = `<button class="jfback" data-act="info" data-kind="jflib:shows">${ic('mdi:chevron-left')}Shows</button>`;
       if (!show) return head('mdi:television-classic', 'Show', 'Loading…') + back + wait;
       const kids = show.children || [];
@@ -1090,11 +1098,12 @@ export class SweetHomeCard extends HTMLElement {
       const si = clamp(this._jfSeason?.[sid] ?? 0, 0, Math.max(0, seasons.length - 1));
       let eps = direct, loading = false;
       if (!direct.length && seasons.length) { const d = this._jfBrowse(seasons[si].media_content_id); if (d) eps = d.children || []; else loading = true; }
-      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(show.title)}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
+      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(tt(show.title))}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
       const chips = seasons.length > 1 ? `<div class="jfseas">${seasons.map((c, i) => `<button class="${i === si ? 'on' : ''}" data-act="jfseason" data-show="${sid}" data-i="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
-      const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(c.title)}">
-          ${img(c.thumbnail, 'mdi:play-circle-outline')}<div><b>${i + 1}. ${esc(c.title)}</b></div>${ic('mdi:play', 'jfepp')}</button>`).join('');
-      return head('mdi:television-classic', esc(show.title), 'Jellyfin') + back + top + chips + (loading ? wait : list || '<div class="wxwait">No episodes</div>');
+      const epT = c => ha ? String(c.title || '').replace(/^\d+\.\s*/, '') : c.title; // JellyHA numbers its episodes itself ("3. Name")
+      const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(epT(c))}">
+          ${img(c.thumbnail, 'mdi:play-circle-outline')}<div><b>${i + 1}. ${esc(epT(c))}</b></div>${ic('mdi:play', 'jfepp')}</button>`).join('');
+      return head('mdi:television-classic', esc(tt(show.title)), 'Jellyfin') + back + top + chips + (loading ? wait : list || '<div class="wxwait">No episodes</div>');
     }
     return head('mdi:jellyfish', 'Jellyfin', '') + wait;
   }
@@ -2661,8 +2670,8 @@ export class SweetHomeCard extends HTMLElement {
 
   // ---------- Media Server card: Jellyfin now watching, downloads, coming up, library ----------
   _jfPlayers() {
-    const ents = this._hass?.entities || {};
-    return Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === 'jellyfin');
+    const ents = this._hass?.entities || {}, p = E.mserver.jellyfin.platform || 'jellyfin';
+    return Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === p);
   }
   async _loadMCal() {
     if (this._mcalBusy) return; this._mcalBusy = true;
@@ -2727,7 +2736,12 @@ export class SweetHomeCard extends HTMLElement {
     const S = E.mserver, J = S.jellyfin, Q = S.qbt, SO = S.sonarr, RA = S.radarr, lang = this._hass?.locale?.language || 'en';
     if (!this._mcal || Date.now() - this._mcal.at > 30 * 60e3) setTimeout(() => this._loadMCal(), 0);
     // --- now watching: jellyfin players that are playing / paused
-    const sessions = this._jfPlayers().map(id => [id, this.s(id)]).filter(([, st]) => st && ['playing', 'paused'].includes(st.state) && st.attributes.media_title);
+    const haJ = J.kind === 'jellyha', seen = new Set();
+    // JellyHA has a player per user and per device for the same session: one row per session (the device's), no library browser
+    const sessions = this._jfPlayers().filter(id => !haJ || !/library_browser/.test(id))
+      .sort((a, b) => haJ ? /jellyha_device_/.test(b) - /jellyha_device_/.test(a) : 0)
+      .map(id => [id, this.s(id)]).filter(([, st]) => st && ['playing', 'paused'].includes(st.state) && st.attributes.media_title)
+      .filter(([id, st]) => { const k = haJ ? st.attributes.session_id || id : id; if (seen.has(k)) return false; seen.add(k); return true; });
     const watch = sessions.map(([id, st]) => {
       const a = st.attributes, play = st.state === 'playing';
       const dur = +a.media_duration || 0;
@@ -2738,7 +2752,7 @@ export class SweetHomeCard extends HTMLElement {
       return `<div class="jfs ${play ? 'play' : ''}" data-act="more" data-id="${id}">
         <div class="jfp">${a.entity_picture ? `<img src="${esc(a.entity_picture)}" alt="" loading="lazy">` : ic(series ? 'mdi:television-classic' : 'mdi:movie-open')}</div>
         <div class="jfi"><b>${esc(title)}</b><span>${esc(sub)}</span>
-          <em>${ic(play ? 'mdi:play' : 'mdi:pause')}${esc(tc(a.friendly_name || id))}${left != null ? ` · ${left} min left` : ''}</em>
+          <em>${ic(play ? 'mdi:play' : 'mdi:pause')}${esc(tc(String(a.friendly_name || id).replace(/^JellyHA (Device|User)\s+/i, '')))}${left != null ? ` · ${left} min left` : ''}</em>
           <div class="jfbar"><i style="width:${pct.toFixed(1)}%"></i></div></div></div>`;
     }).join('');
     const clients = this.n(J.clients);

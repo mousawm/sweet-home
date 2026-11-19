@@ -1625,16 +1625,26 @@ class SweetHomeCardEditor extends HTMLElement {
           list.appendChild(det); continue;
         }
         if (k === 'media_server') { // the TV that Jellyfin plays on: found by name (its entity id changes with each app session)
+          det.open = !!this._msOpen; det.addEventListener('toggle', () => { this._msOpen = det.open; }); // stays open when the integration changes
           const tv = typeof cur.jellyfin_tv === 'object' && cur.jellyfin_tv ? cur.jellyfin_tv : {};
-          const players = Object.keys(this._hass.states).filter(x => x.startsWith('media_player.') && this._reg.platform(x) === 'jellyfin');
+          // which Jellyfin integration the card uses: Automatic (the official one when installed, else JellyHA), Jellyfin or JellyHA
+          const integ = ['jellyfin', 'jellyha'].includes(cur.integration) ? cur.integration : 'auto';
+          const hasP = p => Object.keys(this._hass.states).some(x => this._reg.platform(x) === p);
+          const jp = integ !== 'auto' ? integ : hasP('jellyfin') || !hasP('jellyha') ? 'jellyfin' : 'jellyha';
+          det.appendChild(this._form([{ name: 'integration', selector: sel([['auto', 'Automatic'], ['jellyfin', 'Jellyfin (official)'], ['jellyha', 'JellyHA']].map(([v, n]) => [v, t(n)])) }],
+            { integration: integ }, v => {
+              const ms = { ...cur }; if (v.integration && v.integration !== 'auto') ms.integration = v.integration; else delete ms.integration;
+              set(k, Object.keys(ms).length ? ms : undefined); this._render();
+            }, { integration: 'Jellyfin integration' }));
+          const players = Object.keys(this._hass.states).filter(x => x.startsWith('media_player.') && this._reg.platform(x) === jp && !/library_browser/.test(x));
           const pick = players.find(x => tv.session && new RegExp(tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(this._reg.name(x)));
           det.appendChild(this._form([
-            { name: 'tv_player', selector: { entity: { domain: 'media_player', integration: 'jellyfin' } } }, { name: 'tv_name', selector: { text: {} } },
+            { name: 'tv_player', selector: { entity: { domain: 'media_player', integration: jp } } }, { name: 'tv_name', selector: { text: {} } },
             { name: 'app_player', selector: { entity: { domain: 'media_player' } } },
           ], { tv_player: pick || '', tv_name: tv.name || '', app_player: tv.app_player || '' }, (v, typing) => {
             const o = { ...tv }; delete o.session; delete o.name; delete o.app_player;
             // the player's name without the session number HA adds ("Living Room TV 3" → "Living Room TV")
-            if (v.tv_player) o.session = this._reg.name(v.tv_player).replace(/\s*\d+$/, '').trim() || this._reg.name(v.tv_player);
+            if (v.tv_player) { const n = this._reg.name(v.tv_player).replace(/^JellyHA (Device|User)\s+/i, ''); o.session = n.replace(/\s*\d+$/, '').trim() || n; }
             if (v.tv_name) o.name = v.tv_name; if (v.app_player) o.app_player = v.app_player;
             const ms = { ...cur }; if (Object.keys(o).length) ms.jellyfin_tv = o; else delete ms.jellyfin_tv;
             set(k, Object.keys(ms).length ? ms : undefined);

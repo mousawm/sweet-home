@@ -94,7 +94,7 @@ const AR = {
   Faces: 'الاتجاه', 'Screen faces': 'اتجاه الشاشة', Size: 'الحجم', Radius: 'نصف القطر', Direction: 'الاتجاه', Mode: 'الوضع', Steps: 'الدرجات',
   'Contact sensor (optional: the door opens in 3D while it is open)': 'حساس الفتح (اختياري: يُفتح الباب في العرض ثلاثي الأبعاد عند فتحه)', 'Main entrance': 'المدخل الرئيسي', Lock: 'القفل',
   Automatic: 'تلقائي', 'North (up)': 'الشمال (أعلى)', 'East (right)': 'الشرق (يمين)', 'South (down)': 'الجنوب (أسفل)', 'West (left)': 'الغرب (يسار)',
-  'Current (shown next to Home)': 'التيار (يظهر بجانب المنزل)', 'Swings one way': 'يُفتح في اتجاه', 'Swings the other way': 'يُفتح في الاتجاه الآخر', Both: 'الجهتان', Start: 'البداية', End: 'النهاية', None: 'لا شيء', Up: 'صعود', Down: 'نزول', Split: 'منقسم',
+  'Jellyfin integration': 'تكامل Jellyfin', 'Jellyfin (official)': 'Jellyfin (الرسمي)', 'JellyHA': 'JellyHA', 'Current (shown next to Home)': 'التيار (يظهر بجانب المنزل)', 'Swings one way': 'يُفتح في اتجاه', 'Swings the other way': 'يُفتح في الاتجاه الآخر', Both: 'الجهتان', Start: 'البداية', End: 'النهاية', None: 'لا شيء', Up: 'صعود', Down: 'نزول', Split: 'منقسم',
   'Along x': 'أفقي', 'Along z': 'عمودي', Wood: 'خشب', Tiles: 'بلاط', Marble: 'رخام', Carpet: 'سجاد', Stone: 'حجر', Grass: 'عشب',
   'Drag on an empty part of the grid to draw {0} (one square = {1} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.':
     'اسحب على جزء فارغ من الشبكة لرسم {0} (المربع الواحد = {1} م). اسحب مرة أخرى لإضافة مستطيل آخر (لغرف على شكل L). اسحب المستطيل لتحريكه، ونقاط زواياه لتغيير حجمه. اضغط على غرفة أخرى للتبديل إليها.',

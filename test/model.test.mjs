@@ -285,5 +285,22 @@ test('room icons: a bathroom or laundry room is not a bedroom', () => {
   assert.deepEqual(['Bathroom', 'Laundry room', 'Master bedroom', 'Guest room', 'Storage room'].map(ic), ['mdi:shower', 'mdi:washing-machine', 'mdi:bed', 'mdi:bed', 'mdi:archive']);
 });
 
+test('Jellyfin: the official integration or JellyHA, picked in the card (Automatic: the official one when both are there)', () => {
+  const h = JSON.parse(JSON.stringify(hass));
+  const add = (id, p, state = 'idle') => { h.states[id] = st(state); h.entities[id] = { platform: p }; };
+  add('media_player.jellyha_library_browser', 'jellyha'); add('sensor.jellyha_connected_clients', 'jellyha', '3');
+  const J = c => buildModel({ panels: { media_server: c } }, h).E.mserver.jellyfin;
+  assert.equal(J({}).kind, 'jellyha', 'only JellyHA: Automatic uses it');
+  assert.equal(J({}).clients, 'sensor.jellyha_connected_clients');
+  assert.equal(J({}).browser, 'media_player.jellyha_library_browser');
+  add('media_player.living_room_tv', 'jellyfin'); add('sensor.jellyfin_active_clients', 'jellyfin', '1');
+  assert.equal(J({}).kind, 'jellyfin', 'both: Automatic keeps the official one');
+  assert.equal(J({}).clients, 'sensor.jellyfin_active_clients');
+  assert.equal(J({ integration: 'jellyha' }).kind, 'jellyha', 'both: JellyHA when picked');
+  assert.equal(J({ integration: 'jellyha' }).platform, 'jellyha');
+  assert.equal(J({ integration: 'jellyfin' }).kind, 'jellyfin');
+  assert.ok(buildModel({ panels: { media_server: { integration: 'jellyha' } } }, h).hasMS, 'the Media Server card shows');
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

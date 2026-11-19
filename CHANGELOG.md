@@ -15,6 +15,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- Media Server: choose the Jellyfin integration in the card editor (Panels → Media Server): Automatic, Jellyfin (official) or JellyHA. With JellyHA the card uses its players, client count and library browser. Automatic keeps the official one when both are installed.
 - Card editor: Panels → Energy has a *Current* picker; the chosen sensor is shown next to Home on the energy flow (e.g. *Home · 2.2 A*). Not set: Home shows just its power, as before.
 
 ## v0.6.39 — 2026-11-19

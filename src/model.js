@@ -839,8 +839,19 @@ export function buildModel(cfg = {}, hass) {
   // media server: Jellyfin / Sonarr / Radarr / qBittorrent are found by their integration
   const plat = (p, re) => R.ofPlatform(p, re)[0] || null;
   const MS = P.media_server || {};
+  // Jellyfin: the official integration (`jellyfin`) or JellyHA (`jellyha`). `integration`: auto (default: the official
+  // one when it is installed, else JellyHA), jellyfin or jellyha. Everything Jellyfin on the card uses only that one.
+  function jfIntegration() {
+    const has = p => R.ofPlatform(p, /^(media_player|sensor)\./).length > 0;
+    const want = ['jellyfin', 'jellyha'].includes(MS.integration) ? MS.integration : 'auto';
+    const kind = want !== 'auto' ? want : has('jellyfin') || !has('jellyha') ? 'jellyfin' : 'jellyha';
+    return kind === 'jellyha'
+      ? { kind, platform: 'jellyha', clients: plat('jellyha', /_connected_clients$/), sessions: plat('jellyha', /_active_sessions$/),
+        browser: plat('jellyha', /^media_player\..*library_browser$/), tv: MS.jellyfin_tv || null }
+      : { kind, platform: 'jellyfin', clients: plat('jellyfin', /_active_clients$/), tv: MS.jellyfin_tv || null };
+  }
   const mserver = {
-    jellyfin: { clients: plat('jellyfin', /_active_clients$/), tv: MS.jellyfin_tv || null },
+    jellyfin: jfIntegration(),
     sonarr: { upcoming: plat('sonarr', /_upcoming$/), wanted: plat('sonarr', /_wanted$/), queue: plat('sonarr', /^sensor\..*_queue$/), shows: plat('sonarr', /_shows$/), disk: plat('sonarr', /_disk_space/), cal: plat('sonarr', /^calendar\./) },
     radarr: { movies: plat('radarr', /_movies$/), queue: plat('radarr', /^sensor\..*_queue$/), health: plat('radarr', /^binary_sensor\..*_health$/), disk: plat('radarr', /_disk_space/), cal: plat('radarr', /^calendar\./) },
     qbt: {
@@ -849,7 +860,7 @@ export function buildModel(cfg = {}, hass) {
       alt: plat('qbittorrent', /^switch\..*_alternative_speed$/),
     },
   };
-  const hasMS = !!(mserver.jellyfin.clients || R.ofPlatform('jellyfin', /^media_player\./).length || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
+  const hasMS = !!(mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.platform, /^media_player\./).length || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
 
   // solar forecast (Forecast.Solar)
   const fs = re => plat('forecast_solar', re);
