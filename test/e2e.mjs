@@ -88,6 +88,19 @@ try {
   check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
   check('an AC placed in the bedroom replaces its automatic unit, with the room\'s climate entity', await p.evaluate(() => { const A = card._three.acs.filter(a => a.ent === 'climate.bedroom_ac'); return A.length === 1 && A[0].dx === 1 && !card._model.rooms.find(r => r.id === 'bedroom').ac; }));
   check('an AC has a badge it can hide', await p.evaluate(async () => { const fi = card._model.furniture.find(f => f.type === 'ac').idx, on = !!card._three.fpieces.find(P => P.idx === fi)?.el; const c = JSON.parse(JSON.stringify(card._config)); c.house.rooms.find(r => r.area === 'bedroom').furniture.find(f => f.type === 'ac').badge = false; card.setConfig(c); await new Promise(r => setTimeout(r, 1500)); const P = card._three.fpieces.find(P => P.f.type === 'ac'); return on && P && !P.el; }));
+  check('room badge: a fan plug that is on shows a fan, not a charging battery; only a charger shows the battery', await p.evaluate(() => {
+    const t = card._three, id = Object.keys(t.rooms)[0], r = t.rooms[id].r, keep = r.plugs, h = window.hassObj;
+    h.states['switch.badge_fan'] = { entity_id: 'switch.badge_fan', state: 'on', attributes: { friendly_name: 'Fan' } };
+    h.states['sensor.badge_fan_power'] = { entity_id: 'sensor.badge_fan_power', state: '10', attributes: { unit_of_measurement: 'W' } };
+    card.hass = { ...h, states: { ...h.states } };
+    const icons = () => { t.lbls[id]._sig = ''; t.sync(); return [...t.lbls[id].querySelectorAll('ha-icon')].map(i => i.getAttribute('icon')); };
+    r.plugs = [{ id: 'switch.badge_fan', name: 'Fan', icon: 'mdi:power-socket-eu', power: 'sensor.badge_fan_power' }];
+    const fan = icons();
+    r.plugs = [{ id: 'switch.badge_fan', name: 'Phone charger', icon: 'mdi:power-socket-eu', power: 'sensor.badge_fan_power' }];
+    const chg = icons();
+    r.plugs = keep; icons();
+    return fan.includes('mdi:fan') && !fan.includes('mdi:battery-charging') && chg.includes('mdi:battery-charging') || JSON.stringify({ fan, chg });
+  }));
   check('bedside table: the phone shows while its charger plug draws power (power sensor found from the plug)', await p.evaluate(() => card._model.furniture.find(f => f.type === 'nightstand' && f.plug)?.power === 'sensor.phone_charger_power' && card._three.chargers[0].parts[0].visible));
   await p.evaluate(() => { const h = window.hassObj; h.states['sensor.phone_charger_power'] = { ...h.states['sensor.phone_charger_power'], state: '0.2' }; card.hass = { ...h, states: { ...h.states } }; });
   check('…and is gone once it stops charging', await p.waitForFunction(() => !card._three.chargers[0].parts[0].visible, null, { timeout: 5000 }).then(() => true, () => false));
@@ -106,6 +119,10 @@ try {
   await p.evaluate(() => card._setTab('home'));
   check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 6));
   check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
+  check('every door opens to the side its floor-plan arc shows, whichever way it was drawn', await p.evaluate(() => card._three.doors.every(D => {
+    const { vx, vz, side } = D.d, a = D.ang, ox = vx * Math.cos(a) + vz * Math.sin(a), oz = -vx * Math.sin(a) + vz * Math.cos(a);
+    return (ox * -vz + oz * vx) * side > 0.5; // the open leaf points to (-vz, vx) for side 1 (the plan's arc), the other way for -1
+  }) && card._three.doors.length > 3));
   check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
   check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
   // security: gates and garage doors next to the locks (covers found on their own, the older relay gate kept)
