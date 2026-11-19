@@ -304,5 +304,12 @@ test('Jellyfin or Jellyfin + JellyHA (hybrid): playing through the official inte
   assert.ok(buildModel({ panels: { media_server: { integration: 'hybrid' } } }, h).hasMS, 'the Media Server card shows');
 });
 
+test('Energy Month / Year: from Home Assistant\'s Energy data by default; the picked sensors only with energy_dashboard_totals off', () => {
+  const E = c => buildModel({ panels: { energy: c } }, hass).E.energy;
+  assert.deepEqual([E({}).monthly, E({}).yearly], [null, null]);
+  assert.deepEqual([E({ month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).monthly, E({ month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).yearly], [null, null], 'on by default: the sensors are not used');
+  assert.deepEqual([E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).monthly, E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).yearly], ['sensor.m', 'sensor.y']);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

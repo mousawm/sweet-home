@@ -1575,7 +1575,8 @@ class SweetHomeCardEditor extends HTMLElement {
     const schemas = {
       security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'entrances', selector: { entity: { domain: ['cover', 'switch', 'button', 'input_button', 'input_boolean', 'script'], multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }, { name: 'face', selector: { entity: { domain: ['sensor', 'input_text', 'text'] } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
-      energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'current', label: 'Current (shown next to Home)', selector: { entity: { domain: 'sensor', device_class: 'current' } } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
+      energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'current', label: 'Current (shown next to Home)', selector: { entity: { domain: 'sensor', device_class: 'current' } } },
+        { name: 'energy_dashboard_totals', selector: { boolean: {} } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
       car: [{ name: 'name', selector: { text: {} } }, { name: 'color', selector: { color_rgb: {} } },
         { name: 'charging', selector: { entity: { domain: ['binary_sensor', 'switch', 'input_boolean', 'sensor'] } } }, { name: 'power', selector: { entity: { domain: 'sensor', device_class: 'power' } } },
         { name: 'battery', selector: { entity: { domain: 'sensor' } } }, { name: 'range', selector: { entity: { domain: 'sensor' } } },
@@ -1613,6 +1614,9 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
         if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
         if (k === 'people') { this._mPeople(det); list.appendChild(det); continue; }
+        // Energy: Month / Year from Home Assistant's Energy data (on by default) hide the Month / Year sensor fields
+        const enStats = k === 'energy' && cur.energy_dashboard_totals !== false;
+        if (k === 'energy') { data.energy_dashboard_totals = enStats; det.open = !!this._enOpen; det.addEventListener('toggle', () => { this._enOpen = det.open; }); }
         if (k === 'modes') { // modes live in the card's own `modes` list (not under panels): a name or icon given in YAML stays
           det.appendChild(this._form(schemas.modes, { modes: arr(this._config.modes).map(entityId).filter(Boolean) }, v => {
             const old = arr(this._config.modes), val = arr(v.modes).map(id => old.find(o => typeof o === 'object' && entityId(o) === id) || id);
@@ -1655,10 +1659,16 @@ class SweetHomeCardEditor extends HTMLElement {
         }
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
         if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
-        det.appendChild(this._form(schemas[k], data, v => {
+        const schema = enStats ? schemas[k].filter(f => !['month_sensor', 'year_sensor'].includes(f.name)) : schemas[k];
+        det.appendChild(this._form(schema, data, v => {
           const next = { ...(typeof P[k] === 'object' && P[k] ? P[k] : {}) };
           for (const [kk, vv] of Object.entries(v)) {
             let val = vv;
+            if (k === 'energy' && kk === 'energy_dashboard_totals') { // on is the default: stored only when off; the form changes with it
+              const was = next[kk] !== false; if (vv === false) next[kk] = false; else delete next[kk];
+              if (was !== (vv !== false)) { set(k, next); this._render(); return; }
+              continue;
+            }
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
             if (k === 'devices' && kk === 'entities') val = arr(vv).map(id => arr(next.entities).find(o => typeof o === 'object' && o.battery === id) || id); // a device's name / icon stay
             if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
@@ -1672,6 +1682,7 @@ class SweetHomeCardEditor extends HTMLElement {
           name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
           status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
+          energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', face: 'Face recognition: the last recognised face (badge on the Cameras card; empty: the cameras’ own face sensors)', temperature: k === 'homelab' ? 'CPU temperature' : 'Water temperature' }));
         if (['security', 'media', 'irrigation', 'energy'].includes(k)) det.insertAdjacentHTML('beforeend', `<div class="sh-hint" style="margin-top:6px">${t('Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.')}</div>`);
         if (k === 'security') this._entranceSensors(det, P);

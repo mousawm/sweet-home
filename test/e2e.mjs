@@ -202,6 +202,16 @@ try {
     return ok || JSON.stringify(out);
   }, [jfSetup, qc]); check(qc ? 'Jellyfin + JellyHA with Quick Connect: Jellyfin opens on the TV, the sheet asks to sign in, the movie goes to the TV\'s official Jellyfin session only after Play'
     : 'Jellyfin + JellyHA: tapping a movie opens Jellyfin on the TV and plays it on the TV\'s official Jellyfin session (no JellyHA service)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config));
+    h.states['sensor.my_month'] = { entity_id: 'sensor.my_month', state: '999', attributes: { unit_of_measurement: 'kWh' } };
+    const kpis = () => { const t = document.createElement('template'); t.innerHTML = card._eCardKpis(); return [...t.content.querySelectorAll('div > div')].map(d => [d.querySelector('span')?.textContent, d.dataset.id, d.querySelector('b')?.textContent]); };
+    const set = async en => { const c = JSON.parse(JSON.stringify(cfg)); c.panels = { ...(c.panels || {}), energy: en }; card.setConfig(c); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800)); card._etot = { d: 1.5, m: 42.25, y: 300, at: Date.now() }; };
+    await set({ month_sensor: 'sensor.my_month' }); const on = kpis().find(k => k[0] === 'Month');
+    await set({ month_sensor: 'sensor.my_month', energy_dashboard_totals: false }); const off = kpis().find(k => k[0] === 'Month');
+    delete h.states['sensor.my_month']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800));
+    return (on?.[1] !== 'sensor.my_month' && /42\.3/.test(on?.[2]) && off?.[1] === 'sensor.my_month' && /999/.test(off?.[2])) || JSON.stringify({ on, off });
+  }); check('Energy card: Month and Year come from Home Assistant\'s Energy data, also when Month / Year sensors are set (switch on by default)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -474,6 +484,17 @@ try {
     const i = editor.querySelector('ha-form input[name=tv_player]'); if (!i) return false; i.value = 'media_player.living_room_tv_3'; i.dispatchEvent(new Event('change'));
     return editor._config.panels.media_server?.jellyfin_tv?.session === 'Living Room TV';
   }));
+  { const r = await p.evaluate(async () => {
+    const det = () => [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('input[name=energy_dashboard_totals]'));
+    const d0 = det(); if (!d0) return 'no switch'; d0.open = true; await new Promise(r => setTimeout(r, 50));
+    const sw = () => det().querySelector('input[name=energy_dashboard_totals]'), fields = () => !!det().querySelector('input[name=month_sensor]') + !!det().querySelector('input[name=year_sensor]');
+    const out = { onByDefault: sw().checked, hidden: fields() === 0 };
+    sw().checked = false; sw().dispatchEvent(new Event('change'));
+    out.saved = editor._config.panels?.energy?.energy_dashboard_totals === false; out.shown = fields() === 2; out.stillOpen = det().open;
+    sw().checked = true; sw().dispatchEvent(new Event('change'));
+    out.removed = editor._config.panels?.energy?.energy_dashboard_totals === undefined; out.hiddenAgain = fields() === 0;
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('editor, Energy: "Month and Year from Home Assistant\'s Energy data" is on by default and hides the Month / Year sensors; off shows them', r === true, r); }
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;

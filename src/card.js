@@ -2301,8 +2301,8 @@ export class SweetHomeCard extends HTMLElement {
     this._etotBusy = false; this._rerender('energy', 'glance');
     if (this._info === 'power') this._renderInfo();
   }
-  // Energy card + Power popup totals: Today from statistics, Month / Year from the user's template
-  // sensors (sensor.total_energy_monthly / _yearly), Stored = sensor.energy_stored
+  // Energy card + Power popup totals: Today, Month and Year from Home Assistant's Energy statistics (net grid, like
+  // Energy History); Month / Year from the user's own sensors only with energy_dashboard_totals off. Stored = stored_sensor
   _eCardKpis() {
     const S = this._eSrc(), T = this._etot || {}, g = v => v != null && v < 0 ? 'green' : '';
     const tpl = (id, k, dp) => id ? `<b class="${g(this.n(id))}">${this.f(id, dp)}</b>` : `<b class="${g(T[k])}">${this._eKwh(k, dp)}</b>`;

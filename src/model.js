@@ -908,7 +908,9 @@ export function buildModel(cfg = {}, hass) {
     ehist: { gridIn: null, gridOut: null, solar: null, devices: arr(EN.devices).map(d => [d.entity, d.name, d.icon || 'mdi:flash', d.color || '#38bdf8', d.max_kwh_per_hour]) },
     energy: {
       grid: EN.grid_power || null, solar: EN.solar_power || null, current: EN.current || null,
-      monthly: EN.month_sensor || null, yearly: EN.year_sensor || null, stored: EN.stored_sensor || null,
+      // Month / Year: from Home Assistant's Energy statistics (energy_dashboard_totals, on by default), else the picked sensors
+      monthly: EN.energy_dashboard_totals === false ? EN.month_sensor || null : null, yearly: EN.energy_dashboard_totals === false ? EN.year_sensor || null : null,
+      stored: EN.stored_sensor || null,
       consumers: arr(EN.consumers).map(c => [c.entity, c.name || R.name(c.entity), c.icon || 'mdi:flash']),
       extra: arr(EN.extra).map(c => ({ id: c.entity, name: c.name || R.name(c.entity), icon: c.icon || 'mdi:flash' })),
       exclude: arr(EN.exclude),

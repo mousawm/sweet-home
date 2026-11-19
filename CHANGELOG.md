@@ -9,6 +9,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Changed
 
+- Energy card: Month and Year now come from Home Assistant's Energy data (like Energy History) by default, with a switch in Panels → Energy. The Month / Year sensor fields show only when the switch is off, and only then are those sensors used.
+
 ### Added
 
 ## v0.6.40 — 2026-11-19

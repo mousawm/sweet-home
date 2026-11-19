@@ -319,7 +319,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:
   - `grid_power`, `solar_power`: your own power sensors
   - `current`: a current sensor (A) shown next to Home on the energy flow (*Home · 2.2 A*); tapping Home opens it. Without it Home shows no extra value, and Home / Solar / Grid with no sensor do nothing when tapped
-  - `month_sensor`, `year_sensor`, `stored_sensor`: template sensors for the totals
+  - `energy_dashboard_totals` (on by default): Today, Month and Year come from Home Assistant's Energy data (the same
+    statistics as Energy History). Set it to `false` (card editor: Panels → Energy, switch off) to use your own
+    `month_sensor` and `year_sensor` instead; their fields show in the editor only then
+  - `month_sensor`, `year_sensor`: your own total sensors (with `energy_dashboard_totals: false`); `stored_sensor`: a stored-energy total
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
