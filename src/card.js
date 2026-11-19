@@ -655,6 +655,9 @@ export class SweetHomeCard extends HTMLElement {
       const defs = JSON.stringify([this._config?.default_view, this._config?.default_floor]);
       if (this._defsJSON != null && defs !== this._defsJSON) { this._three.view(this._defView()); const L = MODEL.levels || [{ level: 0 }]; this._setLevel(this._defFloor(L)); if (ROOM[this._reselect]?.level !== this._level) this._reselect = null; }
       this._renderLegend(); this._three.sync(); this._three._dirty = true;
+      // drawn again at once: a canvas moved in the page can show blank until its next frame (up to 0.5 s on a phone at rest)
+      try { this._three.renderer.render(this._three.scene, this._three.cam); } catch (e) { /* next frame */ }
+      this._three._wake?.();
       if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the mode buttons of the new page
     } else this._init3d();
     this._defsJSON = defsNow;

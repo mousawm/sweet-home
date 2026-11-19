@@ -326,6 +326,14 @@ try {
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // security in the editor: gates and garage doors picked there, a gate's sensor and name kept
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('People panel changes in the editor: the 3D house is kept (same scene and canvas, no full rebuild)', await p.evaluate(async () => {
+    const sc = card._three, cv = sc?.cv, soft = []; const orig = card._rebuild.bind(card); card._rebuild = x => { soft.push(x); return orig(x); };
+    const p0 = Object.keys(editor._hass.states).find(x => x.startsWith('person.'));
+    editor._config.persons = [p0]; editor._emit(); await new Promise(r => setTimeout(r, 700));
+    editor._config.people = { [p0]: { name: 'Test' } }; editor._emit(); await new Promise(r => setTimeout(r, 700));
+    delete editor._config.persons; delete editor._config.people; editor._emit(); await new Promise(r => setTimeout(r, 700)); card._rebuild = orig;
+    return soft.length >= 2 && soft.every(x => x === true) && card._three === sc && card._three.cv === cv && card.shadowRoot.contains(cv);
+  }));
   check('media server: the TV to play on is picked in the editor and saved by its name (without the session number)', await p.evaluate(() => {
     const h = editor._hass; h.states['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', state: 'idle', attributes: { friendly_name: 'Living Room TV 3', supported_features: 512 } };
     h.entities['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', platform: 'jellyfin' }; editor._R = null; editor._render();
