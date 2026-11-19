@@ -252,6 +252,9 @@ let SHARED = null;
 const dropShared = () => { const S = SHARED; SHARED = null; if (!S) return; clearTimeout(S.timer); try { S.scene.pause(); S.scene.renderer?.dispose(); S.scene.ro?.disconnect(); S.scene.io?.disconnect(); } catch (e) { /* gone */ } };
 let SMART = true; // `smart_icons` (Look): icons picked from names; off: the icon set in Home Assistant
 const nameIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (NAME_ICONS.find(([re]) => re.test(t)) || [])[1] || null; };
+// plugs: only a charger (its icon, id or name says so) means a phone charging; any other plug (a fan, a heater…) shows its own icon
+const plugCharger = p => /charg/i.test(`${p.icon} ${p.id} ${p.name}`);
+const plugIcon = (c, p) => (p.icon && !['mdi:power-socket-eu', 'mdi:cellphone-charging'].includes(p.icon) ? p.icon : (SMART && nameIcon(p.id, p.name)) || c.s(p.id)?.attributes.icon || p.icon) || 'mdi:power-socket-eu';
 const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
 // a button's label without the noise: "button Areen phone ring mod" → "Ring Mod" (the word "button" and the phone / person's name go)
 const cleanLabel = (name, strip = []) => { let s = ` ${String(name || '')} `; for (const w of ['button', ...strip.filter(Boolean)]) s = s.replace(new RegExp(`\\s${String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[’']s?/g, "[’']?s?")}(?=\\s)`, 'gi'), ' '); s = s.trim().replace(/\s+/g, ' '); return s ? s.replace(/(^|\s)\S/g, c => c.toUpperCase()) : String(name || ''); };
@@ -1875,9 +1878,9 @@ export class SweetHomeCard extends HTMLElement {
       }),
     ];
     const plugs = (r.plugs || []).filter(p => this.s(p.id)).map(p => {
-      const on = this.on(p.id); const w = this.n(p.power); const drawing = on && (w ?? 0) > 1.5, charger = /charg/i.test(`${p.icon} ${p.id} ${p.name}`), chg = drawing && charger;
+      const on = this.on(p.id); const w = this.n(p.power); const drawing = on && (w ?? 0) > 1.5, chg = drawing && plugCharger(p);
       const val = !on ? tr('Off') : chg ? tr('Charging · {0} W', w.toFixed(1)) : drawing ? tr('On · {0} W', w < 10 ? w.toFixed(1) : Math.round(w)) : p.power ? tr('On · idle') : tr('On');
-      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : p.icon && !['mdi:power-socket-eu', 'mdi:cellphone-charging'].includes(p.icon) ? p.icon : (SMART && nameIcon(p.id, p.name)) || this.s(p.id)?.attributes.icon || p.icon, on && SMART && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
+      return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : plugIcon(this, p), on && SMART && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
     });
     if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
     const devs = [];
@@ -4049,15 +4052,18 @@ class HouseScene {
       R.temp = r.temp ? c.n(r.temp) : null;
       const el = this.lbls[id]; const t = R.temp, h = r.hum ? c.n(r.hum) : null;
       const ac = r.climate && c.climOn(r.climate), acm = ac ? acMode(c.s(r.climate)) : '';
-      const chg = (r.plugs || []).some(p => c.v(p.id) === 'on' && (c.n(p.power) ?? 0) > 1.5);
+      // plugs in use: a charger drawing power → charging; any other plug that is on (and drawing power, when it has a sensor) → its own icon
+      const plugOn = (r.plugs || []).filter(p => c.v(p.id) === 'on');
+      const chg = plugOn.some(p => plugCharger(p) && (c.n(p.power) ?? 0) > 1.5);
+      const pIcs = [...new Set(plugOn.filter(p => !plugCharger(p) && (!p.power || (c.n(p.power) ?? 0) > 1.5)).map(p => plugIcon(c, p)))].slice(0, 2).join(',');
       const lk = (r.locks || []).map(l => c.v(l)); const unl = lk.includes('unlocked'), lkd = lk.length && lk.every(s => s === 'locked');
       const dOpen = (r.doors || []).some(d => c.v(d) === 'on');
-      const sig = [t, h, R.anyLit, R.motion, acm, chg, unl, lkd, dOpen, this.mode, this.sel === id].join('|');
+      const sig = [t, h, R.anyLit, R.motion, acm, chg, pIcs, unl, lkd, dOpen, this.mode, this.sel === id].join('|');
       if (el._sig !== sig) {
         el._sig = sig;
         el.className = `lbl ${R.anyLit ? 'lit' : ''} ${R.motion ? 'mo' : ''} ${this.sel === id ? 'sel' : ''} ${t == null ? 'nodata' : ''}`;
         el.innerHTML = `<b>${esc(r.name)}</b>${t != null ? `<span class="t" style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</span>` : ''}${h != null ? `<span class="h">${Math.round(h)}%</span>` : ''}
-          <span class="ics">${R.anyLit ? '<ha-icon icon="mdi:lightbulb-on"></ha-icon>' : ''}${ac ? acIcon(c.s(r.climate)) : ''}${R.motion ? '<ha-icon class="mo" icon="mdi:motion-sensor"></ha-icon>' : ''}${chg ? '<ha-icon class="chg" icon="mdi:battery-charging"></ha-icon>' : ''}${unl ? '<ha-icon class="unl" icon="mdi:lock-open-variant"></ha-icon>' : lkd ? '<ha-icon class="lkd" icon="mdi:lock"></ha-icon>' : ''}${dOpen ? '<ha-icon class="unl" icon="mdi:door-open"></ha-icon>' : ''}</span>`;
+          <span class="ics">${R.anyLit ? '<ha-icon icon="mdi:lightbulb-on"></ha-icon>' : ''}${ac ? acIcon(c.s(r.climate)) : ''}${R.motion ? '<ha-icon class="mo" icon="mdi:motion-sensor"></ha-icon>' : ''}${chg ? '<ha-icon class="chg" icon="mdi:battery-charging"></ha-icon>' : ''}${pIcs ? pIcs.split(',').map(i => `<ha-icon class="dev" icon="${i}"></ha-icon>`).join('') : ''}${unl ? '<ha-icon class="unl" icon="mdi:lock-open-variant"></ha-icon>' : lkd ? '<ha-icon class="lkd" icon="mdi:lock"></ha-icon>' : ''}${dOpen ? '<ha-icon class="unl" icon="mdi:door-open"></ha-icon>' : ''}</span>`;
       }
     }
     for (const B of this.badges || []) {
@@ -4733,7 +4739,7 @@ main{scroll-margin-top:84px}
 .lbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:12px;background:rgba(8,12,24,.72);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:11.5px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:border-color .3s,background .3s;will-change:transform}
 .lbl::after{content:'';position:absolute;left:50%;bottom:-5px;width:8px;height:8px;background:inherit;border-right:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.12);transform:translateX(-50%) rotate(45deg)}
 .lbl b{font-weight:600}.lbl .t{font-weight:700}.lbl .h{color:var(--blue);font-size:10.5px}
-.lbl .ics{display:flex;gap:2px}.lbl ha-icon{--mdc-icon-size:14px;color:var(--amber)}.lbl ha-icon.ac{color:var(--blue)}.lbl ha-icon.mo{color:var(--teal)}
+.lbl .ics{display:flex;gap:2px}.lbl ha-icon{--mdc-icon-size:14px;color:var(--amber)}.lbl ha-icon.ac{color:var(--blue)}.lbl ha-icon.mo{color:var(--teal)}.lbl ha-icon.dev{color:var(--blue)}
 .lbl.lit{border-color:rgba(251,191,36,.55);box-shadow:0 0 22px -6px rgba(251,191,36,.7)}
 .lbl.mo{border-color:rgba(45,212,191,.6)}
 .lbl.sel{background:rgba(45,212,191,.25);border-color:var(--teal)}
