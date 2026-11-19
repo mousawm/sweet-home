@@ -166,6 +166,24 @@ try {
       && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && out.shows === 1 && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]) && out.show === 'Show (2020)';
     return ok || JSON.stringify(out);
   }); check('media server with JellyHA: one row per session, its clients, its library from the media browser (Movies / TV Series, plain item ids), the TV\'s device player to play on (never the phone or the user player)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // JellyHA: the Shield's device player is there before the app restarts and looks the same after (same session id);
+    // the video still goes to it once the app has had a few seconds to open
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString();
+    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
+    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin', 'YouTube'], source: 'YouTube' }, 'androidtv');
+    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true }, 'jellyha');
+    put('media_player.jellyha_device_pixel', 'idle', { friendly_name: 'JellyHA Device Pixel 8', device_name: 'Pixel 8', client: 'Jellyfin Android', session_id: 's2', supported_features: 512, supports_remote_control: true }, 'jellyha');
+    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => { calls.push([d, sv, data]); };
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    const L = card._jfLauncher()?.id;
+    await card._jfPlay('f'.repeat(32), 'movie', 'The Movie');
+    const play = calls.filter(([d, sv]) => d === 'media_player' && sv === 'play_media').map(([, , x]) => x.entity_id + ':' + x.media_content_id);
+    h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield', 'media_player.jellyha_device_pixel']) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    return (L === 'media_player.shield' && play.length === 1 && play[0] === 'media_player.jellyha_device_shield:' + 'f'.repeat(32)) || JSON.stringify({ L, play });
+  }); check('JellyHA: tapping a movie opens Jellyfin on the TV and plays it on the TV\'s device player, even when that player looks unchanged (never the phone)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

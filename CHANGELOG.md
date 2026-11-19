@@ -11,6 +11,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - 3D doors: a door now opens to the side its arc shows on the floor plan. Doors drawn right-to-left or top-to-bottom used to open the opposite way.
 - Energy card: tapping Home, Solar or Grid with no sensor of its own does nothing, instead of opening an empty "null" dialog; no tile opens a details dialog for a missing entity any more.
 - Media Server: tapping a movie or an episode to play it on the TV no longer starts it on a phone that has Jellyfin open. A phone or tablet app is never picked when there is a TV to open Jellyfin on, and with JellyHA the video goes to the TV's own device player, not to the user player (which JellyHA sends to the user's last-used app).
+- Media Server with JellyHA: a movie tapped to play on the TV now starts there. The card used to wait forever ("Home Assistant can't see it yet") because JellyHA's TV player looks the same before and after the app reopens; it is now used once the app has had a few seconds to open, and the video is sent again for about 10 s while the app is still loading.
 
 ### Changed
 
