@@ -198,6 +198,7 @@ try {
     const sc = card._three; c.house.wall_height = undefined; delete c.house.wall_height; card.setConfig(c); await new Promise(r => setTimeout(r, 2500));
     return waited && sc && sc !== old && Math.abs(sc.goal.theta - 1.234) < 1e-6 && sc.goal.radius === 19;
   }));
+  check('the header shows the Sweet Home icon (and no stray text)', await p.evaluate(async () => { const t = card.shadowRoot.querySelector('.title'), img = t?.querySelector('img.logo'); if (img && !img.complete) await new Promise(r => img.onload = r); return !!img && img.naturalWidth > 0 && !t.textContent.includes('%') && !t.textContent.includes('svg'); }));
   check('nothing is loaded from outside (fonts are bundled)', !p.outside.length, p.outside.join(' '));
   check('a °F home: 72 °F is the colour of 22 °C (comfortable), not of a heat wave', await p.evaluate(async () => {
     const h = window.hassObj, col = async (t, unit) => { card.hass = { ...h, config: { ...(h.config || {}), unit_system: { temperature: unit } }, states: { ...h.states, 'sensor.living_room_temperature': { ...h.states['sensor.living_room_temperature'], state: String(t) } } }; await new Promise(r => setTimeout(r, 200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); return card.shadowRoot.querySelector('#drawer .dstats b')?.style.color; };

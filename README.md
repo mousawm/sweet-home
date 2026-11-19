@@ -1,3 +1,5 @@
+<img src="docs/brand/icon.png" alt="Sweet Home icon" width="112" align="right">
+
 # Sweet Home
 
 [![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Sweet Home</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#0b1330"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="256" cy="300" r="230" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="roofFront" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5b4c8"/>
+      <stop offset="1" stop-color="#7c8ba1"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="372" cy="356" r="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fef3c7"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+  </defs>
+
+  <!-- tile -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#halo)"/>
+
+  <!-- ground plate, with the warm light of the window spilling on it -->
+  <path d="M256 448 433 346 256 244 79 346Z" fill="#2dd4bf" fill-opacity=".16" stroke="#5eead4" stroke-opacity=".55" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M256 448 433 346 256 244 79 346Z" fill="url(#glow)"/>
+
+  <!-- walls -->
+  <path d="M256 404 386 329 386 209 256 284Z" fill="url(#right)"/>
+  <path d="M256 404 126 329 126 209 256 284Z" fill="url(#left)"/>
+
+  <!-- roof: back plane, gable, front plane -->
+  <path d="M126 209 191 156 321 81 256 134Z" fill="#0f766e"/>
+  <path d="M256 284 126 209 191 156Z" fill="url(#left)"/>
+  <path d="M256 284 386 209 321 81 191 156Z" fill="url(#roofFront)"/>
+  <path d="M191 156 321 81" stroke="#ccfbf1" stroke-width="5" stroke-linecap="round" stroke-opacity=".8"/>
+
+  <!-- a glowing heart in the gable: the "sweet" -->
+  <path d="M191 222c-7-6-17-13-17-22a9 9 0 0 1 17-4 9 9 0 0 1 17 4c0 9-10 16-17 22Z" fill="#fde68a"/>
+
+  <!-- lit window on the right wall, door on the left -->
+  <path d="M322 336 370 308 370 256 322 284Z" fill="url(#win)"/>
+  <path d="M346 322 346 270M322 310 370 282" stroke="#d97706" stroke-opacity=".55" stroke-width="4"/>
+  <path d="M220 383 188 364 188 300 220 319Z" fill="#334155"/>
+  <circle cx="214" cy="350" r="3.5" fill="#fbbf24"/>
+</svg>
