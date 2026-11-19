@@ -1012,15 +1012,13 @@ export class SweetHomeCard extends HTMLElement {
       if (L.plat !== 'androidtv' && best && best.score > 0) return await send(best.st);
       // JellyHA: the TV's Jellyfin app is signed in and connected (a live session) while the TV is on: send the video there
       // first, without restarting the app (a restart can bring back its sign-in screen and ask for a Quick Connect code).
-      // Only when it is not playing that video within 8 s is the app restarted below.
+      // Only when it is not playing that video soon after is the app restarted below.
+      this._jfFail = null;
       if (J.kind === 'jellyha' && best && best.score > 0 && this.v(L.id) !== 'off') {
         this._toast(`Opening ${name} on ${tvName}…`);
-        const id = best.st.entity_id, same = st => String(st?.attributes.item_id || '').replace(/-/g, '').toLowerCase() === String(item).replace(/-/g, '').toLowerCase();
-        const sent = await this._hass.callService('media_player', 'play_media', { entity_id: id, media_content_id: item, media_content_type: kind || 'video' }).then(() => true, () => false);
-        if (sent && await this._waitFn(() => this._jfCancel || (['playing', 'paused'].includes(this.v(id)) && same(this.s(id))), 8e3)) {
-          if (this._jfCancel) { this._toast('Stopped'); return; }
-          this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return;
-        }
+        const r = await this._jfHaPlay(best.st, item, kind, 8e3);
+        if (this._jfCancel) { this._toast('Stopped'); return; }
+        if (r.ok) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
       }
       const before = this._jfPlayable();
       this._toast(`Starting Jellyfin on ${tvName}…`);
@@ -1084,18 +1082,48 @@ export class SweetHomeCard extends HTMLElement {
       if (!ok) { this.haptic('failure'); this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
       this._toast(`Opening ${name}…`);
       await new Promise(r => setTimeout(r, 2500)); // let the app finish loading its home screen
-      // JellyHA: the app may still be loading and reject the video; try again for about 10 s before saying so
-      if (ha) for (let i = 0; i < 4 && !this._jfCancel; i++) {
-        const prev = ses; fresh(); const st = ses || prev; // the TV's player now (it may have been replaced meanwhile)
-        const okSend = await this._hass.callService('media_player', 'play_media', { entity_id: st.entity_id, media_content_id: item, media_content_type: kind || 'video' }).then(() => true, () => false);
-        if (okSend) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
-        await new Promise(r => setTimeout(r, 3e3));
+      // JellyHA: send it and check that the TV really plays it (the app may still be loading); twice, then say what went wrong
+      if (ha) {
+        let r = { ok: false, err: '' };
+        for (let i = 0; i < 2 && !this._jfCancel; i++) {
+          const prev = ses; fresh(); const st = ses || prev; // the TV's player now
+          r = await this._jfHaPlay(st, item, kind, 12e3); if (r.ok) break;
+          if (i === 0) await new Promise(res => setTimeout(res, 3e3));
+        }
+        if (this._jfCancel) { this._toast('Stopped'); return; }
+        if (r.ok) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
+        this.haptic('failure');
+        this._jfFail = { item, kind, title, msg: tr("{0} didn't start {1}.", tvName, name) + (r.err ? ` (${r.err})` : '') };
+        this._renderInfo(); this._toast(this._jfFail.msg, true); return;
       }
       await send(ses);
     } finally { this._jfBusy = false; }
   }
+  // JellyHA: send a video to the TV's Jellyfin app and wait until that app reports playing it (its player's item_id).
+  // First JellyHA's own jellyha.session_play by the app's device id (the session is looked up when it is sent, so a
+  // session that changed when the app restarted or signed in is not a problem), then the player's play_media.
+  async _jfHaPlay(st, item, kind, ms) {
+    const a = st?.attributes || {}, dev = a.device_id, n = x => String(x || '').replace(/-/g, '').toLowerCase();
+    const playing = () => this._jfPlayers().some(id => { const s = this.s(id); return s && (id === st.entity_id || (dev && s.attributes.device_id === dev))
+      && ['playing', 'paused'].includes(s.state) && n(s.attributes.item_id) === n(item); });
+    const ways = [
+      dev && (() => this._hass.callService('jellyha', 'session_play', { item_id: item, device_id: dev, ...(a.config_entry_id ? { config_entry_id: a.config_entry_id } : {}) })),
+      () => this._hass.callService('media_player', 'play_media', { entity_id: st.entity_id, media_content_id: item, media_content_type: kind || 'video' }),
+    ].filter(Boolean);
+    let err = '';
+    for (const w of ways) {
+      if (this._jfCancel) break;
+      try { await w(); } catch (e) { err = e?.message || String(e); continue; }
+      if (await this._waitFn(() => this._jfCancel || playing(), ms)) return { ok: !this._jfCancel };
+    }
+    return { ok: false, err };
+  }
   // the waiting banner at the top of the Jellyfin sheets
   _jfWaitHTML() {
+    const f = !this._jfWait && this._jfFail;
+    if (f) return `<div class="jfwait jffail" role="alert"><div class="jfwm">${ic('mdi:alert-circle-outline')}<span>${esc(f.msg)}</span></div>
+      <div class="jfwb"><button class="pill on" data-act="jfretry">${ic('mdi:refresh')}<span>${tr('Try again')}</span></button><button class="pill" data-act="jfdismiss"><span>${tr('Close')}</span></button></div>
+      <div class="jfwh">${tr('Check that Jellyfin is open and signed in on the TV, then try again.')}</div></div>`;
     const w = this._jfWait; if (!w) return '';
     const admin = this._hass?.user?.is_admin;
     // Quick Connect (jellyfin_tv.quick_connect): the TV's Jellyfin asks for a code; Play once it is signed in
@@ -1550,6 +1578,8 @@ export class SweetHomeCard extends HTMLElement {
       case 'jfreconnect': this._jfReconnect?.(); break;
       case 'jfcancel': this._jfCancel = true; break;
       case 'jfqc': this._jfQcDone = true; break;
+      case 'jfretry': { const f = this._jfFail; this._jfFail = null; this._renderInfo(); if (f) this._jfPlay(f.item, f.kind, f.title); break; }
+      case 'jfdismiss': this._jfFail = null; this._renderInfo(); break;
       case 'jfseason': this._jfSeason = { ...(this._jfSeason || {}), [t.dataset.show]: Number(t.dataset.i) }; this._renderInfo(); break;
       case 'ehp': this._eh = { ...this._eh, p: t.dataset.p, off: 0, bar: null }; this._rerender('ehist'); break;
       case 'ehnav': this._eh = { ...this._eh, off: Math.min(0, this._eh.off + Number(t.dataset.d)), bar: null }; this._rerender('ehist'); break;
@@ -4705,7 +4735,7 @@ main{scroll-margin-top:84px}
 
 /* jellyfin library browser */
 .mlib div.go{position:relative}.mlib div.go span{color:#c4b5fd}
-.jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.jfqc .pill.on{background:var(--teal);color:#04342c;border-color:var(--teal)}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
+.jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.jfwb .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;max-width:none;font-size:13px;line-height:1;padding:9px 16px;cursor:pointer}.jfwb .pill ha-icon{--mdc-icon-size:18px;display:flex}.jfwb .pill.on{background:var(--teal);color:#04342c;border-color:var(--teal)}.jffail{background:rgba(244,63,94,.08);border-color:rgba(244,63,94,.4)}.jffail .jfwm ha-icon{color:var(--rose)}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
 .jfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .jfpo{position:relative;display:flex;flex-direction:column;gap:5px;padding:0;background:none;border:0;color:var(--tx);font:inherit;text-align:left;cursor:pointer;min-width:0}
 .jfpo span{font-size:11.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
