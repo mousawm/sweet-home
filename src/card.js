@@ -4757,7 +4757,8 @@ main{scroll-margin-top:84px}
 .wents{margin-top:12px}
 :host(:not([editing])) .edit-only{display:none!important}
 .hbtn{flex:none;display:grid;place-items:center;width:32px;height:32px;margin:-6px -6px -6px 2px;border-radius:9px;color:var(--mu);opacity:.65}
-.hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15)}
+@media (hover:hover){.hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15);position:relative}
+.hbtn.confirm::after{left:auto;right:0;transform:none} /* the tip sits over the eye button, kept inside the card at the right edge */
 @media (pointer:coarse){.hbtn{width:40px;height:40px}}
 .fgrp{border-radius:14px;margin-bottom:8px}.fgrp .lrow:last-child,.fgrp .mrow:last-child{margin-bottom:0}
 .fhd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--mu);margin:2px 2px 6px}.fhd ha-icon{--mdc-icon-size:16px}
