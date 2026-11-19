@@ -241,6 +241,11 @@ const devType = () => {
 const devKey = k => `sweet-home:${location.pathname.split('/')[1] || 'lovelace'}:${k}`;
 const devGet = k => { try { return localStorage.getItem(devKey(k)); } catch (e) { return null; } };
 const devSet = (k, v) => { try { if (v == null) localStorage.removeItem(devKey(k)); else localStorage.setItem(devKey(k), String(v)); } catch (e) { /* storage off */ } };
+// The card editor's preview: Home Assistant makes a NEW card for every change typed or picked in the editor (hui-card
+// rebuilds its element in preview mode). The card it removes hands its 3D view (canvas, labels, camera) over here, and
+// the new card takes it instead of building the house again. Not taken within a few seconds: it is thrown away.
+let SHARED = null;
+const dropShared = () => { const S = SHARED; SHARED = null; if (!S) return; clearTimeout(S.timer); try { S.scene.pause(); S.scene.renderer?.dispose(); S.scene.ro?.disconnect(); S.scene.io?.disconnect(); } catch (e) { /* gone */ } };
 let SMART = true; // `smart_icons` (Look): icons picked from names; off: the icon set in Home Assistant
 const nameIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (NAME_ICONS.find(([re]) => re.test(t)) || [])[1] || null; };
 const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
@@ -404,11 +409,19 @@ export class SweetHomeCard extends HTMLElement {
     }
     this._histT = setInterval(() => { this._loadHistory(); this._loadETotals(); if (this._eh?.off === 0) { this._ehCache = {}; this._rerender('ehist'); } }, 5 * 60 * 1000);
     if (this._three) this._three.resume();
+    else if (this._gaveAway && SHARED?.owner === this) { this._gaveAway = false; this._adoptShared(); }
+    else if (this._gaveAway && this._built) { this._gaveAway = false; this._rebuild(false); } // its 3D view was handed over and is gone: build it again
   }
   disconnectedCallback() {
     clearInterval(this._clockT); clearInterval(this._camT); clearInterval(this._histT);
     this._unmountCams(); if (this._visH) { document.removeEventListener('visibilitychange', this._visH); this._visH = null; }
     if (this._three) this._three.pause();
+    // while the dashboard or this card is being edited: the 3D view is kept for the card that replaces this one
+    if (this._three && (this._previewProp || this._editModeProp || window.__sweetHomeEditor?.isConnected) && this.$('viewport')) {
+      if (SHARED && SHARED.scene !== this._three) dropShared();
+      SHARED = { scene: this._three, vp: this.$('viewport'), owner: this, mode: this._mode, level: this._level, sel: this._sel, tab: this._tab, timer: setTimeout(dropShared, 5000) };
+      this._three = null; this._gaveAway = true;
+    }
   }
 
   /* ---------- state helpers ---------- */
@@ -2775,13 +2788,34 @@ export class SweetHomeCard extends HTMLElement {
   /* ------------------------------------------------------------------ */
   /* 3D                                                                  */
   /* ------------------------------------------------------------------ */
+  // take the 3D view handed over by the card this one replaces (the editor's preview): see SHARED
+  _adoptShared() {
+    const S = SHARED, vp = this.$('viewport'); if (!S || !vp || !this.shadowRoot.contains(vp)) return false;
+    clearTimeout(S.timer); SHARED = null;
+    if (S.vp !== vp) vp.replaceWith(S.vp);
+    const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; }
+    const sc = this._three = S.scene; sc.card = this;
+    const L = MODEL.levels || [{ level: 0 }];
+    if (S.level != null && L.some(l => l.level === S.level) && S.level !== this._level) this._setLevel(S.level);
+    if (S.mode && S.mode !== this._mode) this._setMode(S.mode); else this._renderLegend();
+    if (S.tab && S.tab !== this._tab && this._tabOn(S.tab)) this._setTab(S.tab);
+    if (S.sel && ROOM[S.sel]) setTimeout(() => this._select(S.sel), 0);
+    sc.resume?.(); sc.sync(); sc._dirty = true;
+    try { sc.renderer.render(sc.scene, sc.cam); } catch (e) { /* next frame */ }
+    sc._wake?.();
+    // the house itself changed: a new 3D view once the changes pause, seen from the same place
+    if (sc._key !== this._houseJSON) { clearTimeout(this._rbT); this._rbT = setTimeout(() => { if (this.isConnected && this._three === sc) this._rebuild(false); }, 600); }
+    return true;
+  }
   async _init3d() {
+    await new Promise(r => setTimeout(r, 0)); // the card this one replaces is removed just after: its 3D view may be handed over
+    if (this._three || this._adoptShared()) return;
     let THREE;
     THREE = this._THREE || THREE_LIB; // tests swap in a renderer stub
     let scene;
     try { scene = new HouseScene(THREE, this); scene.arrange = !!this._arrange; await scene.ready; }
     catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.</span>`; return; }
-    this._three = scene;
+    this._three = scene; scene._key = this._houseJSON; // the house it shows
     const V = this._view; this._view = null;
     if (V) { for (const k of ['orbit', 'goal']) { Object.assign(scene[k], { theta: V[k].theta, phi: V[k].phi, radius: V[k].radius }); scene[k].target.copy(V[k].target); } scene.vmode = V.vmode; scene._dirty = true; }
     if (!this.isConnected) scene.pause();

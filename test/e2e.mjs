@@ -213,6 +213,27 @@ try {
     const c = JSON.parse(card._cfgJSON); delete c.default_view; delete c.default_floor; card.setConfig(c); await new Promise(r => setTimeout(r, 700));
     return pinned && cleared;
   }));
+  check('editor preview (Home Assistant makes a new card for each change): the new card takes over the same 3D view, no "Building your home"', await p.evaluate(async () => {
+    const swap = cfg => { const old = window.card, el = new old.constructor(); el.preview = true; el.setConfig(cfg); el.hass = window.hassObj; const parent = old.parentNode; old.remove(); parent.appendChild(el); window.card = el; return el; };
+    window.card.preview = true; const sc = window.card._three, theta = sc.goal.theta;
+    const c = JSON.parse(window.card._cfgJSON); c.title = 'Renamed'; const el = swap(c); await new Promise(r => setTimeout(r, 300));
+    const kept = el._three === sc && el.shadowRoot.contains(sc.cv) && el.shadowRoot.getElementById('loading').classList.contains('gone') && sc.card === el;
+    // the house changes: the old view stays on screen, then one new 3D view from the same angle
+    sc.goal.theta = sc.orbit.theta = 0.777; const c2 = JSON.parse(el._cfgJSON); c2.house.wall_height = 1.2; const el2 = swap(c2); await new Promise(r => setTimeout(r, 200));
+    const meanwhile = el2._three === sc && el2.shadowRoot.getElementById('loading').classList.contains('gone');
+    await new Promise(r => setTimeout(r, 3000)); const sc2 = el2._three;
+    const rebuilt = sc2 && sc2 !== sc && Math.abs(sc2.goal.theta - 0.777) < 1e-6;
+    const c3 = JSON.parse(el2._cfgJSON); delete c3.house.wall_height; c3.title = c.title === 'Renamed' ? undefined : c.title; delete c3.title; const el3 = swap(c3); await new Promise(r => setTimeout(r, 3000)); el3.preview = false;
+    return kept && meanwhile && rebuilt || JSON.stringify({ kept, meanwhile, rebuilt });
+  }) === true);
+  check('edit mode: leaving the view and coming back keeps (or rebuilds) the 3D view', await p.evaluate(async () => {
+    const el = window.card, parent = el.parentNode; el.editMode = true; const sc = el._three;
+    el.remove(); await new Promise(r => setTimeout(r, 100)); parent.appendChild(el); await new Promise(r => setTimeout(r, 200));
+    const quick = el._three === sc && el.shadowRoot.contains(sc.cv);
+    el.remove(); await new Promise(r => setTimeout(r, 5600)); parent.appendChild(el); await new Promise(r => setTimeout(r, 3500));
+    const later = !!el._three && el._three !== sc && el.shadowRoot.contains(el._three.cv) && el.shadowRoot.getElementById('loading').classList.contains('gone');
+    el.editMode = false; return quick && later || JSON.stringify({ quick, later });
+  }) === true);
   check('nothing is loaded from outside (fonts are bundled)', !p.outside.length, p.outside.join(' '));
   check('a °F home: 72 °F is the colour of 22 °C (comfortable), not of a heat wave', await p.evaluate(async () => {
     const h = window.hassObj, col = async (t, unit) => { card.hass = { ...h, config: { ...(h.config || {}), unit_system: { temperature: unit } }, states: { ...h.states, 'sensor.living_room_temperature': { ...h.states['sensor.living_room_temperature'], state: String(t) } } }; await new Promise(r => setTimeout(r, 200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); return card.shadowRoot.querySelector('#drawer .dstats b')?.style.color; };
