@@ -832,7 +832,8 @@ export function buildModel(cfg = {}, hass) {
     updates: `sensor.node_${pveNode}_total_updates`, swap: `sensor.node_${pveNode}_swap_used_percentage`, swapUsed: `sensor.node_${pveNode}_swap_used`,
     swapTotal: `sensor.node_${pveNode}_swap_total`, update: `update.node_${pveNode}_software_update`, temp: P.homelab?.temperature || null,
     guests: arr(P.homelab?.pinned).map(g => typeof g === 'string' ? [g, null, null] : [g.key, g.name, g.icon]),
-  } : { guests: [] };
+    order: arr(P.homelab?.order).map(String), // guest order set by dragging the rows (Proxmox ids)
+  } : { guests: [], order: [] };
 
   // media server: Jellyfin / Sonarr / Radarr / qBittorrent are found by their integration
   const plat = (p, re) => R.ofPlatform(p, re)[0] || null;

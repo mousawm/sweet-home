@@ -37,6 +37,12 @@ const S = [
   st('sensor.ev_battery', '64', { device_class: 'battery', unit_of_measurement: '%' }), st('sensor.ev_range', '310', { unit_of_measurement: 'km' }),
   st('sensor.ev_charge_energy', '12.4', { unit_of_measurement: 'kWh' }), st('sensor.ev_month_energy', '186', { unit_of_measurement: 'kWh' }), st('sensor.ev_status', 'parked'),
   st('binary_sensor.car_parked', 'on', { friendly_name: 'Car Parked', device_class: 'occupancy' }), st('light.office', 'on', { friendly_name: 'Office Light', brightness: 255 }),
+  // a made-up Proxmox VE node with guests (Home Lab panel)
+  st('binary_sensor.node_pve_status', 'on'), st('sensor.node_pve_cpu_used', '11'), st('sensor.node_pve_memory_used_percentage', '64'), st('sensor.node_pve_disk_used_percentage', '39'),
+  st('sensor.node_pve_swap_used_percentage', '22'), st('sensor.node_pve_containers_running', '6'), st('sensor.node_pve_virtual_machines_running', '2'), st('sensor.node_pve_total_updates', '3'),
+  ...[['lxc', 'adguard', 101, 31], ['lxc', 'jellyfin', 102, 72], ['qemu', 'haos', 103, 58], ['lxc', 'nextcloud', 104, 66], ['lxc', 'grafana', 105, 20], ['lxc', 'vaultwarden', 106, 12], ['qemu', 'games', 107, 81], ['lxc', 'pbs', 108, 0]]
+    .flatMap(([t, n, id, mem]) => [st(`sensor.${t}_${n}_${id}_status`, mem ? 'running' : 'stopped', { friendly_name: `${t.toUpperCase()} ${n} (${id}) Status` }),
+      st(`sensor.${t}_${n}_${id}_cpu_used`, String((id % 7) / 2)), st(`sensor.${t}_${n}_${id}_memory_used_percentage`, String(mem))]),
 ];
 const states = Object.fromEntries(S.map(s => [s.entity_id, s]));
 states['cover.living_room_blinds'].attributes.current_position = 40;

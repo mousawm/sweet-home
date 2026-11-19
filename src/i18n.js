@@ -68,7 +68,7 @@ const AR = {
   'Hidden. Show it again in the card editor (Panels → Needs Attention).': 'تم الإخفاء. يمكنك إظهاره مجددًا من محرر البطاقة (اللوحات ← يحتاج انتباهًا).',
   'Needs Attention': 'يحتاج انتباهًا', 'Hidden devices': 'الأجهزة المخفية', 'Hidden entities': 'الكيانات المخفية', 'Hidden from low batteries only': 'مخفية من البطاريات المنخفضة فقط',
   Pumps: 'المضخات', 'Other entities (valves, flow, pressure…)': 'كيانات أخرى (صمامات، تدفق، ضغط…)', 'Tank level': 'مستوى الخزان', 'Water quality': 'جودة المياه',
-  'Water temperature': 'حرارة المياه', 'Battery alert below': 'تنبيه البطارية تحت', 'Weak Wi-Fi below': 'ضعف الواي فاي تحت', 'Cloudflare tunnels': 'أنفاق Cloudflare',
+  'Water temperature': 'حرارة المياه', 'CPU temperature': 'حرارة المعالج', 'Drag to reorder': 'اسحب لتغيير الترتيب', 'Reset the order': 'إعادة الترتيب الأصلي', 'Battery alert below': 'تنبيه البطارية تحت', 'Weak Wi-Fi below': 'ضعف الواي فاي تحت', 'Cloudflare tunnels': 'أنفاق Cloudflare',
   'LED strip on': 'شريط LED على', 'Where there is no wall': 'حيث لا يوجد جدار', 'Keep going': 'يستمر', 'Stop at the gap': 'يتوقف عند الفراغ',
   North: 'الشمال', East: 'الشرق', South: 'الجنوب', West: 'الغرب', 'Strip on more than one rectangle: set its sides in YAML (strip_sides)': 'الشريط موزع على أكثر من مستطيل: حدّد جهاته في YAML (strip_sides)',
   Rename: 'إعادة تسمية', 'Name of {0}': 'اسم {0}', 'name in this card': 'اسم في هذه البطاقة فقط', 'can only be renamed in this card': 'يمكن إعادة تسميته في هذه البطاقة فقط', 'renamed in Home Assistant': 'تمت إعادة التسمية في Home Assistant', 'renamed in Home Assistant and on this dashboard': 'تمت إعادة التسمية في Home Assistant وفي هذه اللوحة',

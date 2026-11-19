@@ -1228,6 +1228,7 @@ export class SweetHomeCard extends HTMLElement {
       if (sec.off) continue;
       if (sec.tab === undefined) sec.tab = sec.el.closest('.tab')?.dataset.tab || null;
       if (sec.tab && sec.tab !== this._tab) continue; // battery: cards on hidden tabs are rendered when their tab opens (_setTab)
+      if (this._labDrag && sec.el.id === 'lab') continue; // a Home Lab row is being dragged
       const prev = this._prev.get(sec.el);
       let changed = !prev || sec.force;
       if (!changed) for (let i = 0; i < sec.deps.length; i++) if (h.states[sec.deps[i]] !== prev[i]) { changed = true; break; }
@@ -1332,6 +1333,7 @@ export class SweetHomeCard extends HTMLElement {
       if (el.dataset.lp) return el;
       const id = el.dataset.id; return id && id.includes('.') && this.s(id) ? el : null;
     };
+    this._labDragSetup(R);
     R.addEventListener('pointerdown', e => {
       clear(); if (e.button > 0 || e.target.closest('input')) return;
       const el = target(e.target); if (!el) return;
@@ -1501,6 +1503,8 @@ export class SweetHomeCard extends HTMLElement {
       case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
+      case 'labgrip': break; // dragged, see _labDragSetup
+      case 'labreset': this._labSaveOrder(null); break;
       case 'tab': this._setTab(t.dataset.tab); if (t.dataset.to) this._goCard(t.dataset.to); break;
       case 'cam': this.more(id); break;
     }
@@ -2778,15 +2782,15 @@ export class SweetHomeCard extends HTMLElement {
     };
     const h = this._hass;
     // a guest can have entities under two ids (renamed in Proxmox): read status / CPU / RAM from whichever key has them
-    const row = (keys, n, i) => {
+    const row = (keys, n, i, gid) => {
       keys = [].concat(keys);
       const pick = suf => keys.map(k => `sensor.${k}_${suf}`).find(id => h.states[id] && !BAD.includes(h.states[id].state));
       const stId = pick('status'), up = stId ? this.v(stId) === 'running' : keys.some(k => this.on(`binary_sensor.${k}_status`));
       const cpuId = pick('cpu_used'), memId = pick('memory_used_percentage'), cpu = cpuId ? this.n(cpuId) : null, mem = memId ? this.n(memId) : null;
       const id1 = cpuId || stId || `binary_sensor.${keys[0]}_status`;
-      return `<div class="vm ${up ? '' : 'off'}" data-act="more" data-id="${id1}"${memId ? ` data-id2="${memId}"` : ''}>${ic(i)}<span>${esc(n)}</span><i class="dot ${up ? 'green' : 'red'}"></i>${up ? `<em>CPU ${cpu != null ? cpu.toFixed(1) : '—'}%</em><em>RAM ${mem != null ? mem.toFixed(0) : '—'}%</em>` : '<em></em><em>Stopped</em>'}</div>`;
+      const grip = this._editing && this._hass?.user?.is_admin ? `<b class="vmg" data-act="labgrip" title="${tr('Drag to reorder')}" aria-label="${tr('Drag to reorder')}">${ic('mdi:drag')}</b>` : ic(i);
+      return `<div class="vm ${up ? '' : 'off'}" data-act="more" data-id="${id1}" data-gid="${esc(gid)}"${memId ? ` data-id2="${memId}"` : ''}>${grip}<span>${esc(n)}</span><i class="dot ${up ? 'green' : 'red'}"></i>${up ? `<em>CPU ${cpu != null ? cpu.toFixed(1) : '—'}%</em><em>RAM ${mem != null ? mem.toFixed(0) : '—'}%</em>` : '<em></em><em>Stopped</em>'}</div>`;
     };
-    const guests = L.guests.map(([k, n, i]) => { const gi = guestInfo(h.states, k); return row(k, n || gi.name, i || gi.icon); }).join('');
     // every other Proxmox guest behind "Show more": running ones first, busiest memory first, stopped ones last
     // group every guest key by its Proxmox id; the pinned ones (by id) are left out
     const byId = new Map();
@@ -2797,11 +2801,20 @@ export class SweetHomeCard extends HTMLElement {
       const mem = e.keys.map(k => this.n(`sensor.${k}_memory_used_percentage`)).find(v => v != null) ?? -1;
       return { ...e, up, mem };
     }).sort((a, b) => (b.up - a.up) || (b.mem - a.mem) || a.gi.name.localeCompare(b.gi.name));
-    // nothing pinned in the config: the 5 busiest guests are shown, the rest behind "Show more"
-    const pinN = L.guests.length ? 0 : 5, head = others.slice(0, pinN), rest = others.slice(pinN);
-    const headRows = head.map(o => row(o.keys, o.gi.name, o.gi.icon)).join('');
-    const more = headRows + (rest.length ? (this._labMore ? rest.map(o => row(o.keys, o.gi.name, o.gi.icon)).join('') : '')
-      + `<button class="vmmore" data-act="labmore">${this._labMore ? 'Show less' : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '');
+    // one list: pinned guests first, then the others; an order set by dragging the rows (panels.homelab.order, Proxmox
+    // ids) comes before both, guests it doesn't name keep their place after it. The first rows are shown (as many as
+    // are pinned, else 5), the rest behind "Show more".
+    let list = [
+      ...L.guests.map(([k, n, i]) => { const gi = guestInfo(h.states, k); return { gid: String(gi.id || k), keys: [k], name: n || gi.name, icon: i || gi.icon }; }),
+      ...others.map(o => ({ gid: String(o.gi.id || o.keys[0]), keys: o.keys, name: o.gi.name, icon: o.gi.icon })),
+    ];
+    if (L.order.length) { const at = g => { const i = L.order.indexOf(g.gid); return i < 0 ? Infinity : i; }; list = list.map((g, i) => [g, i]).sort((a, b) => at(a[0]) - at(b[0]) || a[1] - b[1]).map(x => x[0]); }
+    this._labAll = list.map(g => g.gid);
+    const shown = L.guests.length || 5, head = list.slice(0, shown), rest = list.slice(shown);
+    const edit = this._editing && h.user?.is_admin;
+    const more = head.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') + (rest.length ? (this._labMore ? rest.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') : '')
+      + `<button class="vmmore" data-act="labmore">${this._labMore ? 'Show less' : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
+      + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
     const upd = this.n(L.updates);
     return `<div class="ch">${ic('mdi:server')}<h3>Home Lab</h3><span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? 'Online' : 'Offline'}</span></div>
       <div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
@@ -2811,7 +2824,45 @@ export class SweetHomeCard extends HTMLElement {
         <div data-act="more" data-id="${L.vms}">${ic('mdi:monitor-multiple')}<b>${esc(this.v(L.vms) || '—')}</b><span>VMs</span></div>
         <div data-act="more" data-id="${L.updates}" data-id2="${L.update}"${upd > 0 ? ' style="color:#fbbf24"' : ''}>${ic('mdi:package-up')}<b>${upd != null ? upd.toFixed(0) : '—'}</b><span>updates</span></div>
       </div>
-      <div class="vms">${guests}${more}</div>`;
+      <div class="vms">${more}</div>`;
+  }
+  // Home Lab rows: while the dashboard is edited, drag a row by its grip to move it; the new order is saved in the card's
+  // config (panels.homelab.order, every guest's Proxmox id), through the card editor when it is open.
+  _labDragSetup(R) {
+    R.addEventListener('pointerdown', e => {
+      const g = e.target.closest?.('[data-act="labgrip"]'); if (!g || !this._editing || e.button > 0) return;
+      const row = g.closest('.vm'), box = row?.parentElement; if (!box) return;
+      e.preventDefault(); e.stopPropagation();
+      const rows = () => [...box.querySelectorAll('.vm[data-gid]')], start = rows().map(r => r.dataset.gid);
+      this._labDrag = true; row.classList.add('drag'); this.haptic('medium');
+      // followed on the window: moving the row in the page would drop a pointer capture on its grip
+      const pid = e.pointerId;
+      const move = ev => {
+        if (ev.pointerId !== pid) return; ev.preventDefault();
+        const others = rows().filter(r => r !== row);
+        const over = others.find(r => { const b = r.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
+        const ref = over || others[others.length - 1]?.nextElementSibling || null; // past the last row: before "Show more"
+        if (ref !== row && row.nextElementSibling !== ref) { box.insertBefore(row, ref); this.haptic('selection'); }
+      };
+      const end = ev => {
+        if (ev.pointerId !== pid) return;
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+        row.classList.remove('drag'); this._labDrag = false;
+        const now = rows().map(r => r.dataset.gid);
+        if (now.join() === start.join()) { this._rerender('lab'); return; }
+        // the shown rows in their new order, then every hidden guest as it was
+        this._labSaveOrder([...now, ...(this._labAll || []).filter(x => !now.includes(x))]);
+      };
+      window.addEventListener('pointermove', move, { passive: false }); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    });
+  }
+  async _labSaveOrder(order) {
+    const cfg = JSON.parse(JSON.stringify(this._config || {}));
+    const P = cfg.panels = cfg.panels || {}, hl = P.homelab && typeof P.homelab === 'object' ? P.homelab : {};
+    if (order) P.homelab = { ...hl, order }; else if (P.homelab && typeof P.homelab === 'object') delete P.homelab.order;
+    E.lab.order = order || []; // shown at once, also while the save is on its way
+    this._rerender('lab');
+    if (await this._applyConfig(cfg)) this.haptic('success');
   }
   _labGuestIds() {
     const set = new Set();
@@ -4864,6 +4915,7 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .vms{display:flex;flex-direction:column;gap:5px;margin-top:10px}
 .vm{display:grid;grid-template-columns:20px 1fr 10px 64px 60px;align-items:center;gap:8px;font-size:12px;padding:6px 8px;border-radius:10px;background:var(--panel2);cursor:pointer}
 .vm ha-icon{--mdc-icon-size:16px;color:var(--violet)}.vm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.vm.off{opacity:.55}
+.vmg{display:flex;align-items:center;justify-content:center;width:28px;height:26px;margin:-4px -4px -4px -6px;cursor:grab;touch-action:none;color:var(--mu)}.vmg ha-icon{color:var(--mu)!important}.vm.drag{outline:2px solid var(--teal);background:color-mix(in srgb,var(--teal) 14%,var(--panel2));cursor:grabbing;position:relative;z-index:1}
 .vmmore{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px;border-radius:10px;background:none;border:1px dashed var(--line);color:var(--mu);font:inherit;font-size:12px;cursor:pointer}.vmmore ha-icon{--mdc-icon-size:16px}.vm em{font-style:normal;font-size:10.5px;color:var(--mu);text-align:right}
 .devs{display:flex;flex-direction:column;gap:8px}
 .dev{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);cursor:pointer}
