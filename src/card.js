@@ -2554,7 +2554,7 @@ export class SweetHomeCard extends HTMLElement {
     const tiles = E.cameras.map(c => {
       const person = this.on(c.person), car = this.on(c.car), mo = this.on(c.motion), dOpen = c.door && /^open$/i.test(this.v(c.door) || '');
       const face = this.ok(c.face) ? this.v(c.face) : null, plate = this.ok(c.plate) ? this.v(c.plate) : null;
-      return `<div class="cam" data-act="cam" data-id="${c.id}"${c.face || c.person ? ` data-id2="${c.face || c.person}"` : ''}>
+      return `<div class="cam" data-act="cam" data-id="${c.id}"${(c.faceSet && c.face) || c.person ? ` data-id2="${(c.faceSet && c.face) || c.person}"` : ''}>
         <img data-cam="${c.id}" alt="">
         <div class="camlive" data-live="${c.id}"></div>
         <div class="cam-ov">
@@ -2565,8 +2565,11 @@ export class SweetHomeCard extends HTMLElement {
             ${c.relay && this.s(c.relay) ? `<button class="relay" data-act="relay" data-id="${c.relay}">${ic('mdi:gate-open')}${c.relay === E.gate.relay ? 'Open Gate' : 'Open'}</button>` : ''}</div>
         </div></div>`;
     }).join('');
-    // the last face recognised anywhere (panels.security.face): only when that sensor is set and has a name
-    const face = this.ok(E.face) ? `<span class="pill tankpill" data-act="more" data-id="${E.face}">${ic('mdi:face-recognition')}${esc(this.v(E.face))}</span>` : '';
+    // face recognition badge: panels.security.face, else the cameras' face sensors (Frigate); the newest name, or
+    // "No face" while none has one (unknown / None / "No face"). No badge when nothing does face recognition.
+    const fids = E.face ? [E.face] : [...new Set(E.cameras.map(c => c.face).filter(id => id && this.s(id)))];
+    const named = fids.filter(id => this.ok(id) && !/^no.?faces?$/i.test(this.v(id))).sort((a, b) => new Date(this.s(b).last_changed) - new Date(this.s(a).last_changed))[0];
+    const face = fids.length ? `<span class="pill tankpill"${named ? ' style="--c:#2dd4bf"' : ''} data-act="more" data-id="${named || fids[0]}">${ic(named ? 'mdi:face-recognition' : 'mdi:face-man-outline')}${esc(named ? this.v(named) : tr('No face'))}</span>` : '';
     return `<div class="ch">${ic('mdi:cctv')}<h3>Cameras</h3>${face}</div><div class="camgrid">${tiles}</div>`;
   }
   // Live view: HA's own picture-entity card in live mode (WebRTC / HLS, whatever the camera offers) inside each tile.
