@@ -7,12 +7,19 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+### Changed
+
+### Added
+
+## v0.6.41 — 2026-11-19
+
+### Fixed
+
 - Room lights: a dimmable light's brightness % shows once, on its row; the extra % next to the slider is gone, and the row's % follows the slider while you drag it.
+
 ### Changed
 
 - Energy card: Month and Year now come from Home Assistant's Energy data (like Energy History) by default, with a switch in Panels → Energy. The Month / Year sensor fields show only when the switch is off, and only then are those sensors used.
-
-### Added
 
 ## v0.6.40 — 2026-11-19
 
