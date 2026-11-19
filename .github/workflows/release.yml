@@ -1,6 +1,8 @@
 name: Release
 # Publishes a release for the version in package.json (v<version>, with dist/sweet-home-card.js attached)
-# whenever main is pushed and that release doesn't exist yet. Bump "version" in package.json to release.
+# only when main is pushed with a version that has no release yet. Pushes without a version bump do nothing,
+# so fixes collect under "Unreleased" in CHANGELOG.md until a release is cut (see CLAUDE.md).
+# The release notes are that version's section of CHANGELOG.md.
 on:
   push:
     branches: [main]
@@ -25,7 +27,15 @@ jobs:
         run: |
           TAG="v$(node -p "require('./package.json').version")"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/sweet-home-card.js --clobber
+            echo "$TAG is already released; nothing to do (bump the version to release)."
+            exit 0
+          fi
+          awk -v tag="$TAG" '
+            /^## / { if (found) exit; if (index($0, "## " tag " ") == 1 || $0 == "## " tag) { found = 1; next } }
+            found && !/^### *$/ { print }
+          ' CHANGELOG.md > notes.md
+          if [ -s notes.md ] && grep -q '[^[:space:]]' notes.md; then
+            gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md
           else
             gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
           fi
