@@ -2565,7 +2565,9 @@ export class SweetHomeCard extends HTMLElement {
             ${c.relay && this.s(c.relay) ? `<button class="relay" data-act="relay" data-id="${c.relay}">${ic('mdi:gate-open')}${c.relay === E.gate.relay ? 'Open Gate' : 'Open'}</button>` : ''}</div>
         </div></div>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:cctv')}<h3>Cameras</h3><span class="pill">${esc(this.v(E.face) || '')}</span></div><div class="camgrid">${tiles}</div>`;
+    // the last face recognised anywhere (panels.security.face): only when that sensor is set and has a name
+    const face = this.ok(E.face) ? `<span class="pill tankpill" data-act="more" data-id="${E.face}">${ic('mdi:face-recognition')}${esc(this.v(E.face))}</span>` : '';
+    return `<div class="ch">${ic('mdi:cctv')}<h3>Cameras</h3>${face}</div><div class="camgrid">${tiles}</div>`;
   }
   // Live view: HA's own picture-entity card in live mode (WebRTC / HLS, whatever the camera offers) inside each tile.
   // Only while the Security tab is open and the page is visible; snapshots stay underneath as a placeholder.
