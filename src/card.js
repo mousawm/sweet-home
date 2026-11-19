@@ -1035,6 +1035,17 @@ export class SweetHomeCard extends HTMLElement {
         ? await this.call('media_player', 'play_media', { entity_id: L.id, media_content_type: 'app', media_content_id: T.package || 'org.jellyfin.androidtv' })
         : await this.call('media_player', 'select_source', { entity_id: L.id, source: L.source });
       if (!opened) return;
+      // Quick Connect: the TV's Jellyfin starts on its sign-in screen with a code to approve; wait until the user says
+      // they are signed in (tap Play in the banner), then look for the TV's session and send the video as below
+      if (T.quick_connect) {
+        this._jfQcDone = false;
+        this._jfWait = { qc: true, msg: tr('Sign in to Jellyfin on {0} with Quick Connect, then tap Play to start {1}.', tvName, name) }; this._renderInfo();
+        await this._waitFn(() => this._jfQcDone || this._jfCancel, 900e3);
+        this._jfWait = null; this._renderInfo();
+        if (this._jfCancel) { this._toast('Stopped'); return; }
+        if (!this._jfQcDone) { this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
+        this._toast(`Opening ${name} on ${tvName}…`);
+      }
       // the TV's session: one that became playable after the app was opened (or after a reconnect).
       // JellyHA keeps one player per device, and Jellyfin keeps the same session id when the app restarts, so the TV's
       // player can look just as it did before: with JellyHA a TV player with a live session is taken once the app has had
@@ -1087,6 +1098,10 @@ export class SweetHomeCard extends HTMLElement {
   _jfWaitHTML() {
     const w = this._jfWait; if (!w) return '';
     const admin = this._hass?.user?.is_admin;
+    // Quick Connect (jellyfin_tv.quick_connect): the TV's Jellyfin asks for a code; Play once it is signed in
+    if (w.qc) return `<div class="jfwait jfqc" role="status"><div class="jfwm">${ic('mdi:account-key')}<span>${esc(w.msg)}</span></div>
+      <div class="jfwb"><button class="pill on" data-act="jfqc">${ic('mdi:play')}<span>${tr("I've signed in · Play")}</span></button><button class="pill" data-act="jfcancel"><span>${tr('Cancel')}</span></button></div>
+      <div class="jfwh">${tr('Approve the code shown on the TV in Jellyfin on your phone or in a browser: Settings → Quick Connect.')}</div></div>`;
     return `<div class="jfwait" role="status"><div class="jfwm">${ic('mdi:loading', 'spin')}<span>${esc(w.msg)}</span></div>
       ${w.busy ? '' : `<div class="jfwb">${admin && this._jfReconnect ? `<button class="pill" data-act="jfreconnect">${ic('mdi:refresh')}<span>Reconnect</span></button>` : ''}<button class="pill" data-act="jfcancel"><span>Cancel</span></button></div>
       <div class="jfwh">${admin ? 'Reconnect reloads the Jellyfin integration, for when Home Assistant has stopped seeing Jellyfin apps.' : 'Still nothing? Ask an admin to reload the Jellyfin integration.'}</div>`}</div>`;
@@ -1534,6 +1549,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'jfplay': this._jfPlay(t.dataset.item, t.dataset.mk, t.dataset.title); break;
       case 'jfreconnect': this._jfReconnect?.(); break;
       case 'jfcancel': this._jfCancel = true; break;
+      case 'jfqc': this._jfQcDone = true; break;
       case 'jfseason': this._jfSeason = { ...(this._jfSeason || {}), [t.dataset.show]: Number(t.dataset.i) }; this._renderInfo(); break;
       case 'ehp': this._eh = { ...this._eh, p: t.dataset.p, off: 0, bar: null }; this._rerender('ehist'); break;
       case 'ehnav': this._eh = { ...this._eh, off: Math.min(0, this._eh.off + Number(t.dataset.d)), bar: null }; this._rerender('ehist'); break;
@@ -4689,7 +4705,7 @@ main{scroll-margin-top:84px}
 
 /* jellyfin library browser */
 .mlib div.go{position:relative}.mlib div.go span{color:#c4b5fd}
-.jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
+.jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.jfqc .pill.on{background:var(--teal);color:#04342c;border-color:var(--teal)}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
 .jfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .jfpo{position:relative;display:flex;flex-direction:column;gap:5px;padding:0;background:none;border:0;color:var(--tx);font:inherit;text-align:left;cursor:pointer;min-width:0}
 .jfpo span{font-size:11.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
