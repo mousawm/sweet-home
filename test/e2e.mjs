@@ -121,6 +121,39 @@ try {
     return (!fired && nodes.length === 3 && nodes.every(n => !n.dataset.act ? !n.dataset.id : n.dataset.act === 'more' && !!card._hass.states[n.dataset.id])
       && !tpl.content.querySelector('.n-home').dataset.act && !/Home ·/.test(tpl.content.querySelector('.n-home').textContent)) || JSON.stringify({ fired, n: nodes.map(n => [n.className, n.dataset.act, n.dataset.id, n.dataset.kind]) });
   }); check('energy flow: Home / Solar / Grid open their own sensor, or do nothing without one (never a "null" dialog)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // JellyHA picked in the card, next to the official Jellyfin integration
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), add = (id, state, a) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: new Date().toISOString() }; h.entities[id] = { entity_id: id, platform: 'jellyha' }; };
+    const now = { media_title: 'Pilot', media_series_title: 'Show', session_id: 's1', supported_features: 512 | 1, supports_remote_control: true };
+    add('media_player.jellyha_library_browser', 'idle', { friendly_name: 'JellyHA Library', supported_features: 512 });
+    add('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' });
+    add('media_player.jellyha_device_living_room_tv', 'playing', { ...now, friendly_name: 'JellyHA Device Living Room TV', device_name: 'Living Room TV', client: 'Jellyfin Android TV' });
+    add('sensor.jellyha_connected_clients', '2', {});
+    const ws = [], tree = {
+      'jellyha://movies': { children: [{ title: 'Heat (1995)', media_content_id: 'jellyha://item/abc123', can_play: true, can_expand: false, media_class: 'movie' }, { title: 'No Year ()', media_content_id: 'jellyha://item/def456', can_play: true, can_expand: false, media_class: 'movie' }] },
+      'jellyha://show/sh1': { title: 'Show (2020)', children: [{ title: 'Season 1', media_content_id: 'jellyha://season/se1', can_play: true, can_expand: true }] },
+      'jellyha://season/se1': { children: [{ title: '1. Pilot', media_content_id: 'jellyha://item/ep1', can_play: true, can_expand: false, media_class: 'episode' }] } };
+    const orig = h.callWS; h.callWS = async m => { ws.push(m); return m.type === 'media_player/browse_media' ? tree[m.media_content_id] || { children: [] } : orig(m); };
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1500)); card._jfc = {};
+    const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
+    const rows = [...tpl.content.querySelectorAll('.jfs')], out = {
+      rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /2 clients/.test(tpl.content.textContent),
+      best: card._jfSessions()[0]?.st.entity_id, noBrowser: !card._jfSessions().some(x => /library_browser/.test(x.st.entity_id)) };
+    card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
+    const sh = () => card.shadowRoot.getElementById('sheet');
+    out.items = [...sh().querySelectorAll('.jfpo')].map(b => [b.dataset.item, b.dataset.title]);
+    out.viaBrowser = ws.some(m => m.type === 'media_player/browse_media' && m.entity_id === 'media_player.jellyha_library_browser');
+    card._openInfo('jfshow:sh1'); await new Promise(r => setTimeout(r, 400));
+    out.eps = [...sh().querySelectorAll('.jfep')].map(b => [b.dataset.item, b.querySelector('b')?.textContent]);
+    out.show = sh().querySelector('.jfshowh b')?.textContent;
+    card._closeSheet(); h.callWS = orig;
+    for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_living_room_tv', 'sensor.jellyha_connected_clients']) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200)); card._jfc = {};
+    const ok = out.rows === 1 && /Living Room TV/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.best === 'media_player.jellyha_device_living_room_tv' && out.noBrowser
+      && JSON.stringify(out.items) === '[["abc123","Heat (1995)"],["def456","No Year"]]' && out.viaBrowser && JSON.stringify(out.eps) === '[["ep1","1. Pilot"]]' && out.show === 'Show (2020)';
+    return ok || JSON.stringify(out);
+  }); check('media server with JellyHA: one row per session, its clients, its library (plain item ids), the TV\'s device player to play on', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -392,6 +425,13 @@ try {
     h.entities['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', platform: 'jellyfin' }; editor._R = null; editor._render();
     const i = editor.querySelector('ha-form input[name=tv_player]'); if (!i) return false; i.value = 'media_player.living_room_tv_3'; i.dispatchEvent(new Event('change'));
     return editor._config.panels.media_server?.jellyfin_tv?.session === 'Living Room TV';
+  }));
+  check('media server: the Jellyfin integration is picked in the editor (Automatic is not stored), the panel stays open', await p.evaluate(async () => {
+    const sel = () => editor.querySelector('ha-form select[name=integration]'); if (!sel()) return 'no picker';
+    sel().closest('details').open = true; await new Promise(r => setTimeout(r, 50)); sel().value = 'jellyha'; sel().dispatchEvent(new Event('change'));
+    const picked = editor._config.panels.media_server?.integration === 'jellyha' && sel()?.closest('details').open;
+    sel().value = 'auto'; sel().dispatchEvent(new Event('change'));
+    return picked && editor._config.panels.media_server?.integration === undefined;
   }));
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
