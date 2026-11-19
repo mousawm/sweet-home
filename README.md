@@ -342,7 +342,9 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   Optional, in the card editor under Panels → Media Server, stored as `jellyfin_tv`: `app_player` (the TV to open
   Jellyfin on), `session` (the name of the TV's Jellyfin app, when several TVs run Jellyfin), `name` (shown as
   "play on …"), `source` / `package` (when the app has another name or package).
-- **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`.
+- **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`, `order`.
+  To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
+  order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
 - **tv_light**: `light`, `selects`
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
 - **attention**:
