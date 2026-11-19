@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
+import { buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -1647,6 +1647,11 @@ class SweetHomeCardEditor extends HTMLElement {
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
     const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false };
+    for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
+    // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
+    let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
+    const VIEW = { select: { mode: 'dropdown', options: [{ value: 'auto', label: 'Automatic' }, { value: 'top', label: 'Floor plan (from above)' }, { value: '3d', label: '3D view' }] } };
+    const FLOOR = { select: { mode: 'dropdown', options: [{ value: 'auto', label: 'Automatic (ground floor)' }, ...floors.map(l => ({ value: String(l.level), label: l.name.startsWith('Floor ') ? t('Floor {0}', l.level) : l.name }))] } };
     body.innerHTML = '';
     body.appendChild(this._form([
       { name: 'title', selector: { text: {} } },
@@ -1656,6 +1661,8 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
       { name: 'smart_icons', selector: { boolean: {} } },
+      { type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'view_' + d, selector: VIEW })) },
+      ...(floors.length > 1 ? [{ type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'floor_' + d, selector: FLOOR })) }] : []),
     ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
       if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab;
@@ -1665,10 +1672,16 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
       if (v.smart_icons === false) C.smart_icons = false; else delete C.smart_icons; // off = the icons set in Home Assistant
+      // where the 3D view starts, per kind of device (only what is picked is kept)
+      for (const [key, pre, num] of [['default_view', 'view_', false], ['default_floor', 'floor_', true]]) {
+        const o = {}; for (const d of ['phone', 'tablet', 'pc']) { const x = v[pre + d]; if (x != null && x !== '' && x !== 'auto') o[d] = num ? Number(x) : x; }
+        if (Object.keys(o).length) C[key] = o; else delete C[key];
+      }
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant' }, true));
+    }, { url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }
   // Names on this dashboard: every entity renamed here, in a room or on a panel. Home Assistant keeps its own names.
