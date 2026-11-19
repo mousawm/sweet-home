@@ -247,6 +247,29 @@ try {
     return ok || JSON.stringify(out);
   }, mode); check(mode === 'session_play' ? 'JellyHA: the video is sent with jellyha.session_play by the TV app\'s device id first, and counts only once the TV plays it'
     : 'JellyHA: when the TV never plays the video, the sheet says so with Try again (no silent "Playing" toast)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // on_tap 'open' (JellyHA), Jellyfin open and signed in on the Shield: a movie opens its page there (DisplayContent to the
+    // app's session, item id as a UUID), no play_media, no restart; a show opens its page and its episodes stay open in the card
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = 'ab'.repeat(16), S = 'cd'.repeat(16);
+    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
+    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Jellyfin' }, 'androidtv');
+    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: '01c7f4530d4df55b9a4d928ef3f4f7ab', device_id: 'dev-shield', config_entry_id: 'E1', supported_features: 512, supports_remote_control: true }, 'jellyha');
+    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => { calls.push([d, sv, data]); };
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha', jellyfin_tv: { on_tap: 'open' } } };
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    window.calls = [];
+    const t0 = Date.now(); await card._jfPlay(G, 'movie', 'Heat'); const quick = Date.now() - t0 < 3000;
+    const movie = calls.filter(([d]) => d === 'jellyha').map(([, sv, x]) => [sv, x.session_id, x.command, x.arguments?.ItemId, x.arguments?.ItemType, x.config_entry_id]);
+    card._openInfo('jfshow:' + encodeURIComponent('media-source://jellyha/e1/show/' + S)); calls.length = 0;
+    await card._jfPlay(S, 'series', 'Bleach');
+    const show = calls.filter(([d]) => d === 'jellyha').map(([, sv, x]) => x.arguments?.ItemType)[0], sheetOpen = !!card.shadowRoot.querySelector('#sheet .sheet');
+    const all = [...calls, ...window.calls], plays = all.filter(([, sv]) => sv === 'play_media').length, restarted = all.some(([, sv]) => sv === 'adb_command');
+    card._closeSheet(); h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield']) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    const uuid = 'abababab-abab-abab-abab-abababababab';
+    return (quick && JSON.stringify(movie) === JSON.stringify([['session_general_command', '01c7f4530d4df55b9a4d928ef3f4f7ab', 'DisplayContent', uuid, 'Movie', 'E1']])
+      && show === 'Series' && sheetOpen && plays === 0 && !restarted) || JSON.stringify({ quick, movie, show, sheetOpen, plays, restarted });
+  }); check('JellyHA "open its page": a movie\'s page opens on the TV (DisplayContent), a show\'s page too with its episodes kept open here; nothing played or restarted', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -518,6 +541,12 @@ try {
     h.entities['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', platform: 'jellyfin' }; editor._R = null; editor._render();
     const i = editor.querySelector('ha-form input[name=tv_player]'); if (!i) return false; i.value = 'media_player.living_room_tv_3'; i.dispatchEvent(new Event('change'));
     return editor._config.panels.media_server?.jellyfin_tv?.session === 'Living Room TV';
+  }));
+  check('media server: "When I tap…" is saved as on_tap: open (Play, the default, is not stored)', await p.evaluate(() => {
+    const sel = () => editor.querySelector('ha-form select[name=on_tap]'); if (!sel()) return false;
+    sel().value = 'open'; sel().dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.on_tap === 'open';
+    sel().value = 'play'; sel().dispatchEvent(new Event('change'));
+    return on && !editor._config.panels.media_server?.jellyfin_tv?.on_tap;
   }));
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;

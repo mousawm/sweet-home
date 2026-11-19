@@ -346,7 +346,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   Jellyfin on), `session` (the name of the TV's Jellyfin app, when several TVs run Jellyfin), `name` (shown as
   "play on …"), `source` / `package` (when the app has another name or package), `quick_connect` (the TV's Jellyfin
   signs in with Quick Connect: after opening Jellyfin on the TV, the sheet asks you to sign in there and sends the video
-  when you tap **I've signed in · Play**; when Jellyfin is already open and signed in, it plays straight away).
+  when you tap **I've signed in · Play**; when Jellyfin is already open and signed in, it plays straight away),
+  `on_tap: open` (JellyHA: a tapped movie, show or episode opens its page in Jellyfin on the TV instead of playing;
+  Jellyfin's DisplayContent command, which the Android TV app follows while it is open and not playing; in the card
+  editor, Panels → Media Server → *When I tap a movie, show or episode*).
   `integration`: which Jellyfin integration the card uses: `auto` (default: the official Jellyfin integration when it
   is installed, else JellyHA), `jellyfin` or `jellyha` ([JellyHA](https://github.com/zupancicmarko/JellyHA)). Pick it in
   the card editor under Panels → Media Server. With JellyHA, Now Watching shows one row per session (its device
