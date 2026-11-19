@@ -2069,9 +2069,9 @@ export class SweetHomeCard extends HTMLElement {
           <path class="fl ${exporting ? 'act s' + spd(-g) : ''} exp" d="M124 22 C78 22, 54 48, 54 94"/>
           ${devPaths}
         </svg>
-        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>Solar</span></div>
-        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? 'To Grid' : 'From Grid'}</span></div>
-        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>Home${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
+        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : ''}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>Solar</span></div>
+        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : ''}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? 'To Grid' : 'From Grid'}</span></div>
+        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : ''}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>Home${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
         ${devNodes}
       </div>
       <div class="spark" id="spark">${this._sparkSVG()}</div>

@@ -118,8 +118,9 @@ try {
     card.removeEventListener('hass-more-info', on);
     const tpl = document.createElement('template'); tpl.innerHTML = card._rEnergy(); // the Energy card's markup (it is drawn when it scrolls into view)
     const nodes = [...tpl.content.querySelectorAll('.flow .node.n-home, .flow .node.n-sun, .flow .node.n-grid')];
-    return (!fired && nodes.length === 3 && nodes.every(n => n.dataset.act === 'info' ? n.dataset.kind === 'power' : !!card._hass.states[n.dataset.id])) || JSON.stringify({ fired, n: nodes.map(n => [n.className, n.dataset.act, n.dataset.id, n.dataset.kind]) });
-  }); check('energy flow: Home / Solar / Grid open a real sensor or the Power sheet, never a "null" dialog', r === true, r); }
+    return (!fired && nodes.length === 3 && nodes.every(n => !n.dataset.act ? !n.dataset.id : n.dataset.act === 'more' && !!card._hass.states[n.dataset.id])
+      && !tpl.content.querySelector('.n-home').dataset.act && !/Home ·/.test(tpl.content.querySelector('.n-home').textContent)) || JSON.stringify({ fired, n: nodes.map(n => [n.className, n.dataset.act, n.dataset.id, n.dataset.kind]) });
+  }); check('energy flow: Home / Solar / Grid open their own sensor, or do nothing without one (never a "null" dialog)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
