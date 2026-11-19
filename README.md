@@ -155,6 +155,8 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
 | `people` | Each person's phone panel (long press their picture): `{person.x: {name, tracker, battery, charging, location, ringer, wifi, entities, buttons}}`. With none of `tracker`, `battery`, `charging`, `location`, `ringer`, `wifi` given they are all found on the person's phone (Companion app); once you give one, only the ones you give show; `entities` adds rows, `buttons` adds buttons (ring the phone, scripts…): `entity_id` or `{entity, name, icon}`. Without a name, a button shows its own name without "button" and the phone's name; without an icon, one is picked from what it does (ring → bell, location → target, flashlight, lock…). While the dashboard is edited, the pencil on the phone panel renames its rows and buttons for this dashboard. Set it up in the card editor: Panels → People. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
+| `default_view` | where the 3D view starts, per kind of device: `{phone: top, tablet: top, pc: 3d}` (`top` = floor plan from above, `3d` = angled view; not set: 3D on a computer, the floor plan on phones and tablets) |
+| `default_floor` | the floor shown first, per kind of device: `{phone: 0, tablet: 1, pc: 0}` (the floor's level; not set: the ground floor) |
 | `names` | Names for this dashboard only, for any entity: `{sensor.ev_power: Car charging}`. They replace the entity's name on every panel of the card (Home Assistant is not changed). Room names (`names` inside a room) work the same way. |
 | `modes` | Mode buttons on the Home tab, under At a glance (`entity_id` or `{entity, name, icon}`): switches, helpers, lights and automations light up while on; scenes, scripts and buttons run with one tap. Pick them in the card editor: Panels → Modes. |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
@@ -162,6 +164,9 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
+
+One phone or tablet can start differently from the rest: long press a floor button, or the floor plan / 3D button, on
+that device. It is kept by that browser only and wins over `default_view` / `default_floor`; long press it again to go back.
 
 ### `house`
 

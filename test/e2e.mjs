@@ -198,7 +198,21 @@ try {
     const sc = card._three; c.house.wall_height = undefined; delete c.house.wall_height; card.setConfig(c); await new Promise(r => setTimeout(r, 2500));
     return waited && sc && sc !== old && Math.abs(sc.goal.theta - 1.234) < 1e-6 && sc.goal.radius === 19;
   }));
-  check('the header shows the Sweet Home icon (and no stray text)', await p.evaluate(async () => { const t = card.shadowRoot.querySelector('.title'), img = t?.querySelector('img.logo'); if (img && !img.complete) await new Promise(r => img.onload = r); return !!img && img.naturalWidth > 0 && !t.textContent.includes('%') && !t.textContent.includes('svg'); }));
+  check('the header shows its house icon (and no stray text)', await p.evaluate(() => { const t = card.shadowRoot.querySelector('.title'); return t.querySelector('ha-icon')?.getAttribute('icon') === 'mdi:home-modern' && !t.querySelector('img') && !t.textContent.includes('%'); }));
+  { const r = await p.evaluate(async () => {
+      const sc = card._three, c = JSON.parse(card._cfgJSON); c.default_view = { pc: 'top' }; c.default_floor = { pc: 1 }; card.setConfig(c); await new Promise(r => setTimeout(r, 700));
+      const ok = card._three === sc && card._three.vmode === 'top' && card._level === 1; return ok || JSON.stringify({ same: card._three === sc, sc: !!sc, vmode: card._three?.vmode, level: card._level, lv: card._model?.levels?.length });
+    });
+    check('Look → start view and floor for computers: shown right away (no 3D rebuild)', r === true, r); }
+  check('long press on a floor button: the default on this device, before the dashboard\'s; again: back to the dashboard\'s', await p.evaluate(async () => {
+    localStorage.clear(); const L = card._model?.levels || window.card && (await new Promise(r => r())) || null;
+    const press = async el => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, clientX: 5, clientY: 5, button: 0 })); await new Promise(r => setTimeout(r, 650)); el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, composed: true })); };
+    const btn = () => card.shadowRoot.querySelector('#lvls [data-level="0"]');
+    await press(btn()); const pinned = card._defFloor([{ level: 0 }, { level: 1 }]) === 0 && /default on this device/.test(card.shadowRoot.getElementById('toast').textContent);
+    await press(btn()); const cleared = card._defFloor([{ level: 0 }, { level: 1 }]) === 1;
+    const c = JSON.parse(card._cfgJSON); delete c.default_view; delete c.default_floor; card.setConfig(c); await new Promise(r => setTimeout(r, 700));
+    return pinned && cleared;
+  }));
   check('nothing is loaded from outside (fonts are bundled)', !p.outside.length, p.outside.join(' '));
   check('a °F home: 72 °F is the colour of 22 °C (comfortable), not of a heat wave', await p.evaluate(async () => {
     const h = window.hassObj, col = async (t, unit) => { card.hass = { ...h, config: { ...(h.config || {}), unit_system: { temperature: unit } }, states: { ...h.states, 'sensor.living_room_temperature': { ...h.states['sensor.living_room_temperature'], state: String(t) } } }; await new Promise(r => setTimeout(r, 200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); return card.shadowRoot.querySelector('#drawer .dstats b')?.style.color; };
@@ -289,6 +303,14 @@ try {
   }, rid));
   check('…and shown on the panel', await p.evaluate(() => { card._setTab('climate'); return card.shadowRoot.getElementById('climate').textContent.includes('Panel Name'); }));
   await p.evaluate(() => { card.editMode = false; card._setTab('home'); editor._step = 'look'; editor._render(); }); await p.waitForTimeout(100);
+  check('Look: start view per device type and start floor (only picked values are kept)', await p.evaluate(() => {
+    const f = n => editor.querySelector(`ha-form [name=${n}]`); if (!f('view_phone') || !f('floor_tablet')) return false;
+    f('view_phone').value = '3d'; f('view_phone').dispatchEvent(new Event('change'));
+    f('floor_tablet').value = '1'; f('floor_tablet').dispatchEvent(new Event('change'));
+    const ok = JSON.stringify(editor._config.default_view) === '{"phone":"3d"}' && JSON.stringify(editor._config.default_floor) === '{"tablet":1}';
+    f('view_phone').value = 'auto'; f('view_phone').dispatchEvent(new Event('change')); f('floor_tablet').value = 'auto'; f('floor_tablet').dispatchEvent(new Event('change'));
+    return ok && !editor._config.default_view && !editor._config.default_floor;
+  }));
   check('Look: the tip switch is "Hide the tip", off by default', await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); return !!i && !i.checked && !editor.querySelector('ha-form input[name=hint]'); }));
   await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=hide_hint]'); i.checked = true; i.dispatchEvent(new Event('change')); });
   check('…turning it on hides the tip (hint: false)', await p.evaluate(() => editor._config.hint === false));
@@ -304,6 +326,14 @@ try {
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // security in the editor: gates and garage doors picked there, a gate's sensor and name kept
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  check('People panel changes in the editor: the 3D house is kept (same scene and canvas, no full rebuild)', await p.evaluate(async () => {
+    const sc = card._three, cv = sc?.cv, soft = []; const orig = card._rebuild.bind(card); card._rebuild = x => { soft.push(x); return orig(x); };
+    const p0 = Object.keys(editor._hass.states).find(x => x.startsWith('person.'));
+    editor._config.persons = [p0]; editor._emit(); await new Promise(r => setTimeout(r, 700));
+    editor._config.people = { [p0]: { name: 'Test' } }; editor._emit(); await new Promise(r => setTimeout(r, 700));
+    delete editor._config.persons; delete editor._config.people; editor._emit(); await new Promise(r => setTimeout(r, 700)); card._rebuild = orig;
+    return soft.length >= 2 && soft.every(x => x === true) && card._three === sc && card._three.cv === cv && card.shadowRoot.contains(cv);
+  }));
   check('media server: the TV to play on is picked in the editor and saved by its name (without the session number)', await p.evaluate(() => {
     const h = editor._hass; h.states['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', state: 'idle', attributes: { friendly_name: 'Living Room TV 3', supported_features: 512 } };
     h.entities['media_player.living_room_tv_3'] = { entity_id: 'media_player.living_room_tv_3', platform: 'jellyfin' }; editor._R = null; editor._render();

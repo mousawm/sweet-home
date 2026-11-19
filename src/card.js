@@ -5,13 +5,11 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import LOGO_SVG from '../docs/brand/icon.svg'; // the Sweet Home icon (header of the 3D view)
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
 import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr, cleanConfig } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
-const LOGO = 'data:image/svg+xml,' + encodeURIComponent(LOGO_SVG); // safe inside an attribute (no quotes left)
 const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +232,15 @@ const NAME_ICONS = [[/exhaust|ventilat|extract|\bfans?\b|مروحة|شفاط/, '
   [/do not disturb|\bdnd\b/, 'mdi:minus-circle'], [/guest/, 'mdi:account-multiple'], [/sleep|night|نوم/, 'mdi:weather-night'], [/away|vacation|holiday/, 'mdi:airplane'],
   [/motion|presence|occupan/, 'mdi:motion-sensor'], [/plug|socket|outlet|power ?strip|extension|قابس|مقبس/, 'mdi:power-socket-eu']];
 const NAMED_DOMAINS = ['switch', 'input_boolean', 'fan', 'button', 'input_button', 'script', 'automation', 'valve', 'humidifier'];
+// the kind of device the card runs on: a phone or tablet (touch first; a tablet has a screen side of 600 px or more) or a PC
+const devType = () => {
+  if (!(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)) return 'pc';
+  return Math.min(screen.width || 0, screen.height || 0) >= 600 ? 'tablet' : 'phone';
+};
+// a default kept by this browser only (long press on a floor or view button): sweet-home:<dashboard>:<kind>
+const devKey = k => `sweet-home:${location.pathname.split('/')[1] || 'lovelace'}:${k}`;
+const devGet = k => { try { return localStorage.getItem(devKey(k)); } catch (e) { return null; } };
+const devSet = (k, v) => { try { if (v == null) localStorage.removeItem(devKey(k)); else localStorage.setItem(devKey(k), String(v)); } catch (e) { /* storage off */ } };
 let SMART = true; // `smart_icons` (Look): icons picked from names; off: the icon set in Home Assistant
 const nameIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (NAME_ICONS.find(([re]) => re.test(t)) || [])[1] || null; };
 const btnIcon = (id, name) => { const t = `${name || ''} ${String(id).split('.')[1] || ''}`.toLowerCase().replace(/_/g, ' '); return (BTN_ICONS.find(([re]) => re.test(t)) || [])[1] || (String(id).startsWith('script.') ? 'mdi:script-text-play' : 'mdi:gesture-tap-button'); };
@@ -536,15 +543,15 @@ export class SweetHomeCard extends HTMLElement {
        <div class="home-grid">
         <section class="stage card">
           <div class="stage-top">
-            <div class="title"><img class="logo" src="${LOGO}" alt="" width="40" height="40"><div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
+            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
             <div class="seg" id="modeSeg">
               <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
               <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>
               <button data-act="mode" data-mode="presence">${ic('mdi:motion-sensor')}<span>${tr('Presence')}</span></button>
             </div>
             <div class="tools">
-              <button class="ibtn" data-act="view" data-view="top" title="${tr('Top view')}">${ic('mdi:floor-plan')}</button>
-              <button class="ibtn" data-act="view" data-view="reset" title="${tr('3D view')}">${ic('mdi:rotate-3d-variant')}</button>
+              <button class="ibtn" data-act="view" data-view="top" data-lp="view" title="${tr('Top view')} · ${tr('long press: the default on this device')}">${ic('mdi:floor-plan')}</button>
+              <button class="ibtn" data-act="view" data-view="reset" data-lp="view" title="${tr('3D view')} · ${tr('long press: the default on this device')}">${ic('mdi:rotate-3d-variant')}</button>
               <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
               ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
@@ -638,14 +645,22 @@ export class SweetHomeCard extends HTMLElement {
     const kt = this._keepTab; this._keepTab = null;
     this._setTab(kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     const L = MODEL.levels || [{ level: 0 }];
-    if (this._level == null || !L.some(l => l.level === this._level)) this._level = L.some(l => l.level === 0) ? 0 : L[0].level;
+    if (this._level == null || !L.some(l => l.level === this._level)) this._level = this._defFloor(L);
     this._tick();
-    const K = this._keep3d; this._keep3d = null;
+    const K = this._keep3d;
+    const defsNow = JSON.stringify([this._config?.default_view, this._config?.default_floor]); this._keep3d = null;
     if (K) { // the 3D view moved in above goes on as it was
       this._three = K.scene;
+      // a new start view / floor picked in Look: shown right away
+      const defs = JSON.stringify([this._config?.default_view, this._config?.default_floor]);
+      if (this._defsJSON != null && defs !== this._defsJSON) { this._three.view(this._defView()); const L = MODEL.levels || [{ level: 0 }]; this._setLevel(this._defFloor(L)); if (ROOM[this._reselect]?.level !== this._level) this._reselect = null; }
       this._renderLegend(); this._three.sync(); this._three._dirty = true;
+      // drawn again at once: a canvas moved in the page can show blank until its next frame (up to 0.5 s on a phone at rest)
+      try { this._three.renderer.render(this._three.scene, this._three.cam); } catch (e) { /* next frame */ }
+      this._three._wake?.();
       if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the mode buttons of the new page
     } else this._init3d();
+    this._defsJSON = defsNow;
     this._hintShow();
     this._renderLevels();
     if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
@@ -1243,7 +1258,10 @@ export class SweetHomeCard extends HTMLElement {
         this._lpFired = performance.now(); el.classList.add('lp'); setTimeout(() => el.classList.remove('lp'), 250);
         this.haptic('medium');
         if (this._tap) { clearTimeout(this._tap.timer); this._tap = null; }
-        if (el.dataset.lp === 'phone') this._openInfo('phone:' + el.dataset.id); else this.more(el.dataset.id);
+        if (el.dataset.lp === 'phone') this._openInfo('phone:' + el.dataset.id);
+        else if (el.dataset.lp === 'floor') this._pinDefault('floor', el.dataset.level);
+        else if (el.dataset.lp === 'view') this._pinDefault('view', el.dataset.view === 'top' ? 'top' : '3d');
+        else this.more(el.dataset.id);
         lp = null;
       }, 500) };
     });
@@ -1442,7 +1460,25 @@ export class SweetHomeCard extends HTMLElement {
     const el = this.$?.('lvls'), L = MODEL?.levels || []; if (!el) return;
     if (L.length < 2) { el.innerHTML = ''; el.style.display = 'none'; return; }
     el.style.display = '';
-    el.innerHTML = [...L].reverse().map(l => `<button data-act="level" data-level="${l.level}" role="tab" aria-selected="${l.level === this._level}" class="${l.level === this._level ? 'on' : ''}" title="${esc(tr(l.name, l.level))}">${l.icon ? ic(l.icon) : ''}<span>${esc(l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name))}</span></button>`).join('');
+    el.innerHTML = [...L].reverse().map(l => `<button data-act="level" data-level="${l.level}" data-lp="floor" role="tab" aria-selected="${l.level === this._level}" class="${l.level === this._level ? 'on' : ''}" title="${esc(tr(l.name, l.level))}">${l.icon ? ic(l.icon) : ''}<span>${esc(l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name))}</span></button>`).join('');
+  }
+  // where the 3D view starts: this device's own choice (long press), else Look → per device type, else automatic
+  // (3D on a PC, the floor plan on phones and tablets)
+  _defView() {
+    const own = devGet('view'), cfg = this._config?.default_view?.[devType()];
+    return own === 'top' || own === '3d' ? own : cfg === 'top' || cfg === '3d' ? cfg : devType() === 'pc' ? '3d' : 'top';
+  }
+  _defFloor(L) {
+    const ok = v => v != null && v !== '' && L.some(l => l.level === Number(v)), own = devGet('floor'), cfg = this._config?.default_floor?.[devType()];
+    return ok(own) ? Number(own) : ok(cfg) ? Number(cfg) : L.some(l => l.level === 0) ? 0 : L[0].level;
+  }
+  // long press on a floor / view button: the default on this device (again on the same one: back to the dashboard's)
+  _pinDefault(kind, v) {
+    const cur = devGet(kind), same = cur === String(v);
+    devSet(kind, same ? null : v);
+    const name = kind === 'floor' ? (() => { const l = (MODEL.levels || []).find(x => String(x.level) === String(v)); return l ? (l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name)) : v; })() : tr(v === 'top' ? 'Floor plan' : '3D view');
+    this._toast(same ? tr('Default cleared on this device') : tr('{0} is now the default on this device', name));
+    this.haptic('success');
   }
   _setLevel(l) {
     if (l === this._level) return;
@@ -2781,7 +2817,7 @@ class HouseScene {
     this.rooms = {}; this.pick = []; this.doors = []; this.acs = []; this.stairDots = [];
     this.lv = {}; this.level = card._level ?? 0; this._cl = 0; // one group per floor; only the shown floor is visible
     // default camera: angled 3D view on a PC (mouse), top-down floor plan on phones / tablets (touch)
-    this.vmode = matchMedia('(pointer: fine)').matches && !matchMedia('(pointer: coarse)').matches ? '3d' : 'top';
+    this.vmode = card._defView ? card._defView() : 'top'; // Look → default view (per device type, or this device's own)
     this.orbit = { theta: 0, phi: 0.08, radius: 27, target: new T.Vector3(0, 0, 0) };
     this.goal = { theta: 0, phi: 0.08, radius: 27, target: new T.Vector3(0, 0, 0) };
     this.spin = false; this.lastInput = performance.now();
@@ -4493,7 +4529,6 @@ main{scroll-margin-top:84px}
 .stage-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
 .title{display:flex;align-items:center;gap:10px;flex:1;min-width:160px}
 .title>ha-icon{--mdc-icon-size:24px;color:#fff;background:linear-gradient(135deg,#6366f1,#14b8a6);padding:8px;border-radius:14px;box-shadow:0 8px 24px -6px #6366f1}
-.title>.logo{width:40px;height:40px;flex:none;border-radius:11px;box-shadow:0 8px 24px -8px #14b8a6}
 .title div{display:flex;flex-direction:column}.title b{font-size:17px}.title span{font-size:12px;color:var(--mu)}
 .seg{display:flex;padding:4px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--line)}
 .seg button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12.5px;color:var(--mu);transition:.2s}
