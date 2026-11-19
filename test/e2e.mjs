@@ -88,7 +88,7 @@ try {
   check('a parked car is shown, a sprinkler sprays while its valve is open', await p.evaluate(() => card._three.cars[0].g.visible && card._three.sprinklers[0].onT === 1));
   check('an AC placed in the bedroom replaces its automatic unit, with the room\'s climate entity', await p.evaluate(() => { const A = card._three.acs.filter(a => a.ent === 'climate.bedroom_ac'); return A.length === 1 && A[0].dx === 1 && !card._model.rooms.find(r => r.id === 'bedroom').ac; }));
   check('an AC has a badge it can hide', await p.evaluate(async () => { const fi = card._model.furniture.find(f => f.type === 'ac').idx, on = !!card._three.fpieces.find(P => P.idx === fi)?.el; const c = JSON.parse(JSON.stringify(card._config)); c.house.rooms.find(r => r.area === 'bedroom').furniture.find(f => f.type === 'ac').badge = false; card.setConfig(c); await new Promise(r => setTimeout(r, 1500)); const P = card._three.fpieces.find(P => P.f.type === 'ac'); return on && P && !P.el; }));
-  check('room badge: a fan plug that is on shows a fan, not a charging battery; only a charger shows the battery', await p.evaluate(() => {
+  { const r = await p.evaluate(() => {
     const t = card._three, id = Object.keys(t.rooms)[0], r = t.rooms[id].r, keep = r.plugs, h = window.hassObj;
     h.states['switch.badge_fan'] = { entity_id: 'switch.badge_fan', state: 'on', attributes: { friendly_name: 'Fan' } };
     h.states['sensor.badge_fan_power'] = { entity_id: 'sensor.badge_fan_power', state: '10', attributes: { unit_of_measurement: 'W' } };
@@ -100,7 +100,7 @@ try {
     const chg = icons();
     r.plugs = keep; icons();
     return fan.includes('mdi:fan') && !fan.includes('mdi:battery-charging') && chg.includes('mdi:battery-charging') || JSON.stringify({ fan, chg });
-  }));
+  }); check('room badge: a fan plug that is on shows a fan, not a charging battery; only a charger shows the battery', r === true, r); }
   check('bedside table: the phone shows while its charger plug draws power (power sensor found from the plug)', await p.evaluate(() => card._model.furniture.find(f => f.type === 'nightstand' && f.plug)?.power === 'sensor.phone_charger_power' && card._three.chargers[0].parts[0].visible));
   await p.evaluate(() => { const h = window.hassObj; h.states['sensor.phone_charger_power'] = { ...h.states['sensor.phone_charger_power'], state: '0.2' }; card.hass = { ...h, states: { ...h.states } }; });
   check('…and is gone once it stops charging', await p.waitForFunction(() => !card._three.chargers[0].parts[0].visible, null, { timeout: 5000 }).then(() => true, () => false));
@@ -112,6 +112,15 @@ try {
   check('stairs going up and down, with a stairwell', await p.evaluate(() => card._model.furniture.find(f => f.room === 'stairs' && f.type === 'stairs')?.mode === 'split' && !!card._model.rooms.find(r => r.id === 'stairs').floorRects));
   check('a name given in the card replaces the entity name everywhere on the dashboard', await p.evaluate(() => card._hass.states['sensor.living_room_temperature'].attributes.friendly_name === 'Lounge Temp' && window.hassObj.states['sensor.living_room_temperature'].attributes.friendly_name !== 'Lounge Temp'));
   await p.evaluate(() => card._setTab('energy')); await p.waitForTimeout(300);
+  { const r = await p.evaluate(() => {
+    let fired = 0; const on = () => fired++; card.addEventListener('hass-more-info', on);
+    card.more(null); card.more('null'); card.more(undefined); card.more('sensor.does_not_exist');
+    card.removeEventListener('hass-more-info', on);
+    const tpl = document.createElement('template'); tpl.innerHTML = card._rEnergy(); // the Energy card's markup (it is drawn when it scrolls into view)
+    const nodes = [...tpl.content.querySelectorAll('.flow .node.n-home, .flow .node.n-sun, .flow .node.n-grid')];
+    return (!fired && nodes.length === 3 && nodes.every(n => !n.dataset.act ? !n.dataset.id : n.dataset.act === 'more' && !!card._hass.states[n.dataset.id])
+      && !tpl.content.querySelector('.n-home').dataset.act && !/Home ·/.test(tpl.content.querySelector('.n-home').textContent)) || JSON.stringify({ fired, n: nodes.map(n => [n.className, n.dataset.act, n.dataset.id, n.dataset.kind]) });
+  }); check('energy flow: Home / Solar / Grid open their own sensor, or do nothing without one (never a "null" dialog)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

@@ -318,6 +318,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **climate**: `entities`
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:
   - `grid_power`, `solar_power`: your own power sensors
+  - `current`: a current sensor (A) shown next to Home on the energy flow (*Home · 2.2 A*); tapping Home opens it. Without it Home shows no extra value, and Home / Solar / Grid with no sensor do nothing when tapped
   - `month_sensor`, `year_sensor`, `stored_sensor`: template sensors for the totals
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
