@@ -185,6 +185,19 @@ try {
     return off === 'mdi:home-heart' && card.shadowRoot.querySelector('#modes .tile ha-icon')?.getAttribute('icon') === 'mdi:account-multiple';
   }));
   await p.evaluate(async c => { card.setConfig(JSON.parse(c)); await new Promise(r => setTimeout(r, 1200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); }, cfg0);
+  check('typing in the editor: one rebuild after the last letter, and the 3D view is kept when the house did not change', await p.evaluate(async () => {
+    const scene = card._three; let n = 0; const orig = card._rebuild.bind(card); card._rebuild = soft => { n++; return orig(soft); };
+    for (const t of ['M', 'My', 'My ', 'My H', 'My Ho', 'My Hom', 'My Home']) { card.setConfig({ ...JSON.parse(card._cfgJSON), title: t }); await new Promise(r => setTimeout(r, 60)); }
+    await new Promise(r => setTimeout(r, 900)); card._rebuild = orig;
+    return n === 1 && card._three === scene && card.shadowRoot.contains(scene.cv);
+  }));
+  check('changing the house rebuilds the 3D view once, from the same camera angle', await p.evaluate(async () => {
+    const old = card._three; old.goal.theta = old.orbit.theta = 1.234; old.goal.radius = old.orbit.radius = 19;
+    const c = JSON.parse(card._cfgJSON); c.house.wall_height = 1.2; card.setConfig(c); await new Promise(r => setTimeout(r, 400));
+    const waited = card._three === old; await new Promise(r => setTimeout(r, 2500));
+    const sc = card._three; c.house.wall_height = undefined; delete c.house.wall_height; card.setConfig(c); await new Promise(r => setTimeout(r, 2500));
+    return waited && sc && sc !== old && Math.abs(sc.goal.theta - 1.234) < 1e-6 && sc.goal.radius === 19;
+  }));
   check('nothing is loaded from outside (fonts are bundled)', !p.outside.length, p.outside.join(' '));
   check('a °F home: 72 °F is the colour of 22 °C (comfortable), not of a heat wave', await p.evaluate(async () => {
     const h = window.hassObj, col = async (t, unit) => { card.hass = { ...h, config: { ...(h.config || {}), unit_system: { temperature: unit } }, states: { ...h.states, 'sensor.living_room_temperature': { ...h.states['sensor.living_room_temperature'], state: String(t) } } }; await new Promise(r => setTimeout(r, 200)); card._select('living_room'); await new Promise(r => setTimeout(r, 200)); return card.shadowRoot.querySelector('#drawer .dstats b')?.style.color; };

@@ -279,11 +279,20 @@ export class SweetHomeCard extends HTMLElement {
     this._confirm = {};
     this._hist = null;
   }
+  // A new config (the card editor sends one for every letter typed or option picked). The card is rebuilt once the
+  // changes stop for a moment, not for each of them; and when the house itself (rooms, walls, furniture…) didn't
+  // change, the 3D view is kept as it is and only the panels are redrawn.
   setConfig(config) {
-    const prev = this._cfgJSON;
+    const prev = this._cfgJSON, prevHouse = this._houseJSON;
     this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
+    // what the 3D view is built from: the house without the entity names given per room (names don't change the 3D view)
+    const NAMES = ['names', 'light_names', 'lightNames', 'motion_names', 'motionNames'];
+    this._houseJSON = JSON.stringify([this._config.house ?? null, this._config.language ?? null], (k, v) => (NAMES.includes(k) ? undefined : v));
     SMART = this._config.smart_icons !== false;
-    if (this._built && prev !== this._cfgJSON) this._rebuild();
+    if (!this._built || prev === this._cfgJSON) return;
+    this._softNext = (this._softNext ?? true) && prevHouse === this._houseJSON; // soft only if no change in the batch touched the house
+    clearTimeout(this._rbT);
+    this._rbT = setTimeout(() => { const soft = this._softNext; this._softNext = null; this._rebuild(soft); }, this._softNext ? 250 : 600);
   }
   getCardSize() { return 20; }
   // Renaming devices and moving furniture are for editing the dashboard: their buttons show only while it is in edit
@@ -315,8 +324,17 @@ export class SweetHomeCard extends HTMLElement {
   static getConfigElement() { return document.createElement('sweet-home-card-editor'); }
   static getStubConfig() { return { title: 'My Home' }; }
   // a new config (card editor): throw the old house away and build again
-  _rebuild() {
-    try { this._three?.pause(); this._three?.renderer?.dispose(); this._three?.ro?.disconnect(); this._three?.io?.disconnect(); } catch (e) { /* gone */ }
+  _rebuild(soft = false) {
+    clearTimeout(this._rbT);
+    const T3 = this._three;
+    if (soft && T3 && this.$('viewport')) this._keep3d = { scene: T3, vp: this.$('viewport') }; // moved into the new page as it is
+    else {
+      // the house changed: a new 3D view, seen from where the old one was (angle, zoom, floor, view mode)
+      if (T3) this._view = { orbit: { ...T3.orbit, target: T3.orbit.target.clone() }, goal: { ...T3.goal, target: T3.goal.target.clone() }, vmode: T3.vmode, mode: T3.mode };
+      try { T3?.pause(); T3?.renderer?.dispose(); T3?.ro?.disconnect(); T3?.io?.disconnect(); } catch (e) { /* gone */ }
+    }
+    if (this._sel) this._reselect = this._sel; // the open room stays open
+    const tab = this._tab; this._keepTab = tab;
     this._three = null; this._model = null; this._built = false; this._sections = []; this._prev = new Map();
     this._eprefsReq = false; this._histReq = false; this._hist = null; this._ehCache = {}; this._mcal = null; this._mmeta = null; this._sel = null;
     if (this._hass) this.hass = this._hass;
@@ -556,6 +574,8 @@ export class SweetHomeCard extends HTMLElement {
     </div>
     <div class="sheet-bg" id="sheet" data-act="sheetclose"></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
+    const K3 = this._keep3d; // the same house: the old 3D view (canvas, labels, camera) is moved into the new page as it is
+    if (K3) { this.$('viewport').replaceWith(K3.vp); const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; } }
     const $ = id => this.shadowRoot.getElementById(id);
     this.$ = $;
     this._swipeClose($('drawer'));
@@ -613,11 +633,17 @@ export class SweetHomeCard extends HTMLElement {
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
-    this._setTab(MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
+    const kt = this._keepTab; this._keepTab = null;
+    this._setTab(kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     const L = MODEL.levels || [{ level: 0 }];
     if (this._level == null || !L.some(l => l.level === this._level)) this._level = L.some(l => l.level === 0) ? 0 : L[0].level;
     this._tick();
-    this._init3d();
+    const K = this._keep3d; this._keep3d = null;
+    if (K) { // the 3D view moved in above goes on as it was
+      this._three = K.scene;
+      this._renderLegend(); this._three.sync(); this._three._dirty = true;
+      if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the mode buttons of the new page
+    } else this._init3d();
     this._hintShow();
     this._renderLevels();
     if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
@@ -2718,6 +2744,8 @@ export class SweetHomeCard extends HTMLElement {
     try { scene = new HouseScene(THREE, this); scene.arrange = !!this._arrange; await scene.ready; }
     catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.</span>`; return; }
     this._three = scene;
+    const V = this._view; this._view = null;
+    if (V) { for (const k of ['orbit', 'goal']) { Object.assign(scene[k], { theta: V[k].theta, phi: V[k].phi, radius: V[k].radius }); scene[k].target.copy(V[k].target); } scene.vmode = V.vmode; scene._dirty = true; }
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
     if (!MODEL.gltf && !ROOMS.length) { // no rooms yet: say how to get them instead of an empty 3D view
@@ -2725,6 +2753,7 @@ export class SweetHomeCard extends HTMLElement {
       L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
     }
     this._renderLegend();
+    if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the view mode (Lights / Climate / Presence) stays as it was
     this._three.sync();
   }
 }
