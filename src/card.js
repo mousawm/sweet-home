@@ -985,23 +985,36 @@ export class SweetHomeCard extends HTMLElement {
     return n && !/^android tv$/i.test(n) ? n : 'your TV';
   }
   _jfPlayable() { return new Set(this._jfSessions().map(x => x.st.entity_id)); }
+  // taps open the item's page on the TV instead of playing it (jellyfin_tv.on_tap: open; JellyHA only)
+  _jfOpenMode() { const J = E.mserver.jellyfin; return J.kind === 'jellyha' && J.tv?.on_tap === 'open'; }
   // where a video may go: with a TV to open Jellyfin on, never a phone or tablet app
   _jfTargets(L) { const all = this._jfSessions(); return L ? all.filter(x => !x.mobile) : all; }
   async _jfPlay(item, kind, title) {
     const J = E.mserver.jellyfin; if (!item || this._jfBusy) return;
     this._jfBusy = true; this._jfCancel = false;
     const T = J.tv || {}, name = title || 'it';
+    // jellyfin_tv.on_tap 'open' (JellyHA): open the item's page in Jellyfin on the TV instead of playing it
+    const open = this._jfOpenMode();
     let tvName = tc(T.name || 'your TV');
+    const close = () => { if (kind !== 'series') this._closeSheet(); }; // a show's page opens on the TV: its episodes stay open here
+    const done = () => open ? tr('Opened {0} on {1}', name, tvName) : `Playing ${name} on ${tvName}`;
     const send = async st => {
+      if (open) {
+        const r = await this._jfHaPlay(st, item, kind, 0, true);
+        if (r.ok) { this.haptic('success'); this._toast(done()); close(); }
+        else { this.haptic('failure'); this._toast(tr("{0} didn't open {1}.", tvName, name) + (r.err ? ` (${r.err})` : ''), true); }
+        return;
+      }
       if (await this.call('media_player', 'play_media', { entity_id: st.entity_id, media_content_id: item, media_content_type: kind || 'video' })) {
-        this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet();
+        this.haptic('success'); this._toast(done()); close();
       }
     };
     try {
       const L = this._jfLauncher(), all = this._jfTargets(L);
       if (L && !T.name) tvName = this._jfTvName(L);
       const best = all[0], live = all.find(x => x.score > 0 && ['playing', 'paused'].includes(x.st.state));
-      // something already plays on the TV's Jellyfin app: send it straight there
+      // something already plays on the TV's Jellyfin app: send it straight there (a page can't open while it plays)
+      if (live && open) { this.haptic('failure'); this._toast(tr('{0} is playing something: stop it first to open {1}.', tvName, name), true); return; }
       if (live) return await send(live.st);
       // no TV to open Jellyfin on: use a Jellyfin app that is open now
       if (!L) {
@@ -1016,9 +1029,9 @@ export class SweetHomeCard extends HTMLElement {
       this._jfFail = null;
       if (J.kind === 'jellyha' && best && best.score > 0 && this.v(L.id) !== 'off') {
         this._toast(`Opening ${name} on ${tvName}…`);
-        const r = await this._jfHaPlay(best.st, item, kind, 8e3);
+        const r = await this._jfHaPlay(best.st, item, kind, 8e3, open);
         if (this._jfCancel) { this._toast('Stopped'); return; }
-        if (r.ok) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
+        if (r.ok) { this.haptic('success'); this._toast(done()); close(); return; }
       }
       const before = this._jfPlayable();
       this._toast(`Starting Jellyfin on ${tvName}…`);
@@ -1087,13 +1100,13 @@ export class SweetHomeCard extends HTMLElement {
         let r = { ok: false, err: '' };
         for (let i = 0; i < 2 && !this._jfCancel; i++) {
           const prev = ses; fresh(); const st = ses || prev; // the TV's player now
-          r = await this._jfHaPlay(st, item, kind, 12e3); if (r.ok) break;
+          r = await this._jfHaPlay(st, item, kind, 12e3, open); if (r.ok) break;
           if (i === 0) await new Promise(res => setTimeout(res, 3e3));
         }
         if (this._jfCancel) { this._toast('Stopped'); return; }
-        if (r.ok) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
+        if (r.ok) { this.haptic('success'); this._toast(done()); close(); return; }
         this.haptic('failure');
-        this._jfFail = { item, kind, title, msg: tr("{0} didn't start {1}.", tvName, name) + (r.err ? ` (${r.err})` : '') };
+        this._jfFail = { item, kind, title, msg: tr(open ? "{0} didn't open {1}." : "{0} didn't start {1}.", tvName, name) + (r.err ? ` (${r.err})` : '') };
         this._renderInfo(); this._toast(this._jfFail.msg, true); return;
       }
       await send(ses);
@@ -1102,8 +1115,21 @@ export class SweetHomeCard extends HTMLElement {
   // JellyHA: send a video to the TV's Jellyfin app and wait until that app reports playing it (its player's item_id).
   // First JellyHA's own jellyha.session_play by the app's device id (the session is looked up when it is sent, so a
   // session that changed when the app restarted or signed in is not a problem), then the player's play_media.
-  async _jfHaPlay(st, item, kind, ms) {
+  // open (jellyfin_tv.on_tap 'open'): Jellyfin's DisplayContent command to the app's session instead, which opens the
+  // item's page (the Android TV app does that while it is open and not playing); Jellyfin can't confirm it, so a call
+  // that goes through counts.
+  async _jfHaPlay(st, item, kind, ms, open) {
     const a = st?.attributes || {}, dev = a.device_id, n = x => String(x || '').replace(/-/g, '').toLowerCase();
+    if (open) {
+      if (!a.session_id) return { ok: false, err: tr('no Jellyfin session') };
+      const h = n(item), uuid = /^[0-9a-f]{32}$/.test(h) ? `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}` : String(item);
+      const type = { movie: 'Movie', episode: 'Episode', series: 'Series', show: 'Series' }[String(kind || '').toLowerCase()] || 'Movie';
+      try {
+        await this._hass.callService('jellyha', 'session_general_command', { session_id: a.session_id, command: 'DisplayContent',
+          arguments: { ItemId: uuid, ItemType: type }, ...(a.config_entry_id ? { config_entry_id: a.config_entry_id } : {}) });
+        return { ok: true };
+      } catch (e) { return { ok: false, err: e?.message || String(e) }; }
+    }
     const playing = () => this._jfPlayers().some(id => { const s = this.s(id); return s && (id === st.entity_id || (dev && s.attributes.device_id === dev))
       && ['playing', 'paused'].includes(s.state) && n(s.attributes.item_id) === n(item); });
     const ways = [
@@ -1174,7 +1200,7 @@ export class SweetHomeCard extends HTMLElement {
         }).join('');
         return `${libs.length > 1 ? `<div class="dsec">${esc(tc(l.title))} · ${items.length}</div>` : ''}<div class="jfgrid">${grid}</div>`;
       }).join('');
-      return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
+      return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to ${this._jfOpenMode() ? 'open' : 'play'} on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : this._jfOpenMode() ? `tap a show to open it on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
     }
     if (k.startsWith('jfshow:')) {
       const sid = k.slice(7), show = this._jfBrowse(ha ? decodeURIComponent(sid) : 'media-source://jellyfin/' + sid);
@@ -1185,7 +1211,7 @@ export class SweetHomeCard extends HTMLElement {
       const si = clamp(this._jfSeason?.[sid] ?? 0, 0, Math.max(0, seasons.length - 1));
       let eps = direct, loading = false;
       if (!direct.length && seasons.length) { const d = this._jfBrowse(seasons[si].media_content_id); if (d) eps = d.children || []; else loading = true; }
-      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(tt(show.title))}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
+      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(tt(show.title))}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to ${this._jfOpenMode() ? 'open' : 'play'} it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
       const chips = seasons.length > 1 ? `<div class="jfseas">${seasons.map((c, i) => `<button class="${i === si ? 'on' : ''}" data-act="jfseason" data-show="${sid}" data-i="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
       const epT = c => ha ? String(c.title || '').replace(/^\d+\.\s*/, '') : c.title; // JellyHA numbers its episodes itself ("3. Name")
       const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(epT(c))}">
@@ -1573,7 +1599,9 @@ export class SweetHomeCard extends HTMLElement {
         const o = p.opts[Number(t.dataset.i)]; const [d, svc, data] = PICK[p.kind].call(p.id, o, this.hass);
         this.call(d, svc, { entity_id: p.id, ...data }); this._closeSheet(); break;
       }
-      case 'info': this._openInfo(t.dataset.kind); { const sh = this.$('sheet')?.querySelector('.sheet'); if (sh && t.closest('.sheet')) sh.scrollTop = 0; } break;
+      case 'info': this._openInfo(t.dataset.kind);
+        if (t.dataset.kind?.startsWith('jfshow:') && t.dataset.item && this._jfOpenMode()) this._jfPlay(t.dataset.item, 'series', t.dataset.title);
+        { const sh = this.$('sheet')?.querySelector('.sheet'); if (sh && t.closest('.sheet')) sh.scrollTop = 0; } break;
       case 'jfplay': this._jfPlay(t.dataset.item, t.dataset.mk, t.dataset.title); break;
       case 'jfreconnect': this._jfReconnect?.(); break;
       case 'jfcancel': this._jfCancel = true; break;

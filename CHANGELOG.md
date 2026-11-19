@@ -19,6 +19,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- Media Server with JellyHA: *When I tap a movie, show or episode* (Panels → Media Server) can be *Open its page in Jellyfin on the TV*. Tapping a movie or an episode opens its page on the TV; tapping a show opens the show's page there and its episodes in the card. Jellyfin is opened on the TV first when needed (with the Quick Connect prompt when that is on).
 - Media Server: a *Quick Connect* switch (Panels → Media Server) for a TV whose Jellyfin app signs in with Quick Connect. After the card opens Jellyfin on the TV, the sheet asks you to sign in there and sends the video when you tap *I've signed in · Play*.
 - Media Server: choose the Jellyfin integration in the card editor (Panels → Media Server): Automatic, Jellyfin (official) or JellyHA. With JellyHA the card uses its players, its client count and its Movies / TV Series folders from the media browser. Automatic keeps the official one when both are installed.
 - Card editor: Panels → Energy has a *Current* picker; the chosen sensor is shown next to Home on the energy flow (e.g. *Home · 2.2 A*). Not set: Home shows just its power, as before.
