@@ -181,6 +181,24 @@ const AR = {
   'Drawing the walls of {0}: tap each corner on the plan (one square = {1} m).': 'رسم جدران {0}: اضغط على كل زاوية على المخطط (المربع الواحد = {1} م).',
   // furniture part colours
   'Seat cushions': 'وسائد المقعد', Pillows: 'الوسائد', Frame: 'الهيكل', Headboard: 'لوح الرأس', Legs: 'الأرجل', Seat: 'المقعد', 'Colour (frame and back)': 'اللون (الهيكل والظهر)',
+  // import from Sweet Home 3D
+  'Import from Sweet Home 3D': 'استيراد من Sweet Home 3D', 'Import a floor plan drawn in Sweet Home 3D (.sh3d)': 'استيراد مخطط مرسوم في Sweet Home 3D (‎.sh3d)',
+  'Reading the Sweet Home 3D file…': 'جارٍ قراءة ملف Sweet Home 3D…', Close: 'إغلاق', Import: 'استيراد', Windows: 'النوافذ', Openings: 'الفتحات',
+  'Imported from Sweet Home 3D': 'تم الاستيراد من Sweet Home 3D', 'Ready to import from Sweet Home 3D': 'جاهز للاستيراد من Sweet Home 3D',
+  'This is not a Sweet Home 3D file. Pick a .sh3d file saved by Sweet Home 3D.': 'هذا ليس ملف Sweet Home 3D. اختر ملف ‎.sh3d محفوظًا من Sweet Home 3D.',
+  'This file was saved by an old version of Sweet Home 3D. Open it in Sweet Home 3D 5.3 or later, save it, and import it again.': 'حُفظ هذا الملف بإصدار قديم من Sweet Home 3D. افتحه في Sweet Home 3D بإصدار 5.3 أو أحدث، واحفظه، ثم استورده مجددًا.',
+  'This browser cannot open .sh3d files. Use an up-to-date Chrome, Edge, Firefox or Safari.': 'لا يستطيع هذا المتصفح فتح ملفات ‎.sh3d. استخدم إصدارًا حديثًا من Chrome أو Edge أو Firefox أو Safari.',
+  'No rooms were found in this file. In Sweet Home 3D, add rooms over your walls (Plan → Create rooms, double-click inside each room), save, and import again.': 'لم يُعثر على غرف في هذا الملف. في Sweet Home 3D أضف الغرف فوق الجدران (المخطط ← إنشاء غرف، ثم انقر مرتين داخل كل غرفة)، واحفظ، ثم استورد مجددًا.',
+  'This file could not be read. It may be damaged: save it again in Sweet Home 3D and try once more.': 'تعذّرت قراءة هذا الملف، وقد يكون تالفًا. احفظه مجددًا في Sweet Home 3D ثم أعد المحاولة.',
+  'Rooms linked to a Home Assistant area by name: {0} of {1}.': 'الغرف المرتبطة بمنطقة في Home Assistant حسب الاسم: {0} من {1}.',
+  'Not linked yet: {0}. Link them to an area in Entities mode, so their devices show.': 'غير مرتبطة بعد: {0}. اربطها بمنطقة من وضع الكيانات لتظهر أجهزتها.',
+  'Ceiling and wall lights left out: {0}. The card lights each room from its Home Assistant lights.': 'إضاءات السقف والجدران التي لم تُستورد: {0}. تضيء البطاقة كل غرفة من أضوائها في Home Assistant.',
+  'People figures left out: {0}.': 'مجسمات الأشخاص التي لم تُستورد: {0}.',
+  'This replaces the rooms drawn here ({0}), with their doors, windows and furniture. What you set on a room (lights, sensors, names, floor) is kept when the new room has the same area or name.': 'سيحل هذا محل الغرف المرسومة هنا ({0}) مع أبوابها ونوافذها وأثاثها. ما ضبطته لأي غرفة (الإضاءة، الحساسات، الأسماء، الأرضية) يبقى إذا كان للغرفة الجديدة نفس المنطقة أو الاسم.',
+  'Your own 3D file (.glb) is replaced by this floor plan.': 'سيحل هذا المخطط محل ملف ثلاثي الأبعاد الخاص بك (‎.glb).',
+  'Door sensors to link again: {0} (Doors & windows mode).': 'حساسات أبواب يلزم ربطها مجددًا: {0} (وضع الأبواب والنوافذ).',
+  'Lock badges to place again: {0} (Doors & windows mode).': 'شارات أقفال يلزم وضعها مجددًا: {0} (وضع الأبواب والنوافذ).',
+  'Check it in the preview. Undo puts back what you had; nothing is saved until you press Save.': 'تحقق منه في المعاينة. زر التراجع يعيد ما كان لديك، ولا يُحفظ شيء حتى تضغط حفظ.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

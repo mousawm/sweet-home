@@ -12,7 +12,8 @@ security, climate, energy, water, media and your home lab.
 - **3D house**: walls, windows, doors that swing open with their contact sensors, furniture, glowing lights (ceiling
   lights, spots, LED strips, TV backlight), AC airflow, motion pulses and lock badges. Three views: Lights, Climate and Presence.
 - **Works with no setup**: without any configuration it builds a simple house from your Home Assistant areas. Draw
-  your real floor plan in the card editor, or load your own `.glb` model.
+  your real floor plan in the card editor, import one drawn in [Sweet Home 3D](https://www.sweethome3d.com/), or load
+  your own `.glb` model.
 - **Panels**, each shown only when Home Assistant has something for it:
   - **Security**: alarm with a PIN keypad, locks, doors, live cameras
   - **Climate**: ACs, temperatures
@@ -121,6 +122,9 @@ The dashboard is generated for you until you take control of it:
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
         (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
         Drag any of them to move it. On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
+
+      **Import from Sweet Home 3D** (above the plan, or in the setup guide): pick a `.sh3d` file and the plan is
+      built from it. See [Import from Sweet Home 3D](#import-from-sweet-home-3d).
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
       so you can line them up. Areas on a Home Assistant floor are added to that floor.
@@ -305,6 +309,34 @@ dashboard. Pieces from the automatic set can be moved once their room has its ow
   their own). Add trees, hedges, a pool, plants and **sprinklers** in the card editor. Link each sprinkler to its
   irrigation valve or switch: it sprays water in 3D while the valve is open. The valves, their schedule and the water
   tank are on the **Water & Garden** tab (Panels → Irrigation and Water in the card editor).
+
+### Import from Sweet Home 3D
+
+Draw your home in [Sweet Home 3D](https://www.sweethome3d.com/) (free, for Windows, macOS and Linux, or online), then
+in the card editor click **Import from Sweet Home 3D** and pick the `.sh3d` file. The file is read in your browser
+and nothing is uploaded. The result is a normal floor plan, so lights glow, doors swing with their sensors and
+rooms open when you tap them, and you can keep editing it here.
+
+| In Sweet Home 3D | In the card |
+|---|---|
+| Rooms (Plan → Create rooms) | Rooms with the same outline. Each is linked to the Home Assistant area with the same name; check the others in Entities mode. |
+| Walls | Room walls, on the wall's centre line, so two rooms share one wall. A wall that isn't along a room becomes a separate wall (a low one a half wall; curved walls keep their bend). Where two rooms meet with no wall, an open passage. |
+| Doors, windows, door frames | Doors, windows and open passages, on their wall. A door named *Front door* or *Entrance* is the main door. |
+| Furniture | The nearest card piece: beds, sofas, armchairs, tables, chairs, TVs, lamps, plants, trees, toilets, sinks, showers, bathtubs, washing machines, stairs, cars… Anything else (wardrobes, shelves, the fridge) becomes a cabinet of the same size. |
+| Levels | Floors, with their names. |
+
+Good to know:
+
+- **Rooms are needed.** The card is built from rooms, so draw them over your walls in Sweet Home 3D (Plan → Create
+  rooms, then double-click inside each room). Name them like your Home Assistant areas to link them automatically.
+- **Ceiling and wall lights are left out**: the card lights each room from its Home Assistant lights. People figures
+  and hidden pieces are left out too.
+- **Importing replaces the plan drawn in the editor** (rooms, doors, windows, furniture, separate walls). The editor
+  shows a summary and asks first. What you set on a room (lights, sensors, names, floor) is kept when the new room has
+  the same area or name. Door sensors and lock badges have to be linked and placed again. **Undo** puts back what you
+  had, and nothing is saved until you press **Save**.
+- Files saved by Sweet Home 3D 5.3 or later work. Open an older file in a current Sweet Home 3D and save it
+  again.
 
 ### `panels`
 

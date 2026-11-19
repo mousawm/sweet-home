@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { zip } from './zip.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json' };
@@ -562,6 +563,40 @@ try {
   await p.evaluate(() => editor.querySelector('[data-wend]').click());
   check('…Finish any time: the rooms added stay, the other areas are left out', await p.evaluate(() => !editor._wiz && editor._config.house.rooms.length === 3 && !!editor.querySelector('[data-wiz]')));
   check('no page errors (room by room)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
+  console.log('import from sweet home 3d');
+  p = await open('?config=demo&editor=1');
+  // a small home: living room and kitchen with a wall and a door between them, a bed in the living room
+  const sh3d = Buffer.from(zip([['Home', 'java'], ['Home.xml', `<?xml version='1.0'?><home wallHeight='250'>
+    <pieceOfFurniture name='Bed' catalogId='eTeks#bed' x='150' y='200' width='140' depth='190' height='50'/>
+    <doorOrWindow name='Door' x='400' y='150' angle='1.5707964' width='90' depth='10' height='210'/>
+    <wall id='a' xStart='400' yStart='0' xEnd='400' yEnd='400' thickness='10'/>
+    <room name='Living Room'><point x='0' y='0'/><point x='395' y='0'/><point x='395' y='400'/><point x='0' y='400'/></room>
+    <room name='Kitchen'><point x='405' y='0'/><point x='700' y='0'/><point x='700' y='400'/><point x='405' y='400'/></room></home>`]]));
+  const before3d = await p.evaluate(() => JSON.stringify(editor._config.house));
+  await p.setInputFiles('[data-sh3dfile]', { name: 'home.sh3d', mimeType: 'application/octet-stream', buffer: sh3d });
+  await p.waitForSelector('[data-imp=confirm]', { timeout: 5000 }).catch(() => {});
+  check('with rooms drawn, a summary asks first and nothing changes yet', await p.evaluate(b => !!editor.querySelector('[data-imp=confirm]') && JSON.stringify(editor._config.house) === b && /Rooms\s*2/.test(editor.querySelector('[data-imp]').textContent), before3d));
+  await p.click('[data-imp-apply]');
+  check('Import: rooms from the file, linked to their areas, with the door and the bed', await p.evaluate(() => { const H = editor._config.house, L = H.rooms.find(r => r.area === 'living_room');
+    return H.rooms.length === 2 && H.rooms[1].area === 'kitchen' && JSON.stringify(L.rects) === '[[0,0,4,4]]' && L.furniture[0].type === 'bed' && JSON.stringify(H.doors) === '[{"from":[4,1.05],"to":[4,1.95]}]' && !!editor.querySelector('[data-imp=done]'); }));
+  check('…what the living room had set is kept (its light effects)', await p.evaluate(b => JSON.stringify(editor._config.house.rooms.find(r => r.area === 'living_room').light_fx) === JSON.stringify(JSON.parse(b).rooms.find(r => r.area === 'living_room').light_fx) && !!editor._config.house.rooms[0].light_fx, before3d));
+  await p.waitForTimeout(1500);
+  check('…the card shows the imported house', await p.evaluate(() => card._model.rooms.length === 2 && card._model.doors.length === 1));
+  await p.click('[data-imp-undo]');
+  check('…Undo puts the old plan back', await p.evaluate(b => JSON.stringify(editor._config.house) === b && !editor.querySelector('[data-imp]'), before3d));
+  await p.setInputFiles('[data-sh3dfile]', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
+  await p.waitForSelector('[data-imp=error]', { timeout: 5000 }).catch(() => {});
+  check('a file that is not from Sweet Home 3D: a clear message, the plan is untouched', await p.evaluate(b => /not a Sweet Home 3D file/.test(editor.querySelector('[data-imp=error]')?.textContent || '') && JSON.stringify(editor._config.house) === b, before3d));
+  check('no page errors (import)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+  p = await open('?editor=1');
+  check('an empty card: the setup guide offers the import too', await p.evaluate(() => !!editor.querySelector('[data-g=sh3d]')));
+  await p.setInputFiles('[data-sh3dfile]', { name: 'home.sh3d', mimeType: 'application/octet-stream', buffer: sh3d });
+  await p.waitForSelector('[data-imp=done]', { timeout: 5000 }).catch(() => {});
+  check('…with nothing drawn yet it imports straight away (Undo to go back)', await p.evaluate(() => editor._config.house?.rooms?.length === 2 && !!editor.querySelector('[data-imp-undo]')));
+  check('no page errors (import, empty card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
   console.log('arabic');

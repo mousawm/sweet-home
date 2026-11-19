@@ -10,6 +10,7 @@
  */
 import { t, setLang, isRTL } from './i18n.js';
 import { buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
+import { importSh3d, ImportError } from './sh3d.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -397,20 +398,24 @@ class SweetHomeCardEditor extends HTMLElement {
     const r = rooms[this._sel];
     const here = rooms.map((x, i) => [x, i]).filter(([x]) => this._onLv(x));
     body.innerHTML = `<div class="sh-ed">
+      <div class="sh-imp-slot"></div>
       <div class="sh-guide-slot"></div>
       <div class="sh-warn-slot"></div>
       <div class="sh-row"><button data-undo title="${t('Undo')} (Ctrl+Z)"><ha-icon icon="mdi:undo"></ha-icon>${t('Undo')}</button><button data-redo title="${t('Redo')} (Ctrl+Shift+Z)"><ha-icon icon="mdi:redo"></ha-icon>${t('Redo')}</button>
         <span style="flex:1"></span>${rooms.length ? `<span class="sh-hint">${t('Grid')}</span><button data-grid title="Snap size">${this._grid} m</button>` : ''}</div>
       <div class="sh-floors"></div>
       <div class="sh-rooms">${here.map(([x, i]) => `<button data-room="${i}" class="${i === this._sel ? 'on' : ''}"><i style="background:${COLORS[i % COLORS.length]}"></i>${esc(this._roomName(x, i))}</button>`).join('')}
-        <button data-add>${t('+ Add room')}</button>${this._freeAreas().length && !this._wiz ? `<button data-wiz>${t('+ Room by room')}</button>` : ''}${this._freeAreas().length ? `<button data-import>${rooms.length ? t('+ Add my other areas ({0})', this._freeAreas().length) : t('Add all my areas')}</button>` : ''}</div>
+        <button data-add>${t('+ Add room')}</button>${this._freeAreas().length && !this._wiz ? `<button data-wiz>${t('+ Room by room')}</button>` : ''}${this._freeAreas().length ? `<button data-import>${rooms.length ? t('+ Add my other areas ({0})', this._freeAreas().length) : t('Add all my areas')}</button>` : ''}
+        <button data-sh3d title="${t('Import a floor plan drawn in Sweet Home 3D (.sh3d)')}"><ha-icon icon="mdi:file-import-outline"></ha-icon>${t('Import from Sweet Home 3D')}</button></div>
+      <input type="file" accept=".sh3d,.xml" data-sh3dfile hidden>
       ${rooms.length && !r ? `<div class="sh-hint">${t('No rooms on this floor yet: add one, or add your areas.')}</div>` : ''}
       ${r ? `<div class="sh-modes">${MODES.map(([k, n, i]) => `<button data-mode="${k}" class="${this._mode === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>` : ''}
       ${r ? `<div class="sh-hint sh-modehint"></div>` : rooms.length ? '' : '<div class="sh-hint">No rooms yet: the card builds a simple house from your Home Assistant areas on its own. Add rooms to draw your real floor plan.</div>'}
       ${r && this._mode !== 'entities' ? '<svg class="sh-plan"></svg>' : ''}
       <div class="sh-mode"></div>
     </div>`;
-    if (this._wiz) this._wizard(body.querySelector('.sh-guide-slot')); else this._guide(body.querySelector('.sh-guide-slot'));
+    this._impPanel(body.querySelector('.sh-imp-slot'));
+    if (this._wiz) this._wizard(body.querySelector('.sh-guide-slot')); else if (!this._imp) this._guide(body.querySelector('.sh-guide-slot'));
     if (rooms.length) this._floorBar(body.querySelector('.sh-floors'));
     this._warnings(body.querySelector('.sh-warn-slot'));
     body.querySelector('[data-undo]').addEventListener('click', () => this._undo());
@@ -421,6 +426,8 @@ class SweetHomeCardEditor extends HTMLElement {
       const nr = { name: `Room ${rooms.length + 1}`, rects: [] }; this._setLv(nr, this._lvl); rooms.push(nr); this._sel = rooms.length - 1; this._mode = 'shape'; this._rsel = null; this._emit(); this._render();
     });
     body.querySelector('[data-import]')?.addEventListener('click', () => this._importAreas());
+    body.querySelector('[data-sh3d]').addEventListener('click', () => this._pickSh3d());
+    body.querySelector('[data-sh3dfile]').addEventListener('change', e => { const f = e.target.files?.[0]; if (f) this._readSh3d(f); });
     body.querySelector('[data-wiz]')?.addEventListener('click', () => this._wizStart());
     body.querySelectorAll('[data-room]').forEach(b => b.addEventListener('click', () => this._pickRoom(+b.dataset.room)));
     body.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { this._mode = b.dataset.mode; this._place = null; this._fsel = null; this._dsel = null; this._rsel = null; if (this._mode === 'entities') this._seenEnt = true; this._render(); }));
@@ -552,7 +559,7 @@ class SweetHomeCardEditor extends HTMLElement {
     if (this._mode === 'shape' && rooms.length) this._seenShape = true;
     const steps = [
       ['Add your rooms', 'Go through your Home Assistant areas one by one: pick the ones you want, give each a shape and a size, and place it next to the last one. Skip any, stop when you like.', rooms.length > 0,
-        this._freeAreas().length ? [['wizard', 'mdi:map-marker-path', 'Add my rooms one by one', true], ...(!rooms.length ? [['import', 'mdi:import', 'Add all my areas']] : [])] : []],
+        [...(this._freeAreas().length ? [['wizard', 'mdi:map-marker-path', 'Add my rooms one by one', true], ...(!rooms.length ? [['import', 'mdi:import', 'Add all my areas']] : [])] : []), ...(!rooms.length ? [['sh3d', 'mdi:file-import-outline', 'Import from Sweet Home 3D']] : [])]],
       ['Draw each room', 'In Shape mode, move and resize the squares into your floor plan. Draw more rectangles for L-shaped rooms.', rooms.length > 0 && rooms.every(hasShape) && this._seenShape,
         [['go-shape', 'mdi:vector-square', 'Open Shape']]],
       ['Check each room’s devices', 'Entities mode shows what every room found in its area. Remove extras, add what is missing.', !!this._seenEnt,
@@ -574,6 +581,7 @@ class SweetHomeCardEditor extends HTMLElement {
     det.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.g;
       if (k === 'import') return this._importAreas();
+      if (k === 'sh3d') return this._pickSh3d();
       if (k === 'wizard') return this._wizStart();
       if (k === 'off') { this._guideOff = true; store.set('sweet-home-guide-off', '1'); return this._render(); }
       if (k === 'suggest-all') { for (const [i, x] of rooms.entries()) if (!Array.isArray(x.furniture) && hasShape(x)) x.furniture = autoFurnitureConfig(x, this._roomName(x, i)); this._emit(); this._mode = 'furniture'; return this._render(); }
@@ -581,6 +589,72 @@ class SweetHomeCardEditor extends HTMLElement {
       if (this._mode === 'entities') this._seenEnt = true;
       this._render();
     }));
+  }
+
+  /* ---------------- import from Sweet Home 3D ---------------- */
+  // The file is read here, in the browser. With rooms already drawn (or a 3D file in use) a summary asks first;
+  // the import is one undo step, and nothing is saved until the editor's Save.
+  _pickSh3d() { const i = this.querySelector('[data-sh3dfile]'); if (!i) return; i.value = ''; i.click(); }
+  async _readSh3d(file) {
+    this._imp = { stage: 'busy', file: file.name }; this._render();
+    try {
+      const res = await importSh3d(await file.arrayBuffer(), { areas: this._hass.areas, house: clone(this._config.house) });
+      this._imp = { stage: 'confirm', file: file.name, ...res };
+      const H = this._config.house || {};
+      if (!arr(H.rooms).length && H.type !== 'gltf') return this._applySh3d();
+    } catch (e) {
+      if (!(e instanceof ImportError)) console.warn('sweet-home: Sweet Home 3D import', e);
+      this._imp = { stage: 'error', file: file.name, code: e instanceof ImportError ? e.code : 'damaged' };
+    }
+    this._render();
+  }
+  _applySh3d() {
+    this._config.house = clone(this._imp.house);
+    this._imp = { ...this._imp, stage: 'done' };
+    const rooms = this._rooms, first = rooms.findIndex(r => !r.level);
+    this._lvl = first >= 0 ? 0 : this._lvOf(rooms[0]); this._sel = Math.max(0, first); this._extraLv = [];
+    this._mode = 'shape'; this._stool = 'rect'; this._rsel = null; this._fsel = null; this._dsel = null; this._psel = null; this._wsel = null; this._wiz = null;
+    this._emit(); this._render();
+  }
+  _impPanel(slot) {
+    const I = this._imp; if (!I) return;
+    const box = document.createElement('div'); box.className = 'sh-box sh-imp' + (I.stage === 'error' ? ' sh-warn' : ''); box.dataset.imp = I.stage;
+    const file = `<span class="sh-hint">${esc(I.file || '')}</span>`;
+    if (I.stage === 'busy') box.innerHTML = `<div class="sh-row"><ha-icon icon="mdi:progress-clock"></ha-icon><b>${t('Reading the Sweet Home 3D file…')}</b>${file}</div>`;
+    else if (I.stage === 'error') {
+      const msg = {
+        'not-sh3d': 'This is not a Sweet Home 3D file. Pick a .sh3d file saved by Sweet Home 3D.',
+        'old-version': 'This file was saved by an old version of Sweet Home 3D. Open it in Sweet Home 3D 5.3 or later, save it, and import it again.',
+        browser: 'This browser cannot open .sh3d files. Use an up-to-date Chrome, Edge, Firefox or Safari.',
+        empty: 'No rooms were found in this file. In Sweet Home 3D, add rooms over your walls (Plan → Create rooms, double-click inside each room), save, and import again.',
+      }[I.code] || 'This file could not be read. It may be damaged: save it again in Sweet Home 3D and try once more.';
+      box.innerHTML = `<div class="sh-row"><ha-icon icon="mdi:alert-outline"></ha-icon><b style="flex:1">${t('Import from Sweet Home 3D')}</b>${file}</div>
+        <div class="sh-hint" style="margin:6px 0">${t(msg)}</div><div class="sh-row"><span style="flex:1"></span><button class="sh-btn" data-imp-close>${t('Close')}</button></div>`;
+    } else {
+      const S = I.summary, chips = [['Rooms', S.rooms, 'mdi:floor-plan'], ['Floors', S.floors, 'mdi:layers-outline'], ['Doors', S.doors, 'mdi:door'], ['Windows', S.windows, 'mdi:window-closed-variant'], ['Openings', S.openings, 'mdi:door-open'], ['Separate walls', S.walls, 'mdi:wall'], ['Furniture', S.furniture, 'mdi:sofa-outline']]
+        .filter(([, n], i) => n || i < 2).map(([k, n, i]) => `<span class="sh-chip"><ha-icon icon="${i}"></ha-icon>${t(k)} <b>${n}</b></span>`).join('');
+      const notes = [
+        S.rooms ? t('Rooms linked to a Home Assistant area by name: {0} of {1}.', S.linked, S.rooms) : '',
+        S.unlinked.length ? t('Not linked yet: {0}. Link them to an area in Entities mode, so their devices show.', S.unlinked.map(esc).join(', ')) : '',
+        S.lights ? t('Ceiling and wall lights left out: {0}. The card lights each room from its Home Assistant lights.', S.lights) : '',
+        S.people ? t('People figures left out: {0}.', S.people) : '',
+        I.stage === 'confirm' && S.replaced ? t('This replaces the rooms drawn here ({0}), with their doors, windows and furniture. What you set on a room (lights, sensors, names, floor) is kept when the new room has the same area or name.', S.replaced) : '',
+        S.wasGltf ? t('Your own 3D file (.glb) is replaced by this floor plan.') : '',
+        S.sensorsDropped ? t('Door sensors to link again: {0} (Doors & windows mode).', S.sensorsDropped) : '',
+        S.badgesDropped ? t('Lock badges to place again: {0} (Doors & windows mode).', S.badgesDropped) : '',
+      ].filter(Boolean);
+      const done = I.stage === 'done';
+      box.innerHTML = `<div class="sh-row"><ha-icon icon="${done ? 'mdi:check-circle' : 'mdi:file-import-outline'}" style="color:${done ? 'var(--success-color,#43a047)' : 'var(--primary-color)'}"></ha-icon><b style="flex:1">${t(done ? 'Imported from Sweet Home 3D' : 'Ready to import from Sweet Home 3D')}</b>${file}</div>
+        <div class="sh-sugg" style="margin:8px 0">${chips}</div>
+        ${notes.length ? `<ul class="sh-hint" style="margin:0 0 8px;padding-left:18px">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
+        ${done ? `<div class="sh-hint" style="margin-bottom:8px">${t('Check it in the preview. Undo puts back what you had; nothing is saved until you press Save.')}</div>` : ''}
+        <div class="sh-row"><span style="flex:1"></span>${done ? `<button class="sh-btn" data-imp-undo><ha-icon icon="mdi:undo"></ha-icon>${t('Undo')}</button><button class="sh-btn pri" data-imp-close>${t('Done')}</button>`
+          : `<button class="sh-btn" data-imp-close>${t('Cancel')}</button><button class="sh-btn pri" data-imp-apply><ha-icon icon="mdi:file-import-outline"></ha-icon>${t('Import')}</button>`}</div>`;
+    }
+    slot.appendChild(box);
+    box.querySelector('[data-imp-close]')?.addEventListener('click', () => { this._imp = null; this._render(); });
+    box.querySelector('[data-imp-apply]')?.addEventListener('click', () => this._applySh3d());
+    box.querySelector('[data-imp-undo]')?.addEventListener('click', () => { this._imp = null; this._undo(); });
   }
 
   /* ---------------- warnings ---------------- */

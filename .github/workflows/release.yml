@@ -1,6 +1,9 @@
 name: Release
 # Publishes a release for the version in package.json (v<version>, with dist/sweet-home-card.js attached)
 # whenever main is pushed and that release doesn't exist yet. Bump "version" in package.json to release.
+# A version with a suffix (0.7.0-beta.1, 0.7.0-rc.1) is published as a pre-release: the latest stable release stays
+# the one the Marketplace installs, and only people who turn on "Show beta versions" get it. Pushing a tag v<version>
+# from any branch publishes that commit (use it for a beta that is not on main yet).
 on:
   push:
     branches: [main]
@@ -27,5 +30,8 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/sweet-home-card.js --clobber
           else
-            gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
+            case "$TAG" in
+              *-*) gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG (beta)" --generate-notes --prerelease --latest=false ;;
+              *) gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes ;;
+            esac
           fi
