@@ -189,7 +189,9 @@ const PICK = {
   swing: { title: 'Vertical swing', list: st => st.attributes.swing_modes, cur: st => st.attributes.swing_mode, call: (id, o) => ['climate', 'set_swing_mode', { swing_mode: o }] },
   swingh: { title: 'Horizontal swing', list: st => st.attributes.swing_horizontal_modes, cur: st => st.attributes.swing_horizontal_mode, call: (id, o) => ['climate', 'set_swing_horizontal_mode', { swing_horizontal_mode: o }] },
   preset: { title: 'Preset', list: st => st.attributes.preset_modes, cur: st => st.attributes.preset_mode, call: (id, o) => ['climate', 'set_preset_mode', { preset_mode: o }] },
-  source: { title: 'Source', list: st => st.attributes.source_list, cur: st => st.attributes.source, call: (id, o) => ['media_player', 'select_source', { source: o }] },
+  source: { title: 'Source', list: st => st.attributes.source_list, cur: st => st.attributes.source, call: (id, o, h) => /launcher/i.test(o) && h?.entities?.[id]?.platform === 'androidtv'
+    // ADB can't start the home screen as an app (no launcher activity), so press the Home key instead
+    ? ['androidtv', 'adb_command', { command: 'HOME' }] : ['media_player', 'select_source', { source: o }] },
   effect: { title: 'Effect', list: st => st.attributes.effect_list, cur: st => st.attributes.effect, call: (id, o) => ['light', 'turn_on', { effect: o }] },
 };
 const pretty = o => {
@@ -1397,7 +1399,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'pick': this._openPicker(id, t.dataset.kind); break;
       case 'pickopt': {
         const p = this._pick; if (!p) return;
-        const o = p.opts[Number(t.dataset.i)]; const [d, svc, data] = PICK[p.kind].call(p.id, o);
+        const o = p.opts[Number(t.dataset.i)]; const [d, svc, data] = PICK[p.kind].call(p.id, o, this.hass);
         this.call(d, svc, { entity_id: p.id, ...data }); this._closeSheet(); break;
       }
       case 'info': this._openInfo(t.dataset.kind); { const sh = this.$('sheet')?.querySelector('.sheet'); if (sh && t.closest('.sheet')) sh.scrollTop = 0; } break;
