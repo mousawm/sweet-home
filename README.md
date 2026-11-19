@@ -332,10 +332,16 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **media**:
   - `player`, `speakers`
   - optional screen-time limits: `watch_timer`, `watch_limit`, `limit_select`, `block_switch`, `unblock_switch`
-- **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. Movies and episodes play on
-  the TV set in the card editor (Panels → Media Server → *TV to play on*), stored as `jellyfin_tv: {session, name}`:
-  `session` is the Jellyfin player's name (found by name, because its entity id changes with each app session); without
-  it, the Jellyfin app used last. `app_player` (an Android TV media player) starts the Jellyfin app before playing.
+- **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. Tap a movie or an episode
+  in the Shows / Movies browser and it plays on your TV, with no setup: the card finds a TV whose source list has
+  Jellyfin (Android TV, Google TV and Fire TV over the Android TV integration first, then Android TV Remote, webOS,
+  Tizen, Roku …), opens the Jellyfin app there (over ADB it restarts the app, which avoids a crash of the Jellyfin
+  Android TV app), waits for the app's session and sends it the video. If the TV asks who's watching, pick a user
+  there and it starts. If Home Assistant doesn't see the app after 15 s, the sheet says so and offers **Reconnect**
+  (reloads the Jellyfin integration; admins only).
+  Optional, in the card editor under Panels → Media Server, stored as `jellyfin_tv`: `app_player` (the TV to open
+  Jellyfin on), `session` (the name of the TV's Jellyfin app, when several TVs run Jellyfin), `name` (shown as
+  "play on …"), `source` / `package` (when the app has another name or package).
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`.
 - **tv_light**: `light`, `selects`
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.

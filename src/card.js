@@ -785,7 +785,7 @@ export class SweetHomeCard extends HTMLElement {
     } else if (this._info.startsWith('mup:')) {
       html = this._mupHTML(head);
     } else if (this._info.startsWith('jf')) {
-      html = this._jfHTML(head);
+      html = this._jfHTML((...a) => head(...a) + this._jfWaitHTML());
     } else if (this._info === 'power') {
       html = this._powerHTML(head);
     } else if (this._info.startsWith('phone:')) {
@@ -928,60 +928,126 @@ export class SweetHomeCard extends HTMLElement {
       .then(() => { if (this._info?.startsWith('jf')) this._renderInfo(); });
     return null;
   }
-  // The Jellyfin Android TV app crashes when it gets a play command while it sits idle after a video was closed
-  // (seen 2026-11-15: session went unavailable the second play_media arrived). It plays fine right after a fresh
-  // start, so unless something is playing / paused, the app is force-stopped over ADB, reopened, and the card waits
-  // for its new session before sending play_media.
-  // The TV's Jellyfin session player: its entity id changes whenever the app starts a new session (media_player.tv,
-  // _5, _6 … — HA makes a new one per Jellyfin device id), so it is found by name (`jellyfin_tv.session`) instead; with
-  // no name set, any Jellyfin player that is available and can play media (feature bit 512); newest first.
-  // With `since`, only one that changed after that time (a session started after the restart).
-  _jfShield(since) {
-    const ents = this._hass?.entities || {}, J = E.mserver.jellyfin;
-    const c = Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === 'jellyfin')
-      .map(id => this.s(id)).filter(st => st && !BAD.includes(st.state) && (st.attributes.supported_features & 512) && (!J.tv?.session || new RegExp(J.tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(st.attributes.friendly_name || st.entity_id)))
-      .sort((a, b) => new Date(b.last_updated) - new Date(a.last_updated));
-    return since ? c.find(st => new Date(st.last_updated) > since) || null : c[0] || null;
+  // ---- playing on the TV: works with no setup ----
+  // 1. The TV: `jellyfin_tv.app_player` if set, else any media player (not Jellyfin's own) whose source list has
+  //    Jellyfin — Android TV / Google TV / Fire TV over ADB first, then Android TV Remote, then webOS, Tizen, Roku ….
+  // 2. The Jellyfin app is opened there. Over ADB it is force-stopped first: the Jellyfin Android TV app crashes when
+  //    play_media reaches it while it sits idle after a video was closed, and plays fine right after a fresh start.
+  // 3. The TV's Jellyfin session is the one that becomes playable after that (Jellyfin's session entity ids change
+  //    with every app start, so they are never stored). A configured name (`jellyfin_tv.session`) and TV-type clients
+  //    (device model "Jellyfin for Android TV", Roku, webOS …) only rank the candidates.
+  // 4. While waiting, Jellyfin's session list is refreshed every 4 s; after 15 s the sheet shows what is going on,
+  //    with Reconnect (reloads the Jellyfin integration — admins) for when Home Assistant has stopped seeing sessions.
+  _jfLauncher() {
+    const T = E.mserver.jellyfin.tv || {}, ents = this._hass?.entities || {};
+    const plat = id => ents[id]?.platform || '';
+    const src = st => (st?.attributes.source_list || []).find(s => /jellyfin/i.test(s));
+    if (T.app_player) { const st = this.s(T.app_player); return st ? { id: T.app_player, plat: plat(T.app_player), source: T.source || src(st) || 'Jellyfin' } : null; }
+    const rank = p => p === 'androidtv' ? 0 : p === 'androidtv_remote' ? 1 : 2;
+    const c = Object.keys(this._hass?.states || {}).filter(id => id.startsWith('media_player.') && plat(id) !== 'jellyfin')
+      .map(id => this.s(id)).filter(st => !BAD.includes(st.state) && src(st))
+      .sort((a, b) => rank(plat(a.entity_id)) - rank(plat(b.entity_id)) || (a.state === 'off') - (b.state === 'off'));
+    return c[0] ? { id: c[0].entity_id, plat: plat(c[0].entity_id), source: src(c[0]) } : null;
   }
+  // Jellyfin players that can be sent a video now (available + PLAY_MEDIA, bit 512), best first:
+  // configured name, then TV apps, then the most recently updated.
+  _jfSessions() {
+    const h = this._hass, ents = h?.entities || {}, T = E.mserver.jellyfin.tv || {};
+    const re = T.session ? new RegExp(T.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
+    return Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === 'jellyfin')
+      .map(id => this.s(id)).filter(st => st && !BAD.includes(st.state) && (st.attributes.supported_features & 512))
+      .map(st => {
+        const dev = h.devices?.[ents[st.entity_id]?.device_id] || {};
+        const tv = /\btv\b|android ?tv|roku|webos|tizen|kodi|xbox|playstation|fire/i.test(`${dev.model || ''}`);
+        return { st, score: (re && re.test(st.attributes.friendly_name || st.entity_id) ? 4 : 0) + (tv ? 2 : 0) };
+      })
+      .sort((a, b) => b.score - a.score || new Date(b.st.last_updated) - new Date(a.st.last_updated));
+  }
+  // "Living Room TV" from the TV's own name, without an IP address the integration put in it
+  _jfTvName(L) {
+    const n = (this.s(L?.id)?.attributes.friendly_name || '').replace(/\s*\d{1,3}(\.\d{1,3}){3}\s*/g, ' ').trim();
+    return n && !/^android tv$/i.test(n) ? n : 'your TV';
+  }
+  _jfPlayable() { return new Set(this._jfSessions().map(x => x.st.entity_id)); }
   async _jfPlay(item, kind, title) {
     const J = E.mserver.jellyfin; if (!item || this._jfBusy) return;
-    this._jfBusy = true;
-    try {
-      let ses = this._jfShield();
-      const name = title || 'it', live = ses && ['playing', 'paused'].includes(ses.state);
-      const T = J.tv || {}, tvName = tc(T.name || 'your TV');
-      // without a TV launcher configured: play on whichever Jellyfin app is open right now
-      if (!T.app_player) {
-        if (!ses) { this.haptic('failure'); this._toast('Open the Jellyfin app on your TV first', true); return; }
-        if (await this.call('media_player', 'play_media', { entity_id: ses.entity_id, media_content_id: item, media_content_type: kind || 'video' })) { this.haptic('success'); this._toast(`Playing ${name}`); this._closeSheet(); }
-        return;
-      }
-      J.atv = T.app_player; J.app = T.source || 'Jellyfin'; J.pkg = T.package || 'org.jellyfin.androidtv';
-      if (!live) {
-        this._toast(`Starting Jellyfin on ${tvName}…`);
-        const t0 = Date.now();
-        if (this.v(J.atv) === 'off' && !(await this.call('media_player', 'turn_on', { entity_id: J.atv }))) return;
-        await this.call('androidtv', 'adb_command', { entity_id: J.atv, command: `am force-stop ${J.pkg}` });
-        await new Promise(r => setTimeout(r, 800));
-        if (!(await this.call('media_player', 'select_source', { entity_id: J.atv, source: J.app }))) return;
-        // wait only for the NEW session (state changed after the restart) — the old one is gone after the force-stop.
-        // If Jellyfin asks "Who's watching?" there is no session until someone signs in on the TV, so keep waiting
-        // (up to 3 min) and play as soon as they do.
-        const fresh = () => !!(ses = this._jfShield(t0));
-        let ok = await this._waitFn(fresh, 15e3);
-        if (!ok) {
-          this._toast(`Sign in on the TV — ${name} will start after that`);
-          const nag = setInterval(() => this._toast(`Waiting for Jellyfin sign-in on the TV…`), 8e3);
-          try { ok = await this._waitFn(fresh, 180e3); } finally { clearInterval(nag); }
-        }
-        if (!ok) { this.haptic('failure'); this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
-        this._toast(`Opening ${name}…`);
-        await new Promise(r => setTimeout(r, 2500)); // let the app finish loading its home screen
-      }
-      if (await this.call('media_player', 'play_media', { entity_id: ses.entity_id, media_content_id: item, media_content_type: kind || 'video' })) {
+    this._jfBusy = true; this._jfCancel = false;
+    const T = J.tv || {}, name = title || 'it';
+    let tvName = tc(T.name || 'your TV');
+    const send = async st => {
+      if (await this.call('media_player', 'play_media', { entity_id: st.entity_id, media_content_id: item, media_content_type: kind || 'video' })) {
         this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet();
       }
+    };
+    try {
+      const L = this._jfLauncher(), all = this._jfSessions();
+      if (L && !T.name) tvName = this._jfTvName(L);
+      const best = all[0], live = all.find(x => x.score > 0 && ['playing', 'paused'].includes(x.st.state));
+      // something already plays on the TV's Jellyfin app: send it straight there
+      if (live) return await send(live.st);
+      // no TV to open Jellyfin on: use a Jellyfin app that is open now
+      if (!L) {
+        if (best) return await send(best.st);
+        this.haptic('failure'); this._toast(`Open the Jellyfin app on ${tvName} first`, true); return;
+      }
+      // a TV we can't restart Jellyfin on, with its Jellyfin app already open: play there
+      if (L.plat !== 'androidtv' && best && best.score > 0) return await send(best.st);
+      const before = this._jfPlayable();
+      this._toast(`Starting Jellyfin on ${tvName}…`);
+      let t0 = Date.now();
+      if (this.v(L.id) === 'off' && !(await this.call('media_player', 'turn_on', { entity_id: L.id }))) return;
+      if (L.plat === 'androidtv') {
+        await this.call('androidtv', 'adb_command', { entity_id: L.id, command: `am force-stop ${T.package || 'org.jellyfin.androidtv'}` });
+        await new Promise(r => setTimeout(r, 800));
+      }
+      const listed = (this.s(L.id)?.attributes.source_list || []).includes(L.source);
+      const opened = L.plat === 'androidtv_remote' && !listed
+        ? await this.call('media_player', 'play_media', { entity_id: L.id, media_content_type: 'app', media_content_id: T.package || 'org.jellyfin.androidtv' })
+        : await this.call('media_player', 'select_source', { entity_id: L.id, source: L.source });
+      if (!opened) return;
+      // the TV's session: one that became playable after the app was opened (or after a reconnect)
+      let ses = null, after = t0;
+      const fresh = () => {
+        if (this._jfCancel) return true;
+        const c = this._jfSessions().filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0);
+        ses = c[0]?.st || null; return !!ses;
+      };
+      const ref = J.clients || Object.keys(this._hass.entities || {}).find(id => this._hass.entities[id].platform === 'jellyfin');
+      const nudge = setInterval(() => { if (ref) this._hass.callService('homeassistant', 'update_entity', { entity_id: ref }).catch(() => {}); }, 4e3);
+      this._jfReconnect = async () => {
+        this._jfWait = { msg: 'Reconnecting Home Assistant to Jellyfin…', busy: true }; this._renderInfo();
+        try {
+          const [entry] = await this._hass.callWS({ type: 'config_entries/get', domain: 'jellyfin' });
+          if (entry) { after = Date.now(); before.clear(); await this._hass.callService('homeassistant', 'reload_config_entry', { entry_id: entry.entry_id }); }
+        } catch (e) { this._toast(e?.message || 'Reconnect failed', true); }
+        this._jfWait = { msg: 'Reconnected — waiting for Jellyfin on the TV…', busy: true }; this._renderInfo();
+      };
+      let ok;
+      try {
+        ok = await this._waitFn(fresh, 15e3);
+        if (!ok) {
+          const front = /jellyfin/i.test(`${this.s(L.id)?.attributes.app_id || ''} ${this.s(L.id)?.attributes.source || ''}`);
+          this._jfWait = { msg: front
+            ? `Jellyfin is open on ${tvName}, but Home Assistant can't see it yet. If it asks who's watching, pick a user there — ${name} starts after that.`
+            : `Waiting for Jellyfin on ${tvName}… If it asks who's watching, pick a user there — ${name} starts after that.` };
+          this._renderInfo();
+          ok = await this._waitFn(fresh, 180e3);
+        }
+      } finally { clearInterval(nudge); this._jfWait = null; this._jfReconnect = null; this._renderInfo(); }
+      if (this._jfCancel) { this._toast('Stopped'); return; }
+      if (!ok) { this.haptic('failure'); this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
+      this._toast(`Opening ${name}…`);
+      await new Promise(r => setTimeout(r, 2500)); // let the app finish loading its home screen
+      await send(ses);
     } finally { this._jfBusy = false; }
+  }
+  // the waiting banner at the top of the Jellyfin sheets
+  _jfWaitHTML() {
+    const w = this._jfWait; if (!w) return '';
+    const admin = this._hass?.user?.is_admin;
+    return `<div class="jfwait" role="status"><div class="jfwm">${ic('mdi:loading', 'spin')}<span>${esc(w.msg)}</span></div>
+      ${w.busy ? '' : `<div class="jfwb">${admin && this._jfReconnect ? `<button class="pill" data-act="jfreconnect">${ic('mdi:refresh')}<span>Reconnect</span></button>` : ''}<button class="pill" data-act="jfcancel"><span>Cancel</span></button></div>
+      <div class="jfwh">${admin ? 'Reconnect reloads the Jellyfin integration, for when Home Assistant has stopped seeing Jellyfin apps.' : 'Still nothing? Ask an admin to reload the Jellyfin integration.'}</div>`}</div>`;
   }
   _waitFn(pred, ms) {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred()) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 300); }; chk(); });
@@ -1007,7 +1073,7 @@ export class SweetHomeCard extends HTMLElement {
         }).join('');
         return `${libs.length > 1 ? `<div class="dsec">${esc(tc(l.title))} · ${items.length}</div>` : ''}<div class="jfgrid">${grid}</div>`;
       }).join('');
-      return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || 'your TV')}` : 'tap a show for its episodes'}`) + (secs || wait);
+      return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
     }
     if (k.startsWith('jfshow:')) {
       const sid = k.slice(7), show = this._jfBrowse('media-source://jellyfin/' + sid);
@@ -1404,6 +1470,8 @@ export class SweetHomeCard extends HTMLElement {
       }
       case 'info': this._openInfo(t.dataset.kind); { const sh = this.$('sheet')?.querySelector('.sheet'); if (sh && t.closest('.sheet')) sh.scrollTop = 0; } break;
       case 'jfplay': this._jfPlay(t.dataset.item, t.dataset.mk, t.dataset.title); break;
+      case 'jfreconnect': this._jfReconnect?.(); break;
+      case 'jfcancel': this._jfCancel = true; break;
       case 'jfseason': this._jfSeason = { ...(this._jfSeason || {}), [t.dataset.show]: Number(t.dataset.i) }; this._renderInfo(); break;
       case 'ehp': this._eh = { ...this._eh, p: t.dataset.p, off: 0, bar: null }; this._rerender('ehist'); break;
       case 'ehnav': this._eh = { ...this._eh, off: Math.min(0, this._eh.off + Number(t.dataset.d)), bar: null }; this._rerender('ehist'); break;
@@ -4469,6 +4537,7 @@ main{scroll-margin-top:84px}
 
 /* jellyfin library browser */
 .mlib div.go{position:relative}.mlib div.go span{color:#c4b5fd}
+.jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
 .jfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .jfpo{position:relative;display:flex;flex-direction:column;gap:5px;padding:0;background:none;border:0;color:var(--tx);font:inherit;text-align:left;cursor:pointer;min-width:0}
 .jfpo span{font-size:11.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

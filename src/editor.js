@@ -1603,7 +1603,7 @@ class SweetHomeCardEditor extends HTMLElement {
           const pick = players.find(x => tv.session && new RegExp(tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(this._reg.name(x)));
           det.appendChild(this._form([
             { name: 'tv_player', selector: { entity: { domain: 'media_player', integration: 'jellyfin' } } }, { name: 'tv_name', selector: { text: {} } },
-            { name: 'app_player', selector: { entity: { domain: 'media_player', integration: 'androidtv' } } },
+            { name: 'app_player', selector: { entity: { domain: 'media_player' } } },
           ], { tv_player: pick || '', tv_name: tv.name || '', app_player: tv.app_player || '' }, (v, typing) => {
             const o = { ...tv }; delete o.session; delete o.name; delete o.app_player;
             // the player's name without the session number HA adds ("Living Room TV 3" → "Living Room TV")
@@ -1611,7 +1611,7 @@ class SweetHomeCardEditor extends HTMLElement {
             if (v.tv_name) o.name = v.tv_name; if (v.app_player) o.app_player = v.app_player;
             const ms = { ...cur }; if (Object.keys(o).length) ms.jellyfin_tv = o; else delete ms.jellyfin_tv;
             set(k, Object.keys(ms).length ? ms : undefined);
-          }, { tv_player: 'TV to play on (a Jellyfin player; empty: the Jellyfin app used last)', tv_name: 'Name of the TV (shown as “play on …”)', app_player: 'Android TV to start Jellyfin on before playing (optional, needs the Android TV integration)' }));
+          }, { tv_player: 'Jellyfin app on the TV (optional: only needed when several TVs run Jellyfin)', tv_name: 'Name of the TV (shown as “play on …”)', app_player: 'TV to open Jellyfin on (optional: found by itself from the TVs that list Jellyfin as a source)' }));
           list.appendChild(det); continue;
         }
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
