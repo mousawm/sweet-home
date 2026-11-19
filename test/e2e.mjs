@@ -198,7 +198,7 @@ try {
     const sc = card._three; c.house.wall_height = undefined; delete c.house.wall_height; card.setConfig(c); await new Promise(r => setTimeout(r, 2500));
     return waited && sc && sc !== old && Math.abs(sc.goal.theta - 1.234) < 1e-6 && sc.goal.radius === 19;
   }));
-  check('the header shows the Sweet Home icon (and no stray text)', await p.evaluate(async () => { const t = card.shadowRoot.querySelector('.title'), img = t?.querySelector('img.logo'); if (img && !img.complete) await new Promise(r => img.onload = r); return !!img && img.naturalWidth > 0 && !t.textContent.includes('%') && !t.textContent.includes('svg'); }));
+  check('the header shows its house icon (and no stray text)', await p.evaluate(() => { const t = card.shadowRoot.querySelector('.title'); return t.querySelector('ha-icon')?.getAttribute('icon') === 'mdi:home-modern' && !t.querySelector('img') && !t.textContent.includes('%'); }));
   { const r = await p.evaluate(async () => {
       const sc = card._three, c = JSON.parse(card._cfgJSON); c.default_view = { pc: 'top' }; c.default_floor = { pc: 1 }; card.setConfig(c); await new Promise(r => setTimeout(r, 700));
       const ok = card._three === sc && card._three.vmode === 'top' && card._level === 1; return ok || JSON.stringify({ same: card._three === sc, sc: !!sc, vmode: card._three?.vmode, level: card._level, lv: card._model?.levels?.length });

@@ -5,13 +5,11 @@
  */
 import * as THREE_LIB from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import LOGO_SVG from '../docs/brand/icon.svg'; // the Sweet Home icon (header of the 3D view)
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
 import { buildModel, toColor, FURN_TYPES, lineOf, inPoly, polyArea, arr, cleanConfig } from './model.js';
 import { movePiece } from './editor.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import './strategy.js';
-const LOGO = 'data:image/svg+xml,' + encodeURIComponent(LOGO_SVG); // safe inside an attribute (no quotes left)
 const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
 
 /* ------------------------------------------------------------------ */
@@ -545,7 +543,7 @@ export class SweetHomeCard extends HTMLElement {
        <div class="home-grid">
         <section class="stage card">
           <div class="stage-top">
-            <div class="title"><img class="logo" src="${LOGO}" alt="" width="40" height="40"><div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
+            <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
             <div class="seg" id="modeSeg">
               <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
               <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>
@@ -4528,7 +4526,6 @@ main{scroll-margin-top:84px}
 .stage-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
 .title{display:flex;align-items:center;gap:10px;flex:1;min-width:160px}
 .title>ha-icon{--mdc-icon-size:24px;color:#fff;background:linear-gradient(135deg,#6366f1,#14b8a6);padding:8px;border-radius:14px;box-shadow:0 8px 24px -6px #6366f1}
-.title>.logo{width:40px;height:40px;flex:none;border-radius:11px;box-shadow:0 8px 24px -8px #14b8a6}
 .title div{display:flex;flex-direction:column}.title b{font-size:17px}.title span{font-size:12px;color:var(--mu)}
 .seg{display:flex;padding:4px;border-radius:14px;background:rgba(0,0,0,.25);border:1px solid var(--line)}
 .seg button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12.5px;color:var(--mu);transition:.2s}
