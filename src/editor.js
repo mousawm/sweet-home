@@ -1292,6 +1292,33 @@ class SweetHomeCardEditor extends HTMLElement {
   }
   // Security: for each gate / garage door picked, the sensors that tell whether it is open — a contact sensor, or a
   // camera's state classification (Frigate) — with suggestions found by name and device
+  // Water → each pump: what it shows while running (power, running time or both), how many taps turn it on, and its
+  // power sensor (found on the pump's device when empty). Kept on the pump's entry in `pumps` ({entity, show, presses, power}).
+  _pumpOptions(det, P) {
+    const W = typeof P.water === 'object' && P.water ? P.water : null, list = arr(W?.pumps);
+    if (!list.length) return;
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Pumps')}</div>`;
+    det.appendChild(box);
+    list.forEach((e, i) => {
+      const id = entityId(e); if (!id) return;
+      const o = typeof e === 'object' ? e : { entity: id };
+      const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+      row.innerHTML = `<span class="nm">${esc(this._reg.name(id))}<small>${esc(id)}</small></span>`;
+      row.appendChild(this._form([
+        { name: 'show', selector: sel([['power', 'Power'], ['time', 'Running time'], ['both', 'Running time and power']]) },
+        { name: 'presses', selector: sel([['2', 'Two presses (tap again to confirm)'], ['1', 'One press']]) },
+        { name: 'power', selector: { entity: { domain: 'sensor', device_class: 'power' } } },
+      ], { show: o.show || 'power', presses: String(o.presses ?? (o.confirm === false ? 1 : 2)), power: o.power || '' }, v => {
+        const obj = { ...o, entity: id }; delete obj.confirm;
+        if (v.show && v.show !== 'power') obj.show = v.show; else delete obj.show;
+        if (String(v.presses) === '1') obj.presses = 1; else delete obj.presses;
+        if (v.power) obj.power = v.power; else delete obj.power;
+        W.pumps[i] = Object.keys(obj).length === 1 ? id : obj; this._emit();
+      }, { show: 'While it runs, show', presses: 'To turn it on', power: 'Power sensor (found on the pump’s device when empty)' }));
+      box.appendChild(row);
+    });
+  }
   _entranceSensors(det, P) {
     const S = typeof P.security === 'object' && P.security ? P.security : null, list = arr(S?.entrances);
     if (!list.length) return;
@@ -1636,6 +1663,7 @@ class SweetHomeCardEditor extends HTMLElement {
           pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', face: 'Face recognition: the last recognised face (badge on the Cameras card; empty: the cameras’ own face sensors)', temperature: k === 'homelab' ? 'CPU temperature' : 'Water temperature' }));
         if (['security', 'media', 'irrigation', 'energy'].includes(k)) det.insertAdjacentHTML('beforeend', `<div class="sh-hint" style="margin-top:6px">${t('Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.')}</div>`);
         if (k === 'security') this._entranceSensors(det, P);
+        if (k === 'water') this._pumpOptions(det, P);
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
     }

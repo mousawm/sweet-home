@@ -113,6 +113,8 @@ const COLORS = [
 const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // phone / tablet
 // Loading placeholders: shimmer blocks (`.skl`) shaped like the content that is coming, so cards keep their size
 const skl = (w = '100%', h = 11, extra = '') => `<span class="skl" style="width:${w};height:${h}px;${extra}"></span>`;
+// a pump's running time: 4:05, 1:02:09
+const pumpTime = ms => { const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, sec = String(t % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`; };
 const skPill = label => `<div class="ehspin">${ic('mdi:loading', 'spin')}<span>${esc(label)}</span></div>`;
 // Proxmox guests (Home Lab "Show more", v1.19.0): a nicer name and an icon per server, from the name Proxmox reports
 const GUEST_NAMES = { adguard: 'AdGuard', npmplus: 'NPMplus', nginxproxymanager: 'Nginx Proxy Manager', vaultwarden: 'Vaultwarden', pihole: 'Pi-hole',
@@ -1306,6 +1308,7 @@ export class SweetHomeCard extends HTMLElement {
   _rerender(...ids) { for (const s of this._sections) if (!ids.length || ids.includes(s.el.id)) s.force = true; this._update(); }
 
   _tick() {
+    if (this._tab === 'water') this.shadowRoot?.querySelectorAll('.ptime[data-since]').forEach(el => { const t = pumpTime(Date.now() - Number(el.dataset.since)); if (el.textContent !== t) el.textContent = t; });
     if (!this.$) return;
     const d = new Date();
     const lang = this._hass?.locale?.language || 'en';
@@ -1429,9 +1432,9 @@ export class SweetHomeCard extends HTMLElement {
         else this.call(d === 'input_boolean' ? 'input_boolean' : 'switch', d === 'switch' || d === 'input_boolean' ? (this.on(id) && !g.sensor ? 'turn_off' : 'turn_on') : 'turn_on', { entity_id: id });
         this._toast(tr({ open: 'Opening {0}', close: 'Closing {0}', stop: 'Stopping {0}' }[verb], nm)); break;
       }
-      case 'pump': { // water pumps: a second tap to start, one tap to stop; double tap / long press still open more-info
-        const on = this.on(id);
-        if (!on && !this._armConfirm(t, id, 'Tap again to start')) return;
+      case 'pump': { // water pumps: a second tap to start (unless set to one press), one tap to stop; double tap / long press still open more-info
+        const on = this.on(id), confirm = E.water.pumps.find(p => p.id === id)?.confirm !== false;
+        if (!on && confirm && !this._armConfirm(t, id, 'Tap again to start')) return;
         this.call('switch', on ? 'turn_off' : 'turn_on', { entity_id: id }); break;
       }
       case 'valve': { // irrigation zones need a second tap, like the locks
@@ -1520,7 +1523,7 @@ export class SweetHomeCard extends HTMLElement {
   _hapFor(a, t, e) {
     if (['lock', 'relay', 'pump', 'valve', 'install', 'reboot', 'harestart'].includes(a)) {
       // the taps that act at once (lock a door, stop a pump) are plain device taps
-      if ((a === 'lock' && this.v(t.dataset.id) !== 'locked') || (a === 'pump' && this.on(t.dataset.id))) this.haptic('light');
+      if ((a === 'lock' && this.v(t.dataset.id) !== 'locked') || (a === 'pump' && (this.on(t.dataset.id) || E.water.pumps.find(p => p.id === t.dataset.id)?.confirm === false))) this.haptic('light');
       return;
     }
     if (a === 'sheetclose' && t.id === 'sheet' && e.target !== t) return;
@@ -2495,7 +2498,7 @@ export class SweetHomeCard extends HTMLElement {
           <div class="tank-lbl"><b>${lvl.toFixed(1)}<small>%</small></b><span>${[W.quality ? `Quality ${this.f(W.quality, 0)}` : '', W.temp ? this.f(W.temp, 0) : ''].filter(Boolean).join(' · ')}</span></div>
         </div>`}
         <div class="wtiles">
-          ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) && p.power ? `On · ${this.f(p.power, 0)}` : p.info && this.ok(p.info) ? this.v(p.info) : null, p.power || p.info)).join('')}
+          ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) ? this._pumpOn(p) : p.info && this.ok(p.info) ? this.v(p.info) : null, p.power || p.info)).join('')}
         </div>
       </div>
       ${W.entities.length ? `<div class="wents">${W.entities.map(e => this._entRow(e.id, e)).join('')}</div>` : ''}`;
@@ -2520,6 +2523,14 @@ export class SweetHomeCard extends HTMLElement {
       this._tankTr = { at: Date.now(), rate };
     } catch (e) { this._tankTr = { at: Date.now(), rate: null }; }
     this._tankBusy = false; this._rerender('water');
+  }
+  // what a running pump shows (its `show` option): how long it has been on (a live timer, from when it turned on),
+  // its power, or both
+  _pumpOn(p) {
+    const parts = [];
+    if (p.show !== 'power') { const since = Date.parse(this.s(p.id)?.last_changed || ''); if (since) parts.push(`<span class="ptime" data-since="${since}">${pumpTime(Date.now() - since)}</span>`); }
+    if (p.show !== 'time' && p.power && this.ok(p.power)) parts.push(this.f(p.power, 0));
+    return [tr('On'), ...parts].join(' · ');
   }
   _tankPill(lvl) {
     const r = this._tankTr?.rate, dur = h => h >= 48 ? `${Math.round(h / 24)} days` : h >= 1 ? `${Math.round(h)} h` : `${Math.max(1, Math.round(h * 60))} min`;
@@ -4701,7 +4712,7 @@ main{scroll-margin-top:84px}
 @media (hover:hover){.tile:hover{background:rgba(255,255,255,.08)}}
 .tile.on{color:#fff;background:linear-gradient(135deg,rgba(45,212,191,.28),rgba(96,165,250,.14));border-color:rgba(45,212,191,.45)}.tile.on ha-icon{color:var(--teal)}
 .tile.on.red{background:linear-gradient(135deg,rgba(244,63,94,.3),rgba(244,63,94,.1));border-color:rgba(251,113,133,.5)}.tile.on.red ha-icon{color:var(--rose)}
-.tile em.sub{font-style:normal;font-size:10.5px;color:var(--mu)}
+.tile em.sub{font-style:normal;font-size:10.5px;color:var(--mu)}.ptime{font-variant-numeric:tabular-nums}
 .tile.wide{flex-direction:row;align-items:center;flex-wrap:wrap}.tile.wide span{flex:1}.tile.wide em.sub{width:100%;padding-left:28px;margin-top:-4px}
 
 /* stage */
