@@ -221,6 +221,19 @@ try {
     delete h.states['sensor.my_month']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800));
     return (on?.[1] !== 'sensor.my_month' && /42\.3/.test(on?.[2]) && off?.[1] === 'sensor.my_month' && /999/.test(off?.[2])) || JSON.stringify({ on, off });
   }); check('Energy card: Month and Year come from Home Assistant\'s Energy data, also when Month / Year sensors are set (switch on by default)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // Stored: shown on the Energy card with a stored-energy sensor; not shown when none is set or it doesn't exist
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config));
+    h.states['sensor.energy_stored'] = { entity_id: 'sensor.energy_stored', state: '12.4', attributes: { unit_of_measurement: 'kWh' } };
+    const tiles = () => { const t = document.createElement('template'); t.innerHTML = card._eCardKpis(); return [...t.content.querySelectorAll('.kpis > div')].map(d => [d.querySelector('span')?.textContent, d.dataset.id || '']); };
+    const set = async en => { const c = JSON.parse(JSON.stringify(cfg)); c.panels = { ...(c.panels || {}), energy: en }; card.setConfig(c); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800)); };
+    await set({ stored_sensor: 'sensor.energy_stored' }); const withS = tiles();
+    await set({}); const none = tiles();
+    await set({ stored_sensor: 'sensor.not_there' }); const missing = tiles();
+    delete h.states['sensor.energy_stored']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800));
+    const names = x => x.map(t => t[0]).join();
+    return (names(withS) === 'Today,Month,Year,Stored' && withS[3][1] === 'sensor.energy_stored' && names(none) === 'Today,Month,Year' && names(missing) === 'Today,Month,Year') || JSON.stringify({ withS, none, missing });
+  }); check('Energy card: Stored shows with a stored-energy sensor, and is hidden when none is set or it doesn\'t exist', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -504,6 +517,12 @@ try {
     out.removed = editor._config.panels?.energy?.energy_dashboard_totals === undefined; out.hiddenAgain = fields() === 0;
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('editor, Energy: "Month and Year from Home Assistant\'s Energy data" is on by default and hides the Month / Year sensors; off shows them', r === true, r); }
+  { const r = await p.evaluate(() => {
+    const i = editor.querySelector('ha-form input[name=stored_sensor]'); if (!i) return 'no stored picker';
+    i.value = 'sensor.energy_stored'; i.dispatchEvent(new Event('change')); const saved = editor._config.panels?.energy?.stored_sensor === 'sensor.energy_stored';
+    const j = editor.querySelector('ha-form input[name=stored_sensor]'); j.value = ''; j.dispatchEvent(new Event('change'));
+    return (saved && !editor._config.panels?.energy?.stored_sensor) || JSON.stringify({ saved, after: editor._config.panels?.energy });
+  }); check('editor, Energy: the stored-energy sensor is picked and saved (cleared when emptied)', r === true, r); }
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;

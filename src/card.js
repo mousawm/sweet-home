@@ -2311,11 +2311,12 @@ export class SweetHomeCard extends HTMLElement {
   _eCardKpis() {
     const S = this._eSrc(), T = this._etot || {}, g = v => v != null && v < 0 ? 'green' : '';
     const tpl = (id, k, dp) => id ? `<b class="${g(this.n(id))}">${this.f(id, dp)}</b>` : `<b class="${g(T[k])}">${this._eKwh(k, dp)}</b>`;
-    return `<div class="kpis ${E.energy.stored ? 'four e4' : ''}">
+    const st = this.s(E.energy.stored) ? E.energy.stored : null; // Stored: only with a stored-energy sensor that exists
+    return `<div class="kpis ${st ? 'four e4' : ''}">
           <div data-act="more" data-id="${S.gridIn}" data-id2="${S.gridOut}"><span>Today</span><b class="${g(T.d)}">${this._eKwh('d', 2)}</b></div>
           <div data-act="more" data-id="${E.energy.monthly || S.gridIn}"><span>Month</span>${tpl(E.energy.monthly, 'm', 1)}</div>
           <div data-act="more" data-id="${E.energy.yearly || S.gridIn}"><span>Year</span>${tpl(E.energy.yearly, 'y', 0)}</div>
-          ${E.energy.stored ? `<div data-act="more" data-id="${E.energy.stored}"><span>Stored</span><b class="${g(this.n(E.energy.stored))}">${this.f(E.energy.stored, 0)}</b></div>` : ''}
+          ${st ? `<div data-act="more" data-id="${st}"><span>Stored</span><b class="${g(this.n(st))}">${this.f(st, 0)}</b></div>` : ''}
         </div>`;
   }
   _eKwh(k, dp) { const v = this._etot?.[k]; return v == null ? '—' : `${v.toFixed(dp)}<small>kWh</small>`; }

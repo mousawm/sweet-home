@@ -322,7 +322,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   - `energy_dashboard_totals` (on by default): Today, Month and Year come from Home Assistant's Energy data (the same
     statistics as Energy History). Set it to `false` (card editor: Panels → Energy, switch off) to use your own
     `month_sensor` and `year_sensor` instead; their fields show in the editor only then
-  - `month_sensor`, `year_sensor`: your own total sensors (with `energy_dashboard_totals: false`); `stored_sensor`: a stored-energy total
+  - `month_sensor`, `year_sensor`: your own total sensors (with `energy_dashboard_totals: false`); `stored_sensor`: energy stored, shown as **Stored** next to Today / Month / Year (pick it in the card editor under Panels → Energy; not set: no Stored box)
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
