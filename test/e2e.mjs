@@ -131,6 +131,7 @@ try {
     add('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' });
     add('media_player.jellyha_device_living_room_tv', 'playing', { ...now, friendly_name: 'JellyHA Device Living Room TV', device_name: 'Living Room TV', client: 'Jellyfin Android TV' });
     add('sensor.jellyha_connected_clients', '2', {});
+    add('media_player.jellyha_device_pixel', 'idle', { friendly_name: 'JellyHA Device Pixel 8', device_name: 'Pixel 8', client: 'Jellyfin Android', session_id: 's2', supported_features: 512, supports_remote_control: true });
     // JellyHA's media source, as in HA's Media browser: JellyHA → JellyHA (mousawm) → Movies / TV Series / Recently Added / Favorites
     const M = 'media-source://jellyha', E1 = M + '/e1', G1 = 'a'.repeat(32), G2 = 'b'.repeat(32), SH = 'c'.repeat(32), SE = 'd'.repeat(32), EP = 'e'.repeat(32);
     const dir = (title, id) => ({ title, media_content_id: id, can_play: false, can_expand: true });
@@ -147,7 +148,9 @@ try {
     const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
     const rows = [...tpl.content.querySelectorAll('.jfs')], out = {
       rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /2 clients/.test(tpl.content.textContent),
-      best: card._jfSessions()[0]?.st.entity_id, noBrowser: !card._jfSessions().some(x => /library_browser/.test(x.st.entity_id)) };
+      best: card._jfSessions()[0]?.st.entity_id, noBrowser: !card._jfSessions().some(x => /library_browser/.test(x.st.entity_id)),
+      // with a TV to open Jellyfin on, a video never goes to the phone's app or to the user player (JellyHA sends that to the user's last app)
+      targets: card._jfTargets({ id: 'media_player.shield' }).map(x => x.st.entity_id).join(), noUser: !card._jfSessions().some(x => /jellyha_user_/.test(x.st.entity_id)) };
     card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
     const sh = () => card.shadowRoot.getElementById('sheet');
     out.items = [...sh().querySelectorAll('.jfpo')].map(b => [b.dataset.item, b.dataset.title]);
@@ -157,12 +160,12 @@ try {
     out.eps = [...sh().querySelectorAll('.jfep')].map(b => [b.dataset.item, b.querySelector('b')?.textContent]);
     out.show = sh().querySelector('.jfshowh b')?.textContent;
     card._closeSheet(); h.callWS = orig;
-    for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_living_room_tv', 'sensor.jellyha_connected_clients']) { delete h.states[id]; delete h.entities[id]; }
+    for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_living_room_tv', 'sensor.jellyha_connected_clients', 'media_player.jellyha_device_pixel']) { delete h.states[id]; delete h.entities[id]; }
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200)); card._jfc = {};
-    const ok = out.rows === 1 && /Living Room TV/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.best === 'media_player.jellyha_device_living_room_tv' && out.noBrowser
+    const ok = out.rows === 1 && /Living Room TV/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.best === 'media_player.jellyha_device_living_room_tv' && out.noBrowser && out.targets === 'media_player.jellyha_device_living_room_tv' && out.noUser
       && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && out.shows === 1 && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]) && out.show === 'Show (2020)';
     return ok || JSON.stringify(out);
-  }); check('media server with JellyHA: one row per session, its clients, its library from the media browser (Movies / TV Series, plain item ids), the TV\'s device player to play on', r === true, r); }
+  }); check('media server with JellyHA: one row per session, its clients, its library from the media browser (Movies / TV Series, plain item ids), the TV\'s device player to play on (never the phone or the user player)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

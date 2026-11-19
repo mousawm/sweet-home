@@ -961,14 +961,21 @@ export class SweetHomeCard extends HTMLElement {
   _jfSessions() {
     const h = this._hass, ents = h?.entities || {}, J = E.mserver.jellyfin, T = J.tv || {}, ha = J.kind === 'jellyha';
     const re = T.session ? new RegExp(T.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
-    // JellyHA: its user and device players, with a live session that takes remote control (not the library browser)
-    return this._jfPlayers().filter(id => !ha || !/library_browser/.test(id))
+    // JellyHA: its device players, each tied to one Jellyfin app, with a live session that takes remote control. Its user
+    // players are left out: JellyHA sends what they get to that user's most recently active app (often the phone).
+    // Only when there are no device players (JellyHA's "Client/Device Media Players" option off) are user players used.
+    const ids = this._jfPlayers().filter(id => !ha || !/library_browser/.test(id));
+    const devs = ha ? ids.filter(id => /jellyha_device_/.test(id)) : ids;
+    return (ha && devs.length ? devs : ids)
       .map(id => this.s(id)).filter(st => st && !BAD.includes(st.state) && (st.attributes.supported_features & 512)
         && (!ha || (st.attributes.session_id && st.attributes.supports_remote_control !== false)))
       .map(st => {
         const dev = h.devices?.[ents[st.entity_id]?.device_id] || {}, a = st.attributes;
-        const tv = /\btv\b|android ?tv|roku|webos|tizen|kodi|xbox|playstation|fire/i.test(`${dev.model || ''} ${ha ? `${a.client || ''} ${a.device_name || ''}` : ''}`);
-        return { st, score: (re && re.test(`${a.friendly_name || st.entity_id} ${a.device_name || ''}`) ? 4 : 0) + (tv ? 2 : 0) + (ha && /jellyha_device_/.test(st.entity_id) ? 1 : 0) };
+        const what = `${dev.model || ''} ${a.client || ''} ${a.device_name || ''}`;
+        const tv = /\btv\b|android ?tv|google ?tv|roku|webos|tizen|kodi|xbox|playstation|fire|shield|nvidia|chromecast|apple ?tv|tvos/i.test(what);
+        // a phone or tablet app (Jellyfin Android / iOS / mobile web): never the TV
+        const mobile = !tv && /\bios\b|iphone|ipad|android|mobile|phone|tablet/i.test(what);
+        return { st, mobile, score: (re && re.test(`${a.friendly_name || st.entity_id} ${a.device_name || ''}`) ? 4 : 0) + (tv ? 2 : 0) - (mobile ? 3 : 0) };
       })
       .sort((a, b) => b.score - a.score || new Date(b.st.last_updated) - new Date(a.st.last_updated));
   }
@@ -978,6 +985,8 @@ export class SweetHomeCard extends HTMLElement {
     return n && !/^android tv$/i.test(n) ? n : 'your TV';
   }
   _jfPlayable() { return new Set(this._jfSessions().map(x => x.st.entity_id)); }
+  // where a video may go: with a TV to open Jellyfin on, never a phone or tablet app
+  _jfTargets(L) { const all = this._jfSessions(); return L ? all.filter(x => !x.mobile) : all; }
   async _jfPlay(item, kind, title) {
     const J = E.mserver.jellyfin; if (!item || this._jfBusy) return;
     this._jfBusy = true; this._jfCancel = false;
@@ -989,7 +998,7 @@ export class SweetHomeCard extends HTMLElement {
       }
     };
     try {
-      const L = this._jfLauncher(), all = this._jfSessions();
+      const L = this._jfLauncher(), all = this._jfTargets(L);
       if (L && !T.name) tvName = this._jfTvName(L);
       const best = all[0], live = all.find(x => x.score > 0 && ['playing', 'paused'].includes(x.st.state));
       // something already plays on the TV's Jellyfin app: send it straight there
@@ -1018,7 +1027,7 @@ export class SweetHomeCard extends HTMLElement {
       let ses = null, after = t0;
       const fresh = () => {
         if (this._jfCancel) return true;
-        const c = this._jfSessions().filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0);
+        const c = this._jfTargets(L).filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0);
         ses = c[0]?.st || null; return !!ses;
       };
       const ref = J.clients || Object.keys(this._hass.entities || {}).find(id => this._hass.entities[id].platform === J.platform);

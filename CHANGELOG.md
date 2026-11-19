@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Room badges: a plug that is on (a fan, a heater, a kettle…) shows its own icon instead of a charging battery; the battery now shows only for a charger that is charging. The icon is drawn plain, like the badge's other icons (it was shown inside a tile).
 - 3D doors: a door now opens to the side its arc shows on the floor plan. Doors drawn right-to-left or top-to-bottom used to open the opposite way.
 - Energy card: tapping Home, Solar or Grid with no sensor of its own does nothing, instead of opening an empty "null" dialog; no tile opens a details dialog for a missing entity any more.
+- Media Server: tapping a movie or an episode to play it on the TV no longer starts it on a phone that has Jellyfin open. A phone or tablet app is never picked when there is a TV to open Jellyfin on, and with JellyHA the video goes to the TV's own device player, not to the user player (which JellyHA sends to the user's last-used app).
 
 ### Changed
 
