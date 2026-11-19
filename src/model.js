@@ -846,8 +846,7 @@ export function buildModel(cfg = {}, hass) {
     const want = ['jellyfin', 'jellyha'].includes(MS.integration) ? MS.integration : 'auto';
     const kind = want !== 'auto' ? want : has('jellyfin') || !has('jellyha') ? 'jellyfin' : 'jellyha';
     return kind === 'jellyha'
-      ? { kind, platform: 'jellyha', clients: plat('jellyha', /_connected_clients$/), sessions: plat('jellyha', /_active_sessions$/),
-        browser: plat('jellyha', /^media_player\..*library_browser$/), tv: MS.jellyfin_tv || null }
+      ? { kind, platform: 'jellyha', clients: plat('jellyha', /_connected_clients$/), sessions: plat('jellyha', /_active_sessions$/), tv: MS.jellyfin_tv || null }
       : { kind, platform: 'jellyfin', clients: plat('jellyfin', /_active_clients$/), tv: MS.jellyfin_tv || null };
   }
   const mserver = {

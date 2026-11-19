@@ -292,7 +292,6 @@ test('Jellyfin: the official integration or JellyHA, picked in the card (Automat
   const J = c => buildModel({ panels: { media_server: c } }, h).E.mserver.jellyfin;
   assert.equal(J({}).kind, 'jellyha', 'only JellyHA: Automatic uses it');
   assert.equal(J({}).clients, 'sensor.jellyha_connected_clients');
-  assert.equal(J({}).browser, 'media_player.jellyha_library_browser');
   add('media_player.living_room_tv', 'jellyfin'); add('sensor.jellyfin_active_clients', 'jellyfin', '1');
   assert.equal(J({}).kind, 'jellyfin', 'both: Automatic keeps the official one');
   assert.equal(J({}).clients, 'sensor.jellyfin_active_clients');

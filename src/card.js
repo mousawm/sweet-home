@@ -929,10 +929,8 @@ export class SweetHomeCard extends HTMLElement {
     const c = this._jfc || (this._jfc = {}); if (!this._jfcAt || !Object.keys(c).length) this._jfcAt = Date.now();
     if (c[id]) return c[id].data;
     c[id] = { data: null };
-    // JellyHA: its library browser player's own tree (jellyha://movies, jellyha://series, jellyha://show/<id> …)
-    const J = E.mserver.jellyfin, ha = id.startsWith('jellyha://');
-    const ent = ha && (J.browser || this._jfPlayers().find(x => /library_browser/.test(x)) || this._jfPlayers()[0]);
-    (ha ? this._hass.callWS({ type: 'media_player/browse_media', entity_id: ent, media_content_id: id }) : this._hass.callWS({ type: 'media_source/browse_media', media_content_id: id }))
+    // the same tree as Home Assistant's Media browser (media-source://jellyfin, or JellyHA's media-source://jellyha)
+    this._hass.callWS({ type: 'media_source/browse_media', media_content_id: id })
       .then(r => { c[id].data = r; }, () => { c[id].data = { children: [], error: true }; })
       .then(() => { if (this._info?.startsWith('jf')) this._renderInfo(); });
     return null;
@@ -1064,15 +1062,28 @@ export class SweetHomeCard extends HTMLElement {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred()) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 300); }; chk(); });
   }
   _jfHTML(head) {
-    // ids in data-item / data-kind: the Jellyfin item id (JellyHA: jellyha://item/<id>, jellyha://show/<id> → <id>)
+    // ids in data-item: the Jellyfin item id to play; in data-kind (jfshow:): the show to open.
+    // JellyHA's media source ids (media-source://jellyha/<entry>/item/<id> …): the item id is the Jellyfin GUID in it,
+    // a show is kept as its whole id (encoded)
     const ha = E.mserver.jellyfin.kind === 'jellyha';
-    const k = this._info, id8 = x => String(x || '').replace(ha ? /^jellyha:\/\/(item|show|season)\// : 'media-source://jellyfin/', '');
+    const guid = x => (String(x || '').match(/[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/gi) || []).pop() || String(x || '');
+    const k = this._info, id8 = x => ha ? guid(x) : String(x || '').replace('media-source://jellyfin/', '');
+    const showKey = x => ha ? encodeURIComponent(x) : id8(x);
     const tt = x => ha ? String(x || '').replace(/\s*\(\)$/, '') : x; // JellyHA titles: "Name (2020)", "Name ()" with no year
     const wait = `<div class="jfgrid">${Array.from({ length: 9 }, () => `<div class="jfpo"><div class="jfimg skl"></div>${skl('75%', 10)}</div>`).join('')}</div>`;
     const img = (src, icon) => `<div class="jfimg">${ic(icon)}${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : ''}</div>`;
     if (k === 'jflib:movies' || k === 'jflib:shows') {
       const movies = k.endsWith('movies');
-      const root = ha ? { children: [{ title: movies ? 'Movies' : 'TV Series', media_content_id: movies ? 'jellyha://movies' : 'jellyha://series' }] } : this._jfBrowse('media-source://jellyfin');
+      // JellyHA: JellyHA → a folder per server ("JellyHA (name)") → 📽️ Movies / 📺 TV Series (also Recently Added, Favorites…)
+      const isLib = c => movies ? /movie|film/i.test(c.title) : /series|shows?\b|\btv\b/i.test(c.title) && !/live/i.test(c.title);
+      const haLibs = () => {
+        const top = this._jfBrowse('media-source://jellyha'); if (!top) return null;
+        const kids = top.children || []; if (kids.some(isLib)) return { children: kids.filter(isLib) };
+        const out = []; let busy = false;
+        for (const e of kids.filter(c => c.can_expand)) { const d = this._jfBrowse(e.media_content_id); if (!d) busy = true; else out.push(...(d.children || []).filter(isLib)); }
+        return busy ? null : { children: out };
+      };
+      const root = ha ? haLibs() : this._jfBrowse('media-source://jellyfin');
       const H = t => head(movies ? 'mdi:movie-open' : 'mdi:television-classic', movies ? 'Movies' : 'Shows', t);
       if (!root) return H('Jellyfin') + wait;
       const libs = ha ? root.children : (root.children || []).filter(l => /movie/i.test(l.title) === movies);
@@ -1082,7 +1093,7 @@ export class SweetHomeCard extends HTMLElement {
         const items = (d.children || []).slice().sort((a, b) => a.title.localeCompare(b.title)); n += items.length;
         const grid = items.map(c => {
           const play = c.can_play && !c.can_expand;
-          return `<button class="jfpo" ${play ? `data-act="jfplay" data-mk="${c.media_class === 'episode' ? 'episode' : 'movie'}"` : `data-act="info" data-kind="jfshow:${id8(c.media_content_id)}"`} data-item="${id8(c.media_content_id)}" data-title="${esc(tt(c.title))}">
+          return `<button class="jfpo" ${play ? `data-act="jfplay" data-mk="${c.media_class === 'episode' ? 'episode' : 'movie'}"` : `data-act="info" data-kind="jfshow:${showKey(c.media_content_id)}"`} data-item="${id8(c.media_content_id)}" data-title="${esc(tt(c.title))}">
             ${img(c.thumbnail, movies ? 'mdi:movie-open' : 'mdi:television-classic')}${play ? `<i class="jfplayi">${ic('mdi:play')}</i>` : ''}<span>${esc(tt(c.title))}</span></button>`;
         }).join('');
         return `${libs.length > 1 ? `<div class="dsec">${esc(tc(l.title))} · ${items.length}</div>` : ''}<div class="jfgrid">${grid}</div>`;
@@ -1090,7 +1101,7 @@ export class SweetHomeCard extends HTMLElement {
       return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
     }
     if (k.startsWith('jfshow:')) {
-      const sid = k.slice(7), show = this._jfBrowse((ha ? 'jellyha://show/' : 'media-source://jellyfin/') + sid);
+      const sid = k.slice(7), show = this._jfBrowse(ha ? decodeURIComponent(sid) : 'media-source://jellyfin/' + sid);
       const back = `<button class="jfback" data-act="info" data-kind="jflib:shows">${ic('mdi:chevron-left')}Shows</button>`;
       if (!show) return head('mdi:television-classic', 'Show', 'Loading…') + back + wait;
       const kids = show.children || [];
