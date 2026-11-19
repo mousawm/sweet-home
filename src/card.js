@@ -1023,11 +1023,16 @@ export class SweetHomeCard extends HTMLElement {
         ? await this.call('media_player', 'play_media', { entity_id: L.id, media_content_type: 'app', media_content_id: T.package || 'org.jellyfin.androidtv' })
         : await this.call('media_player', 'select_source', { entity_id: L.id, source: L.source });
       if (!opened) return;
-      // the TV's session: one that became playable after the app was opened (or after a reconnect)
+      // the TV's session: one that became playable after the app was opened (or after a reconnect).
+      // JellyHA keeps one player per device, and Jellyfin keeps the same session id when the app restarts, so the TV's
+      // player can look just as it did before: with JellyHA a TV player with a live session is taken once the app has had
+      // a few seconds to start (a send that the app rejects while it loads is tried again below).
       let ses = null, after = t0;
+      const tOpen = Date.now(), ha = J.kind === 'jellyha';
       const fresh = () => {
         if (this._jfCancel) return true;
-        const c = this._jfTargets(L).filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0);
+        const c = this._jfTargets(L).filter(x => !before.has(x.st.entity_id) || new Date(x.st.last_updated) > after && x.score > 0
+          || ha && x.score > 0 && Date.now() - tOpen > 4e3);
         ses = c[0]?.st || null; return !!ses;
       };
       const ref = J.clients || Object.keys(this._hass.entities || {}).find(id => this._hass.entities[id].platform === J.platform);
@@ -1056,6 +1061,13 @@ export class SweetHomeCard extends HTMLElement {
       if (!ok) { this.haptic('failure'); this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
       this._toast(`Opening ${name}…`);
       await new Promise(r => setTimeout(r, 2500)); // let the app finish loading its home screen
+      // JellyHA: the app may still be loading and reject the video; try again for about 10 s before saying so
+      if (ha) for (let i = 0; i < 4 && !this._jfCancel; i++) {
+        const prev = ses; fresh(); const st = ses || prev; // the TV's player now (it may have been replaced meanwhile)
+        const okSend = await this._hass.callService('media_player', 'play_media', { entity_id: st.entity_id, media_content_id: item, media_content_type: kind || 'video' }).then(() => true, () => false);
+        if (okSend) { this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return; }
+        await new Promise(r => setTimeout(r, 3e3));
+      }
       await send(ses);
     } finally { this._jfBusy = false; }
   }
