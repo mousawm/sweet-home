@@ -535,7 +535,8 @@ export class SweetHomeCard extends HTMLElement {
   _waitState(id, pred, ms) {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred(this.v(id))) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 150); }; chk(); });
   }
-  more(entityId) { this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true })); }
+  // HA's details dialog; nothing for a tile with no entity behind it (no "null" dialog with "Invalid entity_ids")
+  more(entityId) { if (!entityId || entityId === 'null' || entityId === 'undefined' || !this._hass?.states?.[entityId]) return; this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true })); }
 
   /* ---------- build ---------- */
   _build() {
@@ -2068,9 +2069,9 @@ export class SweetHomeCard extends HTMLElement {
           <path class="fl ${exporting ? 'act s' + spd(-g) : ''} exp" d="M124 22 C78 22, 54 48, 54 94"/>
           ${devPaths}
         </svg>
-        <div class="node n-sun" data-act="more" data-id="${E.energy.solar}">${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>Solar</span></div>
-        <div class="node n-grid ${exporting ? 'exp' : ''}" data-act="more" data-id="${E.energy.grid}">${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? 'To Grid' : 'From Grid'}</span></div>
-        <div class="node n-home" data-act="more" data-id="${E.energy.current}">${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>Home${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
+        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>Solar</span></div>
+        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? 'To Grid' : 'From Grid'}</span></div>
+        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : 'data-act="info" data-kind="power"'}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>Home${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
         ${devNodes}
       </div>
       <div class="spark" id="spark">${this._sparkSVG()}</div>
