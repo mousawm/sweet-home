@@ -8,6 +8,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 - Room badges: a plug that is on (a fan, a heater, a kettle…) shows its own icon instead of a charging battery; the battery now shows only for a charger that is charging.
+- 3D doors: a door now opens to the side its arc shows on the floor plan. Doors drawn right-to-left or top-to-bottom used to open the opposite way.
 
 ### Changed
 

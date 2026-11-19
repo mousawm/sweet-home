@@ -3862,8 +3862,9 @@ class HouseScene {
       const panel = new T.Mesh(geo, mat); panel.castShadow = true;
       if (d.axis === 'z') panel.position.set(0, dh / 2, d.dir * d.w / 2); else panel.position.set(d.dir * d.w / 2, dh / 2, 0);
       pivot.add(panel); this._at().add(pivot);
-      // open angle: leaf along +z rotates toward +x with +y rotation; leaf along +x rotates toward -z
-      const ang = d.axis === 'z' ? 1.35 * d.side * d.dir : -1.35 * d.side * d.dir;
+      // open angle: the leaf (from → to) swings to the side the floor plan draws its arc on: (-vz, vx) for side 1, the other side for -1
+      // (the same as on a slanted wall). A -y rotation turns (vx, vz) towards (-vz, vx), whichever way the door was drawn.
+      const ang = -1.35 * d.side;
       this.doors.push({ d, pivot, mat, a: 0, ang });
     }
     // smart-lock badges (house.lock_badges): green while locked, pulsing red while unlocked

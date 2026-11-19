@@ -119,6 +119,10 @@ try {
   await p.evaluate(() => card._setTab('home'));
   check('doors without a sensor are drawn', await p.evaluate(() => card._model.doors.filter(d => !d.id).length === 6));
   check('a door placed off its wall snaps onto it and opens a gap', await p.evaluate(() => { const d = card._model.doors[5]; return d.z === 5 && !card._model.walls.some(w => w[5] === 0 && w[1] === 5 && w[3] === 5 && Math.min(w[0], w[2]) < d.x + 0.9 && Math.max(w[0], w[2]) > d.x + 0.1); }));
+  check('every door opens to the side its floor-plan arc shows, whichever way it was drawn', await p.evaluate(() => card._three.doors.every(D => {
+    const { vx, vz, side } = D.d, a = D.ang, ox = vx * Math.cos(a) + vz * Math.sin(a), oz = -vx * Math.sin(a) + vz * Math.cos(a);
+    return (ox * -vz + oz * vx) * side > 0.5; // the open leaf points to (-vz, vx) for side 1 (the plan's arc), the other way for -1
+  }) && card._three.doors.length > 3));
   check('a room with a slanted corner and a curved wall: its outline, a door on the slanted wall', await p.evaluate(() => { const r = card._model.rooms.find(x => x.id === 'bedroom'); return r.poly.length > 8 && card._model.doors.some(d => d.axis === 'a') && card._three.doors.some(D => D.d.axis === 'a'); }));
   check('separate walls: half, glass and a bent garden wall', await p.evaluate(() => { const w = card._model.walls.filter(q => q[6]); return w.some(q => q[4] === 'half') && w.some(q => q[4] === 'glass') && w.filter(q => q[6].bent).length > 3; }));
   // security: gates and garage doors next to the locks (covers found on their own, the older relay gate kept)
