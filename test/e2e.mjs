@@ -55,7 +55,13 @@ try {
   check('scripts run from the popup', await p.evaluate(() => (window.calls || []).some(c => c[0] === 'homeassistant' && c[2].entity_id === 'script.movie_night')));
   check('rename and move are hidden outside edit mode', await p.evaluate(() => !card.shadowRoot.querySelector('#drawer [data-act=names]') && !card.shadowRoot.querySelector('[data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display === 'none'));
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(100);
-  check('…and shown while the dashboard is edited', await p.evaluate(() => !!card.shadowRoot.querySelector('#drawer [data-act=names]') && !!card.shadowRoot.querySelector('#glance [data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display !== 'none'));
+  check('…and shown while the dashboard is edited', await p.evaluate(() => !!card.shadowRoot.querySelector('#drawer [data-act=names]') && !!card.shadowRoot.querySelector('#modes [data-act=rnsec]') && getComputedStyle(card.shadowRoot.getElementById('arrBtn')).display !== 'none'));
+  check('…but not on panels or rooms with nothing to rename', await p.evaluate(() => !card.shadowRoot.querySelector('#glance [data-act=rnsec]') && card._rnPanelIds('glance', card.shadowRoot.getElementById('glance')).length === 0
+    && (() => { // a room popup gets its pencil only when the room has entities (the demo has rooms of both kinds)
+      const sel = card._sel, pen = r => { card._sel = r.id; return card._rDrawer().includes('data-act="names"'); };
+      const ok = card._model.rooms.some(r => !card._roomRnIds(r).length) && card._model.rooms.every(r => pen(r) === !!card._roomRnIds(r).length);
+      card._sel = sel; return ok;
+    })()));
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=names]').click());
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling'; i.dispatchEvent(new Event('change', { bubbles: true })); });
   await p.waitForTimeout(100);
@@ -312,7 +318,7 @@ try {
   // renaming on the other panels (edit mode): a pencil on each panel, names for this dashboard only
   await p.evaluate(() => card._setTab('climate'));
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(150);
-  check('a rename pencil on the panels while editing', await p.evaluate(() => !!card.shadowRoot.querySelector('#climate [data-act=rnsec]') && !!card.shadowRoot.querySelector('#glance [data-act=rnsec]')));
+  check('a rename pencil on the panels while editing', await p.evaluate(() => !!card.shadowRoot.querySelector('#climate [data-act=rnsec]')));
   await p.evaluate(() => card.shadowRoot.querySelector('#climate [data-act=rnsec]').click()); await p.waitForTimeout(100);
   const rid = await p.evaluate(() => card.shadowRoot.querySelector('#sheet [data-rename]')?.dataset.rename);
   check('the rename sheet lists what the panel shows', !!rid, rid);

@@ -1237,7 +1237,7 @@ export class SweetHomeCard extends HTMLElement {
       this._prev.set(sec.el, sec.deps.map(d => h.states[d]));
       let html = sec.render();
       // while the dashboard is edited, every panel gets a pencil next to its title: rename what it shows (this dashboard only)
-      if (this._editing && this._hass?.user?.is_admin && RN_SECS.includes(sec.el.id) && html.includes('</h3>'))
+      if (this._editing && this._hass?.user?.is_admin && RN_SECS.includes(sec.el.id) && html.includes('</h3>') && this._rnPanelIds(sec.el.id, Object.assign(document.createElement('template'), { innerHTML: html }).content).length)
         html = html.replace('</h3>', `</h3><button class="ibtn edit-only rnbtn" data-act="rnsec" data-sec="${sec.el.id}" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>`);
       if (sec.el._html === html) continue;
       const first = sec.el._html === undefined; sec.el._html = html;
@@ -1900,7 +1900,7 @@ export class SweetHomeCard extends HTMLElement {
     };
     const sec = (title, key, rows) => (rows.length ? `<div class="dsec">${tr(title)}</div>${fold(key, rows)}` : '');
     const empty = !lights.length && !motion.length && !ac && !extra.length && !devs.length && t == null && !entry.length && !plugs.length && !pieces.length && !other.length && !sensors.length;
-    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin && this._editing ? `<button class="ibtn edit-only" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
+    return `<div class="dh">${ic(r.icon)}<h3>${esc(r.name)}</h3>${this._hass?.user?.is_admin && this._editing && this._roomRnIds(r).length ? `<button class="ibtn edit-only" data-act="names" title="${tr('Rename devices')}" aria-label="${tr('Rename devices')}">${ic('mdi:pencil-outline')}</button>` : ''}<button class="ibtn" data-act="close">${ic('mdi:close')}</button></div>
       ${focus ? piece(focus, focus.entities, 'focus') : ''}
       ${t != null || h != null ? `<div class="dstats">
         ${t != null ? `<div data-act="more" data-id="${r.temp}"><b style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</b><span>${tr('Temperature')}</span></div>` : ''}
@@ -1922,8 +1922,12 @@ export class SweetHomeCard extends HTMLElement {
   // Rename view of the room popup (edit mode): every entity of the room with its name in a text field. Names are for
   // this dashboard only (room `names`, or the card's `names` for the house built from areas); Home Assistant is not
   // changed. They are saved together with ✓ (Done); an empty field goes back to the entity's own name.
+  // every entity of a room that its rename view lists (none: the room popup gets no pencil)
+  _roomRnIds(r) {
+    return [...new Set([...(r.lights || []), r.climate, r.temp, r.hum, ...(r.motion || []), ...(r.doors || []), ...(r.locks || []), ...(r.plugs || []).map(p => p.id), r.fan, r.media, ...(r.entities || []).map(e => e.id), ...(r.furnEnts || [])].filter(id => id && this.s(id)))];
+  }
   _rRename(r) {
-    const ids = [...new Set([...(r.lights || []), r.climate, r.temp, r.hum, ...(r.motion || []), ...(r.doors || []), ...(r.locks || []), ...(r.plugs || []).map(p => p.id), r.fan, r.media, ...(r.entities || []).map(e => e.id), ...(r.furnEnts || [])].filter(id => id && this.s(id)))];
+    const ids = this._roomRnIds(r);
     const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = ids.map(id => {
       const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id;
@@ -1939,18 +1943,26 @@ export class SweetHomeCard extends HTMLElement {
   _rnSheet(head, sid) {
     const el = this.$(sid), title = (this._rnIds?.sid === sid && this._rnIds.title) || el?.querySelector('.ch h3')?.textContent?.trim() || tr('Panel');
     if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
-      // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
-      const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
-      const ids = sid === 'modes' ? E.modes.map(m => m[0]).filter(id => this.s(id)) : [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
-      this._rnIds = { sid, ids };
+      this._rnIds = { sid, ids: this._rnPanelIds(sid, el) };
     }
     const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = this._rnIds.ids.map(id => {
-      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? st.attributes.friendly_name ?? id;
-      return `<label class="rnrow">${ic((SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+      const st = this.s(id), d = id.split('.')[0], dv = sid === 'devices' ? E.devices.find(x => x.bat === id) : null;
+      const own = dv ? this._devDefaultName(id) : raw.states[id]?.attributes.friendly_name || id;
+      const cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? dv?.name ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(dv?.icon || (SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
     return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
       + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
+  }
+  // What a panel's rename sheet lists — also whether the panel gets its pencil at all (none when this is empty).
+  // `root`: the panel's element, or its freshly rendered HTML as a fragment. Only entities whose name can be seen on the
+  // panel (a temperature shown under its room's name is renamed in the room).
+  _rnPanelIds(sid, root) {
+    if (sid === 'modes') return E.modes.map(m => m[0]).filter(id => this.s(id));
+    if (sid === 'devices') return E.devices.filter(d => this.s(d.bat)).map(d => d.bat); // a device row shows its device's name: renamed on its battery sensor
+    const text = (root?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
+    return [...new Set([...(root?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
   }
   // Rename sheet of a lock badge (edit mode, pencil on its label in 3D): the name shown above the badge
   _rnBadgeSheet(head, i) {
@@ -1967,6 +1979,11 @@ export class SweetHomeCard extends HTMLElement {
     if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
     if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); }
   }
+  // the name a Devices row has without a name given on this dashboard (same rule as the model's batDevice)
+  _devDefaultName(id) {
+    const h = this._hass, raw = h._raw || h, dev = h.devices?.[h.entities?.[id]?.device_id];
+    return dev?.name_by_user || dev?.name || String(raw.states[id]?.attributes.friendly_name || id).replace(/\s*battery( level)?$/i, '');
+  }
   // a name typed in a rename view: kept until ✓ (Done)
   _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
   // Names for this dashboard: each one is kept in one place only — the room it was renamed in (`ci`), else where it
@@ -1976,8 +1993,10 @@ export class SweetHomeCard extends HTMLElement {
     for (const [id, v] of Object.entries(pend)) {
       const home = (ci != null && rooms[ci]) || holders.find(h => h.names?.[id] != null) || cfg;
       for (const h of holders) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
-      if (v && v !== raw.states[id]?.attributes.friendly_name) (home.names ||= {})[id] = v;
+      const dev = E.devices.some(d => d.bat === id); // a Devices row: its default is the device's name, not the sensor's
+      if (v && v !== raw.states[id]?.attributes.friendly_name && !(dev && v === this._devDefaultName(id))) (home.names ||= {})[id] = v;
       for (const m of arr(cfg.modes)) if (m && typeof m === 'object' && m.entity === id) delete m.name; // a mode shows the name given here
+      for (const list of [cfg.panels?.devices?.entities, cfg.devices]) for (const d of arr(list)) if (d && typeof d === 'object' && d.battery === id) delete d.name; // so does a device
     }
   }
   async _saveNames(r) {
@@ -4757,7 +4776,8 @@ main{scroll-margin-top:84px}
 .wents{margin-top:12px}
 :host(:not([editing])) .edit-only{display:none!important}
 .hbtn{flex:none;display:grid;place-items:center;width:32px;height:32px;margin:-6px -6px -6px 2px;border-radius:9px;color:var(--mu);opacity:.65}
-.hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15)}
+@media (hover:hover){.hbtn:hover{opacity:1;background:rgba(255,255,255,.08)}}.hbtn ha-icon{--mdc-icon-size:17px}.hbtn.confirm{opacity:1;color:var(--rose);background:rgba(244,63,94,.15);position:relative}
+.hbtn.confirm::after{left:auto;right:0;transform:none} /* the tip sits over the eye button, kept inside the card at the right edge */
 @media (pointer:coarse){.hbtn{width:40px;height:40px}}
 .fgrp{border-radius:14px;margin-bottom:8px}.fgrp .lrow:last-child,.fgrp .mrow:last-child{margin-bottom:0}
 .fhd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--mu);margin:2px 2px 6px}.fhd ha-icon{--mdc-icon-size:16px}
