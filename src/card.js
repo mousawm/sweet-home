@@ -1261,10 +1261,13 @@ export class SweetHomeCard extends HTMLElement {
     }).join('');
     return `<div class="swrow">${ic('mdi:palette')}<div class="sws">${sw}<label class="sw cust" title="Custom colour" style="--sw:${hex}">${ic('mdi:eyedropper-variant')}<input type="color" value="${hex}" data-color="${id}" aria-label="Custom colour"></label></div></div>`;
   }
-  slider(id, kind, pct, color) {
-    const lid = `sl-${kind}-${id.replace(/\W/g, '_')}`;
+  // the label that shows the slider's % while it moves; ownLabel false: the row above already shows it (a room's lights),
+  // and that label (id: sliderLabel(id, kind)) is the one kept up to date
+  sliderLabel(id, kind) { return `sl-${kind}-${id.replace(/\W/g, '_')}`; }
+  slider(id, kind, pct, color, ownLabel = true) {
+    const lid = this.sliderLabel(id, kind);
     return `<div class="slrow">${ic(kind === 'vol' ? 'mdi:volume-high' : 'mdi:brightness-6')}<input type="range" class="sl" min="1" max="100" value="${pct}" style="--p:${pct}%;--c:${color}"
-      data-${kind === 'vol' ? 'vol' : 'bright'}="${id}" data-lbl="${lid}" aria-label="${kind === 'vol' ? 'Volume' : 'Brightness'}"><em id="${lid}">${pct}%</em></div>`;
+      data-${kind === 'vol' ? 'vol' : 'bright'}="${id}" data-lbl="${lid}" aria-label="${kind === 'vol' ? 'Volume' : 'Brightness'}">${ownLabel ? `<em id="${lid}">${pct}%</em>` : ''}</div>`;
   }
 
   _update() {
@@ -1885,8 +1888,10 @@ export class SweetHomeCard extends HTMLElement {
       const fx = r.lightFx?.[l];
       const icon = fx === 'strip' ? 'mdi:led-strip-variant' : fx === 'tv' ? 'mdi:television-ambient-light' : fx === 'spots' ? 'mdi:light-recessed' : on ? 'mdi:ceiling-light' : 'mdi:ceiling-light-outline';
       const lname = r.lightNames?.[l] || tc((st.attributes.friendly_name || l).replace(/^Shelly\s*/i, ''));
-      return `<div class="lwrap ${on ? 'on' : ''}"><button class="lrow ${on ? 'on' : ''}" data-act="toggle" data-id="${l}">${ic(icon)}<span>${esc(lname)}</span><b>${esc(br)}</b></button>
-        ${simple ? '' : `${dim && on ? this.slider(l, 'bright', pct, '#fbbf24') : ''}${on && (fx === 'strip' || r.colorLights?.includes(l)) ? this.colorRow(l) : ''}${on ? this.pickChip(l, 'effect', 'Effect', 'mdi:auto-fix') : ''}`}</div>`;
+      // a dimmable light that is on: its % shows once, on the row (the slider under it moves that number)
+      const slid = !simple && dim && on;
+      return `<div class="lwrap ${on ? 'on' : ''}"><button class="lrow ${on ? 'on' : ''}" data-act="toggle" data-id="${l}">${ic(icon)}<span>${esc(lname)}</span><b${slid ? ` id="${this.sliderLabel(l, 'bright')}"` : ''}>${esc(br)}</b></button>
+        ${simple ? '' : `${slid ? this.slider(l, 'bright', pct, '#fbbf24', false) : ''}${on && (fx === 'strip' || r.colorLights?.includes(l)) ? this.colorRow(l) : ''}${on ? this.pickChip(l, 'effect', 'Effect', 'mdi:auto-fix') : ''}`}</div>`;
     });
     const motion = (r.motion || []).filter(m => this.s(m)).map(m => {
       const on = this.v(m) === 'on';

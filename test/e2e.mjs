@@ -39,6 +39,15 @@ try {
   await p.evaluate(() => card._selectFurn(card._model.furniture.find(f => f.name === 'Fridge').idx));
   check('a linked piece opens its room with the piece on top', await p.evaluate(() => card._sel === 'kitchen' && card.shadowRoot.querySelector('.fgrp.focus .fhd')?.textContent.includes('Fridge')));
   await p.evaluate(() => card._select('living_room'));
+  { const r = await p.evaluate(() => {
+    // a room's dimmable light that is on: its % shows once, on the light's row, and the slider under it moves that number
+    const w = [...card.shadowRoot.querySelectorAll('#drawer .lwrap')].find(x => x.querySelector('[data-id="light.living_room"]'));
+    const sl = w?.querySelector('input[data-bright]'), top = w?.querySelector('.lrow b');
+    const out = { slider: !!sl, noSecond: !w?.querySelector('.slrow em'), linked: !!sl && sl.dataset.lbl === top?.id, before: top?.textContent };
+    if (sl) { sl.value = 37; sl.dispatchEvent(new Event('input', { bubbles: true })); }
+    out.after = top?.textContent; out.count = (w?.textContent.match(/\d+%/g) || []).length;
+    return (out.slider && out.noSecond && out.linked && out.before === '78%' && out.after === '37%' && out.count === 1) || JSON.stringify(out);
+  }); check('room light: the dimmer % shows once (on the row), and moves with the slider', r === true, r); }
   await p.evaluate(() => card.shadowRoot.querySelector('#drawer [data-act=run]').click());
   check('a room\'s other sensors (a people count) are under Sensors, scripts stay under Other', await p.evaluate(async () => {
     const h = window.hassObj; h.states['sensor.living_people'] = { entity_id: 'sensor.living_people', state: '2', attributes: { friendly_name: 'People Detected' } }; h.entities['sensor.living_people'] = { entity_id: 'sensor.living_people', area_id: 'living_room' };
