@@ -123,153 +123,85 @@ try {
     return (!fired && nodes.length === 3 && nodes.every(n => !n.dataset.act ? !n.dataset.id : n.dataset.act === 'more' && !!card._hass.states[n.dataset.id])
       && !tpl.content.querySelector('.n-home').dataset.act && !/Home ·/.test(tpl.content.querySelector('.n-home').textContent)) || JSON.stringify({ fired, n: nodes.map(n => [n.className, n.dataset.act, n.dataset.id, n.dataset.kind]) });
   }); check('energy flow: Home / Solar / Grid open their own sensor, or do nothing without one (never a "null" dialog)', r === true, r); }
-  { const r = await p.evaluate(async () => {
-    // JellyHA picked in the card, next to the official Jellyfin integration
-    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), add = (id, state, a) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: new Date().toISOString() }; h.entities[id] = { entity_id: id, platform: 'jellyha' }; };
+  // ---- Jellyfin + JellyHA: Now Watching, clients and library from JellyHA; playing on the TV through the official integration
+  // a shared setup: JellyHA's players and sensor, the official integration's phone app, a Shield (Android TV over ADB)
+  const jfSetup = `(() => {
+    const h = window.hassObj, old = new Date(Date.now() - 6e5).toISOString();
+    const put = (id, state, a, platform, device_id) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform, ...(device_id ? { device_id } : {}) }; };
     const now = { media_title: 'Pilot', media_series_title: 'Show', session_id: 's1', supported_features: 512 | 1, supports_remote_control: true };
-    add('media_player.jellyha_library_browser', 'idle', { friendly_name: 'JellyHA Library', supported_features: 512 });
-    add('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' });
-    add('media_player.jellyha_device_living_room_tv', 'playing', { ...now, friendly_name: 'JellyHA Device Living Room TV', device_name: 'Living Room TV', client: 'Jellyfin Android TV' });
-    add('sensor.jellyha_connected_clients', '2', {});
-    add('media_player.jellyha_device_pixel', 'idle', { friendly_name: 'JellyHA Device Pixel 8', device_name: 'Pixel 8', client: 'Jellyfin Android', session_id: 's2', supported_features: 512, supports_remote_control: true });
-    // JellyHA's media source, as in HA's Media browser: JellyHA → JellyHA (mousawm) → Movies / TV Series / Recently Added / Favorites
+    put('media_player.jellyha_library_browser', 'idle', { friendly_name: 'JellyHA Library', supported_features: 512 }, 'jellyha');
+    put('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' }, 'jellyha');
+    put('media_player.jellyha_device_shield', 'playing', { ...now, friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', device_id: 'dev-shield' }, 'jellyha');
+    put('sensor.jellyha_connected_clients', '2', {}, 'jellyha');
+    put('sensor.jellyfin_active_clients', '1', {}, 'jellyfin');
+    h.devices.jfphone = { id: 'jfphone', name: 'Pixel 8', model: 'Jellyfin Android' }; h.devices.jfshield = { id: 'jfshield', name: 'SHIELD', model: 'Jellyfin Android TV' };
+    put('media_player.pixel_8', 'idle', { friendly_name: 'Pixel 8', supported_features: 512 }, 'jellyfin', 'jfphone');
+    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
+    window.jfCleanup = () => { for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_shield', 'sensor.jellyha_connected_clients',
+      'sensor.jellyfin_active_clients', 'media_player.pixel_8', 'media_player.shield', 'media_player.shield_jellyfin']) { delete h.states[id]; delete h.entities[id]; } delete h.devices.jfphone; delete h.devices.jfshield; };
+    // the TV's official Jellyfin session: appears once the app has been opened on the TV
+    window.jfShieldSession = () => { put('media_player.shield_jellyfin', 'idle', { friendly_name: 'SHIELD', supported_features: 512 }, 'jellyfin', 'jfshield'); h.states['media_player.shield_jellyfin'].last_updated = new Date().toISOString(); };
+  })()`;
+  { const r = await p.evaluate(async setup => {
+    eval(setup); const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config));
     const M = 'media-source://jellyha', E1 = M + '/e1', G1 = 'a'.repeat(32), G2 = 'b'.repeat(32), SH = 'c'.repeat(32), SE = 'd'.repeat(32), EP = 'e'.repeat(32);
     const dir = (title, id) => ({ title, media_content_id: id, can_play: false, can_expand: true });
-    const ws = [], tree = {
+    const tree = {
       [M]: { children: [dir('JellyHA (mousawm)', E1)] },
       [E1]: { children: [dir('📽️ Movies', E1 + '/movies'), dir('📺 TV Series', E1 + '/series'), dir('🆕 Recently Added', E1 + '/recent'), dir('❤️ Favorites', E1 + '/favorites')] },
       [E1 + '/movies']: { children: [{ title: 'Heat (1995)', media_content_id: E1 + '/item/' + G1, can_play: true, can_expand: false, media_class: 'movie' }, { title: 'No Year ()', media_content_id: E1 + '/item/' + G2, can_play: true, can_expand: false, media_class: 'movie' }] },
       [E1 + '/series']: { children: [{ title: 'Show (2020)', media_content_id: E1 + '/show/' + SH, can_play: true, can_expand: true, media_class: 'tv_show' }] },
       [E1 + '/show/' + SH]: { title: 'Show (2020)', children: [{ title: 'Season 1', media_content_id: E1 + '/season/' + SE, can_play: true, can_expand: true }] },
       [E1 + '/season/' + SE]: { children: [{ title: '1. Pilot', media_content_id: E1 + '/item/' + EP, can_play: true, can_expand: false, media_class: 'episode' }] } };
-    const orig = h.callWS; h.callWS = async m => { ws.push(m); return m.type === 'media_source/browse_media' && m.media_content_id.startsWith(M) ? tree[m.media_content_id] || { children: [] } : orig(m); };
-    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
+    const orig = h.callWS; h.callWS = async m => m.type === 'media_source/browse_media' && m.media_content_id.startsWith(M) ? tree[m.media_content_id] || { children: [] } : orig(m);
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'hybrid' } };
     card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1500)); card._jfc = {};
     const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
     const rows = [...tpl.content.querySelectorAll('.jfs')], out = {
       rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /2 clients/.test(tpl.content.textContent),
-      best: card._jfSessions()[0]?.st.entity_id, noBrowser: !card._jfSessions().some(x => /library_browser/.test(x.st.entity_id)),
-      // with a TV to open Jellyfin on, a video never goes to the phone's app or to the user player (JellyHA sends that to the user's last app)
-      targets: card._jfTargets({ id: 'media_player.shield' }).map(x => x.st.entity_id).join(), noUser: !card._jfSessions().some(x => /jellyha_user_/.test(x.st.entity_id)) };
+      // playing: only the official integration's players, never JellyHA's; the phone's app is not a target when there is a TV
+      sessions: card._jfSessions().map(x => x.st.entity_id).join(), targets: card._jfTargets({ id: 'media_player.shield' }).map(x => x.st.entity_id).join() };
     card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
     const sh = () => card.shadowRoot.getElementById('sheet');
     out.items = [...sh().querySelectorAll('.jfpo')].map(b => [b.dataset.item, b.dataset.title]);
     card._openInfo('jflib:shows'); await new Promise(r => setTimeout(r, 300));
-    const showBtn = sh().querySelector('.jfpo[data-kind^="jfshow:"]'); out.shows = sh().querySelectorAll('.jfpo').length;
+    const showBtn = sh().querySelector('.jfpo[data-kind^="jfshow:"]');
     card._openInfo(showBtn?.dataset.kind || 'jfshow:none'); await new Promise(r => setTimeout(r, 400));
     out.eps = [...sh().querySelectorAll('.jfep')].map(b => [b.dataset.item, b.querySelector('b')?.textContent]);
-    out.show = sh().querySelector('.jfshowh b')?.textContent;
-    card._closeSheet(); h.callWS = orig;
-    for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_living_room_tv', 'sensor.jellyha_connected_clients', 'media_player.jellyha_device_pixel']) { delete h.states[id]; delete h.entities[id]; }
+    card._closeSheet(); h.callWS = orig; window.jfCleanup();
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200)); card._jfc = {};
-    const ok = out.rows === 1 && /Living Room TV/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.best === 'media_player.jellyha_device_living_room_tv' && out.noBrowser && out.targets === 'media_player.jellyha_device_living_room_tv' && out.noUser
-      && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && out.shows === 1 && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]) && out.show === 'Show (2020)';
+    const ok = out.rows === 1 && /SHIELD/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.sessions === 'media_player.pixel_8' && out.targets === ''
+      && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]);
     return ok || JSON.stringify(out);
-  }); check('media server with JellyHA: one row per session, its clients, its library from the media browser (Movies / TV Series, plain item ids), the TV\'s device player to play on (never the phone or the user player)', r === true, r); }
-  for (const direct of [true, false]) { const r = await p.evaluate(async direct => {
-    // JellyHA, Shield signed in to Jellyfin (its device player has a live session):
-    // direct: the video is sent straight there and starts: no app restart (a restart can bring back the sign-in / Quick Connect screen)
-    // !direct: it doesn't start within 8 s: Jellyfin is restarted on the TV and the video sent again to the same (unchanged) player
-    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = 'f'.repeat(32);
-    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
-    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin', 'YouTube'], source: 'YouTube' }, 'androidtv');
-    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true }, 'jellyha');
-    put('media_player.jellyha_device_pixel', 'idle', { friendly_name: 'JellyHA Device Pixel 8', device_name: 'Pixel 8', client: 'Jellyfin Android', session_id: 's2', supported_features: 512, supports_remote_control: true }, 'jellyha');
-    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
-      calls.push([d, sv, data]);
-      const restartedNow = (window.calls || []).some(c => c[1] === 'adb_command');
-      if ((direct || restartedNow) && sv === 'play_media' && data.entity_id === 'media_player.jellyha_device_shield') {
-        const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.media_content_id } };
-        setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300);
-      }
-    };
-    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
-    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    const L = card._jfLauncher()?.id; window.calls = []; // the test page records card.call() in window.calls, hass.callService() here
-    await card._jfPlay(G, 'movie', 'The Movie');
-    const all = [...calls, ...window.calls];
-    const play = all.filter(([d, sv]) => d === 'media_player' && sv === 'play_media').map(([, , x]) => x.entity_id + ':' + x.media_content_id);
-    const restarted = all.some(([d, sv, x]) => d === 'androidtv' && sv === 'adb_command' && /force-stop/.test(x.command));
-    h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield', 'media_player.jellyha_device_pixel']) { delete h.states[id]; delete h.entities[id]; }
-    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    const toShield = play.length && play.every(x => x === 'media_player.jellyha_device_shield:' + G);
-    return (L === "media_player.shield" && toShield && (direct ? play.length === 1 && !restarted : play.length === 2 && restarted)) || JSON.stringify({ L, play, restarted, calls: all.map(c => c[0] + "." + c[1] + (c[2]?.command ? ":" + c[2].command : "")) });
-  }, direct); check(direct ? 'JellyHA: the TV\'s Jellyfin app is signed in: the movie is sent straight to it, no app restart (no sign-in / Quick Connect screen)'
-    : 'JellyHA: when the movie doesn\'t start, Jellyfin is restarted on the TV and the movie sent again to the TV\'s player (even when it looks unchanged), never the phone', r === true, r); }
-  { const r = await p.evaluate(async () => {
-    // Quick Connect on: after Jellyfin is opened on the TV, the sheet asks to sign in there; the video is sent only after Play
-    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = '9'.repeat(32);
-    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
-    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
-    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true }, 'jellyha');
-    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
-      calls.push([d, sv, data]);
-      if (card._jfQcDone && sv === 'play_media') { const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.media_content_id } }; setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300); }
-    };
-    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha', jellyfin_tv: { quick_connect: true } } };
+  }, jfSetup); check('Jellyfin + JellyHA: Now Watching, clients and Shows / Movies from JellyHA; only the official Jellyfin players play (never JellyHA\'s, never the phone)', r === true, r); }
+  for (const qc of [false, true]) { const r = await p.evaluate(async ([setup, qc]) => {
+    // tapping a movie: Jellyfin is opened on the Shield, its official session appears, the movie is sent there with
+    // play_media (the Jellyfin item id from JellyHA's library); no JellyHA service is used. Quick Connect: only after Play.
+    eval(setup); const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), G = 'f'.repeat(32);
+    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => { calls.push([d, sv, data]); };
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'hybrid', ...(qc ? { jellyfin_tv: { quick_connect: true } } : {}) } };
     card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
     window.calls = []; card._openInfo('jflib:movies');
-    const plays = () => [...calls, ...window.calls].filter(([d, sv]) => d === 'media_player' && sv === 'play_media').length;
-    const done = card._jfPlay(G, 'movie', 'The Movie');
-    const btn = () => card.shadowRoot.querySelector('#sheet [data-act="jfqc"]');
-    for (let i = 0; i < 80 && !btn(); i++) await new Promise(r => setTimeout(r, 250));
-    const out = { asked: !!btn(), text: card.shadowRoot.querySelector('#sheet .jfqc')?.textContent.replace(/\s+/g, ' ').trim(), before: plays() };
-    await new Promise(r => setTimeout(r, 1500)); out.stillWaiting = plays() === out.before && !!btn();
-    btn()?.click(); await done; out.after = plays();
-    out.last = [...calls, ...window.calls].filter(([d, sv]) => sv === 'play_media').map(([, , x]) => x.entity_id).pop();
-    card._closeSheet(); h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield']) { delete h.states[id]; delete h.entities[id]; }
+    const all = () => [...calls, ...window.calls];
+    const done = card._jfPlay(G, 'movie', 'Heat');
+    for (let i = 0; i < 60 && !window.calls.some(c => c[1] === 'select_source'); i++) await new Promise(r => setTimeout(r, 100));
+    const out = { opened: window.calls.some(c => c[1] === 'select_source'), restarted: window.calls.some(c => c[1] === 'adb_command') };
+    if (qc) {
+      const btn = () => card.shadowRoot.querySelector('#sheet [data-act="jfqc"]');
+      for (let i = 0; i < 40 && !btn(); i++) await new Promise(r => setTimeout(r, 100));
+      out.asked = !!btn(); window.jfShieldSession(); card.hass = { ...h, states: { ...h.states } };
+      await new Promise(r => setTimeout(r, 1000)); out.sentBeforePlay = all().some(([, sv, x]) => sv === 'play_media' && x.entity_id !== 'media_player.shield');
+      btn()?.click();
+    } else { await new Promise(r => setTimeout(r, 500)); window.jfShieldSession(); card.hass = { ...h, states: { ...h.states } }; }
+    await done;
+    const sent = all().filter(([, sv, x]) => sv === 'play_media' && x.media_content_type !== 'app').map(([, , x]) => x.entity_id + ':' + x.media_content_id);
+    out.sent = sent; out.jellyha = all().some(([d]) => d === 'jellyha');
+    card._closeSheet(); h.callService = origS; window.jfCleanup();
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    return (out.asked && /Quick Connect/.test(out.text) && out.stillWaiting && out.after === out.before + 1 && out.last === 'media_player.jellyha_device_shield') || JSON.stringify(out);
-  }); check('Quick Connect on: Jellyfin opens on the TV, the sheet asks to sign in there, and the video is sent only after "I\'ve signed in · Play"', r === true, r); }
-  for (const mode of ['session_play', 'fails']) { const r = await p.evaluate(async mode => {
-    // session_play: JellyHA's own service, by the app's device id, is tried first and the TV plays: no play_media, no restart
-    // fails: the TV never plays the video: the sheet says so, with Try again
-    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = '7'.repeat(32);
-    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
-    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
-    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true,
-      ...(mode === 'session_play' ? { device_id: 'dev-shield', config_entry_id: 'E1' } : {}) }, 'jellyha');
-    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
-      calls.push([d, sv, data]);
-      if (mode === 'session_play' && d === 'jellyha' && sv === 'session_play') { const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.item_id } }; setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300); }
-    };
-    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
-    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    window.calls = []; card._openInfo('jflib:movies'); await card._jfPlay(G, 'movie', 'The Movie');
-    const all = [...calls, ...window.calls], out = {
-      first: all.find(([, sv]) => /play/.test(sv))?.slice(0, 3), plays: all.filter(([, sv]) => sv === 'play_media').length, restarted: all.some(([, sv]) => sv === 'adb_command'),
-      fail: card.shadowRoot.querySelector('#sheet .jffail')?.textContent.replace(/\s+/g, ' ').trim() || '', retry: !!card.shadowRoot.querySelector('#sheet [data-act="jfretry"]') };
-    card._jfFail = null; card._closeSheet(); h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield']) { delete h.states[id]; delete h.entities[id]; }
-    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    const ok = mode === 'session_play'
-      ? out.first?.[0] === 'jellyha' && out.first?.[1] === 'session_play' && out.first?.[2]?.device_id === 'dev-shield' && out.first?.[2]?.item_id === G && out.plays === 0 && !out.restarted && !out.fail
-      : out.restarted && /didn't start The Movie/.test(out.fail) && out.retry;
+    const ok = out.opened && out.restarted && sent.length === 1 && sent[0] === 'media_player.shield_jellyfin:' + G && !out.jellyha && (!qc || (out.asked && !out.sentBeforePlay));
     return ok || JSON.stringify(out);
-  }, mode); check(mode === 'session_play' ? 'JellyHA: the video is sent with jellyha.session_play by the TV app\'s device id first, and counts only once the TV plays it'
-    : 'JellyHA: when the TV never plays the video, the sheet says so with Try again (no silent "Playing" toast)', r === true, r); }
-  { const r = await p.evaluate(async () => {
-    // on_tap 'open' (JellyHA), Jellyfin open and signed in on the Shield: a movie opens its page there (DisplayContent to the
-    // app's session, item id as a UUID), no play_media, no restart; a show opens its page and its episodes stay open in the card
-    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = 'ab'.repeat(16), S = 'cd'.repeat(16);
-    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
-    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Jellyfin' }, 'androidtv');
-    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: '01c7f4530d4df55b9a4d928ef3f4f7ab', device_id: 'dev-shield', config_entry_id: 'E1', supported_features: 512, supports_remote_control: true }, 'jellyha');
-    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => { calls.push([d, sv, data]); };
-    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha', jellyfin_tv: { on_tap: 'open' } } };
-    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    window.calls = [];
-    const t0 = Date.now(); await card._jfPlay(G, 'movie', 'Heat'); const quick = Date.now() - t0 < 3000;
-    const movie = calls.filter(([d]) => d === 'jellyha').map(([, sv, x]) => [sv, x.session_id, x.command, x.arguments?.ItemId, x.arguments?.ItemType, x.config_entry_id]);
-    card._openInfo('jfshow:' + encodeURIComponent('media-source://jellyha/e1/show/' + S)); calls.length = 0;
-    await card._jfPlay(S, 'series', 'Bleach');
-    const show = calls.filter(([d]) => d === 'jellyha').map(([, sv, x]) => x.arguments?.ItemType)[0], sheetOpen = !!card.shadowRoot.querySelector('#sheet .sheet');
-    const all = [...calls, ...window.calls], plays = all.filter(([, sv]) => sv === 'play_media').length, restarted = all.some(([, sv]) => sv === 'adb_command');
-    card._closeSheet(); h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield']) { delete h.states[id]; delete h.entities[id]; }
-    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
-    const uuid = 'abababab-abab-abab-abab-abababababab';
-    return (quick && JSON.stringify(movie) === JSON.stringify([['session_general_command', '01c7f4530d4df55b9a4d928ef3f4f7ab', 'DisplayContent', uuid, 'Movie', 'E1']])
-      && show === 'Series' && sheetOpen && plays === 0 && !restarted) || JSON.stringify({ quick, movie, show, sheetOpen, plays, restarted });
-  }); check('JellyHA "open its page": a movie\'s page opens on the TV (DisplayContent), a show\'s page too with its episodes kept open here; nothing played or restarted', r === true, r); }
+  }, [jfSetup, qc]); check(qc ? 'Jellyfin + JellyHA with Quick Connect: Jellyfin opens on the TV, the sheet asks to sign in, the movie goes to the TV\'s official Jellyfin session only after Play'
+    : 'Jellyfin + JellyHA: tapping a movie opens Jellyfin on the TV and plays it on the TV\'s official Jellyfin session (no JellyHA service)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -542,24 +474,20 @@ try {
     const i = editor.querySelector('ha-form input[name=tv_player]'); if (!i) return false; i.value = 'media_player.living_room_tv_3'; i.dispatchEvent(new Event('change'));
     return editor._config.panels.media_server?.jellyfin_tv?.session === 'Living Room TV';
   }));
-  check('media server: "When I tap…" is saved as on_tap: open (Play, the default, is not stored)', await p.evaluate(() => {
-    const sel = () => editor.querySelector('ha-form select[name=on_tap]'); if (!sel()) return false;
-    sel().value = 'open'; sel().dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.on_tap === 'open';
-    sel().value = 'play'; sel().dispatchEvent(new Event('change'));
-    return on && !editor._config.panels.media_server?.jellyfin_tv?.on_tap;
-  }));
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;
     const j = editor.querySelector('ha-form input[name=quick_connect]'); j.checked = false; j.dispatchEvent(new Event('change'));
     return on && !editor._config.panels.media_server?.jellyfin_tv?.quick_connect;
   }));
-  check('media server: the Jellyfin integration is picked in the editor (Automatic is not stored), the panel stays open', await p.evaluate(async () => {
+  check('media server: Jellyfin or Jellyfin + JellyHA is picked in the editor and saved, the panel stays open', await p.evaluate(async () => {
     const sel = () => editor.querySelector('ha-form select[name=integration]'); if (!sel()) return 'no picker';
-    sel().closest('details').open = true; await new Promise(r => setTimeout(r, 50)); sel().value = 'jellyha'; sel().dispatchEvent(new Event('change'));
-    const picked = editor._config.panels.media_server?.integration === 'jellyha' && sel()?.closest('details').open;
-    sel().value = 'auto'; sel().dispatchEvent(new Event('change'));
-    return picked && editor._config.panels.media_server?.integration === undefined;
+    const opts = [...sel().options].map(o => o.value).join();
+    sel().closest('details').open = true; await new Promise(r => setTimeout(r, 50)); sel().value = 'hybrid'; sel().dispatchEvent(new Event('change'));
+    const picked = editor._config.panels.media_server?.integration === 'hybrid' && sel()?.closest('details').open;
+    sel().value = 'jellyfin'; sel().dispatchEvent(new Event('change')); const back = editor._config.panels.media_server?.integration === 'jellyfin';
+    delete editor._config.panels.media_server.integration; if (!Object.keys(editor._config.panels.media_server).length) delete editor._config.panels.media_server; editor._emit();
+    return (opts === 'jellyfin,hybrid' && picked && back) || JSON.stringify({ opts, picked, back });
   }));
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));

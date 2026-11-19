@@ -10,18 +10,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Room badges: a plug that is on (a fan, a heater, a kettle…) shows its own icon instead of a charging battery; the battery now shows only for a charger that is charging. The icon is drawn plain, like the badge's other icons (it was shown inside a tile).
 - 3D doors: a door now opens to the side its arc shows on the floor plan. Doors drawn right-to-left or top-to-bottom used to open the opposite way.
 - Energy card: tapping Home, Solar or Grid with no sensor of its own does nothing, instead of opening an empty "null" dialog; no tile opens a details dialog for a missing entity any more.
-- Media Server: tapping a movie or an episode to play it on the TV no longer starts it on a phone that has Jellyfin open. A phone or tablet app is never picked when there is a TV to open Jellyfin on, and with JellyHA the video goes to the TV's own device player, not to the user player (which JellyHA sends to the user's last-used app).
-- Media Server with JellyHA: a movie tapped to play on the TV now starts there. The card used to wait forever ("Home Assistant can't see it yet") because JellyHA's TV player looks the same before and after the app reopens; it is now used once the app has had a few seconds to open, and the video is sent again for about 10 s while the app is still loading.
-- Media Server with JellyHA: when Jellyfin is already open and signed in on the TV, the video is sent straight to it instead of restarting the app first (a restart could bring back Jellyfin's sign-in screen and ask for a Quick Connect code). The app is restarted only if the video hasn't started within 8 s.
-- Media Server with JellyHA: the video is sent with JellyHA's own *session_play* by the TV app's device id first (so a session that changed when the app restarted or signed in still gets it), then with the player's *play_media*. "Playing on …" is shown only once the TV reports playing that video; otherwise the sheet says the TV didn't start it, with the reason and *Try again*. The Quick Connect prompt's buttons are laid out properly (icon beside the text).
+- Media Server: tapping a movie or an episode to play it on the TV no longer starts it on a phone that has Jellyfin open: a phone or tablet app is never picked when there is a TV to open Jellyfin on.
 
 ### Changed
 
 ### Added
 
-- Media Server with JellyHA: *When I tap a movie, show or episode* (Panels → Media Server) can be *Open its page in Jellyfin on the TV*. Tapping a movie or an episode opens its page on the TV; tapping a show opens the show's page there and its episodes in the card. Jellyfin is opened on the TV first when needed (with the Quick Connect prompt when that is on).
+- Media Server: *Jellyfin integration* (Panels → Media Server): *Jellyfin* or *Jellyfin + JellyHA*. With *Jellyfin + JellyHA*, Now Watching, the client count and the Shows / Movies library come from JellyHA, and a tapped movie or episode is played on the TV through the official Jellyfin integration. Not set: Jellyfin when it is installed, else Jellyfin + JellyHA.
 - Media Server: a *Quick Connect* switch (Panels → Media Server) for a TV whose Jellyfin app signs in with Quick Connect. After the card opens Jellyfin on the TV, the sheet asks you to sign in there and sends the video when you tap *I've signed in · Play*.
-- Media Server: choose the Jellyfin integration in the card editor (Panels → Media Server): Automatic, Jellyfin (official) or JellyHA. With JellyHA the card uses its players, its client count and its Movies / TV Series folders from the media browser. Automatic keeps the official one when both are installed.
 - Card editor: Panels → Energy has a *Current* picker; the chosen sensor is shown next to Home on the energy flow (e.g. *Home · 2.2 A*). Not set: Home shows just its power, as before.
 
 ## v0.6.39 — 2026-11-19
