@@ -177,7 +177,8 @@ try {
     put('media_player.jellyha_device_pixel', 'idle', { friendly_name: 'JellyHA Device Pixel 8', device_name: 'Pixel 8', client: 'Jellyfin Android', session_id: 's2', supported_features: 512, supports_remote_control: true }, 'jellyha');
     const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
       calls.push([d, sv, data]);
-      if (direct && sv === 'play_media' && data.entity_id === 'media_player.jellyha_device_shield') {
+      const restartedNow = (window.calls || []).some(c => c[1] === 'adb_command');
+      if ((direct || restartedNow) && sv === 'play_media' && data.entity_id === 'media_player.jellyha_device_shield') {
         const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.media_content_id } };
         setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300);
       }
@@ -201,7 +202,10 @@ try {
     const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
     put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
     put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true }, 'jellyha');
-    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => { calls.push([d, sv, data]); };
+    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
+      calls.push([d, sv, data]);
+      if (card._jfQcDone && sv === 'play_media') { const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.media_content_id } }; setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300); }
+    };
     const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha', jellyfin_tv: { quick_connect: true } } };
     card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
     window.calls = []; card._openInfo('jflib:movies');
@@ -217,6 +221,32 @@ try {
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
     return (out.asked && /Quick Connect/.test(out.text) && out.stillWaiting && out.after === out.before + 1 && out.last === 'media_player.jellyha_device_shield') || JSON.stringify(out);
   }); check('Quick Connect on: Jellyfin opens on the TV, the sheet asks to sign in there, and the video is sent only after "I\'ve signed in · Play"', r === true, r); }
+  for (const mode of ['session_play', 'fails']) { const r = await p.evaluate(async mode => {
+    // session_play: JellyHA's own service, by the app's device id, is tried first and the TV plays: no play_media, no restart
+    // fails: the TV never plays the video: the sheet says so, with Try again
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), old = new Date(Date.now() - 6e5).toISOString(), G = '7'.repeat(32);
+    const put = (id, state, a, platform) => { h.states[id] = { entity_id: id, state, attributes: a, last_updated: old }; h.entities[id] = { entity_id: id, platform }; };
+    put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
+    put('media_player.jellyha_device_shield', 'idle', { friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', session_id: 's9', supported_features: 512, supports_remote_control: true,
+      ...(mode === 'session_play' ? { device_id: 'dev-shield', config_entry_id: 'E1' } : {}) }, 'jellyha');
+    const calls = [], origS = h.callService; h.callService = async (d, sv, data) => {
+      calls.push([d, sv, data]);
+      if (mode === 'session_play' && d === 'jellyha' && sv === 'session_play') { const st = h.states['media_player.jellyha_device_shield']; h.states[st.entity_id] = { ...st, state: 'playing', attributes: { ...st.attributes, item_id: data.item_id } }; setTimeout(() => { card.hass = { ...h, states: { ...h.states } }; }, 300); }
+    };
+    const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    window.calls = []; card._openInfo('jflib:movies'); await card._jfPlay(G, 'movie', 'The Movie');
+    const all = [...calls, ...window.calls], out = {
+      first: all.find(([, sv]) => /play/.test(sv))?.slice(0, 3), plays: all.filter(([, sv]) => sv === 'play_media').length, restarted: all.some(([, sv]) => sv === 'adb_command'),
+      fail: card.shadowRoot.querySelector('#sheet .jffail')?.textContent.replace(/\s+/g, ' ').trim() || '', retry: !!card.shadowRoot.querySelector('#sheet [data-act="jfretry"]') };
+    card._jfFail = null; card._closeSheet(); h.callService = origS; for (const id of ['media_player.shield', 'media_player.jellyha_device_shield']) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200));
+    const ok = mode === 'session_play'
+      ? out.first?.[0] === 'jellyha' && out.first?.[1] === 'session_play' && out.first?.[2]?.device_id === 'dev-shield' && out.first?.[2]?.item_id === G && out.plays === 0 && !out.restarted && !out.fail
+      : out.restarted && /didn't start The Movie/.test(out.fail) && out.retry;
+    return ok || JSON.stringify(out);
+  }, mode); check(mode === 'session_play' ? 'JellyHA: the video is sent with jellyha.session_play by the TV app\'s device id first, and counts only once the TV plays it'
+    : 'JellyHA: when the TV never plays the video, the sheet says so with Try again (no silent "Playing" toast)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
