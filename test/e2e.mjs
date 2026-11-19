@@ -131,11 +131,17 @@ try {
     add('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' });
     add('media_player.jellyha_device_living_room_tv', 'playing', { ...now, friendly_name: 'JellyHA Device Living Room TV', device_name: 'Living Room TV', client: 'Jellyfin Android TV' });
     add('sensor.jellyha_connected_clients', '2', {});
+    // JellyHA's media source, as in HA's Media browser: JellyHA → JellyHA (mousawm) → Movies / TV Series / Recently Added / Favorites
+    const M = 'media-source://jellyha', E1 = M + '/e1', G1 = 'a'.repeat(32), G2 = 'b'.repeat(32), SH = 'c'.repeat(32), SE = 'd'.repeat(32), EP = 'e'.repeat(32);
+    const dir = (title, id) => ({ title, media_content_id: id, can_play: false, can_expand: true });
     const ws = [], tree = {
-      'jellyha://movies': { children: [{ title: 'Heat (1995)', media_content_id: 'jellyha://item/abc123', can_play: true, can_expand: false, media_class: 'movie' }, { title: 'No Year ()', media_content_id: 'jellyha://item/def456', can_play: true, can_expand: false, media_class: 'movie' }] },
-      'jellyha://show/sh1': { title: 'Show (2020)', children: [{ title: 'Season 1', media_content_id: 'jellyha://season/se1', can_play: true, can_expand: true }] },
-      'jellyha://season/se1': { children: [{ title: '1. Pilot', media_content_id: 'jellyha://item/ep1', can_play: true, can_expand: false, media_class: 'episode' }] } };
-    const orig = h.callWS; h.callWS = async m => { ws.push(m); return m.type === 'media_player/browse_media' ? tree[m.media_content_id] || { children: [] } : orig(m); };
+      [M]: { children: [dir('JellyHA (mousawm)', E1)] },
+      [E1]: { children: [dir('📽️ Movies', E1 + '/movies'), dir('📺 TV Series', E1 + '/series'), dir('🆕 Recently Added', E1 + '/recent'), dir('❤️ Favorites', E1 + '/favorites')] },
+      [E1 + '/movies']: { children: [{ title: 'Heat (1995)', media_content_id: E1 + '/item/' + G1, can_play: true, can_expand: false, media_class: 'movie' }, { title: 'No Year ()', media_content_id: E1 + '/item/' + G2, can_play: true, can_expand: false, media_class: 'movie' }] },
+      [E1 + '/series']: { children: [{ title: 'Show (2020)', media_content_id: E1 + '/show/' + SH, can_play: true, can_expand: true, media_class: 'tv_show' }] },
+      [E1 + '/show/' + SH]: { title: 'Show (2020)', children: [{ title: 'Season 1', media_content_id: E1 + '/season/' + SE, can_play: true, can_expand: true }] },
+      [E1 + '/season/' + SE]: { children: [{ title: '1. Pilot', media_content_id: E1 + '/item/' + EP, can_play: true, can_expand: false, media_class: 'episode' }] } };
+    const orig = h.callWS; h.callWS = async m => { ws.push(m); return m.type === 'media_source/browse_media' && m.media_content_id.startsWith(M) ? tree[m.media_content_id] || { children: [] } : orig(m); };
     const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), media_server: { integration: 'jellyha' } };
     card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1500)); card._jfc = {};
     const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
@@ -145,17 +151,18 @@ try {
     card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
     const sh = () => card.shadowRoot.getElementById('sheet');
     out.items = [...sh().querySelectorAll('.jfpo')].map(b => [b.dataset.item, b.dataset.title]);
-    out.viaBrowser = ws.some(m => m.type === 'media_player/browse_media' && m.entity_id === 'media_player.jellyha_library_browser');
-    card._openInfo('jfshow:sh1'); await new Promise(r => setTimeout(r, 400));
+    card._openInfo('jflib:shows'); await new Promise(r => setTimeout(r, 300));
+    const showBtn = sh().querySelector('.jfpo[data-kind^="jfshow:"]'); out.shows = sh().querySelectorAll('.jfpo').length;
+    card._openInfo(showBtn?.dataset.kind || 'jfshow:none'); await new Promise(r => setTimeout(r, 400));
     out.eps = [...sh().querySelectorAll('.jfep')].map(b => [b.dataset.item, b.querySelector('b')?.textContent]);
     out.show = sh().querySelector('.jfshowh b')?.textContent;
     card._closeSheet(); h.callWS = orig;
     for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_living_room_tv', 'sensor.jellyha_connected_clients']) { delete h.states[id]; delete h.entities[id]; }
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200)); card._jfc = {};
     const ok = out.rows === 1 && /Living Room TV/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.best === 'media_player.jellyha_device_living_room_tv' && out.noBrowser
-      && JSON.stringify(out.items) === '[["abc123","Heat (1995)"],["def456","No Year"]]' && out.viaBrowser && JSON.stringify(out.eps) === '[["ep1","1. Pilot"]]' && out.show === 'Show (2020)';
+      && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && out.shows === 1 && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]) && out.show === 'Show (2020)';
     return ok || JSON.stringify(out);
-  }); check('media server with JellyHA: one row per session, its clients, its library (plain item ids), the TV\'s device player to play on', r === true, r); }
+  }); check('media server with JellyHA: one row per session, its clients, its library from the media browser (Movies / TV Series, plain item ids), the TV\'s device player to play on', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

@@ -348,8 +348,8 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   `integration`: which Jellyfin integration the card uses: `auto` (default: the official Jellyfin integration when it
   is installed, else JellyHA), `jellyfin` or `jellyha` ([JellyHA](https://github.com/zupancicmarko/JellyHA)). Pick it in
   the card editor under Panels → Media Server. With JellyHA, Now Watching shows one row per session (its device
-  player), the client count comes from its connected-clients sensor, the Shows / Movies browser uses its library
-  browser, and a video is sent to the TV's JellyHA device player.
+  player), the client count comes from its connected-clients sensor, the Shows / Movies browser uses its Movies and TV Series folders
+  from Home Assistant's media browser, and a video is sent to the TV's JellyHA device player.
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`, `order`.
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
