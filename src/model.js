@@ -869,7 +869,9 @@ export function buildModel(cfg = {}, hass) {
   function batDevice(d) {
     const id = d.battery, dev = R.devs[R.ents[id]?.device_id];
     const ch = d.charging || d.charging_state ? null : R.sameDevice(id, e => /is_charging$|battery_state$|charger_type$/.test(e) || (e.startsWith('binary_sensor.') && R.dc(e) === 'battery_charging'))[0];
-    const dn = d.name || dev?.name_by_user || dev?.name || R.name(id).replace(/\s*battery( level)?$/i, '');
+    // a name given on this dashboard (rename sheet of the Devices panel) is kept on the battery sensor and wins
+    const renamed = hass?._raw && hass._raw.states?.[id] && states[id] !== hass._raw.states[id];
+    const dn = d.name || (renamed ? R.name(id) : null) || dev?.name_by_user || dev?.name || R.name(id).replace(/\s*battery( level)?$/i, '');
     const kind = `${dn} ${dev?.model || ''}`.toLowerCase();
     const icon = d.icon || (/watch/.test(kind) ? 'mdi:watch' : /pad|tab/.test(kind) ? 'mdi:tablet' : /mac|book|laptop|pc\b/.test(kind) ? 'mdi:laptop' : /lock/.test(kind) ? 'mdi:lock' : /remote/.test(kind) ? 'mdi:remote' : R.platform(id) === 'mobile_app' || /phone|pixel|galaxy/.test(kind) ? 'mdi:cellphone' : 'mdi:battery');
     return { name: dn, icon, bat: id, chg: d.charging || (ch && ch.startsWith('binary_sensor.') ? ch : undefined), chgState: d.charging_state || (ch && ch.startsWith('sensor.') ? ch : undefined), trk: d.tracker || R.sameDevice(id, e => e.startsWith('device_tracker.'))[0] };

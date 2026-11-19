@@ -1941,13 +1941,17 @@ export class SweetHomeCard extends HTMLElement {
     if (!this._rnIds || this._rnIds.sid !== sid) { // the entities on the panel when renaming started (the list stays put)
       // only entities whose name can be seen on the panel (a temperature shown under its room's name is renamed in the room)
       const text = (el?.textContent || '').toLowerCase(), seen = id => { const n = String(this.s(id).attributes.friendly_name || id).toLowerCase(); return text.includes(n) || text.includes(n.replace(/^shelly\s*/, '')); };
-      const ids = sid === 'modes' ? E.modes.map(m => m[0]).filter(id => this.s(id)) : [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
+      const ids = sid === 'modes' ? E.modes.map(m => m[0]).filter(id => this.s(id))
+        : sid === 'devices' ? E.devices.filter(d => this.s(d.bat)).map(d => d.bat) // a device row shows its device's name: renamed on its battery sensor
+        : [...new Set([...(el?.querySelectorAll('[data-id],[data-id2]') || [])].flatMap(n => [n.dataset.id, n.dataset.id2]).filter(id => id && id.includes('.') && this.s(id) && seen(id)))];
       this._rnIds = { sid, ids };
     }
     const raw = this._hass._raw || this._hass, pend = this._pendNames || {};
     const rows = this._rnIds.ids.map(id => {
-      const st = this.s(id), d = id.split('.')[0], own = raw.states[id]?.attributes.friendly_name || id, cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? st.attributes.friendly_name ?? id;
-      return `<label class="rnrow">${ic((SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
+      const st = this.s(id), d = id.split('.')[0], dv = sid === 'devices' ? E.devices.find(x => x.bat === id) : null;
+      const own = dv ? this._devDefaultName(id) : raw.states[id]?.attributes.friendly_name || id;
+      const cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? dv?.name ?? st.attributes.friendly_name ?? id;
+      return `<label class="rnrow">${ic(dv?.icon || (SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
     return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
       + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
@@ -1967,6 +1971,11 @@ export class SweetHomeCard extends HTMLElement {
     if (JSON.stringify(cfg) === JSON.stringify(this._config)) return;
     if (await this._applyConfig(cfg)) { this.haptic('success'); this._toast(tr('Names saved')); }
   }
+  // the name a Devices row has without a name given on this dashboard (same rule as the model's batDevice)
+  _devDefaultName(id) {
+    const h = this._hass, raw = h._raw || h, dev = h.devices?.[h.entities?.[id]?.device_id];
+    return dev?.name_by_user || dev?.name || String(raw.states[id]?.attributes.friendly_name || id).replace(/\s*battery( level)?$/i, '');
+  }
   // a name typed in a rename view: kept until ✓ (Done)
   _rename(id, name) { (this._pendNames ||= {})[id] = name.trim(); }
   // Names for this dashboard: each one is kept in one place only — the room it was renamed in (`ci`), else where it
@@ -1976,8 +1985,10 @@ export class SweetHomeCard extends HTMLElement {
     for (const [id, v] of Object.entries(pend)) {
       const home = (ci != null && rooms[ci]) || holders.find(h => h.names?.[id] != null) || cfg;
       for (const h of holders) for (const k of ['names', 'light_names']) if (h[k]?.[id] != null) { delete h[k][id]; if (!Object.keys(h[k]).length) delete h[k]; }
-      if (v && v !== raw.states[id]?.attributes.friendly_name) (home.names ||= {})[id] = v;
+      const dev = E.devices.some(d => d.bat === id); // a Devices row: its default is the device's name, not the sensor's
+      if (v && v !== raw.states[id]?.attributes.friendly_name && !(dev && v === this._devDefaultName(id))) (home.names ||= {})[id] = v;
       for (const m of arr(cfg.modes)) if (m && typeof m === 'object' && m.entity === id) delete m.name; // a mode shows the name given here
+      for (const list of [cfg.panels?.devices?.entities, cfg.devices]) for (const d of arr(list)) if (d && typeof d === 'object' && d.battery === id) delete d.name; // so does a device
     }
   }
   async _saveNames(r) {
