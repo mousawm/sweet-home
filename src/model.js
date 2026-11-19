@@ -820,7 +820,8 @@ export function buildModel(cfg = {}, hass) {
     const id = typeof c === 'string' ? c : c.entity || c.id;
     const obj = id.split('.')[1].replace(/_(rtsp|stream|main|sub|high|low)$/, '');
     const ex = s => states[`binary_sensor.${obj}_${s}`] ? `binary_sensor.${obj}_${s}` : null;
-    return { id, name: (typeof c === 'object' && c.name) || R.name(id), person: c.person || ex('person_occupancy'), car: c.car || ex('car_occupancy'), motion: c.motion || ex('motion'), face: c.face, plate: c.plate, door: c.door, relay: c.relay };
+    const face = c.face || (states[`sensor.${obj}_last_recognized_face`] ? `sensor.${obj}_last_recognized_face` : null); // Frigate face recognition
+    return { id, name: (typeof c === 'object' && c.name) || R.name(id), person: c.person || ex('person_occupancy'), car: c.car || ex('car_occupancy'), motion: c.motion || ex('motion'), face, faceSet: !!c.face, plate: c.plate, door: c.door, relay: c.relay };
   });
 
   // Proxmox VE (custom integration "proxmoxve"): the first node
