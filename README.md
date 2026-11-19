@@ -322,9 +322,11 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
-- **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`; the power
-  sensor is found on the pump's device when not given), `entities` (anything else on the Water card: valves, flow,
-  pressure…)
+- **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`, `show`,
+  `presses`; the power sensor is found on the pump's device when not given), `entities` (anything else on the Water
+  card: valves, flow, pressure…). While a pump runs its tile shows `show: power` (default), `time` (a live timer of how
+  long it has been on) or `both`. `presses: 1` turns it on with one tap; the default is two (tap again to confirm).
+  Turning it off is always one tap. Both are set per pump in the card editor under Panels → Water.
 - **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`; pick them in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
 - **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
   colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
