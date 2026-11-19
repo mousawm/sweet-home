@@ -1010,6 +1010,18 @@ export class SweetHomeCard extends HTMLElement {
       }
       // a TV we can't restart Jellyfin on, with its Jellyfin app already open: play there
       if (L.plat !== 'androidtv' && best && best.score > 0) return await send(best.st);
+      // JellyHA: the TV's Jellyfin app is signed in and connected (a live session) while the TV is on: send the video there
+      // first, without restarting the app (a restart can bring back its sign-in screen and ask for a Quick Connect code).
+      // Only when it is not playing that video within 8 s is the app restarted below.
+      if (J.kind === 'jellyha' && best && best.score > 0 && this.v(L.id) !== 'off') {
+        this._toast(`Opening ${name} on ${tvName}…`);
+        const id = best.st.entity_id, same = st => String(st?.attributes.item_id || '').replace(/-/g, '').toLowerCase() === String(item).replace(/-/g, '').toLowerCase();
+        const sent = await this._hass.callService('media_player', 'play_media', { entity_id: id, media_content_id: item, media_content_type: kind || 'video' }).then(() => true, () => false);
+        if (sent && await this._waitFn(() => this._jfCancel || (['playing', 'paused'].includes(this.v(id)) && same(this.s(id))), 8e3)) {
+          if (this._jfCancel) { this._toast('Stopped'); return; }
+          this.haptic('success'); this._toast(`Playing ${name} on ${tvName}`); this._closeSheet(); return;
+        }
+      }
       const before = this._jfPlayable();
       this._toast(`Starting Jellyfin on ${tvName}…`);
       let t0 = Date.now();
