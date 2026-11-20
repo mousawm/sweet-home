@@ -12,7 +12,11 @@ panels:
   climate:
     entities: [climate.bedroom, climate.living_room]
   energy:                       # live power comes from HA's Energy settings unless set here
+    current: sensor.home_current   # shown next to Home on the power flow
+    energy_dashboard_totals: false # use your own Month / Year sensors instead of HA's Energy data
     month_sensor: sensor.energy_this_month
+    year_sensor: sensor.energy_this_year
+    # solar_forecast: false       # hide the Solar Forecast box (Forecast.Solar)
     exclude: [sensor.ev_charger_energy]
   water:
     tank: sensor.water_tank_level
@@ -29,6 +33,8 @@ panels:
     player: media_player.living_room_tv
     speakers: [media_player.kitchen_speaker]
   media_server:
+    integration: jellyfin       # or hybrid: Jellyfin + JellyHA
+    qbittorrent: false          # "Found from" switches: leave out Downloads (also jellyfin / sonarr / radarr)
     jellyfin_tv:                # optional: start Jellyfin on an Android TV before playing
       name: Living Room TV
       session: SHIELD           # part of the Jellyfin session's name

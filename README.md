@@ -16,11 +16,18 @@ security, climate, energy, water, media and your home lab.
 - **Panels**, each shown only when Home Assistant has something for it:
   - **Security**: alarm with a PIN keypad, locks, doors, live cameras
   - **Climate**: ACs, temperatures
-  - **Energy**: live power flow and a chart of today, plus history by day, week, month and year from your Energy settings
+  - **Energy**: live power flow and a chart of today, plus history by day, week, month and year from your Energy
+    settings, an electric car and the Forecast.Solar forecast
   - **Water & Irrigation**: tank trend, pumps, valves, schedule
-  - **Media**: TV and speakers, plus a Jellyfin / Sonarr / Radarr / qBittorrent media server card
+  - **Media**: TV and speakers, plus a media server card from Jellyfin (or Jellyfin + JellyHA), Sonarr, Radarr and
+    qBittorrent: now watching, the library, coming up, downloads and storage. Tap a movie or episode to play it on your TV
   - **Home Lab**: Proxmox VE node and guests
   - **Needs Attention**: unavailable devices, low batteries, weak Wi-Fi, repairs, updates
+- **Sweet Home 3D card**: only the 3D view, to place among your other cards. Tap a room and its controls open as a
+  pop-up. See [Only the 3D view](#only-the-3d-view-sweet-home-3d).
+- **Shows what it found**: each panel's settings list the integrations it reads (Jellyfin, Sonarr, Radarr,
+  qBittorrent, Forecast.Solar, Proxmox VE…), found or not found, with a switch to turn each part off.
+- **English and Arabic**, with a right-to-left layout for Arabic.
 - **Made for phones**:
   - Swipe between tabs. Haptics. Long press opens more-info; double tap opens the second entity.
   - Popups don't scroll the page behind them. Skeleton loaders while data arrives.
@@ -35,6 +42,10 @@ security, climate, energy, water, media and your home lab.
 | ![Energy tab: live power flow, today's chart and the car charger](docs/screenshots/energy.webp) | ![Water & Garden tab: tank trend, pumps and irrigation](docs/screenshots/water.webp) |
 | **3D house** | **Furniture that reacts** |
 | ![The demo house in 3D: rooms with live temperatures, locks, a pool and a parked car](docs/screenshots/overview-3d.webp) | ![A bathroom: toilet, vanity with a glowing mirror, towel warmer, steaming shower, washing machine and bathtub](docs/screenshots/bathroom-3d.webp) |
+| **Media** | **System** |
+| ![Media tab: the TV, and the media server with Now Watching, the library, Coming Up, downloads and storage](docs/screenshots/media.webp) | ![System tab: Needs Attention, the Home Lab server with its containers and VMs, and the phones' batteries](docs/screenshots/system.webp) |
+| **Sweet Home 3D card on a dashboard** | **Tap a room: its pop-up** |
+| ![The Sweet Home 3D card next to other cards on a dashboard](docs/screenshots/sweet-home-3d.webp) | ![The room pop-up of the Sweet Home 3D card: lights with brightness, the front door lock, blinds and the robot vacuum](docs/screenshots/sweet-home-3d-room.webp) |
 | **Floor plan editor** | **On a phone** |
 | ![The card editor: rooms, walls, doors, windows and furniture drawn on a plan](docs/screenshots/editor-plan.webp) | ![A room popup on a phone: lights with brightness, the front door lock and blinds](docs/screenshots/phone-room.webp) |
 
@@ -331,6 +342,11 @@ Panels with several fields (Security, Media, Irrigation, Energy's live power, an
 
 See [examples/panels.yaml](examples/panels.yaml) for every panel.
 
+**Found from.** In the card editor, Energy, Media Server and Home Lab start with a list of the integrations they read,
+each marked *found* (with how many entities) or *not found* (with what to install). A found one has a switch that
+hides its part of the card; it is stored only when off, as `<integration>: false` under that panel (the keys are
+listed below).
+
 - **security**: `alarm`, `locks`, `entrances`, `doors`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance), `face` (a sensor with the last face recognised, shown as a badge on the Cameras card: the name, or *No face*. Without it, the cameras' own face sensors are used; Frigate's `sensor.<camera>_last_recognized_face` is found by itself)
   - `locks`: `entity_id` or `{entity, name, kind, icon}`. A lock shows a padlock (green locked, red unlocked, amber locking or jammed). To show what it locks instead, with a small padlock for the state, set `kind`: `door`, `sliding`, `gate`, `garage`, `window`, `safe`, `car`, `locker`, or an `icon`.
   - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open (without one it shows as closed). The sensor can be a door / contact sensor (on = open), a cover or lock, or a text sensor such as a camera's Frigate state classification (`open`, `closed`, `opening`…; words of your own with `open_states` / `closed_states`). `sensor_2` (or a list) is a backup used when the first gives no clear reading. In the card editor, Panels → Security shows two sensor pickers per gate, with suggestions: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
@@ -342,6 +358,8 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
     statistics as Energy History). Set it to `false` (card editor: Panels → Energy, switch off) to use your own
     `month_sensor` and `year_sensor` instead; their fields show in the editor only then
   - `month_sensor`, `year_sensor`: your own total sensors (with `energy_dashboard_totals: false`); `stored_sensor`: energy stored, shown as **Stored** next to Today / Month / Year (pick it in the card editor under Panels → Energy; not set: no Stored box)
+  - `solar_forecast: false`: hides the **Solar Forecast** box (today, tomorrow, still to come, peak time). It is found
+    from the Forecast.Solar integration, with nothing to set
   - `extra`: more rows for the energy card
   - `exclude`: meters to leave out
   - `devices`: names and colours for the history chart
@@ -374,6 +392,10 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   [JellyHA](https://github.com/zupancicmarko/JellyHA), and a tapped movie or episode is played on the TV through the
   official Jellyfin integration, so both have to be installed). Not set: `jellyfin` when the official integration is
   installed, else `hybrid`. Pick it in the card editor under Panels → Media Server.
+  `jellyfin: false`, `sonarr: false`, `radarr: false`, `qbittorrent: false` (the **Found from** switches): leave that
+  integration out. Jellyfin off hides Now Watching (Shows and Movies then show only their counts); Sonarr off hides
+  Shows, Wanted and its Coming Up items; Radarr off hides Movies and its Coming Up items; qBittorrent off hides Downloads.
+  A section also hides by itself when its integration isn't installed.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
 - **homelab**: found from the Proxmox VE custom integration. Options (all in the card editor under Panels → Home Lab):
