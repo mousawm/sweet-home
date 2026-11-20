@@ -2888,7 +2888,8 @@ export class SweetHomeCard extends HTMLElement {
     const byId = new Map();
     for (const g of this._labGuestIds()) { const gi = guestInfo(h.states, g), k = gi.id || g, e = byId.get(k); if (!e) byId.set(k, { keys: [g], gi }); else { e.keys.push(g); if (h.states[`sensor.${g}_status`]) e.gi = gi; } }
     const pinnedIds = new Set(L.guests.map(g => guestInfo(h.states, g[0]).id || g[0]));
-    const others = [...byId.entries()].filter(([k]) => !pinnedIds.has(k)).map(([, e]) => {
+    // auto_guests off: only the pinned (chosen) guests
+    const others = (L.auto ? [...byId.entries()] : []).filter(([k]) => !pinnedIds.has(k)).map(([, e]) => {
       const st = e.keys.map(k => this.v(`sensor.${k}_status`)).find(v => v && !BAD.includes(v)), up = st ? st === 'running' : e.keys.some(k => this.on(`binary_sensor.${k}_status`));
       const mem = e.keys.map(k => this.n(`sensor.${k}_memory_used_percentage`)).find(v => v != null) ?? -1;
       return { ...e, up, mem };
@@ -2908,7 +2909,7 @@ export class SweetHomeCard extends HTMLElement {
       + `<button class="vmmore" data-act="labmore">${this._labMore ? 'Show less' : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
       + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
     const upd = this.n(L.updates);
-    return `<div class="ch">${ic('mdi:server')}<h3>Home Lab</h3><span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? 'Online' : 'Offline'}</span></div>
+    return `<div class="ch">${ic('mdi:server')}<h3>Home Lab</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? 'Online' : 'Offline'}</span>` : ''}</div>
       <div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
       <div class="stats3 ${L.temp ? 's4' : ''}">
         ${L.temp ? `<div data-act="more" data-id="${L.temp}">${ic('mdi:thermometer')}<b>${this.f(L.temp, 0)}</b></div>` : ''}
