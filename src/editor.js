@@ -1649,6 +1649,11 @@ class SweetHomeCardEditor extends HTMLElement {
               const ms = { ...cur }; if (['jellyfin', 'hybrid'].includes(v.integration)) ms.integration = v.integration; else delete ms.integration;
               set(k, Object.keys(ms).length ? ms : undefined); this._render();
             }, { integration: 'Jellyfin integration (Jellyfin + JellyHA: playing on the TV through Jellyfin, the rest from JellyHA)' }));
+          // the "N clients" count next to Now Watching; empty: Jellyfin's active clients, or JellyHA's active sessions
+          det.appendChild(this._form([{ name: 'clients_sensor', selector: { entity: { domain: 'sensor' } } }], { clients_sensor: cur.clients_sensor || '' }, v => {
+            const ms = { ...cur }; if (v.clients_sensor) ms.clients_sensor = v.clients_sensor; else delete ms.clients_sensor;
+            set(k, Object.keys(ms).length ? ms : undefined);
+          }, { clients_sensor: integ === 'hybrid' ? 'Clients count (empty: JellyHA’s active sessions)' : 'Clients count (empty: Jellyfin’s active clients)' }));
           // the TV's Jellyfin app: always an official Jellyfin player (playing goes through the official integration)
           const players = Object.keys(this._hass.states).filter(x => x.startsWith('media_player.') && this._reg.platform(x) === 'jellyfin');
           const pick = players.find(x => tv.session && new RegExp(tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(this._reg.name(x)));

@@ -355,6 +355,8 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   [JellyHA](https://github.com/zupancicmarko/JellyHA), and a tapped movie or episode is played on the TV through the
   official Jellyfin integration, so both have to be installed). Not set: `jellyfin` when the official integration is
   installed, else `hybrid`. Pick it in the card editor under Panels → Media Server.
+  `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
+  with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`, `order`.
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
