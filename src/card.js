@@ -2779,7 +2779,7 @@ export class SweetHomeCard extends HTMLElement {
     // --- now watching: jellyfin players that are playing / paused
     const haJ = J.view === 'jellyha', seen = new Set();
     // JellyHA has a player per user and per device for the same session: one row per session (the device's), no library browser
-    const sessions = this._jfPlayers().filter(id => !haJ || !/library_browser/.test(id))
+    const sessions = (J.off ? [] : this._jfPlayers()).filter(id => !haJ || !/library_browser/.test(id))
       .sort((a, b) => haJ ? /jellyha_device_/.test(b) - /jellyha_device_/.test(a) : 0)
       .map(id => [id, this.s(id)]).filter(([, st]) => st && ['playing', 'paused'].includes(st.state) && st.attributes.media_title)
       .filter(([id, st]) => { const k = haJ ? st.attributes.session_id || id : id; if (seen.has(k)) return false; seen.add(k); return true; });
@@ -2828,26 +2828,27 @@ export class SweetHomeCard extends HTMLElement {
       const tb = x => x >= 1000 ? `${(x / 1000).toFixed(1)} TB` : `${Math.round(x)} GB`;
       disks.push(`<div class="mdk" data-act="more" data-id="${SO.disk}">${ic('mdi:harddisk')}<span>${esc(tc(k))}</span><div class="bar"><i style="width:${used.toFixed(1)}%;background:${used > 90 ? '#f43f5e' : used > 75 ? '#fbbf24' : '#a78bfa'}"></i></div><b>${tb(free)} free</b></div>`);
     }
+    // the library tiles: Shows / Movies open the Jellyfin library (counts from Sonarr / Radarr); each one shows when its
+    // integration is on (the "Found from" switches in the editor)
+    const tile = (kind, id, icon, label, cls = '') => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
+    const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', 'Shows'),
+      (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', 'Movies'),
+      SO.wanted && tile('wanted', SO.wanted, 'mdi:magnify', 'Wanted', (this.n(SO.wanted) ?? 0) > 0 ? 'warn' : '')].filter(Boolean);
     const pill = sessions.length ? [`${sessions.length} watching`, '#a78bfa'] : down > 0.05 ? ['Downloading', '#60a5fa'] : ['Idle', '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>Media Server</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
-      <div class="dsec">Now Watching${clients != null ? ` · ${clients} client${clients === 1 ? '' : 's'}` : ''}</div>
-      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}Nobody is watching on Jellyfin</div>`}
-      <div class="dsec">Library</div>
-      <div class="mlib">
-        <div class="go" data-act="info" data-kind="jflib:shows" data-id="${SO.shows}">${ic('mdi:television-classic')}<b>${esc(this.v(SO.shows) ?? '—')}</b><span>Shows ›</span></div>
-        <div class="go" data-act="info" data-kind="jflib:movies" data-id="${RA.movies}">${ic('mdi:movie-open')}<b>${esc(this.v(RA.movies) ?? '—')}</b><span>Movies ›</span></div>
-        <div data-act="info" data-kind="wanted" data-id="${SO.wanted}" class="go ${(this.n(SO.wanted) ?? 0) > 0 ? 'warn' : ''}">${ic('mdi:magnify')}<b>${esc(this.v(SO.wanted) ?? '—')}</b><span>Wanted ›</span></div>
-      </div>
-      <div class="dsec">Coming Up</div>
+      ${J.off ? '' : `<div class="dsec">Now Watching${clients != null ? ` · ${clients} client${clients === 1 ? '' : 's'}` : ''}</div>
+      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}Nobody is watching on Jellyfin</div>`}`}
+      ${lib.length ? `<div class="dsec">Library</div><div class="mlib">${lib.join('')}</div>` : ''}
+      ${!SO.cal && !RA.cal ? '' : `<div class="dsec">Coming Up</div>
       ${upcoming || (this._mcal ? `<div class="mempty">${ic('mdi:calendar-blank')}Nothing in the next two weeks</div>`
-        : '<div class="mupskel">' + Array.from({ length: 6 }, () => `<div class="mup">${'<div class="mud">' + skl('70%', 12) + skl('45%', 9, 'margin-top:5px') + '</div>'}<div class="mupth skl"></div><div class="mut">${skl('80%', 13)}${skl('50%', 10, 'margin-top:6px')}</div></div>`).join('') + skPill('Loading the calendar…') + '</div>')}
-      <div class="dsec">Downloads</div>
+        : '<div class="mupskel">' + Array.from({ length: 6 }, () => `<div class="mup">${'<div class="mud">' + skl('70%', 12) + skl('45%', 9, 'margin-top:5px') + '</div>'}<div class="mupth skl"></div><div class="mut">${skl('80%', 13)}${skl('50%', 10, 'margin-top:6px')}</div></div>`).join('') + skPill('Loading the calendar…') + '</div>')}`}
+      ${!Q.down ? '' : `<div class="dsec">Downloads</div>
       <div class="mdl">
         <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>Download</span></div>
         <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>Upload</span></div>
         <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(this.v(Q.active) ?? '—')}<small>/ ${esc(this.v(Q.all) ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
         <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? 'Slow' : 'Full'}</b><span>Speed limit</span></button>
-      </div>
+      </div>`}
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}
       ${disks.length ? `<div class="dsec">Storage</div><div class="mdks">${disks.join('')}</div>` : ''}`;
   }

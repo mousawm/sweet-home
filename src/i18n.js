@@ -148,6 +148,14 @@ const AR = {
   'Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.': 'أضف المناطق في Home Assistant (الإعدادات ← المناطق) وضع أجهزتك فيها: تصبح كل منطقة غرفة. أو ارسم غرفك بنفسك: عدّل لوحة التحكم، ثم عدّل هذه البطاقة ← الغرف.',
   'Your alarm, locks, temperatures, power, cameras and TV show up here once Home Assistant has them.': 'يظهر هنا نظام الإنذار والأقفال ودرجات الحرارة والطاقة والكاميرات والتلفاز عند توفرها في Home Assistant.',
   // gate sensors
+  'Found from': 'المصادر المكتشفة', 'Not found': 'غير موجود', entity: 'كيان', entities: 'كيانات', node: 'العقدة',
+  'Solar Forecast box': 'مربع توقعات الطاقة الشمسية', 'Now Watching, playing on the TV': 'المشاهدة الآن والتشغيل على التلفاز',
+  'Now Watching, clients and library (Jellyfin + JellyHA)': 'المشاهدة الآن والأجهزة والمكتبة (Jellyfin + JellyHA)', 'Used with “Jellyfin + JellyHA”': 'يُستخدم مع “Jellyfin + JellyHA”',
+  'Shows, Wanted, Coming Up, storage': 'المسلسلات والمطلوب والقادم والتخزين', 'Movies, Coming Up': 'الأفلام والقادم', Downloads: 'التنزيلات',
+  'Server, containers and VMs': 'الخادم والحاويات والأجهزة الافتراضية', 'Optional (HACS)': 'اختياري (HACS)',
+  'Add the Forecast.Solar integration for a solar forecast': 'أضف تكامل Forecast.Solar لعرض توقعات الطاقة الشمسية', 'Add the Jellyfin integration': 'أضف تكامل Jellyfin',
+  'Add the Sonarr integration': 'أضف تكامل Sonarr', 'Add the Radarr integration': 'أضف تكامل Radarr', 'Add the qBittorrent integration': 'أضف تكامل qBittorrent',
+  'Add the Proxmox VE integration (HACS)': 'أضف تكامل Proxmox VE (عبر HACS)',
   'Open / closed sensors': 'حساسات الفتح والإغلاق', Suggested: 'مقترح', 'Open / closed sensor': 'حساس الفتح والإغلاق', 'Second sensor (backup)': 'حساس ثانٍ (احتياطي)',
   'Tell each gate whether it is open: a door or contact sensor, or a camera that recognises the gate’s state (Frigate state classification: a sensor that reads open / closed). Add a second one as a backup.': 'حدّد لكل بوابة ما يخبر بحالتها: حساس باب أو تلامس، أو كاميرا تتعرف على حالة البوابة (تصنيف الحالة في Frigate: حساس يقرأ مفتوح / مغلق). أضف حساسًا ثانيًا كاحتياطي.',
   // modes

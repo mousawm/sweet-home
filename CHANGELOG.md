@@ -8,9 +8,13 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 - Energy History: *Show all* is the first button of the legend, so it sits on the top row instead of dropping onto a line of its own when it doesn't fit after *Other*.
+- Media Server: Downloads, Coming Up and Wanted no longer show empty tiles when qBittorrent, the calendars or Sonarr aren't installed.
+
 ### Changed
 
 ### Added
+
+- Card editor → Panels: a **Found from** list on Energy, Media Server and Home Lab shows each integration the panel reads (Forecast.Solar, Jellyfin, JellyHA, Sonarr, Radarr, qBittorrent, Proxmox VE). Each one is marked found (with how many entities) or not found (with a hint). Found ones get an on/off switch that hides their part of the card, for example qBittorrent off hides Downloads.
 
 ## v0.6.43 — 2026-11-20
 
