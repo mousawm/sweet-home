@@ -342,3 +342,22 @@ test('TV backlight: a light set as the TV backlight glows around the room\'s TV 
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');
+
+test('"Found from" switches: Jellyfin / Sonarr / Radarr / qBittorrent / Forecast.Solar off leave their part out', () => {
+  const h = JSON.parse(JSON.stringify(hass));
+  const add = (id, p, state = '1') => { h.states[id] = st(state); h.entities[id] = { platform: p }; };
+  add('media_player.living_room_tv', 'jellyfin', 'idle'); add('sensor.jellyfin_active_clients', 'jellyfin');
+  add('sensor.sonarr_upcoming', 'sonarr'); add('sensor.sonarr_shows', 'sonarr'); add('sensor.radarr_movies', 'radarr');
+  add('sensor.qbittorrent_download_speed', 'qbittorrent'); add('sensor.energy_production_today', 'forecast_solar', '12');
+  const M = (ms, en) => buildModel({ panels: { media_server: ms, energy: en } }, h);
+  const on = M({}, {}).E;
+  assert.deepEqual([on.mserver.sonarr.shows, on.mserver.radarr.movies, on.mserver.qbt.down, on.forecast.today, !!on.mserver.jellyfin.off],
+    ['sensor.sonarr_shows', 'sensor.radarr_movies', 'sensor.qbittorrent_download_speed', 'sensor.energy_production_today', false], 'on by default');
+  const x = M({ jellyfin: false, sonarr: false, radarr: false, qbittorrent: false }, { solar_forecast: false });
+  assert.equal(x.E.mserver.jellyfin.off, true);
+  assert.equal(x.E.mserver.jellyfin.clients, null);
+  assert.ok(Object.values(x.E.mserver.sonarr).every(v => v === null) && Object.values(x.E.mserver.radarr).every(v => v === null) && Object.values(x.E.mserver.qbt).every(v => v === null));
+  assert.equal(x.E.forecast.today, null, 'Forecast.Solar off: no Solar Forecast box');
+  assert.equal(x.hasMS, false, 'everything off: no Media Server card');
+  assert.equal(M({ jellyfin: false }).hasMS, true, 'Sonarr still on: the card stays');
+});

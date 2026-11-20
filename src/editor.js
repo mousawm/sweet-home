@@ -330,6 +330,10 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-steps button.on,.sh-modes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
       .sh-steps ha-icon,.sh-modes ha-icon{--mdc-icon-size:18px}
       .sh-hint{font-size:13px;color:var(--secondary-text-color);line-height:1.45}
+      .sh-int{display:flex;flex-direction:column;gap:2px;margin:0 0 10px;padding:6px 10px;border-radius:10px;background:rgba(127,127,127,.08)}
+      .sh-int>small{font-size:12px;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.04em;padding:4px 0}
+      .sh-intr{display:flex;align-items:center;gap:10px;min-height:40px}.sh-intr ha-icon{--mdc-icon-size:20px;color:#22c55e}.sh-intr.no ha-icon{color:var(--disabled-text-color,#9ca3af)}
+      .sh-intr>span{flex:1;display:flex;flex-direction:column;font-size:14px}.sh-intr>span small{font-size:12px;color:var(--secondary-text-color)}.sh-intr.no>span b{color:var(--secondary-text-color);font-weight:500}
       .sh-rooms{display:flex;flex-wrap:wrap;gap:6px}
       .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
       .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
@@ -1295,6 +1299,47 @@ class SweetHomeCardEditor extends HTMLElement {
   // camera's state classification (Frigate) — with suggestions found by name and device
   // Water → each pump: what it shows while running (power, running time or both), how many taps turn it on, and its
   // power sensor (found on the pump's device when empty). Kept on the pump's entry in `pumps` ({entity, show, presses, power}).
+  // "Found from": the integrations a panel reads, whether Home Assistant has them, and a switch to hide that part of
+  // the card (stored only when off, e.g. panels.media_server.sonarr: false)
+  _integrations(det, k, cur, set) {
+    const ents = this._hass.entities || {}, states = this._hass.states;
+    const of = p => Object.keys(ents).filter(id => ents[id].platform === p && states[id]);
+    const n = p => { const c = of(p).length; return c ? `${c} ${c === 1 ? t('entity') : t('entities')}` : ''; };
+    const pve = (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(m => m && ents[m[0]]?.platform === 'proxmoxve')
+      || Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(Boolean) || [])[1];
+    const hybrid = ['hybrid', 'jellyha'].includes(cur.integration) || (!cur.integration && !of('jellyfin').length && of('jellyha').length);
+    // [key stored in the panel's config (null: no switch), name, what it shows, found, detail, hint when not found]
+    const rows = {
+      energy: [['solar_forecast', 'Forecast.Solar', 'Solar Forecast box', of('forecast_solar').length > 0, n('forecast_solar'), 'Add the Forecast.Solar integration for a solar forecast']],
+      media_server: [
+        ['jellyfin', 'Jellyfin', 'Now Watching, playing on the TV', of('jellyfin').length > 0, n('jellyfin'), 'Add the Jellyfin integration'],
+        [null, 'JellyHA', hybrid ? 'Now Watching, clients and library (Jellyfin + JellyHA)' : 'Used with “Jellyfin + JellyHA”', of('jellyha').length > 0, n('jellyha'), 'Optional (HACS)'],
+        ['sonarr', 'Sonarr', 'Shows, Wanted, Coming Up, storage', of('sonarr').length > 0, n('sonarr'), 'Add the Sonarr integration'],
+        ['radarr', 'Radarr', 'Movies, Coming Up', of('radarr').length > 0, n('radarr'), 'Add the Radarr integration'],
+        ['qbittorrent', 'qBittorrent', 'Downloads', of('qbittorrent').length > 0, n('qbittorrent'), 'Add the qBittorrent integration'],
+      ],
+      homelab: [[null, 'Proxmox VE', 'Server, containers and VMs', !!pve, pve ? `${t('node')} ${pve}` : '', 'Add the Proxmox VE integration (HACS)']],
+    }[k];
+    if (!rows) return;
+    const box = document.createElement('div'); box.className = 'sh-int';
+    box.innerHTML = `<small>${t('Found from')}</small>`;
+    for (const [key, name, what, found, detail, hint] of rows) {
+      const r = document.createElement('div'); r.className = `sh-intr ${found ? 'ok' : 'no'}`; if (key) r.dataset.int = key;
+      r.innerHTML = `<ha-icon icon="${found ? 'mdi:check-circle' : 'mdi:minus-circle-outline'}"></ha-icon><span><b>${esc(name)}</b><small>${esc(t(what))}${found ? (detail ? ` · ${esc(detail)}` : '') : ` · ${esc(t('Not found'))}: ${esc(t(hint))}`}</small></span>`;
+      if (key && found) {
+        const sw = document.createElement('ha-switch'); sw.checked = cur[key] !== false;
+        sw.addEventListener('change', () => {
+          const next = { ...(typeof this._config.panels?.[k] === 'object' && this._config.panels[k] ? this._config.panels[k] : {}) };
+          if (sw.checked) delete next[key]; else next[key] = false;
+          set(k, Object.keys(next).length ? next : undefined);
+        });
+        r.appendChild(sw);
+      }
+      box.appendChild(r);
+    }
+    det.appendChild(box);
+  }
+
   _pumpOptions(det, P) {
     const W = typeof P.water === 'object' && P.water ? P.water : null, list = arr(W?.pumps);
     if (!list.length) return;
@@ -1625,6 +1670,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
         if (k === 'tv_light' && cur.selects) data.selects = arr(cur.selects).map(entityId).filter(Boolean);
         if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
+        this._integrations(det, k, cur, set);
         if (k === 'people') { this._mPeople(det); list.appendChild(det); continue; }
         // Energy: Month / Year from Home Assistant's Energy data (on by default) hide the Month / Year sensor fields
         const enStats = k === 'energy' && cur.energy_dashboard_totals !== false;

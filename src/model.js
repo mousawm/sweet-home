@@ -868,20 +868,23 @@ export function buildModel(cfg = {}, hass) {
       ? { kind: 'hybrid', view: 'jellyha', clients: own || plat('jellyha', /_active_sessions$/), playClients, tv: MS.jellyfin_tv || null }
       : { kind: 'jellyfin', view: 'jellyfin', clients: own || playClients, playClients, tv: MS.jellyfin_tv || null };
   }
+  // the "Found from" switches in the editor: panels.media_server.jellyfin / sonarr / radarr / qbittorrent: false hides
+  // that part of the Media Server card (its entities are left out)
+  const off = (o, k) => (MS[k] === false ? Object.fromEntries(Object.keys(o).map(x => [x, null])) : o);
   const mserver = {
-    jellyfin: jfIntegration(),
-    sonarr: { upcoming: plat('sonarr', /_upcoming$/), wanted: plat('sonarr', /_wanted$/), queue: plat('sonarr', /^sensor\..*_queue$/), shows: plat('sonarr', /_shows$/), disk: plat('sonarr', /_disk_space/), cal: plat('sonarr', /^calendar\./) },
-    radarr: { movies: plat('radarr', /_movies$/), queue: plat('radarr', /^sensor\..*_queue$/), health: plat('radarr', /^binary_sensor\..*_health$/), disk: plat('radarr', /_disk_space/), cal: plat('radarr', /^calendar\./) },
-    qbt: {
+    jellyfin: MS.jellyfin === false ? { kind: 'off', view: null, clients: null, playClients: null, tv: MS.jellyfin_tv || null, off: true } : jfIntegration(),
+    sonarr: off({ upcoming: plat('sonarr', /_upcoming$/), wanted: plat('sonarr', /_wanted$/), queue: plat('sonarr', /^sensor\..*_queue$/), shows: plat('sonarr', /_shows$/), disk: plat('sonarr', /_disk_space/), cal: plat('sonarr', /^calendar\./) }, 'sonarr'),
+    radarr: off({ movies: plat('radarr', /_movies$/), queue: plat('radarr', /^sensor\..*_queue$/), health: plat('radarr', /^binary_sensor\..*_health$/), disk: plat('radarr', /_disk_space/), cal: plat('radarr', /^calendar\./) }, 'radarr'),
+    qbt: off({
       down: plat('qbittorrent', /_download_speed$/), up: plat('qbittorrent', /_upload_speed$/), status: plat('qbittorrent', /_status$/), conn: plat('qbittorrent', /_connection_status$/),
       active: plat('qbittorrent', /_active_torrents$/), all: plat('qbittorrent', /_all_torrents$/), errored: plat('qbittorrent', /_errored_torrents$/), ratio: plat('qbittorrent', /_global_ratio$/),
       alt: plat('qbittorrent', /^switch\..*_alternative_speed$/),
-    },
+    }, 'qbittorrent'),
   };
-  const hasMS = !!(mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.view, /^media_player\./).length || R.ofPlatform('jellyfin', /^media_player\./).length || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
+  const hasMS = !!((!mserver.jellyfin.off && (mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.view, /^media_player\./).length || R.ofPlatform('jellyfin', /^media_player\./).length)) || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
 
   // solar forecast (Forecast.Solar)
-  const fs = re => plat('forecast_solar', re);
+  const fs = re => ((P.energy || {}).solar_forecast === false ? null : plat('forecast_solar', re)); // off in the editor: hidden
   const forecast = { today: fs(/energy_production_today$/), remaining: fs(/energy_production_today_remaining$/), tomorrow: fs(/energy_production_tomorrow$/), peak: fs(/power_highest_peak_time_today$/) };
 
   const media = P.media || {};

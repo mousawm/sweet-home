@@ -665,6 +665,39 @@ try {
     delete editor._config.panels.media_server.integration; if (!Object.keys(editor._config.panels.media_server).length) delete editor._config.panels.media_server; editor._emit();
     return (opts === 'jellyfin,hybrid' && picked && back) || JSON.stringify({ opts, picked, back });
   }));
+  { const r = await p.evaluate(async () => {
+    const h = editor._hass; const add = (id, pl, v = '1') => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('sensor.sonarr_upcoming', 'sonarr'); add('sensor.sonarr_shows', 'sonarr', '40'); add('sensor.radarr_movies', 'radarr', '12');
+    editor._R = null; editor._render(); await new Promise(r => setTimeout(r, 50));
+    const det = () => [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('select[name=integration]'));
+    const row = k => det().querySelector(`.sh-intr[data-int=${k}]`), out = {};
+    out.found = row('sonarr')?.classList.contains('ok') && row('radarr')?.classList.contains('ok') && !!row('sonarr').querySelector('ha-switch');
+    out.notFound = row('qbittorrent')?.classList.contains('no') && !row('qbittorrent').querySelector('ha-switch') && /Not found/.test(row('qbittorrent').textContent);
+    out.jellyha = [...det().querySelectorAll('.sh-intr')].some(x => /JellyHA/.test(x.textContent) && !x.querySelector('ha-switch'));
+    const sw = row('sonarr').querySelector('ha-switch'); sw.checked = false; sw.dispatchEvent(new Event('change'));
+    out.saved = editor._config.panels?.media_server?.sonarr === false;
+    const sw2 = det().querySelector('.sh-intr[data-int=sonarr] ha-switch'); out.showsOff = sw2 && sw2.checked === false;
+    sw2.checked = true; sw2.dispatchEvent(new Event('change')); out.cleared = editor._config.panels?.media_server?.sonarr === undefined;
+    const en = [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('input[name=energy_dashboard_totals]'));
+    out.energy = !!en?.querySelector('.sh-intr[data-int=solar_forecast]');
+    out.lab = [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('input[name=auto_guests]'))?.querySelector('.sh-intr')?.textContent.includes('Proxmox VE');
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('editor, Found from: each integration shows found / not found, its switch saves sonarr: false and clears when back on', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const h = card._hass._raw || card._hass, cfg0 = card._config;
+    const add = (id, pl, v = '1') => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('sensor.sonarr_upcoming', 'sonarr'); add('sensor.sonarr_shows', 'sonarr', '40'); add('sensor.sonarr_wanted', 'sonarr', '0'); add('calendar.sonarr', 'sonarr');
+    add('sensor.radarr_movies', 'radarr', '12'); add('sensor.qbittorrent_download_speed', 'qbittorrent', '0');
+    card._mcal = { at: Date.now(), items: [] };
+    const show = async ms => { const c = JSON.parse(JSON.stringify(cfg0)); c.panels = { ...(c.panels || {}), media_server: ms }; card.setConfig(c); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 800)); card._mcal = { at: Date.now(), items: [] }; return card._rMServer(); };
+    const secs = html => [...html.matchAll(/class="dsec">([^<·]+)/g)].map(m => m[1].trim()).join(',');
+    const out = {};
+    const all = await show({}); out.all = secs(all);
+    const some = await show({ sonarr: false, qbittorrent: false, jellyfin: false }); out.some = secs(some);
+    out.noWanted = !/data-kind="wanted"/.test(some) && /Movies/.test(some) && !/data-kind="jflib/.test(some);
+    card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 500));
+    return (out.all === 'Now Watching,Library,Coming Up,Downloads' && out.some === 'Library' && out.noWanted) || JSON.stringify(out);
+  }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching, Wanted and Downloads', r === true, r); }
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
   await p.waitForTimeout(1500);
