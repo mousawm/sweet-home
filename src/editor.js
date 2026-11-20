@@ -1596,7 +1596,11 @@ class SweetHomeCardEditor extends HTMLElement {
         { name: 'block_switch', selector: { entity: { domain: ['switch', 'input_boolean'] } } }, { name: 'unblock_switch', selector: { entity: { domain: ['switch', 'input_boolean'] } } }],
       tv_light: [{ name: 'light', selector: { entity: { domain: 'light' } } }, { name: 'selects', selector: { entity: { domain: ['select', 'input_select'], multiple: true } } }],
       media_server: [{ name: 'jellyfin_tv' }], // its own form below
-      homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
+      // Home Lab: each sensor is found from the Proxmox node's name when left empty; the servers (containers / VMs) list
+      // gets its options below
+      homelab: [...[['cpu'], ['memory'], ['disk'], ['swap'], ['temperature', 'temperature'], ['containers'], ['vms'], ['updates']]
+        .map(([name, dc]) => ({ name, selector: { entity: { domain: 'sensor', ...(dc ? { device_class: dc } : {}) } } })),
+        { name: 'auto_guests', selector: { boolean: {} } }, { name: 'pinned', selector: { select: { multiple: true, mode: 'list', options: [] } } }],
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
@@ -1625,6 +1629,12 @@ class SweetHomeCardEditor extends HTMLElement {
         // Energy: Month / Year from Home Assistant's Energy data (on by default) hide the Month / Year sensor fields
         const enStats = k === 'energy' && cur.energy_dashboard_totals !== false;
         if (k === 'energy') { data.energy_dashboard_totals = enStats; det.open = !!this._enOpen; det.addEventListener('toggle', () => { this._enOpen = det.open; }); }
+        // Home Lab: every container / VM listed automatically (on by default); off: only the ones picked under Servers
+        const hlAuto = k === 'homelab' && cur.auto_guests !== false;
+        if (k === 'homelab') {
+          data.auto_guests = hlAuto; data.pinned = arr(cur.pinned).map(g => (typeof g === 'string' ? g : g?.key)).filter(Boolean);
+          det.open = !!this._hlOpen; det.addEventListener('toggle', () => { this._hlOpen = det.open; });
+        }
         if (k === 'modes') { // modes live in the card's own `modes` list (not under panels): a name or icon given in YAML stays
           det.appendChild(this._form(schemas.modes, { modes: arr(this._config.modes).map(entityId).filter(Boolean) }, v => {
             const old = arr(this._config.modes), val = arr(v.modes).map(id => old.find(o => typeof o === 'object' && entityId(o) === id) || id);
@@ -1672,11 +1682,24 @@ class SweetHomeCardEditor extends HTMLElement {
         }
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
         if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
-        const schema = enStats ? schemas[k].filter(f => !['month_sensor', 'year_sensor'].includes(f.name)) : schemas[k];
+        let schema = enStats ? schemas[k].filter(f => !['month_sensor', 'year_sensor'].includes(f.name)) : schemas[k];
+        if (k === 'homelab') { // the Proxmox guests Home Assistant has (sensor / binary_sensor <lxc|qemu>_…_status), by name
+          const keys = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^(?:binary_)?sensor\.((?:lxc|qemu)_.+)_status$/)?.[1]).filter(Boolean))];
+          const nm = g => (this._reg.name(`sensor.${g}_status`) || this._reg.name(`binary_sensor.${g}_status`) || g).replace(/\s*status$/i, '');
+          const options = [...new Set([...keys, ...data.pinned])].map(g => ({ value: g, label: nm(g) })).sort((a, b) => a.label.localeCompare(b.label));
+          schema = schema.map(f => (f.name === 'pinned' ? { ...f, selector: { select: { multiple: true, mode: 'list', options } } } : f));
+        }
         det.appendChild(this._form(schema, data, v => {
           const next = { ...(typeof P[k] === 'object' && P[k] ? P[k] : {}) };
           for (const [kk, vv] of Object.entries(v)) {
             let val = vv;
+            if (k === 'homelab' && kk === 'auto_guests') { // on is the default: stored only when off; the Servers label changes with it
+              const was = next[kk] !== false; if (vv === false) next[kk] = false; else delete next[kk];
+              if (was !== (vv !== false)) { set(k, next); this._render(); return; }
+              continue;
+            }
+            if (k === 'homelab' && kk === 'pinned') // a guest written with its own name / icon keeps them
+              val = (Array.isArray(vv) ? vv : String(vv || '').split(',').map(x => x.trim()).filter(Boolean)).map(g => arr(next.pinned).find(o => typeof o === 'object' && o?.key === g) || g);
             if (k === 'energy' && kk === 'energy_dashboard_totals') { // on is the default: stored only when off; the form changes with it
               const was = next[kk] !== false; if (vv === false) next[kk] = false; else delete next[kk];
               if (was !== (vv !== false)) { set(k, next); this._render(); return; }
@@ -1698,6 +1721,9 @@ class SweetHomeCardEditor extends HTMLElement {
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
+          cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
+          auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',
+          pinned: k === 'homelab' && cur.auto_guests === false ? 'Servers to show' : 'Servers pinned at the top',
           player: 'TV', speakers: 'Speakers', watch_timer: 'Screen time: watched today (H:MM:SS)', watch_limit: 'Screen time: daily limit (H:MM:SS)', limit_select: 'Screen time: daily limit picker',
           block_switch: 'Screen time: Block switch', unblock_switch: 'Screen time: Force Unblock switch', light: k === 'tv_light' ? 'TV backlight' : undefined, selects: 'Backlight modes / effects (selectors)',
           pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', face: 'Face recognition: the last recognised face (badge on the Cameras card; empty: the cameras’ own face sensors)', temperature: k === 'homelab' ? 'CPU temperature' : 'Water temperature' }));

@@ -357,7 +357,12 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   installed, else `hybrid`. Pick it in the card editor under Panels → Media Server.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
-- **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`, `order`.
+- **homelab**: found from the Proxmox VE custom integration. Options (all in the card editor under Panels → Home Lab):
+  - `cpu`, `memory`, `disk`, `swap`, `temperature`, `containers`, `vms`, `updates`: your own sensors in place of the
+    node's (empty: found from the Proxmox node). With no Proxmox node, picking them still gives a Home Lab card
+  - `auto_guests` (on by default): every container and VM is listed (the `pinned` ones first, the rest behind
+    **Show more**). Off: only the `pinned` servers are listed
+  - `pinned`: servers (Proxmox guest keys, e.g. `lxc_jellyfin_102`, or `{key, name, icon}`), `order`
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
 - **tv_light**: `light` (the TV backlight) and `selects` (its mode / effect selectors: `select` or `input_select`, as IDs or `{entity, name, icon}`). Pick them in the card editor under Panels → TV light; switching the panel off hides its card

@@ -313,5 +313,20 @@ test('Energy Month / Year: from Home Assistant\'s Energy data by default; the pi
   assert.deepEqual([E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).monthly, E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).yearly], ['sensor.m', 'sensor.y']);
 });
 
+test('Home Lab: each sensor found from the Proxmox node or picked; servers listed automatically unless auto_guests is off', () => {
+  const h = JSON.parse(JSON.stringify(hass));
+  h.states['sensor.node_pve_cpu_used'] = st('11'); h.entities['sensor.node_pve_cpu_used'] = { platform: 'proxmoxve' };
+  const L = c => buildModel({ panels: { homelab: c } }, h).E.lab;
+  const a = L({});
+  assert.deepEqual([a.cpu, a.mem, a.disk, a.swap, a.cts, a.vms, a.updates, a.temp, a.auto], ['sensor.node_pve_cpu_used', 'sensor.node_pve_memory_used_percentage', 'sensor.node_pve_disk_used_percentage',
+    'sensor.node_pve_swap_used_percentage', 'sensor.node_pve_containers_running', 'sensor.node_pve_virtual_machines_running', 'sensor.node_pve_total_updates', null, true]);
+  const o = L({ cpu: 's.c', memory: 's.m', disk: 's.d', swap: 's.s', temperature: 's.t', containers: 's.ct', vms: 's.v', updates: 's.u', auto_guests: false, pinned: ['lxc_a_1', { key: 'qemu_b_2', name: 'B' }] });
+  assert.deepEqual([o.cpu, o.mem, o.disk, o.swap, o.temp, o.cts, o.vms, o.updates, o.auto], ['s.c', 's.m', 's.d', 's.s', 's.t', 's.ct', 's.v', 's.u', false]);
+  assert.deepEqual(o.guests, [['lxc_a_1', null, null], ['qemu_b_2', 'B', undefined]]);
+  const none = buildModel({ panels: { homelab: { cpu: 'sensor.my_cpu' } } }, hass).E.lab;
+  assert.equal(none.cpu, 'sensor.my_cpu', 'no Proxmox node: picked sensors still make a Home Lab card');
+  assert.equal(none.status, null);
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

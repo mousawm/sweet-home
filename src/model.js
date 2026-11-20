@@ -827,14 +827,21 @@ export function buildModel(cfg = {}, hass) {
   // Proxmox VE (custom integration "proxmoxve"): the first node
   const pveNode = (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(m => m && R.platform(m[0]) === 'proxmoxve') || [])[1]
     || (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(Boolean) || [])[1];
-  const lab = pveNode ? {
-    node: pveNode, status: `binary_sensor.node_${pveNode}_status`, cpu: `sensor.node_${pveNode}_cpu_used`, mem: `sensor.node_${pveNode}_memory_used_percentage`,
-    disk: `sensor.node_${pveNode}_disk_used_percentage`, cts: `sensor.node_${pveNode}_containers_running`, vms: `sensor.node_${pveNode}_virtual_machines_running`,
-    updates: `sensor.node_${pveNode}_total_updates`, swap: `sensor.node_${pveNode}_swap_used_percentage`, swapUsed: `sensor.node_${pveNode}_swap_used`,
-    swapTotal: `sensor.node_${pveNode}_swap_total`, update: `update.node_${pveNode}_software_update`, temp: P.homelab?.temperature || null,
-    guests: arr(P.homelab?.pinned).map(g => typeof g === 'string' ? [g, null, null] : [g.key, g.name, g.icon]),
-    order: arr(P.homelab?.order).map(String), // guest order set by dragging the rows (Proxmox ids)
-  } : { guests: [], order: [] };
+  // Home Lab: every sensor is found from the node's name, or picked in the card editor (panels.homelab: cpu, memory, disk,
+  // swap, temperature, containers, vms, updates). auto_guests (on by default): every container / VM is listed, pinned ones
+  // first; off: only the pinned ones.
+  const HL = P.homelab || {}, node = (suf) => (pveNode ? `${suf[0]}.node_${pveNode}_${suf[1]}` : null);
+  const lab = pveNode || ['cpu', 'memory', 'disk', 'swap', 'containers', 'vms', 'updates'].some(k => HL[k]) ? {
+    node: pveNode || null, status: node(['binary_sensor', 'status']),
+    cpu: HL.cpu || node(['sensor', 'cpu_used']), mem: HL.memory || node(['sensor', 'memory_used_percentage']),
+    disk: HL.disk || node(['sensor', 'disk_used_percentage']), cts: HL.containers || node(['sensor', 'containers_running']),
+    vms: HL.vms || node(['sensor', 'virtual_machines_running']), updates: HL.updates || node(['sensor', 'total_updates']),
+    swap: HL.swap || node(['sensor', 'swap_used_percentage']), swapUsed: node(['sensor', 'swap_used']),
+    swapTotal: node(['sensor', 'swap_total']), update: node(['update', 'software_update']), temp: HL.temperature || null,
+    guests: arr(HL.pinned).map(g => typeof g === 'string' ? [g, null, null] : [g.key, g.name, g.icon]),
+    order: arr(HL.order).map(String), // guest order set by dragging the rows (Proxmox ids)
+    auto: HL.auto_guests !== false,
+  } : { guests: [], order: [], auto: true };
 
   // media server: Jellyfin / Sonarr / Radarr / qBittorrent are found by their integration
   const plat = (p, re) => R.ofPlatform(p, re)[0] || null;

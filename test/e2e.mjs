@@ -243,6 +243,19 @@ try {
     delete h.states['light.tv_backlight']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 900));
     return (on && !off) || JSON.stringify({ on, off });
   }); check('TV light card: shown with a backlight, hidden when its panel is switched off', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // Home Lab: a picked sensor replaces the node's; auto_guests off lists only the picked servers
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config));
+    h.states['sensor.my_cpu'] = { entity_id: 'sensor.my_cpu', state: '77', attributes: { unit_of_measurement: '%' } };
+    const html = () => { const t = document.createElement('template'); t.innerHTML = card._rLab(); return t.content; };
+    const set = async hl => { const c = JSON.parse(JSON.stringify(cfg)); c.panels = { ...(c.panels || {}), homelab: hl }; card.setConfig(c); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800)); card._labMore = true; };
+    await set({}); const all = html().querySelectorAll('.vm').length;
+    await set({ cpu: 'sensor.my_cpu', auto_guests: false, pinned: ['lxc_jellyfin_102', 'qemu_haos_103'] });
+    const c = html(), only = [...c.querySelectorAll('.vm')].map(v => v.dataset.gid).join(), cpu = c.querySelector('.ring')?.dataset.id, more = !!c.querySelector('[data-act=labmore]');
+    await set({ pinned: ['lxc_jellyfin_102'] }); const pinnedFirst = html().querySelector('.vm')?.dataset.gid, stillAll = html().querySelectorAll('.vm').length;
+    delete h.states['sensor.my_cpu']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800)); card._labMore = false;
+    return (all === 8 && only === '102,103' && cpu === 'sensor.my_cpu' && !more && pinnedFirst === '102' && stillAll === 8) || JSON.stringify({ all, only, cpu, more, pinnedFirst, stillAll });
+  }); check('Home Lab: a picked CPU sensor is used; with automatic servers off only the picked ones are listed; on, pinned ones come first', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -562,6 +575,21 @@ try {
     const j = editor.querySelector('ha-form input[name=clients_sensor]'); j.value = ''; j.dispatchEvent(new Event('change'));
     return (saved && !editor._config.panels?.media_server?.clients_sensor) || JSON.stringify({ saved, ms: editor._config.panels?.media_server });
   }); check('editor, Media Server: the clients sensor is picked and saved (cleared when emptied)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const det = () => [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('input[name=auto_guests]'));
+    if (!det()) return 'no Home Lab switch'; det().open = true; await new Promise(r => setTimeout(r, 50));
+    const out = { fields: ['cpu', 'memory', 'disk', 'swap', 'temperature', 'containers', 'vms', 'updates'].every(n => det().querySelector(`input[name=${n}]`)) };
+    out.onByDefault = det().querySelector('input[name=auto_guests]').checked;
+    const opts = [...det().querySelector('select[name=pinned]').options].map(o => o.value); out.options = opts.includes('lxc_jellyfin_102') && opts.includes('qemu_haos_103');
+    const i = det().querySelector('input[name=cpu]'); i.value = 'sensor.my_cpu'; i.dispatchEvent(new Event('change')); out.cpu = editor._config.panels?.homelab?.cpu === 'sensor.my_cpu';
+    const sw = det().querySelector('input[name=auto_guests]'); sw.checked = false; sw.dispatchEvent(new Event('change'));
+    const lab = [...det().querySelectorAll('ha-form')].find(f => f.querySelector('select[name=pinned]'))?.computeLabel?.({ name: 'pinned' });
+    out.off = editor._config.panels?.homelab?.auto_guests === false && lab === 'Servers to show' && det().open;
+    const sel = det().querySelector('select[name=pinned]'); sel.value = 'qemu_haos_103'; sel.dispatchEvent(new Event('change'));
+    out.pinned = JSON.stringify(editor._config.panels?.homelab?.pinned) === '["qemu_haos_103"]';
+    delete editor._config.panels.homelab; editor._emit(); editor._render();
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('editor, Home Lab: the 8 sensors can be picked, automatic servers is on by default, off saves only the picked servers', r === true, r); }
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;
