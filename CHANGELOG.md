@@ -7,10 +7,16 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+### Changed
+
+### Added
+
+## v0.6.44 — 2026-11-20
+
+### Fixed
+
 - Energy History: *Show all* is the first button of the legend, so it sits on the top row instead of dropping onto a line of its own when it doesn't fit after *Other*.
 - Media Server: Downloads, Coming Up and Wanted no longer show empty tiles when qBittorrent, the calendars or Sonarr aren't installed.
-
-### Changed
 
 ### Added
 
