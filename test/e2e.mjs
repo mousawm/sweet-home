@@ -323,6 +323,29 @@ try {
     for (const t of ['home', 'security', 'climate', 'energy', 'water', 'system']) { card._setTab(t); await new Promise(r => setTimeout(r, 120)); if (/NaN|undefined/.test(card.shadowRoot.textContent)) ok = false; }
     card.hass = window.hassObj; card._setTab('home'); await new Promise(r => setTimeout(r, 150)); return ok;
   }));
+  // names and states come from users and integrations: markup in them must show as text, never become HTML
+  { const r = await p.evaluate(async () => {
+    const X = '<img data-xss src="x">', wait = ms => new Promise(r => setTimeout(r, ms)), found = [], cfg = JSON.parse(JSON.stringify(card._config));
+    const scan = where => { const n = card.shadowRoot.querySelectorAll('[data-xss]').length; if (n) found.push(`${where}: ${n}`); };
+    for (const mode of ['names', 'states']) {
+      const h = { ...window.hassObj, states: JSON.parse(JSON.stringify(window.hassObj.states)) };
+      for (const k in h.states) {
+        const st = h.states[k];
+        if (mode === 'names') st.attributes = { ...st.attributes, friendly_name: X + (st.attributes.friendly_name || k), app_name: st.attributes.app_name ? X : undefined };
+        else if (isNaN(parseFloat(st.state))) st.state = X;
+      }
+      // a TV that lists Jellyfin (its name is in the Jellyfin sheets' subtitle) and a power-drawing device on the Energy card
+      h.states['media_player.xss_tv'] = { entity_id: 'media_player.xss_tv', state: 'on', attributes: { friendly_name: X + 'TV', source_list: ['Jellyfin'] } };
+      const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), energy: { ...(c2.panels?.energy || {}), consumers: [{ entity: 'sensor.ev_power' }] } };
+      card.hass = h; card.setConfig(c2); card.hass = h; await wait(600); // the config is read again: names it keeps (pumps, devices) come from these states
+      for (const t of ['home', 'security', 'climate', 'energy', 'water', 'media', 'system']) { card._setTab(t); await wait(200); scan(`${mode} · ${t} tab`); }
+      for (const k of ['lights', 'temps', 'weather', 'power', 'jflib:movies', 'jflib:shows']) { card._openInfo(k); await wait(250); scan(`${mode} · ${k} sheet`); card._closeSheet(); }
+      for (const room of Object.keys(card._three.rooms)) { card._select(room); await wait(120); scan(`${mode} · ${room} room`); }
+      card._select(null);
+    }
+    card.setConfig(cfg); card.hass = window.hassObj; card._setTab('home'); await wait(600);
+    return found.length ? found.join('; ') : true;
+  }); check('markup in entity names and states is shown as text everywhere (no HTML injection)', r === true, r); }
   check('two rooms on the same area: each keeps its own label, none left empty in the corner', await p.evaluate(async () => {
     const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(card._config));
     cfg.house.rooms.push({ area: 'living_room', name: 'Living room corridor', rects: [[0, 14, 3, 16]] });
