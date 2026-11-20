@@ -11,6 +11,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- Card editor: Panels → Energy has an *Energy stored* picker; the chosen sensor shows as *Stored* next to Today / Month / Year on the Energy card. Not set (or the sensor is gone): no Stored box.
+
 ## v0.6.41 — 2026-11-19
 
 ### Fixed
