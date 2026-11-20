@@ -14,6 +14,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- **Sweet Home 3D**, a new card (`custom:sweet-home-3d-card`) with only the 3D view, to place among your other cards. Tapping a room opens its controls as a pop-up over the dashboard. It resizes in Sections views, and `height` sets its size elsewhere. Its editor has the Rooms and Look steps, using the same `house` settings as the full card.
 - Card editor → Panels: a **Found from** list on Energy, Media Server and Home Lab shows each integration the panel reads (Forecast.Solar, Jellyfin, JellyHA, Sonarr, Radarr, qBittorrent, Proxmox VE). Each one is marked found (with how many entities) or not found (with a hint). Found ones get an on/off switch that hides their part of the card, for example qBittorrent off hides Downloads.
 
 ## v0.6.43 — 2026-11-20

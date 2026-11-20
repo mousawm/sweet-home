@@ -289,6 +289,7 @@ const ALARM = {
 /* ------------------------------------------------------------------ */
 export class SweetHomeCard extends HTMLElement {
   static get THREE() { return THREE_LIB; }
+  static TYPE = 'sweet-home-card';
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -420,6 +421,7 @@ export class SweetHomeCard extends HTMLElement {
     else if (this._gaveAway && this._built) { this._gaveAway = false; this._rebuild(false); } // its 3D view was handed over and is gone: build it again
   }
   disconnectedCallback() {
+    if (this._popKey) { window.removeEventListener('keydown', this._popKey); this._popKey = null; }
     clearInterval(this._clockT); clearInterval(this._camT); clearInterval(this._histT);
     this._unmountCams(); if (this._visH) { document.removeEventListener('visibilitychange', this._visH); this._visH = null; }
     if (this._three) this._three.pause();
@@ -548,7 +550,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     // Arabic uses the device's own Arabic font (SF Arabic on Apple, Noto on Android, Segoe UI on Windows): nothing loaded from outside
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
-    <div class="app" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
+    <div class="app${this._solo ? ' solo' : ''}" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
       <header class="top">
         <div class="hello">
@@ -584,7 +586,7 @@ export class SweetHomeCard extends HTMLElement {
             <div class="hint" id="hint" role="note"></div>
             <div class="lvls" id="lvls" role="tablist" aria-label="${tr('Floors')}"></div>
             <div class="loading" id="loading"><div class="spinner"></div><span>${tr('Building your home…')}</span></div>
-            <aside class="drawer" id="drawer"></aside>
+            ${this._solo ? '' : '<aside class="drawer" id="drawer"></aside>'}
           </div>
         </section>
         <aside class="col">
@@ -602,8 +604,14 @@ export class SweetHomeCard extends HTMLElement {
       </main>
       <footer class="foot">Sweet Home · v${VERSION}</footer>
     </div>
+    ${this._solo ? `<div class="rpop" id="rpop" data-act="roomclose" dir="${isRTL() ? 'rtl' : 'ltr'}"><aside class="drawer" id="drawer" role="dialog" aria-modal="true"></aside></div>` : ''}
     <div class="sheet-bg" id="sheet" data-act="sheetclose"></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
+    if (this._solo) { // Sweet Home 3D: only the 3D view; `height` sets it outside a sections grid
+      const hh = this._config?.height, px = typeof hh === 'number' || /^\d+$/.test(String(hh ?? '')) ? `${hh}px` : hh;
+      this.toggleAttribute('solo', true);
+      if (px && /^[\d.]+(px|vh|em|rem)$/.test(px)) this.style.setProperty('--solo-h', px); else this.style.removeProperty('--solo-h');
+    }
     const K3 = this._keep3d; // the same house: the old 3D view (canvas, labels, camera) is moved into the new page as it is
     if (K3) { this.$('viewport').replaceWith(K3.vp); const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; } }
     const $ = id => this.shadowRoot.getElementById(id);
@@ -662,9 +670,10 @@ export class SweetHomeCard extends HTMLElement {
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: offP('devices') || !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
     };
+    if (this._solo) for (const sec of this._sections) if (sec.el.id !== 'drawer') off[sec.el.id] = true; // Sweet Home 3D: the room pop-up only
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
     const kt = this._keepTab; this._keepTab = null;
-    this._setTab(kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
+    this._setTab(this._solo ? 'home' : kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     const L = MODEL.levels || [{ level: 0 }];
     if (this._level == null || !L.some(l => l.level === this._level)) this._level = this._defFloor(L);
     this._tick();
@@ -688,6 +697,14 @@ export class SweetHomeCard extends HTMLElement {
     this._reselect = null;
   }
 
+  get _solo() { return this.constructor.SOLO === true; }
+  // Sweet Home 3D: the room's controls open as a pop-up over the dashboard (Escape or a tap beside it closes it)
+  _roomPop(open) {
+    const p = this.$('rpop'); if (!p) return;
+    p.classList.toggle('open', open);
+    if (open && !this._popKey) { this._popKey = e => { if (e.key === 'Escape') this._select(null); }; window.addEventListener('keydown', this._popKey); }
+    if (!open && this._popKey) { window.removeEventListener('keydown', this._popKey); this._popKey = null; }
+  }
   _acExtras(id) { // related switches such as jet mode / display light
     const obj = id.split('.')[1];
     return Object.keys(this._hass?.states || {}).filter(e => e.startsWith(`switch.${obj}_`));
@@ -1430,6 +1447,7 @@ export class SweetHomeCard extends HTMLElement {
         if (performance.now() - (this._cvTap || 0) < 600) break;
         this._select(t.dataset.room === this._sel ? null : t.dataset.room); break;
       case 'close': this._select(null); break;
+      case 'roomclose': if (e.target !== t) return; this._select(null); break; // a tap beside the room pop-up
       case 'furn': if (performance.now() - (this._cvTap || 0) < 600) break; this._selectFurn(Number(t.dataset.idx)); break;
       case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(tr(id.startsWith('scene.') ? 'Scene activated' : 'Script started')); break;
       case 'press': this.call(id.split('.')[0], 'press', { entity_id: id }); this._toast(tr('Pressed')); break;
@@ -1632,6 +1650,7 @@ export class SweetHomeCard extends HTMLElement {
     if (id) this._hintDone();
     this._sel = id;
     this.$('drawer').classList.toggle('open', !!id);
+    if (this._solo) this._roomPop(!!id);
     this._three?.select(id);
     this._rerender('drawer');
   }
@@ -1673,7 +1692,7 @@ export class SweetHomeCard extends HTMLElement {
       const walk = o => {
         if (Array.isArray(o)) return o.map(walk);
         if (o && typeof o === 'object') {
-          if (o.type === 'custom:sweet-home-card' && JSON.stringify(o) === mine) { hits++; return JSON.parse(JSON.stringify(cfg)); }
+          if (o.type === `custom:${this.constructor.TYPE}` && JSON.stringify(o) === mine) { hits++; return JSON.parse(JSON.stringify(cfg)); }
           return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, walk(v)]));
         }
         return o;
@@ -3008,6 +3027,7 @@ export class SweetHomeCard extends HTMLElement {
   // take the 3D view handed over by the card this one replaces (the editor's preview): see SHARED
   _adoptShared() {
     const S = SHARED, vp = this.$('viewport'); if (!S || !vp || !this.shadowRoot.contains(vp)) return false;
+    if (S.owner?.constructor !== this.constructor) return false; // the full card and Sweet Home 3D keep their room popup in different places
     clearTimeout(S.timer); SHARED = null;
     if (S.vp !== vp) vp.replaceWith(S.vp);
     const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; }
@@ -5124,6 +5144,21 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
   .camgrid{grid-template-columns:1fr;gap:10px} /* phones: cameras stacked, full width */
 }
+
+/* Sweet Home 3D: the 3D view alone, sized by the dashboard (sections grid) or by the height option */
+.app.solo{min-height:0;padding:0;background:none;display:flex;flex-direction:column}
+.app.solo>.aurora,.app.solo>.top,.app.solo>.tabs,.app.solo>.foot,.app.solo .home-grid>.col{display:none}
+.app.solo main,.app.solo .tab.on{flex:1;display:flex;flex-direction:column;min-height:0}
+.app.solo .home-grid{flex:1;display:flex;flex-direction:column;align-items:stretch;min-height:0}
+.app.solo .stage{flex:1;min-height:0;padding:10px;box-sizing:border-box}
+.app.solo .stage-top{margin-bottom:8px;gap:8px}
+.app.solo .viewport{flex:none;height:var(--solo-h,420px)}
+:host([solo][layout=grid]),:host([solo][layout=grid]) .app.solo{height:100%}
+:host([solo][layout=grid]) .app.solo .viewport{flex:1 1 auto;height:auto;min-height:120px}
+.rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
+.rpop.open{display:flex;animation:fade .2s}
+.rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:#0f172a;border-radius:22px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+@media (max-width:860px){.rpop{align-items:flex-end}.rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{width:100%;max-height:80vh;border-radius:22px 22px 0 0}}
 `;
 
 // every method of the card and the scene works on its own instance's model (several cards / the editor preview)
@@ -5135,7 +5170,22 @@ for (const [cls, own] of [[SweetHomeCard, o => o._model], [HouseScene, o => o.ca
     cls.prototype[k] = function (...a) { const m = own(this); if (m && MODEL !== m) useModel(m); return f.apply(this, a); };
   }
 }
+// Sweet Home 3D: the same card with only its 3D view (no tabs or panels), to sit among other cards on a dashboard.
+// Tapping a room opens its controls as a pop-up. Built from the same `house` settings as the full card.
+export class SweetHome3DCard extends SweetHomeCard {
+  static TYPE = 'sweet-home-3d-card';
+  static SOLO = true;
+  static getStubConfig() { return {}; }
+  static getConfigElement() { const e = document.createElement('sweet-home-card-editor'); e.solo = true; return e; }
+  getCardSize() { const h = parseInt(this._config?.height, 10); return Math.max(4, Math.round((h || 480) / 50)); }
+  getGridOptions() { return { columns: 12, rows: 8, min_columns: 4, min_rows: 4 }; }
+  // Home Assistant sets layout "grid" on cards in a sections view: the 3D view then fills the size picked there
+  set layout(v) { this._layout = v; if (v) this.setAttribute('layout', v); else this.removeAttribute('layout'); }
+  get layout() { return this._layout; }
+}
 if (!customElements.get('sweet-home-card')) customElements.define('sweet-home-card', SweetHomeCard);
+if (!customElements.get('sweet-home-3d-card')) customElements.define('sweet-home-3d-card', SweetHome3DCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.find(c => c.type === 'sweet-home-card')) window.customCards.push({ type: 'sweet-home-card', name: 'Sweet Home', description: 'Your home as an interactive 3D model, with tabs for security, climate, energy, media and more', preview: true, documentationURL: 'https://github.com/mousawm/sweet-home' });
+if (!window.customCards.find(c => c.type === 'sweet-home-3d-card')) window.customCards.push({ type: 'sweet-home-3d-card', name: 'Sweet Home 3D', description: 'Only the 3D view of your home, to place among your other cards. Tap a room for its controls.', preview: true, documentationURL: 'https://github.com/mousawm/sweet-home' });
 console.info(`%c SWEET HOME %c v${VERSION} `, 'background:#2dd4bf;color:#04342c;font-weight:700;border-radius:4px 0 0 4px;padding:2px 6px', 'background:#1e293b;color:#e2e8f0;border-radius:0 4px 4px 0;padding:2px 6px');
