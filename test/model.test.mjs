@@ -328,5 +328,17 @@ test('Home Lab: each sensor found from the Proxmox node or picked; servers liste
   assert.equal(none.status, null);
 });
 
+test('TV backlight: a light set as the TV backlight glows around the room\'s TV piece (its place and facing); tv_glow by hand is kept', () => {
+  const room = extra => ({ house: { rooms: [{ area: 'living', rects: [[0, 0, 5, 4]], light_fx: { 'light.living': 'tv' },
+    furniture: [{ type: 'tv', x: 2.5, z: 3.8, w: 1.4, h: 0.8, y: 0.7, facing: 'n' }], ...extra }] } });
+  const G = c => buildModel(c, hass).rooms[0].tvGlow;
+  const g = G(room({}));
+  assert.ok(g && g.auto, 'placed on the TV');
+  assert.deepEqual([g.w, g.h, g.y, g.facing], [1.4, 0.8, 0.7, 'n']);
+  assert.equal(G({ house: { rooms: [{ area: 'living', rects: [[0, 0, 5, 4]], furniture: [{ type: 'tv', x: 2.5, z: 3.8 }] }] } }), undefined, 'no TV backlight light: no glow');
+  const own = G(room({ tv_glow: { x: 1, z: 1, y: 0.5, w: 1, h: 0.6 } }));
+  assert.ok(own && !own.auto && own.w === 1, 'a glow placed by hand is kept');
+});
+
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');
