@@ -7,7 +7,16 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+### Changed
+
+### Added
+
+## v0.6.42 — 2026-11-20
+
+### Fixed
+
 - Security: entity names and states are always shown as text. A few places put them into the page as HTML (a pump's name on the Water card, a device's name in the Energy card's list, the TV's name in the Jellyfin sheets and every sheet's title, and a few Sonarr / qBittorrent counts), so a name containing markup could be rendered as HTML.
+
 ### Changed
 
 - Media Server: with *Jellyfin + JellyHA*, the clients count next to Now Watching comes from JellyHA's active sessions (`sensor.jellyha_active_sessions`) instead of every connected client; with *Jellyfin* it stays `sensor.jellyfin_active_clients`. Panels → Media Server has a *Clients count* picker to choose another sensor.
