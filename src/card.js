@@ -2390,8 +2390,9 @@ export class SweetHomeCard extends HTMLElement {
     const xl = Array.from({ length: R.n }, (_, i) => `<i>${esc(R.xl(i))}</i>`).join('');
     const b = this._eh.bar;
     const readout = b != null && b < R.n ? `<div class="ehread"><b>${esc(R.bl(b))}</b> · ${kwh(d.home[b])} kWh used · ${d.gi[b] - d.go[b] < 0 ? `<span style="color:var(--green)">net exported ${kwh(d.go[b] - d.gi[b])}</span>` : `<span style="color:#60a5fa">net imported ${kwh(d.gi[b] - d.go[b])}</span>`}${series.map(x => x.a[b] > 0.005 ? ` · <span style="color:${x.c}">${esc(x.n)} ${kwh(x.a[b])}</span>` : '').join('')}</div>` : `<div class="ehread mu">Tap a bar for details</div>`;
-    const legend = [...series.map(x => `<span class="lg" data-act="ehdev" data-id="${x.id}"><i style="background:${x.c}"></i>${esc(x.n)}</span>`), `<span class="lg"><i style="background:#475569"></i>Other</span>`].join('')
-      + (this._eh.sel ? `<button class="lg rst" data-act="ehreset">${ic('mdi:restore')}Show all</button>` : '');
+    // "Show all" (only while some devices are picked) comes first: always on the top row, never wrapped onto a line of its own
+    const legend = (this._eh.sel ? `<button class="lg rst" data-act="ehreset">${ic('mdi:restore')}Show all</button>` : '')
+      + [...series.map(x => `<span class="lg" data-act="ehdev" data-id="${x.id}"><i style="background:${x.c}"></i>${esc(x.n)}</span>`), `<span class="lg"><i style="background:#475569"></i>Other</span>`].join('');
     const mx = Math.max(0.01, ...devs.map(x => x.t)), tracked = sum(devs.map(x => x.t)), den = Math.max(used, tracked, 0.01);
     const rows = devs.map(x => { const on = sel.includes(x.id); return `<div class="crow ehrow ${on ? 'on' : ''}" data-act="ehdev" data-id="${x.id}" style="--c:${x.c}">${ic(x.i)}<span>${esc(x.n)}</span><div class="bar"><i style="width:${(x.t / mx * 100).toFixed(1)}%;background:${x.c}"></i></div><b>${kwh(x.t)}</b><em>${Math.round(x.t / den * 100)}%</em></div>`; }).join('')
       + (used - tracked > 0.05 ? `<div class="crow ehrow untr">${ic('mdi:home-outline')}<span>Untracked</span><div class="bar"><i style="width:${((used - tracked) / Math.max(mx, used - tracked) * 100).toFixed(1)}%;background:#475569"></i></div><b>${kwh(used - tracked)}</b><em>${Math.round((used - tracked) / den * 100)}%</em></div>` : '');
