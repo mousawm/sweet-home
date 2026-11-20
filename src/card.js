@@ -3398,12 +3398,20 @@ class HouseScene {
       for (const [blur, lw, a] of [[60, 18, 0.5], [30, 10, 0.7], [12, 5, 1]]) { tg.globalAlpha = a; tg.shadowBlur = blur; tg.lineWidth = lw; tg.strokeRect(rx, ry, rw, rh); }
       const tvPlane = new T.Mesh(new T.PlaneGeometry(PW, PH), new T.MeshBasicMaterial({ map: new T.CanvasTexture(tc), color: R.tvCol, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide, toneMapped: false }));
       const [tx, tz] = this.w(G.x, G.z), cy = G.y + G.h / 2;
-      tvPlane.position.set(tx, cy, tz + 0.04); this._at().add(tvPlane);
+      // facing (from the room's TV piece): the way the screen looks; the glow sits on its back, towards the wall.
+      // A tv_glow written by hand has no facing and keeps its old placement (a TV along x, light on its -z side).
+      const fc = G.facing, ew = fc === 'e' || fc === 'w', back = fc ? { n: [0, 1], s: [0, -1], e: [-1, 0], w: [1, 0] }[fc] || [0, 1] : null;
+      if (back) tvPlane.position.set(tx + back[0] * 0.04, cy, tz + back[1] * 0.04); else tvPlane.position.set(tx, cy, tz + 0.04);
+      if (ew) tvPlane.rotation.y = Math.PI / 2;
+      this._at().add(tvPlane);
       const sm = new T.MeshBasicMaterial({ color: R.tvCol, transparent: true, opacity: 0, toneMapped: false });
       const t = 0.03, strips = [[G.w + t, t, 0, G.h / 2], [G.w + t, t, 0, -G.h / 2], [t, G.h, -G.w / 2, 0], [t, G.h, G.w / 2, 0]].map(([w, h, ox, oy]) => {
-        const m = new T.Mesh(new T.BoxGeometry(w, h, 0.02), sm); m.position.set(tx + ox, cy + oy, tz); this._at().add(m); return m;
+        const m = new T.Mesh(ew ? new T.BoxGeometry(0.02, h, w) : new T.BoxGeometry(w, h, 0.02), sm);
+        if (ew) m.position.set(tx, cy + oy, tz + ox); else m.position.set(tx + ox, cy + oy, tz); this._at().add(m); return m;
       });
-      const tpl = new T.PointLight(R.tvCol, 0, 6, 1.2); tpl.position.set(tx, cy, tz - 0.35); this._at().add(tpl);
+      const tpl = new T.PointLight(R.tvCol, 0, 6, 1.2);
+      if (back) tpl.position.set(tx + back[0] * 0.35, cy, tz + back[1] * 0.35); else tpl.position.set(tx, cy, tz - 0.35);
+      this._at().add(tpl);
       R.tv = { plane: tvPlane, pl: tpl, sm };
     }
   }
@@ -3585,7 +3593,13 @@ class HouseScene {
           case 'tv': { // a screen that flickers while its media player plays; facing = the direction the screen looks
             const w = N(f.w, 1.6), hh = N(f.h, 0.9), y = N(f.y, 0.6), alongX = !['e', 'w'].includes(f.facing || 'n');
             const m = box(rm, N(f.x, 0), N(f.z, 0), alongX ? w : 0.05, alongX ? 0.05 : w, hh, 0x05070c, y, { r: 0.2, e: 0x3b82f6, ei: 0 });
-            m.material = m.material.clone(); this.tvs.push({ m, entity: f.entities?.find(e => e.startsWith('media_player.')) || f.entity || null }); break;
+            m.material = m.material.clone();
+            // the picture on its screen while the TV is on: what's playing (its cover art) or a lit "on" screen
+            const fcg = ['n', 's', 'e', 'w'].includes(f.facing) ? f.facing : 'n', dir = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[fcg];
+            const scr = new T.MeshBasicMaterial({ map: this._tvIdlePic(), transparent: true, opacity: 0, toneMapped: false, depthWrite: false });
+            const sp = add(rm, new T.PlaneGeometry(w * 0.94, hh * 0.88), scr, N(f.x, 0) + dir[0] * 0.03, y + hh / 2, N(f.z, 0) + dir[1] * 0.03, false);
+            sp.rotation.y = { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[fcg]; sp.visible = false;
+            this.tvs.push({ m, scr, sp, aspect: w / hh, vis: 0, pic: null, entity: f.entities?.find(e => e.startsWith('media_player.')) || f.entity || null }); break;
           }
           case 'charger': { // a charging pad; the phone on it shows while it charges
             const x = N(f.x, 0), z = N(f.z, 0), y = N(f.y, 0.55);
@@ -3900,6 +3914,37 @@ class HouseScene {
     } catch (err) { console.warn('sweet-home: could not load the 3D file', G.url, err); this.card._toast?.('Could not load the 3D file', true); }
   }
 
+  // the TV screen's "on" picture: a soft lit gradient with a horizon, drawn once
+  _tvIdlePic() {
+    if (this._tvIdle) return this._tvIdle;
+    const T = this.T, cv = document.createElement('canvas'); cv.width = 320; cv.height = 180; const g = cv.getContext('2d');
+    const sky = g.createLinearGradient(0, 0, 0, 180); sky.addColorStop(0, '#1e3a8a'); sky.addColorStop(0.55, '#7c3aed'); sky.addColorStop(1, '#f472b6');
+    g.fillStyle = sky; g.fillRect(0, 0, 320, 180);
+    const sun = g.createRadialGradient(220, 110, 4, 220, 110, 70); sun.addColorStop(0, 'rgba(254,240,138,.95)'); sun.addColorStop(1, 'rgba(254,240,138,0)');
+    g.fillStyle = sun; g.fillRect(0, 0, 320, 180);
+    g.fillStyle = '#1e1b4b'; g.beginPath(); g.moveTo(0, 150); g.quadraticCurveTo(80, 112, 160, 140); g.quadraticCurveTo(240, 165, 320, 128); g.lineTo(320, 180); g.lineTo(0, 180); g.fill();
+    const t = new T.CanvasTexture(cv); t.colorSpace = T.SRGBColorSpace; return (this._tvIdle = t);
+  }
+  // the picture for a TV: its media player's cover art (entity_picture, from Home Assistant itself) or the "on" picture.
+  // The art is cropped to the screen's shape; only Home Assistant's own URLs are loaded (same origin).
+  _tvPicture(tv, url) {
+    if (!tv.scr) return;
+    const own = typeof url === 'string' && url.startsWith('/') ? url : null;
+    if (own === tv.pic) return; tv.pic = own;
+    if (!own) { tv.scr.map = this._tvIdlePic(); tv.scr.needsUpdate = true; this._dirty = true; return; }
+    const img = new Image();
+    img.onload = () => {
+      if (tv.pic !== own) return; // the picture changed meanwhile
+      const W = 320, H = Math.max(90, Math.round(W / (tv.aspect || 16 / 9))), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = cv.getContext('2d'), s = Math.max(W / img.width, H / img.height), iw = img.width * s, ih = img.height * s;
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+      const t = new this.T.CanvasTexture(cv); t.colorSpace = this.T.SRGBColorSpace;
+      if (tv.scr.map && tv.scr.map !== this._tvIdle) tv.scr.map.dispose();
+      tv.scr.map = t; tv.scr.needsUpdate = true; this._dirty = true;
+    };
+    img.onerror = () => { if (tv.pic === own) { tv.scr.map = this._tvIdlePic(); tv.scr.needsUpdate = true; this._dirty = true; } };
+    img.src = own;
+  }
   _buildDoors() {
     const T = this.T;
     for (const d of DOORS) {
@@ -4146,7 +4191,13 @@ class HouseScene {
     const runs = id => { const v = String(c.v(id) ?? '').toLowerCase(), n = c.n(id); return id.startsWith('sensor.') && n != null ? n > 5 : ['on', 'running', 'washing', 'wash', 'rinse', 'rinsing', 'spin', 'spinning', 'drying', 'heat', 'heating', 'active'].includes(v); };
     for (const W of this.washers || []) W.on = W.entity && runs(W.entity) ? 1 : 0;
     for (const S of this.steams || []) { const n = c.n(S.entity); S.t = S.entity.startsWith('sensor.') ? (n != null && n > 70 ? 1 : 0) : S.entity.startsWith('water_heater.') ? (['off', 'idle'].includes(c.v(S.entity)) || BAD.includes(c.v(S.entity) ?? '') ? 0 : 1) : runs(S.entity) ? 1 : 0; }
-    for (const tv of this.tvs || []) tv.on = c.v(tv.entity || E.media.tv) === 'playing' ? 1 : 0;
+    for (const tv of this.tvs || []) {
+      const st = c.s(tv.entity || E.media.tv);
+      tv.on = st?.state === 'playing' ? 1 : 0;
+      // the screen shows a picture while the TV is on (not off / standby / unavailable)
+      tv.vis = st && !['off', 'standby', 'unavailable', 'unknown'].includes(st.state) ? 1 : 0;
+      this._tvPicture(tv, tv.vis ? st.attributes.entity_picture : null);
+    }
     // lamps glow in their light's colour and brightness, fans turn at their speed, device dots light up
     for (const L of this.lamps || []) {
       const st = c.s(L.entity), on = st?.state === 'on';
@@ -4179,7 +4230,7 @@ class HouseScene {
     const dv = day.toFixed(2); if (this._dayV !== dv) { this._dayV = dv; this.vp.style.setProperty('--day', dv); }
     // battery: HA pushes state changes all the time; redraw only when something the scene shows changed
     const sg = [Object.values(this.rooms).map(R => [R.litT, R.stripT || 0, R.spotT || 0, R.tvT || 0, R.stripCol ? R.stripCol.getHex() : 0, R.tvCol ? R.tvCol.getHex() : 0, R.motion, R.anyLit, R.temp]),
-      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), (this.cars || []).map(K => K.t), (this.sprinklers || []).map(S => S.onT), (this.washers || []).map(W => W.on), (this.steams || []).map(S => S.t), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
+      this.lockT, this.phoneT, this.doors.map(D => D.openT), (this.lamps || []).map(L => [L.t, L.col.getHex()]), (this.fans || []).map(F => F.sp), (this.markers || []).map(P => P.t), (this.blinds || []).map(B => B.t), (this.vacuums || []).map(V => V.st), (this.cars || []).map(K => K.t), (this.sprinklers || []).map(S => S.onT), (this.washers || []).map(W => W.on), (this.steams || []).map(S => S.t), this.hoverF, this.acs.map(A => [A.onT, A.pts.material.color.getHex()]), this.tvOn, (this.tvs || []).map(tv => [tv.vis, tv.pic]), this.stairDots.map(x => x.on), dv, this.mode, this.sel].join();
     if (sg !== this._syncSig) { this._syncSig = sg; this._dirty = true; }
   }
 
@@ -4322,6 +4373,11 @@ class HouseScene {
     for (const tv of this.tvs || []) {
       const t = tv.on ? 0.9 + 0.25 * Math.sin(tt * 7) * Math.sin(tt * 2.3) : 0; tv.m.material.emissiveIntensity += (t - tv.m.material.emissiveIntensity) * Math.min(1, dt * 6);
       if (tv.on || tv.m.material.emissiveIntensity > 0.01) anim = true;
+      if (tv.scr) { // the picture fades in / out with the TV
+        const o = tv.scr.opacity, d = tv.vis - o;
+        if (Math.abs(d) > 0.005) { tv.scr.opacity = o + d * Math.min(1, dt * 4); anim = true; } else tv.scr.opacity = tv.vis;
+        tv.sp.visible = tv.scr.opacity > 0.01;
+      }
     }
     for (const L of this.lamps || []) {
       const d = L.t - L.m.material.emissiveIntensity / 1.6; mv += Math.abs(d);

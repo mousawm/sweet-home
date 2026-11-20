@@ -256,6 +256,33 @@ try {
     delete h.states['sensor.my_cpu']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 800)); card._labMore = false;
     return (all === 8 && only === '102,103' && cpu === 'sensor.my_cpu' && !more && pinnedFirst === '102' && stillAll === 8) || JSON.stringify({ all, only, cpu, more, pinnedFirst, stillAll });
   }); check('Home Lab: a picked CPU sensor is used; with automatic servers off only the picked ones are listed; on, pinned ones come first', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // a living room light set as the TV backlight: the 3D view draws the glow on the room's TV, and it lights up with the light
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config)), c2 = JSON.parse(JSON.stringify(cfg));
+    const lr = c2.house.rooms.find(x => x.area === 'living_room'); if (!lr) return 'no living room';
+    lr.light_fx = { ...(lr.light_fx || {}), 'light.living_room': 'tv' };
+    if (!(lr.furniture || []).some(f => f.type === 'tv')) lr.furniture = [...(lr.furniture || []), { type: 'tv', x: 2, z: 1, facing: 'e', w: 1.4 }];
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 2500));
+    const R = card._three.rooms.living_room, out = { glow: !!R?.tv, target: R?.tvT, on: h.states['light.living_room']?.state };
+    card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 2500));
+    return (out.glow && out.on === 'on' && out.target > 0) || JSON.stringify(out);
+  }); check('TV backlight: a light set as the TV backlight gets its glow on the room\'s TV in 3D (no tv_glow needed)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // the TV's 3D screen shows a picture while the TV is on: its cover art (a Home Assistant URL) or the lit "on" picture
+    const tab0 = card._tab; card._setTab('home'); await new Promise(r => setTimeout(r, 300)); // the 3D view follows Home Assistant on the Home tab
+    const h = window.hassObj, three = card._three, tv = (three.tvs || [])[0]; if (!tv?.sp) return 'no TV screen';
+    const id = tv.entity || card._model.E.media.tv, was = h.states[id] && { ...h.states[id] };
+    const put = async (state, attrs = {}) => { h.states[id] = { entity_id: id, state, attributes: { friendly_name: 'TV', ...attrs }, last_updated: new Date().toISOString() }; card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 900)); };
+    const facing = card._model.furniture.find(f => f.type === 'tv')?.facing || 'n';
+    const normal = { x: Math.round(Math.sin(tv.sp.rotation.y)), z: Math.round(Math.cos(tv.sp.rotation.y)) }, want = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[facing];
+    const out = { faces: normal.x === want[0] && normal.z === want[1] };
+    await put('on'); out.on = tv.vis === 1 && tv.sp.visible && tv.scr.map === three._tvIdle;
+    await put('playing', { entity_picture: '/api/media_player_proxy/' + id + '?token=x' }); out.art = tv.pic === '/api/media_player_proxy/' + id + '?token=x';
+    await put('playing', { entity_picture: 'https://example.com/a.jpg' }); out.noOutside = tv.pic === null && tv.scr.map === three._tvIdle;
+    await put('off'); await new Promise(r => setTimeout(r, 1200)); out.off = tv.vis === 0 && !tv.sp.visible;
+    if (was) h.states[id] = was; else delete h.states[id]; card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 600)); card._setTab(tab0);
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('TV screen in 3D: faces the room, shows a picture while the TV is on (cover art from Home Assistant, else a lit screen), dark when off', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

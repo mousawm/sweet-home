@@ -221,7 +221,7 @@ shifted so that it starts at 0.
   plugs: [switch.bedside_plug]
   entities: [cover.bedroom_blinds, script.good_night]   # anything else, under "Other"
                                          # (default: blinds, plain switches, valves… found in the area)
-  light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv
+  light_fx: {light.bedroom_led: strip}   # center, spots, strip or tv (tv: glows around the room's TV piece)
   light_names: {light.bedroom_led: LED Strip}
   names: {script.good_night: Bedtime}    # names for this card only: they replace the entity's name everywhere on
                                          # the dashboard (renaming in the card editor or the popup writes these)

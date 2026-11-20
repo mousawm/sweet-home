@@ -750,6 +750,13 @@ export function buildModel(cfg = {}, hass) {
   }
   furniture.forEach((f, i) => { f.idx = i; f.level = f.room ? lvOfRoom[f.room] ?? lvOf(f.level) : lvOf(f.level); if (!Array.isArray(f.entities)) f.entities = furnEntities(f); });
   for (const r of rooms) r.furnEnts = furniture.filter(f => f.room === r.id).flatMap(f => f.entities);
+  // TV backlight: a room light set as the TV's backlight (light_fx: tv) glows around the room's TV piece, unless the
+  // glow is placed by hand (tv_glow). Same place, size and facing as the TV (coordinates are shifted already).
+  for (const r of rooms) {
+    if (r.tvGlow || !r.lightFx || !Object.values(r.lightFx).includes('tv')) continue;
+    const tv = furniture.find(f => f.room === r.id && f.type === 'tv'); if (!tv) continue;
+    r.tvGlow = { x: num(tv.x, 0), z: num(tv.z, 0), y: num(tv.y, 0.6), w: num(tv.w, 1.6), h: num(tv.h, 0.9), facing: tv.facing || 'n', auto: true };
+  }
   // lock badges float in 3D with their name above them (`name`, else the lock's name; `label: false` hides it); `i` is
   // the badge's place in the config, so the 3D view can rename it
   const badges = arr(house.lock_badges).map((b, i) => ({ lock: b.lock || b.entity, x: sx(b.x), z: sz(b.z), y: num(b.y, 1.0), axis: b.axis || 'z', level: lvOf(b.level), name: b.name || null, label: b.label !== false, i })).filter(b => b.lock);
