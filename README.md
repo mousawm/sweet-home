@@ -146,6 +146,24 @@ type: custom:sweet-home-card
 
 It is built to fill the screen, so put it in a view with the **Panel** layout (view settings → View type → Panel).
 
+### Only the 3D view: Sweet Home 3D
+
+To place the 3D house among your other cards, add **Sweet Home 3D** (**Add card → Sweet Home 3D**), or in YAML:
+
+```yaml
+type: custom:sweet-home-3d-card
+house: { ... }   # the same house settings as the full card (copy them across)
+height: 420      # optional, in pixels; in a Sections view the card's size is used instead
+```
+
+It shows the 3D view with its own controls (Lights / Climate / Presence, floor plan / 3D, auto-rotate, floors), and no
+tabs or panels. Tapping a room opens its controls as a pop-up over the dashboard (lights, dimmers, climate, plugs);
+tap beside it, swipe it down or press Escape to close it. In a Sections view it can be resized like any other card.
+Its editor has the Rooms and Look steps of the full card. `default_view` and `default_floor` work the same way, so one
+card per floor is possible.
+
+Each 3D view uses the device's graphics. One or two on a dashboard is fine; it pauses while it is off screen.
+
 ## Configuration
 
 | Option | Description |
@@ -154,6 +172,7 @@ It is built to fill the screen, so put it in a view with the **Panel** layout (v
 | `weather` | Weather entity for the header chip and weather sheet (default: the first one) |
 | `persons` | Person entities shown as avatars. Long press opens the phone panel when the person has a Companion app tracker. |
 | `people` | Each person's phone panel (long press their picture): `{person.x: {name, tracker, battery, charging, location, ringer, wifi, entities, buttons}}`. With none of `tracker`, `battery`, `charging`, `location`, `ringer`, `wifi` given they are all found on the person's phone (Companion app); once you give one, only the ones you give show; `entities` adds rows, `buttons` adds buttons (ring the phone, scripts…): `entity_id` or `{entity, name, icon}`. Without a name, a button shows its own name without "button" and the phone's name; without an icon, one is picked from what it does (ring → bell, location → target, flashlight, lock…). While the dashboard is edited, the pencil on the phone panel renames its rows and buttons for this dashboard. Set it up in the card editor: Panels → People. |
+| `height` | Sweet Home 3D only: the height of the 3D view in pixels (default `420`; in a Sections view the card's size is used) |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `default_view` | where the 3D view starts, per kind of device: `{phone: top, tablet: top, pc: 3d}` (`top` = floor plan from above, `3d` = angled view; not set: 3D on a computer, the floor plan on phones and tablets) |
 | `default_floor` | the floor shown first, per kind of device: `{phone: 0, tablet: 1, pc: 0}` (the floor's level; not set: the ground floor) |

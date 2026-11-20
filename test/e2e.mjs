@@ -895,6 +895,41 @@ try {
   check('no page errors (room by room)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('sweet home 3d');
+  p = await open('?config=demo&card=3d&editor=1', { width: 1280, height: 900 });
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, $ = id => R.getElementById(id), shown = el => !!el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0, out = {};
+    out.solo = card.hasAttribute('solo') && R.querySelector('.app').classList.contains('solo');
+    out.only3d = !shown($('tabs')) && !shown(R.querySelector('header.top')) && !shown($('glance')) && !shown(R.querySelector('.foot')) && shown($('viewport'));
+    out.height = Math.round($('viewport').getBoundingClientRect().height) === 420;
+    out.grid = JSON.stringify(card.getGridOptions()) === '{"columns":12,"rows":8,"min_columns":4,"min_rows":4}' && card.getCardSize() >= 4;
+    out.inPop = $('drawer').parentElement === $('rpop') && !$('viewport').querySelector('.drawer');
+    card._select('kitchen'); await new Promise(r => setTimeout(r, 50));
+    out.opens = $('rpop').classList.contains('open') && shown($('drawer')) && /Kitchen/.test($('drawer').textContent);
+    $('drawer').querySelector('.dh, b, span')?.click(); out.staysOpen = card._sel === 'kitchen';
+    $('rpop').click(); out.backdrop = card._sel === null && !$('rpop').classList.contains('open');
+    card._select('bedroom'); out.again = card._sel === 'bedroom' && /Bedroom/.test($('drawer').textContent);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); out.escape = card._sel === null && !$('rpop').classList.contains('open');
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Sweet Home 3D: only the 3D view (420 px), a room opens as a pop-up that closes beside it or with Escape', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, out = {};
+    card.layout = 'grid'; card.style.cssText = 'display:block;height:300px'; await new Promise(r => setTimeout(r, 50));
+    const vh = R.getElementById('viewport').getBoundingClientRect().height, ch = card.getBoundingClientRect().height;
+    out.fills = card.getAttribute('layout') === 'grid' && vh > 150 && vh < 300 && Math.abs(R.querySelector('.stage').getBoundingClientRect().height - ch) < 2;
+    card.layout = undefined; card.style.cssText = '';
+    out.steps = [...editor.querySelectorAll('[data-step]')].map(b => b.dataset.step).join() === 'rooms,look';
+    editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 30));
+    const h = editor.querySelector('ha-form input[name=height]'); out.field = !!h && !editor.querySelector('ha-form select[name=start_tab]');
+    h.value = '360'; h.dispatchEvent(new Event('change')); out.saved = editor._config.height === 360;
+    await new Promise(r => setTimeout(r, 900)); out.applied = Math.round(R.getElementById('viewport').getBoundingClientRect().height) === 360;
+    const h2 = editor.querySelector('ha-form input[name=height]'); h2.value = '0'; h2.dispatchEvent(new Event('change')); out.cleared = editor._config.height === undefined;
+    out.listed = window.customCards.some(c => c.type === 'sweet-home-3d-card' && c.name === 'Sweet Home 3D');
+    return Object.values(out).every(Boolean) || JSON.stringify({ ...out, vh, ch });
+  }); check('Sweet Home 3D: fills its sections-grid size; the editor has Rooms and Look (with a height), no Panels', r === true, r); }
+  check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
   check('right-to-left layout and Arabic text', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'rtl' && card.shadowRoot.querySelector('#tabs').textContent.includes('الرئيسية')));

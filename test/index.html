@@ -92,7 +92,7 @@ const demo = { title: 'Demo Home', modes: ['input_boolean.guests', { entity: 'in
   doors: [{ entity: 'binary_sensor.front_door', from: [7, 9], to: [8, 9] }, { from: [6, 2], to: [6, 3] }, { from: [3, 5], to: [4, 5] }, { from: [10, 3], to: [10, 4] }, { from: [6, 2], to: [6, 3], level: 1 }, { from: [6.5, 4.8], to: [7.5, 4.8] }, { from: [0.3, 8.1], to: [0.9, 8.7] }],
   extra_walls: [{ from: [7, 3.6], to: [9.2, 3.6], type: 'half', height: 0.9 }, { from: [4.5, 3], to: [4.5, 5], type: 'glass' }, { from: [0.6, 12.6], to: [5, 12.6], bow: 0.6, height: 0.7 }],
   openings: [[8, 5, 9, 5]], lock_badges: [{ lock: 'lock.front_door', x: 8.3, z: 8.9 }] } };
-const C = customElements.get('sweet-home-card');
+const C = customElements.get(new URLSearchParams(location.search).get('card') === '3d' ? 'sweet-home-3d-card' : 'sweet-home-card'); // ?card=3d: Sweet Home 3D
 // no WebGL in headless test browsers: a renderer stub lets the whole scene build run (nothing is drawn)
 class FakeRenderer { constructor(o) { this.domElement = o.canvas; this.shadowMap = {}; this.info = { render: {} }; this.capabilities = { isWebGL2: true }; }
   setPixelRatio() {} setSize() {} render() { window.frames3d = (window.frames3d || 0) + 1; } compileAsync() { return Promise.resolve(); } compile() {} dispose() {} getPixelRatio() { return 1; } setClearColor() {} }
@@ -140,7 +140,7 @@ if (new URLSearchParams(location.search).get('editor')) {
   });
   if (!customElements.get('ha-switch')) customElements.define('ha-switch', class extends HTMLElement { connectedCallback() { this.innerHTML = '<input type=checkbox>'; } });
   document.body.style.cssText += ';display:grid;grid-template-columns:420px 1fr;gap:12px;--primary-color:#03a9f4;--divider-color:#3a3f4b;--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--secondary-background-color:#1c1f26;--card-background-color:#111318;--error-color:#ef4444;--warning-color:#ffa600';
-  const ed = document.createElement('sweet-home-card-editor'); ed.style.cssText = 'padding:12px;max-height:100vh;overflow:auto;font-size:14px';
+  const ed = C.getConfigElement(); // Sweet Home 3D: the editor without the Panels step ed.style.cssText = 'padding:12px;max-height:100vh;overflow:auto;font-size:14px';
   document.body.appendChild(ed); ed.setConfig(cfg); ed.hass = hass;
   ed.addEventListener('config-changed', e => { window.lastConfig = e.detail.config; el.setConfig(e.detail.config); ed.setConfig(e.detail.config); });
   window.editor = ed;
