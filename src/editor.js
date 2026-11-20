@@ -44,7 +44,8 @@ const PANELS = [
   ['car', 'Electric car', 'Charging, battery, energy and cost (Energy tab)'],
   ['water', 'Water', 'Tank and pumps'],
   ['irrigation', 'Irrigation', 'Valves and schedule'],
-  ['media', 'Media', 'TV, speakers'],
+  ['media', 'Media', 'TV, speakers, screen-time limits'],
+  ['tv_light', 'TV light', 'The TV backlight and its mode / effect selectors (Media tab)'],
   ['media_server', 'Media Server', 'Jellyfin, Sonarr, Radarr, qBittorrent'],
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
@@ -1588,7 +1589,12 @@ class SweetHomeCardEditor extends HTMLElement {
       water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
         { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'zones', selector: { entity: { domain: ['valve', 'switch', 'input_boolean'], multiple: true } } }, { name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }, { name: 'notification', selector: { entity: {} } }, { name: 'time', selector: { entity: {} } }],
-      media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } }],
+      media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } },
+        // screen-time limits: watched today and the daily limit as H:MM:SS, the limit picker, Block / Force Unblock
+        { name: 'watch_timer', selector: { entity: { domain: ['sensor', 'input_text', 'input_datetime'] } } }, { name: 'watch_limit', selector: { entity: { domain: ['sensor', 'input_text', 'input_datetime'] } } },
+        { name: 'limit_select', selector: { entity: { domain: ['select', 'input_select'] } } },
+        { name: 'block_switch', selector: { entity: { domain: ['switch', 'input_boolean'] } } }, { name: 'unblock_switch', selector: { entity: { domain: ['switch', 'input_boolean'] } } }],
+      tv_light: [{ name: 'light', selector: { entity: { domain: 'light' } } }, { name: 'selects', selector: { entity: { domain: ['select', 'input_select'], multiple: true } } }],
       media_server: [{ name: 'jellyfin_tv' }], // its own form below
       homelab: [{ name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } }],
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
@@ -1613,6 +1619,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
+        if (k === 'tv_light' && cur.selects) data.selects = arr(cur.selects).map(entityId).filter(Boolean);
         if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
         if (k === 'people') { this._mPeople(det); list.appendChild(det); continue; }
         // Energy: Month / Year from Home Assistant's Energy data (on by default) hide the Month / Year sensor fields
@@ -1672,6 +1679,7 @@ class SweetHomeCardEditor extends HTMLElement {
             }
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
             if (k === 'devices' && kk === 'entities') val = arr(vv).map(id => arr(next.entities).find(o => typeof o === 'object' && o.battery === id) || id); // a device's name / icon stay
+            if (k === 'tv_light' && kk === 'selects') val = arr(vv).map(id => arr(next.selects).find(o => typeof o === 'object' && entityId(o) === id) || id); // a selector's name / icon stay
             if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
             if (k === 'irrigation' && kk === 'zones') { val = arr(vv).map(id => arr(next.zones ?? next.valves).find(o => typeof o === 'object' && entityId(o) === id) || id); delete next.valves; } // a zone's name and duration are kept
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
@@ -1685,6 +1693,8 @@ class SweetHomeCardEditor extends HTMLElement {
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
+          player: 'TV', speakers: 'Speakers', watch_timer: 'Screen time: watched today (H:MM:SS)', watch_limit: 'Screen time: daily limit (H:MM:SS)', limit_select: 'Screen time: daily limit picker',
+          block_switch: 'Screen time: Block switch', unblock_switch: 'Screen time: Force Unblock switch', light: k === 'tv_light' ? 'TV backlight' : undefined, selects: 'Backlight modes / effects (selectors)',
           pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', face: 'Face recognition: the last recognised face (badge on the Cameras card; empty: the cameras’ own face sensors)', temperature: k === 'homelab' ? 'CPU temperature' : 'Water temperature' }));
         if (['security', 'media', 'irrigation', 'energy'].includes(k)) det.insertAdjacentHTML('beforeend', `<div class="sh-hint" style="margin-top:6px">${t('Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.')}</div>`);
         if (k === 'security') this._entranceSensors(det, P);
