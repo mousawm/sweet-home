@@ -234,6 +234,15 @@ try {
     const names = x => x.map(t => t[0]).join();
     return (names(withS) === 'Today,Month,Year,Stored' && withS[3][1] === 'sensor.energy_stored' && names(none) === 'Today,Month,Year' && names(missing) === 'Today,Month,Year') || JSON.stringify({ withS, none, missing });
   }); check('Energy card: Stored shows with a stored-energy sensor, and is hidden when none is set or it doesn\'t exist', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // the TV light panel switched off in the editor hides its card
+    const h = window.hassObj, cfg = JSON.parse(JSON.stringify(card._config));
+    h.states['light.tv_backlight'] = { entity_id: 'light.tv_backlight', state: 'on', attributes: { friendly_name: 'TV Backlight' } };
+    const show = async tl => { const c = JSON.parse(JSON.stringify(cfg)); c.panels = { ...(c.panels || {}), tv_light: tl }; card.setConfig(c); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 900)); return card.shadowRoot.getElementById('tvlight')?.style.display !== 'none'; };
+    const on = await show({ light: 'light.tv_backlight' }), off = await show(false);
+    delete h.states['light.tv_backlight']; card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 900));
+    return (on && !off) || JSON.stringify({ on, off });
+  }); check('TV light card: shown with a backlight, hidden when its panel is switched off', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');
@@ -523,6 +532,30 @@ try {
     const j = editor.querySelector('ha-form input[name=stored_sensor]'); j.value = ''; j.dispatchEvent(new Event('change'));
     return (saved && !editor._config.panels?.energy?.stored_sensor) || JSON.stringify({ saved, after: editor._config.panels?.energy });
   }); check('editor, Energy: the stored-energy sensor is picked and saved (cleared when emptied)', r === true, r); }
+  { const r = await p.evaluate(() => {
+    // Media: the screen-time entities are picked in the editor (saved, cleared when emptied)
+    const out = {}, inp = n => editor.querySelector(`ha-form input[name=${n}]`);
+    for (const n of ['watch_timer', 'watch_limit', 'limit_select', 'block_switch', 'unblock_switch']) {
+      if (!inp(n)) { out[n] = 'missing'; continue; }
+      inp(n).value = 'x.' + n; inp(n).dispatchEvent(new Event('change')); const saved = editor._config.panels?.media?.[n] === 'x.' + n;
+      inp(n).value = ''; inp(n).dispatchEvent(new Event('change')); out[n] = saved && editor._config.panels?.media?.[n] === undefined;
+    }
+    return Object.values(out).every(v => v === true) || JSON.stringify(out);
+  }); check('editor, Media: watched today, daily limit, limit picker, Block and Force Unblock are picked and saved', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // TV light: a panel of its own: the backlight and its selectors; a selector written with its own name keeps it
+    const det = () => [...editor.querySelectorAll('details.sh-panel')].find(d => d.querySelector('input[name=selects]'));
+    if (!det()) return 'no TV light panel';
+    editor._config.panels = { ...(editor._config.panels || {}), tv_light: { selects: [{ entity: 'select.tv_mode', name: 'Mode' }] } }; editor._render(); await new Promise(r => setTimeout(r, 50));
+    const light = det().querySelector('input[name=light]'), sel = det().querySelector('input[name=selects]');
+    const shown = sel.value === 'select.tv_mode';
+    light.value = 'light.tv_backlight'; light.dispatchEvent(new Event('change'));
+    sel.value = 'select.tv_mode,select.tv_effect'; sel.dispatchEvent(new Event('change'));
+    const tl = editor._config.panels.tv_light;
+    const ok = shown && tl.light === 'light.tv_backlight' && JSON.stringify(tl.selects) === JSON.stringify([{ entity: 'select.tv_mode', name: 'Mode' }, 'select.tv_effect']);
+    delete editor._config.panels.tv_light; editor._emit(); editor._render();
+    return ok || JSON.stringify({ shown, tl });
+  }); check('editor, TV light: the backlight and its selectors are picked and saved (a selector\'s own name is kept)', r === true, r); }
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;

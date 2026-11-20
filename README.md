@@ -337,7 +337,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
   `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`
 - **media**:
   - `player`, `speakers`
-  - optional screen-time limits: `watch_timer`, `watch_limit`, `limit_select`, `block_switch`, `unblock_switch`
+  - optional screen-time limits: `watch_timer` (watched today) and `watch_limit` (the daily limit), both as H:MM:SS, `limit_select` (a select to change the limit), `block_switch`, `unblock_switch` (Force Unblock). Pick them in the card editor under Panels → Media
 - **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. Tap a movie or an episode
   in the Shows / Movies browser and it plays on your TV, with no setup: the card finds a TV whose source list has
   Jellyfin (Android TV, Google TV and Fire TV over the Android TV integration first, then Android TV Remote, webOS,
@@ -358,7 +358,7 @@ See [examples/panels.yaml](examples/panels.yaml) for every panel.
 - **homelab**: found from the Proxmox VE custom integration. Options: `pinned` guests, `temperature`, `order`.
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
-- **tv_light**: `light`, `selects`
+- **tv_light**: `light` (the TV backlight) and `selects` (its mode / effect selectors: `select` or `input_select`, as IDs or `{entity, name, icon}`). Pick them in the card editor under Panels → TV light; switching the panel off hides its card
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
