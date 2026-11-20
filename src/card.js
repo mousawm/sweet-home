@@ -765,7 +765,8 @@ export class SweetHomeCard extends HTMLElement {
   }
   _renderInfo() {
     const box = this.$('sheet')?.querySelector('.sheet'); if (!box || !this._info) return;
-    const head = (icon, title, sub) => `<div class="sh-h">${ic(icon)}<div><b>${title}</b><span>${sub}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`;
+    // title and sub are plain text (entity, TV and show names among them): escaped here, never passed in as HTML
+    const head = (icon, title, sub) => `<div class="sh-h">${ic(icon)}<div><b>${esc(title)}</b><span>${esc(sub)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>`;
     let html;
     if (this._info.startsWith('rename:')) html = this._rnSheet(head, this._info.slice(7));
     else if (this._info.startsWith('rnbadge:')) html = this._rnBadgeSheet(head, Number(this._info.slice(8)));
@@ -890,7 +891,7 @@ export class SweetHomeCard extends HTMLElement {
           <b class="lo">${deg(l)}</b><div class="wxbar"><i style="left:${x0}%;width:${Math.max(2, x1 - x0)}%;background:linear-gradient(90deg,${col(l)},${col(h)})"></i>${now}</div><b>${deg(h)}</b></div>`;
       }).join('');
     }
-    return head(icon(w.state), 'Weather', `${esc(tc(a.friendly_name || 'Outside'))} · now`)
+    return head(icon(w.state), 'Weather', `${tc(a.friendly_name || 'Outside')} · now`)
       + `<div class="wxnow ${mood}" data-act="more" data-id="${E.weather}">${ic(icon(w.state), 'wxbig')}
           <div class="wxt"><b style="color:${col(a.temperature)}">${a.temperature != null ? Number(a.temperature).toFixed(1) : '—'}°</b><span>${esc(wxName(w.state))}</span></div>
           ${today ? `<div class="wxhl"><span>${ic('mdi:arrow-up')}${deg(today.temperature)}</span><span>${ic('mdi:arrow-down')}${deg(today.templow)}</span></div>` : ''}</div>`
@@ -1133,7 +1134,7 @@ export class SweetHomeCard extends HTMLElement {
       const epT = c => ha ? String(c.title || '').replace(/^\d+\.\s*/, '') : c.title; // JellyHA numbers its episodes itself ("3. Name")
       const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(epT(c))}">
           ${img(c.thumbnail, 'mdi:play-circle-outline')}<div><b>${i + 1}. ${esc(epT(c))}</b></div>${ic('mdi:play', 'jfepp')}</button>`).join('');
-      return head('mdi:television-classic', esc(tt(show.title)), 'Jellyfin') + back + top + chips + (loading ? wait : list || '<div class="wxwait">No episodes</div>');
+      return head('mdi:television-classic', tt(show.title), 'Jellyfin') + back + top + chips + (loading ? wait : list || '<div class="wxwait">No episodes</div>');
     }
     return head('mdi:jellyfish', 'Jellyfin', '') + wait;
   }
@@ -1928,7 +1929,7 @@ export class SweetHomeCard extends HTMLElement {
       const val = !on ? tr('Off') : chg ? tr('Charging · {0} W', w.toFixed(1)) : drawing ? tr('On · {0} W', w < 10 ? w.toFixed(1) : Math.round(w)) : p.power ? tr('On · idle') : tr('On');
       return `<button class="lrow ${on ? 'on cool' : ''}" data-act="toggle" data-id="${p.id}"${p.power ? ` data-id2="${p.power}"` : ''}>${ic(chg ? 'mdi:battery-charging' : plugIcon(this, p), on && SMART && nameIcon(p.id, p.name) === 'mdi:fan' ? 'spin' : '')}<span>${esc(p.name)}</span><b>${val}</b></button>`;
     });
-    if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${this.v(r.count)}</b></div>`);
+    if (r.count && this.ok(r.count)) extra.push(`<div class="mrow"><ha-icon icon="mdi:account-multiple"></ha-icon><span>${tr('People Detected')}</span><b>${esc(this.v(r.count))}</b></div>`);
     const devs = [];
     if (r.fan && this.s(r.fan)) devs.push(`<button class="lrow ${this.on(r.fan) ? 'on cool' : ''}" data-act="toggle" data-id="${r.fan}">${ic('mdi:fan', this.on(r.fan) ? 'spin' : '')}<span>${esc(r.names?.[r.fan] || tc(this.s(r.fan).attributes.friendly_name || 'Fan'))}</span><b>${this.on(r.fan) ? tr('On') : tr('Off')}</b></button>`);
     if (r.media && this.s(r.media)) devs.push(`<div class="mrow ${this.v(r.media) === 'playing' ? 'on' : ''}" data-act="more" data-id="${r.media}">${ic('mdi:television-play')}<span>${esc(tc(this.s(r.media).attributes.app_name || this.s(r.media).attributes.friendly_name || 'TV'))}</span><b>${esc(tr(pretty(this.v(r.media))))}</b></div>`);
@@ -2004,7 +2005,7 @@ export class SweetHomeCard extends HTMLElement {
       const cur = pend[id] ?? (sid === 'modes' ? E.modes.find(m => m[0] === id)?.[1] : null) ?? dv?.name ?? st.attributes.friendly_name ?? id;
       return `<label class="rnrow">${ic(dv?.icon || (SMART && NAMED_DOMAINS.concat('scene').includes(d) && nameIcon(id, cur)) || st.attributes.icon || domIcon(d, st.state, st.attributes))}<input data-rename="${id}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', id))}" enterkeyhint="done"><small>${esc(id)}</small></label>`;
     }).join('');
-    return head('mdi:pencil-outline', esc(tr('Rename · {0}', title)), esc(tr('Names change on this dashboard only. Clear a name to go back to the default.')))
+    return head('mdi:pencil-outline', tr('Rename · {0}', title), tr('Names change on this dashboard only. Clear a name to go back to the default.'))
       + (rows ? `${rows}<button class="lrow on rnsave" data-act="rnsave">${ic('mdi:check')}<span>${tr('Done')}</span></button>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('Nothing to rename here.')}</div>`);
   }
   // What a panel's rename sheet lists — also whether the panel gets its pencil at all (none when this is empty).
@@ -2020,7 +2021,7 @@ export class SweetHomeCard extends HTMLElement {
   _rnBadgeSheet(head, i) {
     const b = BADGES.find(x => x.i === i); if (!b) return head('mdi:lock', tr('Lock badge'), '');
     const own = this.s(b.lock)?.attributes.friendly_name || b.lock, cur = this._pendNames?.['badge:' + i] ?? b.name ?? own;
-    return head('mdi:pencil-outline', esc(tr('Rename · {0}', tr('Lock badge'))), esc(tr('The name above the badge in the 3D view, on this dashboard only. Clear it to show the lock’s name.')))
+    return head('mdi:pencil-outline', tr('Rename · {0}', tr('Lock badge')), tr('The name above the badge in the 3D view, on this dashboard only. Clear it to show the lock’s name.'))
       + `<label class="rnrow">${ic('mdi:lock')}<input data-rename="badge:${i}" value="${esc(cur)}" placeholder="${esc(own)}" aria-label="${esc(tr('Name of {0}', b.lock))}" enterkeyhint="done"><small>${esc(b.lock)}</small></label>
       <button class="lrow on rnsave" data-act="rnbsave" data-i="${i}">${ic('mdi:check')}<span>${tr('Done')}</span></button>`;
   }
@@ -2124,7 +2125,7 @@ export class SweetHomeCard extends HTMLElement {
       ${this.s(E.forecast.today) ? `<div class="fc" data-act="more" data-id="${E.forecast.today}" data-id2="${E.forecast.tomorrow}">${ic('mdi:weather-sunny-alert')}
         <div><span>Solar Forecast</span><b>Today ${this.f(E.forecast.today, 1)} · Tomorrow ${this.f(E.forecast.tomorrow, 1)}</b>
         <em>${this.ok(E.forecast.remaining) ? `${this.f(E.forecast.remaining, 1)} still to come today` : ''}${this.ok(E.forecast.peak) ? ` · peak at ${new Date(this.v(E.forecast.peak)).toLocaleTimeString(this._hass?.locale?.language || 'en', { hour: '2-digit', minute: '2-digit' })}` : ''}</em></div></div>` : ''}
-      <div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${n}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}
+      <div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${esc(n)}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}
         ${E.energy.extra.filter(x => this.s(x.id)).map(x => `<div class="crow" data-act="more" data-id="${x.id}">${ic(x.icon)}<span>${esc(x.name)}</span><div class="bar"><i style="width:0"></i></div><b>${this.f(x.id, 2)}</b></div>`).join('')}
       </div>`;
   }
@@ -2539,7 +2540,7 @@ export class SweetHomeCard extends HTMLElement {
     const W = E.water;
     const lvl = clamp(this.n(W.tank) ?? 0, 0, 100);
     const col = lvl < 20 ? '#f43f5e' : lvl < 40 ? '#fbbf24' : '#38bdf8';
-    const sw = (id, n, i, sub, id2) => this.s(id) ? `<button class="tile wide ${this.on(id) ? 'on' : ''}" data-act="${i.includes('pump') ? 'pump' : 'toggle'}" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}>${ic(i, this.on(id) && i.includes('pump') ? 'pulse' : '')}<span>${n}</span><em class="sub">${sub || (this.on(id) ? 'On' : 'Off')}</em></button>` : '';
+    const sw = (id, n, i, sub, id2) => this.s(id) ? `<button class="tile wide ${this.on(id) ? 'on' : ''}" data-act="${i.includes('pump') ? 'pump' : 'toggle'}" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}>${ic(i, this.on(id) && i.includes('pump') ? 'pulse' : '')}<span>${esc(n)}</span><em class="sub">${sub || (this.on(id) ? 'On' : 'Off')}</em></button>` : '';
     if (W.tank && (!this._tankTr || Date.now() - this._tankTr.at > 5 * 60e3)) setTimeout(() => this._loadTankTrend(), 0);
     return `<div class="ch">${ic('mdi:water')}<h3>Water</h3>${W.tank ? this._tankPill(lvl) : ''}</div>
       <div class="water ${W.tank ? '' : 'notank'}">
@@ -2548,7 +2549,7 @@ export class SweetHomeCard extends HTMLElement {
           <div class="tank-lbl"><b>${lvl.toFixed(1)}<small>%</small></b><span>${[W.quality ? `Quality ${this.f(W.quality, 0)}` : '', W.temp ? this.f(W.temp, 0) : ''].filter(Boolean).join(' · ')}</span></div>
         </div>`}
         <div class="wtiles">
-          ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) ? this._pumpOn(p) : p.info && this.ok(p.info) ? this.v(p.info) : null, p.power || p.info)).join('')}
+          ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) ? this._pumpOn(p) : p.info && this.ok(p.info) ? esc(this.v(p.info)) : null, p.power || p.info)).join('')}
         </div>
       </div>
       ${W.entities.length ? `<div class="wents">${W.entities.map(e => this._entRow(e.id, e)).join('')}</div>` : ''}`;
@@ -2832,9 +2833,9 @@ export class SweetHomeCard extends HTMLElement {
       ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}Nobody is watching on Jellyfin</div>`}
       <div class="dsec">Library</div>
       <div class="mlib">
-        <div class="go" data-act="info" data-kind="jflib:shows" data-id="${SO.shows}">${ic('mdi:television-classic')}<b>${this.v(SO.shows) ?? '—'}</b><span>Shows ›</span></div>
-        <div class="go" data-act="info" data-kind="jflib:movies" data-id="${RA.movies}">${ic('mdi:movie-open')}<b>${this.v(RA.movies) ?? '—'}</b><span>Movies ›</span></div>
-        <div data-act="info" data-kind="wanted" data-id="${SO.wanted}" class="go ${(this.n(SO.wanted) ?? 0) > 0 ? 'warn' : ''}">${ic('mdi:magnify')}<b>${this.v(SO.wanted) ?? '—'}</b><span>Wanted ›</span></div>
+        <div class="go" data-act="info" data-kind="jflib:shows" data-id="${SO.shows}">${ic('mdi:television-classic')}<b>${esc(this.v(SO.shows) ?? '—')}</b><span>Shows ›</span></div>
+        <div class="go" data-act="info" data-kind="jflib:movies" data-id="${RA.movies}">${ic('mdi:movie-open')}<b>${esc(this.v(RA.movies) ?? '—')}</b><span>Movies ›</span></div>
+        <div data-act="info" data-kind="wanted" data-id="${SO.wanted}" class="go ${(this.n(SO.wanted) ?? 0) > 0 ? 'warn' : ''}">${ic('mdi:magnify')}<b>${esc(this.v(SO.wanted) ?? '—')}</b><span>Wanted ›</span></div>
       </div>
       <div class="dsec">Coming Up</div>
       ${upcoming || (this._mcal ? `<div class="mempty">${ic('mdi:calendar-blank')}Nothing in the next two weeks</div>`
@@ -2843,7 +2844,7 @@ export class SweetHomeCard extends HTMLElement {
       <div class="mdl">
         <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>Download</span></div>
         <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>Upload</span></div>
-        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${this.v(Q.active) ?? '—'}<small>/ ${this.v(Q.all) ?? '—'}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
+        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(this.v(Q.active) ?? '—')}<small>/ ${esc(this.v(Q.all) ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
         <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? 'Slow' : 'Full'}</b><span>Speed limit</span></button>
       </div>
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}
