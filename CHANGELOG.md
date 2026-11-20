@@ -7,9 +7,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
-- 3D view: a light set as the *TV backlight* (room → lights) now glows around the room's TV. It needed a hand-written `tv_glow` position before, so picking it in the editor showed nothing. The glow follows the TV's place, size and facing; a `tv_glow` written by hand is kept.
-
 ### Changed
+
+### Added
+
+## v0.6.43 — 2026-11-20
+
+### Fixed
+
+- 3D view: a light set as the *TV backlight* (room → lights) now glows around the room's TV. It needed a hand-written `tv_glow` position before, so picking it in the editor showed nothing. The glow follows the TV's place, size and facing; a `tv_glow` written by hand is kept.
 
 ### Added
 
