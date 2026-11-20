@@ -141,12 +141,12 @@ try {
     put('media_player.jellyha_library_browser', 'idle', { friendly_name: 'JellyHA Library', supported_features: 512 }, 'jellyha');
     put('media_player.jellyha_user_mousa', 'playing', { ...now, friendly_name: 'JellyHA User mousa' }, 'jellyha');
     put('media_player.jellyha_device_shield', 'playing', { ...now, friendly_name: 'JellyHA Device SHIELD', device_name: 'SHIELD', client: 'Jellyfin for Android TV', device_id: 'dev-shield' }, 'jellyha');
-    put('sensor.jellyha_connected_clients', '2', {}, 'jellyha');
+    put('sensor.jellyha_connected_clients', '38', {}, 'jellyha'); put('sensor.jellyha_active_sessions', '2', {}, 'jellyha');
     put('sensor.jellyfin_active_clients', '1', {}, 'jellyfin');
     h.devices.jfphone = { id: 'jfphone', name: 'Pixel 8', model: 'Jellyfin Android' }; h.devices.jfshield = { id: 'jfshield', name: 'SHIELD', model: 'Jellyfin Android TV' };
     put('media_player.pixel_8', 'idle', { friendly_name: 'Pixel 8', supported_features: 512 }, 'jellyfin', 'jfphone');
     put('media_player.shield', 'on', { friendly_name: 'Shield', source_list: ['Jellyfin'], source: 'Home' }, 'androidtv');
-    window.jfCleanup = () => { for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_shield', 'sensor.jellyha_connected_clients',
+    window.jfCleanup = () => { for (const id of ['media_player.jellyha_library_browser', 'media_player.jellyha_user_mousa', 'media_player.jellyha_device_shield', 'sensor.jellyha_connected_clients', 'sensor.jellyha_active_sessions',
       'sensor.jellyfin_active_clients', 'media_player.pixel_8', 'media_player.shield', 'media_player.shield_jellyfin']) { delete h.states[id]; delete h.entities[id]; } delete h.devices.jfphone; delete h.devices.jfshield; };
     // the TV's official Jellyfin session: appears once the app has been opened on the TV
     window.jfShieldSession = () => { put('media_player.shield_jellyfin', 'idle', { friendly_name: 'SHIELD', supported_features: 512 }, 'jellyfin', 'jfshield'); h.states['media_player.shield_jellyfin'].last_updated = new Date().toISOString(); };
@@ -167,7 +167,7 @@ try {
     card.setConfig(c2); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1500)); card._jfc = {};
     const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
     const rows = [...tpl.content.querySelectorAll('.jfs')], out = {
-      rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /2 clients/.test(tpl.content.textContent),
+      rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /\b2 clients/.test(tpl.content.textContent) && !/38 clients/.test(tpl.content.textContent),
       // playing: only the official integration's players, never JellyHA's; the phone's app is not a target when there is a TV
       sessions: card._jfSessions().map(x => x.st.entity_id).join(), targets: card._jfTargets({ id: 'media_player.shield' }).map(x => x.st.entity_id).join() };
     card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
@@ -556,6 +556,12 @@ try {
     delete editor._config.panels.tv_light; editor._emit(); editor._render();
     return ok || JSON.stringify({ shown, tl });
   }); check('editor, TV light: the backlight and its selectors are picked and saved (a selector\'s own name is kept)', r === true, r); }
+  { const r = await p.evaluate(() => {
+    const i = editor.querySelector('ha-form input[name=clients_sensor]'); if (!i) return 'no clients picker';
+    i.value = 'sensor.my_count'; i.dispatchEvent(new Event('change')); const saved = editor._config.panels?.media_server?.clients_sensor === 'sensor.my_count';
+    const j = editor.querySelector('ha-form input[name=clients_sensor]'); j.value = ''; j.dispatchEvent(new Event('change'));
+    return (saved && !editor._config.panels?.media_server?.clients_sensor) || JSON.stringify({ saved, ms: editor._config.panels?.media_server });
+  }); check('editor, Media Server: the clients sensor is picked and saved (cleared when emptied)', r === true, r); }
   check('media server: the Quick Connect switch is saved with the TV settings', await p.evaluate(() => {
     const i = editor.querySelector('ha-form input[name=quick_connect]'); if (!i) return false;
     i.checked = true; i.dispatchEvent(new Event('change')); const on = editor._config.panels.media_server?.jellyfin_tv?.quick_connect === true;

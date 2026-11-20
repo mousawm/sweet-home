@@ -847,10 +847,12 @@ export function buildModel(cfg = {}, hass) {
     const has = p => R.ofPlatform(p, /^(media_player|sensor)\./).length > 0;
     const want = ['hybrid', 'jellyha'].includes(MS.integration) ? 'hybrid' : MS.integration === 'jellyfin' ? 'jellyfin'
       : has('jellyfin') || !has('jellyha') ? 'jellyfin' : 'hybrid';
-    const playClients = plat('jellyfin', /_active_clients$/);
+    // the "N clients" count next to Now Watching: clients_sensor when picked, else Jellyfin's active clients
+    // (sensor.jellyfin_active_clients) or, with Jellyfin + JellyHA, JellyHA's active sessions (sensor.jellyha_active_sessions)
+    const playClients = plat('jellyfin', /_active_clients$/), own = MS.clients_sensor || null;
     return want === 'hybrid'
-      ? { kind: 'hybrid', view: 'jellyha', clients: plat('jellyha', /_connected_clients$/), playClients, tv: MS.jellyfin_tv || null }
-      : { kind: 'jellyfin', view: 'jellyfin', clients: playClients, playClients, tv: MS.jellyfin_tv || null };
+      ? { kind: 'hybrid', view: 'jellyha', clients: own || plat('jellyha', /_active_sessions$/), playClients, tv: MS.jellyfin_tv || null }
+      : { kind: 'jellyfin', view: 'jellyfin', clients: own || playClients, playClients, tv: MS.jellyfin_tv || null };
   }
   const mserver = {
     jellyfin: jfIntegration(),

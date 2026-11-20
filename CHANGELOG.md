@@ -9,6 +9,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Changed
 
+- Media Server: with *Jellyfin + JellyHA*, the clients count next to Now Watching comes from JellyHA's active sessions (`sensor.jellyha_active_sessions`) instead of every connected client; with *Jellyfin* it stays `sensor.jellyfin_active_clients`. Panels → Media Server has a *Clients count* picker to choose another sensor.
+
 ### Added
 
 - Card editor: Panels → Media has pickers for the screen-time limits (watched today, daily limit, limit picker, Block and Force Unblock switches), and a new *TV light* panel picks the TV backlight and its mode / effect selectors (switching it off hides its card). Both used to need YAML.
