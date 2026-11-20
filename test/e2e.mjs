@@ -927,6 +927,27 @@ try {
     out.listed = window.customCards.some(c => c.type === 'sweet-home-3d-card' && c.name === 'Sweet Home 3D');
     return Object.values(out).every(Boolean) || JSON.stringify({ ...out, vh, ch });
   }); check('Sweet Home 3D: fills its sections-grid size; the editor has Rooms and Look (with a height), no Panels', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, out = {}, cfg0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms));
+    const zoom = async room => { card.setConfig({ ...cfg0, room }); await wait(900); };
+    await zoom('Office'); // by name, on the first floor
+    out.byName = card._focus === 'office' && card._level === 1 && card._three.level === 1;
+    out.noFloors = R.getElementById('lvls').style.display === 'none';
+    const B = card._three.rooms.office.box, cx = (B[0] + B[2]) / 2, cz = (B[1] + B[3]) / 2, at = () => Math.hypot(card._three.goal.target.x - cx, card._three.goal.target.z - cz) < 0.01;
+    out.framed = at();
+    card._select('landing'); out.other = card._sel === 'landing' && !at();
+    card._select(null); out.back = at() && card._level === 1;
+    card._three.view('top'); out.top = at() && card._three.goal.phi < 0.1; card._three.view('reset'); out.reset = at();
+    await zoom('kitchen'); out.byArea = card._focus === 'kitchen' && card._three.level === 0;
+    await zoom('nowhere'); out.unknown = card._focus === null && R.getElementById('lvls').style.display !== 'none';
+    card.setConfig(cfg0); await wait(900); out.cleared = card._focus === null;
+    editor._step = 'look'; editor._render(); await wait(30);
+    const sel = editor.querySelector('ha-form select[name=room]'), opts = sel ? [...sel.options].map(o => o.value) : [];
+    out.picker = opts[0] === '' && opts.includes('kitchen') && opts.includes('Landing');
+    sel.value = 'kitchen'; sel.dispatchEvent(new Event('change')); out.saved = editor._config.room === 'kitchen';
+    const sel2 = editor.querySelector('ha-form select[name=room]'); sel2.value = ''; sel2.dispatchEvent(new Event('change')); out.removed = editor._config.room === undefined;
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Sweet Home 3D room zoom: by name or area, on its floor without floor buttons; closing a room, 3D / floor plan come back to it', r === true, r); }
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

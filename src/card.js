@@ -675,7 +675,9 @@ export class SweetHomeCard extends HTMLElement {
     const kt = this._keepTab; this._keepTab = null;
     this._setTab(this._solo ? 'home' : kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     const L = MODEL.levels || [{ level: 0 }];
-    if (this._level == null || !L.some(l => l.level === this._level)) this._level = this._defFloor(L);
+    this._focus = this._focusId();
+    if (this._focus) this._level = ROOM[this._focus].level; // zoomed on one room: its floor
+    else if (this._level == null || !L.some(l => l.level === this._level)) this._level = this._defFloor(L);
     this._tick();
     const K = this._keep3d;
     const defsNow = JSON.stringify([this._config?.default_view, this._config?.default_floor]); this._keep3d = null;
@@ -683,7 +685,12 @@ export class SweetHomeCard extends HTMLElement {
       this._three = K.scene;
       // a new start view / floor picked in Look: shown right away
       const defs = JSON.stringify([this._config?.default_view, this._config?.default_floor]);
-      if (this._defsJSON != null && defs !== this._defsJSON) { this._three.view(this._defView()); const L = MODEL.levels || [{ level: 0 }]; this._setLevel(this._defFloor(L)); if (ROOM[this._reselect]?.level !== this._level) this._reselect = null; }
+      if (this._defsJSON != null && defs !== this._defsJSON) { this._three.view(this._defView()); const L = MODEL.levels || [{ level: 0 }]; this._setLevel(this._focus ? ROOM[this._focus].level : this._defFloor(L)); if (ROOM[this._reselect]?.level !== this._level) this._reselect = null; }
+      if (this._three._focusWas !== this._focus) { // Sweet Home 3D: another room picked (or none): frame it, on its floor
+        this._three._focusWas = this._focus;
+        if (this._three.level !== this._level) this._three.setLevel(this._level);
+        this._three.select(null);
+      }
       this._renderLegend(); this._three.sync(); this._three._dirty = true;
       // drawn again at once: a canvas moved in the page can show blank until its next frame (up to 0.5 s on a phone at rest)
       try { this._three.renderer.render(this._three.scene, this._three.cam); } catch (e) { /* next frame */ }
@@ -698,6 +705,11 @@ export class SweetHomeCard extends HTMLElement {
   }
 
   get _solo() { return this.constructor.SOLO === true; }
+  // Sweet Home 3D `room`: the room it is zoomed on (its id, Home Assistant area or name)
+  _focusId() {
+    const v = this._solo ? String(this._config?.room ?? '').trim().toLowerCase() : ''; if (!v) return null;
+    return (ROOMS.find(r => [r.id, r.area, r.name].some(x => x != null && String(x).toLowerCase() === v)) || {}).id || null;
+  }
   // Sweet Home 3D: the room's controls open as a pop-up over the dashboard (Escape or a tap beside it closes it)
   _roomPop(open) {
     const p = this.$('rpop'); if (!p) return;
@@ -1614,7 +1626,7 @@ export class SweetHomeCard extends HTMLElement {
   // floor buttons on the 3D view (only with more than one floor)
   _renderLevels() {
     const el = this.$?.('lvls'), L = MODEL?.levels || []; if (!el) return;
-    if (L.length < 2) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    if (L.length < 2 || this._focus) { el.innerHTML = ''; el.style.display = 'none'; return; } // one room: no floor buttons
     el.style.display = '';
     el.innerHTML = [...L].reverse().map(l => `<button data-act="level" data-level="${l.level}" data-lp="floor" role="tab" aria-selected="${l.level === this._level}" class="${l.level === this._level ? 'on' : ''}" title="${esc(tr(l.name, l.level))}">${l.icon ? ic(l.icon) : ''}<span>${esc(l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name))}</span></button>`).join('');
   }
@@ -3053,8 +3065,10 @@ export class SweetHomeCard extends HTMLElement {
     try { scene = new HouseScene(THREE, this); scene.arrange = !!this._arrange; await scene.ready; }
     catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.</span>`; return; }
     this._three = scene; scene._key = this._houseJSON; // the house it shows
+    scene._focusWas = this._focus;
     const V = this._view; this._view = null;
     if (V) { for (const k of ['orbit', 'goal']) { Object.assign(scene[k], { theta: V[k].theta, phi: V[k].phi, radius: V[k].radius }); scene[k].target.copy(V[k].target); } scene.vmode = V.vmode; scene._dirty = true; }
+    if (V && this._focus) scene._goFocus(true); // zoomed on one room: framed again after the house changed
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
     if (!MODEL.gltf && !ROOMS.length) { // no rooms yet: say how to get them instead of an empty 3D view
@@ -3280,7 +3294,8 @@ class HouseScene {
       // presence ring
       const ring = new T.Mesh(new T.RingGeometry(0.55, 0.7, 48), new T.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0, side: T.DoubleSide, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(ccx, 0.04, ccz); grp.add(ring);
-      this.rooms[r.id] = { r, mats, outline, lamp, halo, pl, ring, cx: ccx, cz: ccz, lit: 0, litT: 0, motion: 0, temp: null, col: new T.Color(1, 1, 1), hl: 0 };
+      const [bx0, bz0] = this.w(minx, minz), [bx1, bz1] = this.w(maxx, maxz);
+      this.rooms[r.id] = { r, mats, outline, lamp, halo, pl, ring, cx: ccx, cz: ccz, box: [bx0, bz0, bx1, bz1], lit: 0, litT: 0, motion: 0, temp: null, col: new T.Color(1, 1, 1), hl: 0 };
       if (r.lightFx) this._buildLightFx(this.rooms[r.id]);
     }
   }
@@ -4142,6 +4157,19 @@ class HouseScene {
     if (v === 'top') Object.assign(this.goal, { phi: 0.08, radius: this._topR(), theta: 0 });
     else Object.assign(this.goal, { phi: 0.92, radius: this.baseR || 27, theta: this.defTheta ?? -0.55 });
     this.goal.target.set(0, 0, 0);
+    this._goFocus(false);
+  }
+  // Sweet Home 3D with `room`: its "home" view is that room, framed (3D or from above)
+  _focusR() { const id = this.card?._focus; return id && this.rooms[id] ? this.rooms[id] : null; }
+  _goFocus(snap) {
+    const R = this._focusR(); if (!R) return false;
+    const [x0, z0, x1, z1] = R.box, tv = Math.tan(this.cam.fov * Math.PI / 360), th = tv * this.cam.aspect;
+    const hw = (x1 - x0) / 2 + 0.9, hd = (z1 - z0) / 2 + 0.9, top = this.vmode === 'top';
+    this.goal.target.set((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    this.goal.radius = clamp(Math.max(hw / th, hd / tv) * (top ? 1 : 1.25), 4, SPAN * 3);
+    if (top) Object.assign(this.goal, { phi: 0.08, theta: 0 });
+    if (snap) { Object.assign(this.orbit, { theta: this.goal.theta, phi: this.goal.phi, radius: this.goal.radius }); this.orbit.target.copy(this.goal.target); }
+    this._dirty = true; return true;
   }
   _topR() {
     const tv = Math.tan(this.cam.fov * Math.PI / 360), th = tv * this.cam.aspect;
@@ -4153,6 +4181,7 @@ class HouseScene {
     this._dirty = true;
     this.sel = id;
     if (id) { const R = this.rooms[id]; this.goal.target.set(R.cx, 0, R.cz); this.goal.radius = (this.baseR || 27) * (R.r.zoom || 0.62); this.goal.phi = Math.min(this.goal.phi, 0.95); }
+    else if (this._goFocus(false)) { /* closed: back to the card's room */ }
     else if (this.vmode === 'top') { this.goal.target.set(0, 0, 0); this.goal.radius = this._topR(); }
     else { this.goal.target.set(0, 0, 0.5); this.goal.radius = this.baseR || 27; }
   }
@@ -4280,6 +4309,7 @@ class HouseScene {
     if (first) Object.assign(this.orbit, { theta: this.goal.theta, phi: this.goal.phi, radius: this.goal.radius });
     this.defTheta = nt;
     this.baseR = nb;
+    if (!this.sel) this._goFocus(first); // a card zoomed on one room keeps it framed when its size changes
   }
 
   _frame(dt) {

@@ -137,6 +137,7 @@ const AR = {
   'Water every': 'الري كل', Schedule: 'الجدول', 'Day of the week': 'يوم الأسبوع', 'Water tomorrow (switch)': 'الري غدًا (مفتاح)', 'Next watering': 'الري القادم',
   'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
   'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)': 'ارتفاع العرض ثلاثي الأبعاد (فارغ: 420 بكسل؛ في عرض الأقسام يُستخدم حجم البطاقة)',
+  'Whole house': 'المنزل بالكامل', 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)': 'التكبير على غرفة واحدة (تُخفى أزرار الطوابق، وعند إغلاق النافذة يعود العرض إليها)',
   'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”',
   // entrances
   'Gates, garage doors, barriers, shutters': 'البوابات، أبواب المرآب، الحواجز، الأبواب الدوّارة', 'Tap again to open': 'اضغط مرة أخرى للفتح', 'Tap again to close': 'اضغط مرة أخرى للإغلاق', 'Tap again to stop': 'اضغط مرة أخرى للإيقاف',
