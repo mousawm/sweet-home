@@ -283,6 +283,16 @@ try {
     if (was) h.states[id] = was; else delete h.states[id]; card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 600)); card._setTab(tab0);
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('TV screen in 3D: faces the room, shows a picture while the TV is on (cover art from Home Assistant, else a lit screen), dark when off', r === true, r); }
+  { const r = await p.evaluate(() => {
+    // Energy History: with some devices picked, "Show all" is the legend's first button (top row), not wrapped at the end
+    const z = () => new Array(24).fill(0), eh0 = card._eh, c0 = card._ehCache;
+    card._eh = { p: 'day', off: 0, sel: ['sensor.x'], bar: null }; card._ehCache = { 'day|0': { gi: z(), go: z(), so: z(), home: z(), dev: {} } };
+    const t = document.createElement('template'); t.innerHTML = card._rEHist();
+    const first = t.content.querySelector('.ehlg > *'), last = t.content.querySelector('.ehlg > *:last-child');
+    card._eh = { p: 'day', off: 0, sel: null, bar: null }; card._ehBody = null; const t2 = document.createElement('template'); t2.innerHTML = card._rEHist(); const none = !t2.content.querySelector('.ehlg .rst');
+    card._eh = eh0; card._ehCache = c0;
+    return (first?.dataset.act === 'ehreset' && /Show all/.test(first.textContent) && /Other/.test(last?.textContent) && none) || JSON.stringify({ first: first?.outerHTML.slice(0, 80), last: last?.textContent, none });
+  }); check('Energy History: "Show all" comes first in the legend (only while devices are picked)', r === true, r); }
   check('EV car card on the Energy tab: name, charging power, battery and range, colour', await p.evaluate(() => {
     const c = card.shadowRoot.getElementById('car'), t = c?.textContent || '';
     return c.style.display !== 'none' && t.includes('Model Y') && t.includes('7.20') && t.includes('64%') && t.includes('310') && !!c.querySelector('stop[stop-color="#dc2626"]');

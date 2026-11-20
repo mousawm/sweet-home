@@ -7,6 +7,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- Energy History: *Show all* is the first button of the legend, so it sits on the top row instead of dropping onto a line of its own when it doesn't fit after *Other*.
 ### Changed
 
 ### Added
