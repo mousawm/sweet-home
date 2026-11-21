@@ -107,7 +107,7 @@ export class MediaPanels {
         this._jfWait = { qc: true, msg: tr('Sign in to Jellyfin on {0} with Quick Connect, then tap Play to start {1}.', tvName, name) }; this._renderInfo();
         await this._waitFn(() => this._jfQcDone || this._jfCancel, 900e3);
         this._jfWait = null; this._renderInfo();
-        if (this._jfCancel) { this._toast('Stopped'); return; }
+        if (this._jfCancel) { this._toast(tr("Stopped")); return; }
         if (!this._jfQcDone) { this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
         this._toast(`Opening ${name} on ${tvName}…`);
       }
@@ -140,7 +140,7 @@ export class MediaPanels {
           ok = await this._waitFn(fresh, 180e3);
         }
       } finally { clearInterval(nudge); this._jfWait = null; this._jfReconnect = null; this._renderInfo(); }
-      if (this._jfCancel) { this._toast('Stopped'); return; }
+      if (this._jfCancel) { this._toast(tr("Stopped")); return; }
       if (!ok) { this.haptic('failure'); this._toast(`Jellyfin did not connect on ${tvName}`, true); return; }
       this._toast(`Opening ${name}…`);
       await new Promise(r => setTimeout(r, 2500)); // let the app finish loading its home screen
@@ -156,8 +156,8 @@ export class MediaPanels {
       <div class="jfwb"><button class="pill on" data-act="jfqc">${ic('mdi:play')}<span>${tr("I've signed in · Play")}</span></button><button class="pill" data-act="jfcancel"><span>${tr('Cancel')}</span></button></div>
       <div class="jfwh">${tr('Approve the code shown on the TV in Jellyfin on your phone or in a browser: Settings → Quick Connect.')}</div></div>`;
     return `<div class="jfwait" role="status"><div class="jfwm">${ic('mdi:loading', 'spin')}<span>${esc(w.msg)}</span></div>
-      ${w.busy ? '' : `<div class="jfwb">${admin && this._jfReconnect ? `<button class="pill" data-act="jfreconnect">${ic('mdi:refresh')}<span>Reconnect</span></button>` : ''}<button class="pill" data-act="jfcancel"><span>Cancel</span></button></div>
-      <div class="jfwh">${admin ? 'Reconnect reloads the Jellyfin integration, for when Home Assistant has stopped seeing Jellyfin apps.' : 'Still nothing? Ask an admin to reload the Jellyfin integration.'}</div>`}</div>`;
+      ${w.busy ? '' : `<div class="jfwb">${admin && this._jfReconnect ? `<button class="pill" data-act="jfreconnect">${ic('mdi:refresh')}<span>${tr("Reconnect")}</span></button>` : ''}<button class="pill" data-act="jfcancel"><span>${tr("Cancel")}</span></button></div>
+      <div class="jfwh">${admin ? 'Reconnect reloads the Jellyfin integration, for when Home Assistant has stopped seeing Jellyfin apps.' : tr("Still nothing? Ask an admin to reload the Jellyfin integration.")}</div>`}</div>`;
   }
   _waitFn(pred, ms) {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred()) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 300); }; chk(); });
@@ -185,7 +185,7 @@ export class MediaPanels {
         return busy ? null : { children: out };
       };
       const root = ha ? haLibs() : this._jfBrowse('media-source://jellyfin');
-      const H = t => head(movies ? 'mdi:movie-open' : 'mdi:television-classic', movies ? 'Movies' : 'Shows', t);
+      const H = t => head(movies ? 'mdi:movie-open' : 'mdi:television-classic', movies ? tr("Movies") : tr("Shows"), t);
       if (!root) return H('Jellyfin') + wait;
       const libs = ha ? root.children : (root.children || []).filter(l => /movie/i.test(l.title) === movies);
       let n = 0, loading = false;
@@ -199,18 +199,18 @@ export class MediaPanels {
         }).join('');
         return `${libs.length > 1 ? `<div class="dsec">${esc(tc(l.title))} · ${items.length}</div>` : ''}<div class="jfgrid">${grid}</div>`;
       }).join('');
-      return H(`${loading ? 'Loading…' : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
+      return H(`${loading ? tr("Loading…") : `${n} in Jellyfin`} · ${movies ? `tap to play on ${tc(E.mserver.jellyfin.tv?.name || this._jfTvName(this._jfLauncher()))}` : 'tap a show for its episodes'}`) + (secs || wait);
     }
     if (k.startsWith('jfshow:')) {
       const sid = k.slice(7), show = this._jfBrowse(ha ? decodeURIComponent(sid) : 'media-source://jellyfin/' + sid);
-      const back = `<button class="jfback" data-act="info" data-kind="jflib:shows">${ic('mdi:chevron-left')}Shows</button>`;
-      if (!show) return head('mdi:television-classic', 'Show', 'Loading…') + back + wait;
+      const back = `<button class="jfback" data-act="info" data-kind="jflib:shows">${ic('mdi:chevron-left')}${tr("Shows")}</button>`;
+      if (!show) return head('mdi:television-classic', tr("Show"), 'Loading…') + back + wait;
       const kids = show.children || [];
       const direct = kids.filter(c => c.can_play && !c.can_expand), seasons = kids.filter(c => c.can_expand);
       const si = clamp(this._jfSeason?.[sid] ?? 0, 0, Math.max(0, seasons.length - 1));
       let eps = direct, loading = false;
       if (!direct.length && seasons.length) { const d = this._jfBrowse(seasons[si].media_content_id); if (d) eps = d.children || []; else loading = true; }
-      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(tt(show.title))}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>Tap an episode to play it on ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
+      const top = `<div class="jfshowh">${img(show.thumbnail, 'mdi:television-classic')}<div><b>${esc(tt(show.title))}</b><span>${seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : ''}${eps.length ? `${seasons.length ? ' · ' : ''}${eps.length} episodes${seasons.length > 1 ? ' in this season' : ''}` : ''}</span><em>${tr("Tap an episode to play it on")} ${esc(tc(E.mserver.jellyfin.tv?.name || 'your TV'))}</em></div></div>`;
       const chips = seasons.length > 1 ? `<div class="jfseas">${seasons.map((c, i) => `<button class="${i === si ? 'on' : ''}" data-act="jfseason" data-show="${sid}" data-i="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
       const epT = c => ha ? String(c.title || '').replace(/^\d+\.\s*/, '') : c.title; // JellyHA numbers its episodes itself ("3. Name")
       const list = eps.map((c, i) => `<button class="jfep" data-act="jfplay" data-mk="episode" data-item="${id8(c.media_content_id)}" data-title="${esc(epT(c))}">
@@ -234,9 +234,9 @@ export class MediaPanels {
   }
   _wantedHTML(head) {
     const W = this._wanted, lang = this._hass?.locale?.language || 'en';
-    const H = sub => head('mdi:magnify', 'Wanted', sub);
+    const H = sub => head('mdi:magnify', tr("Wanted"), sub);
     if (!W?.eps) return H('Loading from Sonarr…') + `<div class="wtg"><div class="wth"><div class="muppo jfimg skl"></div><div class="mupt">${skl('70%', 16)}${skl('45%', 11, 'margin-top:6px')}</div></div>${Array.from({ length: 2 }, () => `<div class="wte">${skl('60%', 12)}${skl('100%', 10, 'margin-top:8px')}${skl('85%', 10, 'margin-top:5px')}</div>`).join('')}</div>`;
-    if (!W.eps.length) return H(W.err ? "Couldn't reach Sonarr" : 'Nothing missing') + `<div class="mempty">${ic('mdi:check-circle-outline')}${W.err ? 'Sonarr did not answer.' : 'Every monitored episode that has aired is downloaded.'}</div>`;
+    if (!W.eps.length) return H(W.err ? tr("Couldn't reach Sonarr") : tr("Nothing missing")) + `<div class="mempty">${ic('mdi:check-circle-outline')}${W.err ? tr("Sonarr did not answer.") : tr("Every monitored episode that has aired is downloaded.")}</div>`;
     const groups = new Map();
     for (const e of W.eps) { const k = e.series_title || 'Unknown'; (groups.get(k) || groups.set(k, []).get(k)).push(e); }
     const day = d => { const t = new Date(d); return isNaN(t) ? '' : t.toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }); };
@@ -252,7 +252,7 @@ export class MediaPanels {
       </div>`;
     }).join('');
     return H(`${W.eps.length} missing episode${W.eps.length > 1 ? 's' : ''} · ${groups.size} show${groups.size > 1 ? 's' : ''}`)
-      + body + `<div class="swnote">${ic('mdi:information-outline')}Aired, monitored episodes Sonarr hasn't downloaded yet. Sonarr keeps searching for them automatically.</div>`;
+      + body + `<div class="swnote">${ic('mdi:information-outline')}${tr("Aired, monitored episodes Sonarr hasn't downloaded yet. Sonarr keeps searching for them automatically.")}</div>`;
   }
   _rMedia() {
     const M = E.media; const tv = this.s(M.tv);
@@ -263,7 +263,7 @@ export class MediaPanels {
     const used = toSec(this.v(M.ytTimer)), lim = toSec(this.v(M.ytLimit));
     const pct = used != null && lim ? clamp(used / lim * 100, 0, 100) : 0;
     const q = M.qbt;
-    return `<div class="ch">${ic('mdi:television-classic')}<h3>Media</h3><span class="pill" style="--c:${playing ? '#f472b6' : '#94a3b8'}">${esc(tv?.state || '—')}</span></div>
+    return `<div class="ch">${ic('mdi:television-classic')}<h3>${tr("Media")}</h3><span class="pill" style="--c:${playing ? '#f472b6' : '#94a3b8'}">${esc(tv?.state || '—')}</span></div>
       <div class="np ${playing ? 'playing' : ''}" data-act="more" data-id="${M.tv}">
         <div class="art">${pic ? `<img src="${esc(pic)}">` : ic(a.app_name === 'YouTube' ? 'mdi:youtube' : 'mdi:television-play')}</div>
         <div class="npt"><b>${esc(a.media_title || a.app_name || tc(a.friendly_name || 'TV'))}</b><span>${esc([a.media_artist, a.app_name].filter(x => x && x !== (a.media_title || a.app_name)).join(' · ') || tc(a.friendly_name || 'TV'))}</span>
@@ -279,12 +279,12 @@ export class MediaPanels {
       ${a.volume_level != null ? this.slider(M.tv, 'vol', Math.max(1, Math.round(a.volume_level * 100)), '#f472b6') : ''}
       <div class="picks col">${this.pickChip(M.tv, 'source', 'Source', 'mdi:import')}</div>
       ${!M.ytTimer ? '' : `<div class="yt">
-        <div class="ytl" data-act="more" data-id="${M.ytTimer}" data-id2="${M.ytLimit}">${ic('mdi:youtube')}<span>Watched today</span><b>${esc(this.v(M.ytTimer) || '—')}</b></div>
+        <div class="ytl" data-act="more" data-id="${M.ytTimer}" data-id2="${M.ytLimit}">${ic('mdi:youtube')}<span>${tr("Watched today")}</span><b>${esc(this.v(M.ytTimer) || '—')}</b></div>
         <div class="bar"><i style="width:${pct}%;background:${pct > 90 ? '#f43f5e' : pct > 70 ? '#fbbf24' : '#f472b6'}"></i></div>
         <div class="picks col">${this.pickChip(M.ytSelect, 'select', 'Daily limit', 'mdi:timer-sand')}</div>
         <div class="tiles two">
-          <button class="tile ${this.on(M.ytBlock) ? 'on red' : ''}" data-act="toggle" data-id="${M.ytBlock}">${ic('mdi:cancel')}<span>Block</span></button>
-          ${M.ytForce ? `<button class="tile ${this.on(M.ytForce) ? 'on' : ''}" data-act="toggle" data-id="${M.ytForce}">${ic('mdi:lock-open-variant')}<span>Force Unblock</span></button>` : ''}
+          <button class="tile ${this.on(M.ytBlock) ? 'on red' : ''}" data-act="toggle" data-id="${M.ytBlock}">${ic('mdi:cancel')}<span>${tr("Block")}</span></button>
+          ${M.ytForce ? `<button class="tile ${this.on(M.ytForce) ? 'on' : ''}" data-act="toggle" data-id="${M.ytForce}">${ic('mdi:lock-open-variant')}<span>${tr("Force Unblock")}</span></button>` : ''}
         </div>
       </div>`}
 `;
@@ -343,18 +343,18 @@ export class MediaPanels {
   _img(u, w) { return u ? String(u).replace('/t/p/original/', `/t/p/w${w}/`) : ''; }
   _mupHTML(head) {
     const i = Number(this._info.slice(4)), x = this._mcal?.items?.[i];
-    if (!x) return head('mdi:calendar', 'Coming Up', '') + '<div class="wxwait">Not found</div>';
+    if (!x) return head('mdi:calendar', tr("Coming Up"), '') + '<div class="wxwait">Not found</div>';
     const lang = this._hass?.locale?.language || 'en', m = this._mupMeta(x) || {};
     const REL = { inCinemas: 'In cinemas', digitalRelease: 'Digital release', physicalRelease: 'Blu-ray release' };
     const when = x.t.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' }) + (x.k === 'tv' ? ' · ' + x.t.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit' }) : '');
-    const chips = [x.k === 'mv' ? REL[x.rel] || 'Movie' : x.ep, m.network, m.year, m.runtime ? `${m.runtime} min` : '', m.has ? '✓ Downloaded' : x.k === 'tv' || m.status ? 'Not downloaded yet' : ''].filter(Boolean);
+    const chips = [x.k === 'mv' ? REL[x.rel] || 'Movie' : x.ep, m.network, m.year, m.runtime ? `${m.runtime} min` : '', m.has ? '✓ Downloaded' : x.k === 'tv' || m.status ? tr("Not downloaded yet") : ''].filter(Boolean);
     const sub = x.k === 'tv' && x.title && x.title !== 'TBA' ? x.title : '';
     return `<div class="sh-h mup-h"><div></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
       <div class="muph">${m.fanart ? `<div class="mupbg" style="background-image:url('${esc(this._img(m.fanart, 780))}')"></div>` : ''}
         <div class="muppo jfimg">${ic(x.k === 'tv' ? 'mdi:television-classic' : 'mdi:movie-open')}${m.poster ? `<img src="${esc(this._img(m.poster, 500))}" alt="">` : ''}</div>
         <div class="mupt"><b>${esc(x.show)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}<em>${ic('mdi:calendar-clock')}${esc(when)}</em></div></div>
       <div class="mupchips">${chips.map(c => `<span>${esc(String(c))}</span>`).join('')}</div>
-      ${m.overview ? `<p class="mupov">${esc(m.overview)}</p>` : (this._mmeta ? `<p class="mupov mu">No description yet.</p>` : `<p class="mupov">${skl('100%', 10)}${skl('92%', 10, 'margin-top:6px')}${skl('60%', 10, 'margin-top:6px')}</p>`)}`;
+      ${m.overview ? `<p class="mupov">${esc(m.overview)}</p>` : (this._mmeta ? `<p class="mupov mu">${tr("No description yet.")}</p>` : `<p class="mupov">${skl('100%', 10)}${skl('92%', 10, 'margin-top:6px')}${skl('60%', 10, 'margin-top:6px')}</p>`)}`;
   }
   _rMServer() {
     const S = E.mserver, J = S.jellyfin, Q = S.qbt, SO = S.sonarr, RA = S.radarr, lang = this._hass?.locale?.language || 'en';
@@ -372,7 +372,7 @@ export class MediaPanels {
       let pos = +a.media_position || 0; if (play && a.media_position_updated_at) pos += (Date.now() - new Date(a.media_position_updated_at)) / 1000;
       const pct = dur ? clamp(pos / dur * 100, 0, 100) : 0, left = dur ? Math.max(0, Math.round((dur - pos) / 60)) : null;
       const series = a.media_series_title, se = a.media_season != null && a.media_episode != null ? `S${String(a.media_season).padStart(2, '0')}E${String(a.media_episode).padStart(2, '0')}` : '';
-      const title = series || a.media_title, sub = series ? [se, a.media_title].filter(Boolean).join(' · ') : (a.media_content_type === 'movie' ? 'Movie' : tc(pretty(a.media_content_type || '')));
+      const title = series || a.media_title, sub = series ? [se, a.media_title].filter(Boolean).join(' · ') : (a.media_content_type === 'movie' ? tr("Movie") : tc(pretty(a.media_content_type || '')));
       return `<div class="jfs ${play ? 'play' : ''}" data-act="more" data-id="${id}">
         <div class="jfp">${a.entity_picture ? `<img src="${esc(a.entity_picture)}" alt="" loading="lazy">` : ic(series ? 'mdi:television-classic' : 'mdi:movie-open')}</div>
         <div class="jfi"><b>${esc(title)}</b><span>${esc(sub)}</span>
@@ -393,7 +393,7 @@ export class MediaPanels {
     // --- coming up
     const items = (this._mcal?.items || []).slice(0, 6);
     const day = t => { const d0 = new Date(); d0.setHours(0, 0, 0, 0); const d = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - d0) / 864e5);
-      return d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : d < 7 ? t.toLocaleDateString(lang, { weekday: 'long' }) : t.toLocaleDateString(lang, { day: 'numeric', month: 'short' }); };
+      return d === 0 ? tr("Today") : d === 1 ? tr("Tomorrow") : d < 7 ? t.toLocaleDateString(lang, { weekday: 'long' }) : t.toLocaleDateString(lang, { day: 'numeric', month: 'short' }); };
     const REL = { inCinemas: 'In cinemas', digitalRelease: 'Digital', physicalRelease: 'Blu-ray' };
     const upcoming = items.map((x, n) => `<div class="mup m${x.k}" data-act="info" data-kind="mup:${n}" data-id="${x.k === 'tv' ? SO.cal : RA.cal}">
         <div class="mud"><b>${esc(day(x.t))}</b>${x.k === 'tv' ? `<span>${esc(x.t.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit' }))}</span>` : ''}</div>
@@ -417,23 +417,23 @@ export class MediaPanels {
     const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', 'Shows'),
       (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', 'Movies'),
       SO.wanted && tile('wanted', SO.wanted, 'mdi:magnify', 'Wanted', (this.n(SO.wanted) ?? 0) > 0 ? 'warn' : '')].filter(Boolean);
-    const pill = sessions.length ? [`${sessions.length} watching`, '#a78bfa'] : down > 0.05 ? ['Downloading', '#60a5fa'] : ['Idle', '#94a3b8'];
-    return `<div class="ch">${ic('mdi:server-network')}<h3>Media Server</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
-      ${J.off ? '' : `<div class="dsec">Now Watching${clients != null ? ` · ${clients} client${clients === 1 ? '' : 's'}` : ''}</div>
-      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}Nobody is watching on Jellyfin</div>`}`}
-      ${lib.length ? `<div class="dsec">Library</div><div class="mlib">${lib.join('')}</div>` : ''}
-      ${!SO.cal && !RA.cal ? '' : `<div class="dsec">Coming Up</div>
-      ${upcoming || (this._mcal ? `<div class="mempty">${ic('mdi:calendar-blank')}Nothing in the next two weeks</div>`
+    const pill = sessions.length ? [`${sessions.length} watching`, '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
+    return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
+      ${J.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null ? ` · ${clients} client${clients === 1 ? '' : 's'}` : ''}</div>
+      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}${tr("Nobody is watching on Jellyfin")}</div>`}`}
+      ${lib.length ? `<div class="dsec">${tr("Library")}</div><div class="mlib">${lib.join('')}</div>` : ''}
+      ${!SO.cal && !RA.cal ? '' : `<div class="dsec">${tr("Coming Up")}</div>
+      ${upcoming || (this._mcal ? `<div class="mempty">${ic('mdi:calendar-blank')}${tr("Nothing in the next two weeks")}</div>`
         : '<div class="mupskel">' + Array.from({ length: 6 }, () => `<div class="mup">${'<div class="mud">' + skl('70%', 12) + skl('45%', 9, 'margin-top:5px') + '</div>'}<div class="mupth skl"></div><div class="mut">${skl('80%', 13)}${skl('50%', 10, 'margin-top:6px')}</div></div>`).join('') + skPill('Loading the calendar…') + '</div>')}`}
-      ${!Q.down ? '' : `<div class="dsec">Downloads</div>
+      ${!Q.down ? '' : `<div class="dsec">${tr("Downloads")}</div>
       <div class="mdl">
-        <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>Download</span></div>
-        <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>Upload</span></div>
+        <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>${tr("Download")}</span></div>
+        <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>${tr("Upload")}</span></div>
         <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(this.v(Q.active) ?? '—')}<small>/ ${esc(this.v(Q.all) ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
-        <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? 'Slow' : 'Full'}</b><span>Speed limit</span></button>
+        <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? tr("Slow") : tr("Full")}</b><span>${tr("Speed limit")}</span></button>
       </div>`}
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}
-      ${disks.length ? `<div class="dsec">Storage</div><div class="mdks">${disks.join('')}</div>` : ''}`;
+      ${disks.length ? `<div class="dsec">${tr("Storage")}</div><div class="mdks">${disks.join('')}</div>` : ''}`;
   }
 
   _rTvLight() {
@@ -445,10 +445,10 @@ export class MediaPanels {
       return `<div class="echo"><div class="mini" data-act="more" data-id="${e}">${ic('mdi:speaker')}<span>${esc(tc(es.attributes.friendly_name))}</span><b>${esc(pretty(es.state))}</b></div>
         ${vol != null ? this.slider(e, 'vol', Math.max(1, Math.round(vol * 100)), '#60a5fa') : ''}</div>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:television-ambient-light')}<h3>${E.tvLight.light ? 'TV Light &amp; Speakers' : 'Speakers'}</h3><span class="pill" style="--c:${on ? '#fbbf24' : '#94a3b8'}">${on ? 'Light on' : 'Light off'}</span></div>
-      ${st ? `<div class="lwrap ${on ? 'on' : ''}"><button class="lrow ${on ? 'on' : ''}" data-act="toggle" data-id="${T.light}">${ic(on ? 'mdi:led-strip-variant' : 'mdi:led-strip-variant-off')}<span>TV Backlight</span><b>${on ? 'On' : 'Off'}</b></button>
+    return `<div class="ch">${ic('mdi:television-ambient-light')}<h3>${E.tvLight.light ? tr("TV Light &amp; Speakers") : tr("Speakers")}</h3><span class="pill" style="--c:${on ? '#fbbf24' : '#94a3b8'}">${on ? tr("Light on") : tr("Light off")}</span></div>
+      ${st ? `<div class="lwrap ${on ? 'on' : ''}"><button class="lrow ${on ? 'on' : ''}" data-act="toggle" data-id="${T.light}">${ic(on ? 'mdi:led-strip-variant' : 'mdi:led-strip-variant-off')}<span>${tr("TV Backlight")}</span><b>${on ? 'On' : tr("Off")}</b></button>
         ${on && dim ? this.slider(T.light, 'bright', pct, '#fbbf24') : ''}</div>` : ''}
       <div class="picks col">${T.selects.map(([id, n, i]) => this.pickChip(id, 'select', n, i)).join('')}${on ? this.pickChip(T.light, 'effect', 'Effect', 'mdi:auto-fix') : ''}</div>
-      ${echoes ? `<div class="dsec">Speakers</div>${echoes}` : ''}`;
+      ${echoes ? `<div class="dsec">${tr("Speakers")}</div>${echoes}` : ''}`;
   }
 }

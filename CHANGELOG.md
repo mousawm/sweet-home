@@ -7,6 +7,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- Arabic: about 130 texts that were always shown in English are now translated. They include panel and section titles (Energy History, Media Server, Coming Up, Library, Storage…), buttons (Show all, Reboot, Reconnect…), status words (Downloading, Importing, Stopped…), alarm states, AC modes, Home Lab gauges and the option chips. A new test checks every tab for English text left untranslated.
+
 ### Changed
 
 - Faster loading: the card file is about 20% smaller (1.40 MB → 1.14 MB; 420 KB → 344 KB compressed). It now takes only the parts of three.js the 3D view uses, and the card editor is its own file (`sweet-home-editor.js`), downloaded only when you edit the card. Manual installs need both files next to each other.

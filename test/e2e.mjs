@@ -990,6 +990,22 @@ try {
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
   check('right-to-left layout and Arabic text', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'rtl' && card.shadowRoot.querySelector('#tabs').textContent.includes('الرئيسية')));
+  { const r = await p.evaluate(async () => {
+    // every panel, rendered in Arabic: no text the dictionary can translate is left in English
+    const { t, setLang } = await import('/src/i18n.js'); setLang('ar');
+    const left = new Set(), R = card.shadowRoot;
+    for (const tab of ['home', 'security', 'climate', 'energy', 'water', 'media', 'system']) {
+      if (!card._tabOn(tab)) continue;
+      card._setTab(tab); await new Promise(r => setTimeout(r, 300));
+      const w = document.createTreeWalker(R, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const x = n.textContent.trim();
+        if (x && /[A-Za-z]/.test(x) && t(x) !== x && !n.parentElement.closest('.lbl, .sh-h, style')) left.add(x);
+      }
+    }
+    card._setTab('home');
+    return !left.size || JSON.stringify([...left]);
+  }); check('Arabic: no translatable English text left on any tab', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

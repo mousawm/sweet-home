@@ -1,7 +1,7 @@
 // Sweet Home — Header, tabs, At a glance, Climate, Modes, the room panel.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM } from '../core.js';
+import { E, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM, alarmInfo } from '../core.js';
 
 export class HomePanels {
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
@@ -16,7 +16,7 @@ export class HomePanels {
     }
   }
   _weatherHTML(head) {
-    const w = this.s(E.weather); if (!w) return head('mdi:weather-partly-cloudy', 'Weather', 'Not available');
+    const w = this.s(E.weather); if (!w) return head('mdi:weather-partly-cloudy', tr("Weather"), 'Not available');
     const a = w.attributes, lang = this._hass?.locale?.language || 'en';
     const daily = this._wx?.daily || [], hourly = (this._wx?.hourly || []).slice(0, 24);
     const icon = c => WEATHER_ICON[c] || 'mdi:weather-partly-cloudy';
@@ -25,7 +25,7 @@ export class HomePanels {
     const today = daily[0], night = w.state === 'clear-night' || this.v(E.sun) === 'below_horizon';
     const mood = /rain|pour|lightning|hail/.test(w.state) ? 'rain' : /snow/.test(w.state) ? 'snow' : /cloud|fog/.test(w.state) ? 'cloud' : night ? 'night' : 'sun';
     const compass = b => ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][Math.round(b / 22.5) % 16];
-    const uvLvl = u => u < 3 ? 'Low' : u < 6 ? 'Moderate' : u < 8 ? 'High' : u < 11 ? 'Very High' : 'Extreme';
+    const uvLvl = u => u < 3 ? tr("Low") : u < 6 ? tr("Moderate") : u < 8 ? tr("High") : u < 11 ? tr("Very High") : tr("Extreme");
     const tm = iso => new Date(iso).toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit' });
     const sun = this.s(E.sun)?.attributes || {};
     const rise = sun.next_rising, set = sun.next_setting, sunNext = rise && set ? (new Date(set) < new Date(rise) ? ['Sunset', set, 'mdi:weather-sunset-down'] : ['Sunrise', rise, 'mdi:weather-sunset-up']) : null;
@@ -49,7 +49,7 @@ export class HomePanels {
       hours = `<div class="wxh"><div class="wxhin" style="width:${hourly.length * CW}px">
         <svg class="wxcurve" width="${hourly.length * CW}" height="${H}" viewBox="0 0 ${hourly.length * CW} ${H}"><polyline points="${pts}" fill="none" stroke="rgba(251,191,36,.55)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
         ${hourly.map((h, i) => `<circle cx="${i * CW + CW / 2}" cy="${y(h.temperature).toFixed(1)}" r="2.5" fill="${col(h.temperature)}"/>`).join('')}</svg>
-        ${hourly.map((h, i) => `<div class="wxhc"><span>${i ? esc(new Date(h.datetime).toLocaleTimeString(lang, { hour: 'numeric' })) : 'Now'}</span>${ic(icon(h.condition))}<b style="color:${col(h.temperature)}">${deg(h.temperature)}</b><em>${h.precipitation > 0 ? `${h.precipitation}<small>mm</small>` : ''}</em></div>`).join('')}
+        ${hourly.map((h, i) => `<div class="wxhc"><span>${i ? esc(new Date(h.datetime).toLocaleTimeString(lang, { hour: 'numeric' })) : tr("Now")}</span>${ic(icon(h.condition))}<b style="color:${col(h.temperature)}">${deg(h.temperature)}</b><em>${h.precipitation > 0 ? `${h.precipitation}<small>mm</small>` : ''}</em></div>`).join('')}
       </div></div>`;
     }
     // daily rows with a range bar on one shared scale
@@ -59,19 +59,19 @@ export class HomePanels {
       days = daily.map((d, i) => {
         const l = d.templow ?? d.temperature, h = d.temperature, x0 = (l - lo) / span * 100, x1 = (h - lo) / span * 100;
         const now = i === 0 && a.temperature != null ? `<i class="wxnowdot" style="left:${Math.min(100, Math.max(0, (a.temperature - lo) / span * 100))}%"></i>` : '';
-        return `<div class="wxd"><span>${i ? esc(new Date(d.datetime).toLocaleDateString(lang, { weekday: 'short' })) : 'Today'}</span>${ic(icon(d.condition))}
+        return `<div class="wxd"><span>${i ? esc(new Date(d.datetime).toLocaleDateString(lang, { weekday: 'short' })) : tr("Today")}</span>${ic(icon(d.condition))}
           <em>${d.precipitation > 0 ? `${ic('mdi:water')}${d.precipitation}<small>mm</small>` : ''}</em>
           <b class="lo">${deg(l)}</b><div class="wxbar"><i style="left:${x0}%;width:${Math.max(2, x1 - x0)}%;background:linear-gradient(90deg,${col(l)},${col(h)})"></i>${now}</div><b>${deg(h)}</b></div>`;
       }).join('');
     }
-    return head(icon(w.state), 'Weather', `${tc(a.friendly_name || 'Outside')} · now`)
+    return head(icon(w.state), tr("Weather"), `${tc(a.friendly_name || 'Outside')} · now`)
       + `<div class="wxnow ${mood}" data-act="more" data-id="${E.weather}">${ic(icon(w.state), 'wxbig')}
           <div class="wxt"><b style="color:${col(a.temperature)}">${a.temperature != null ? Number(a.temperature).toFixed(1) : '—'}°</b><span>${esc(wxName(w.state))}</span></div>
           ${today ? `<div class="wxhl"><span>${ic('mdi:arrow-up')}${deg(today.temperature)}</span><span>${ic('mdi:arrow-down')}${deg(today.templow)}</span></div>` : ''}</div>`
       + `<div class="wxstats">${stats}</div>`
-      + (hours ? `<div class="dsec">Next 24 Hours</div>${hours}` : '')
-      + (days ? `<div class="dsec">${daily.length}-Day Forecast</div><div class="wxdays">${days}</div>` : (hours ? '' : `<div class="dsec">Next 24 Hours</div><div class="wxskh">${Array.from({ length: 6 }, () => `<div>${skl('60%', 9)}${skl('22px', 22, 'border-radius:50%;margin:6px auto')}${skl('70%', 12)}</div>`).join('')}</div>
-        <div class="dsec">Forecast</div><div class="wxdays">${Array.from({ length: 5 }, () => `<div class="wxd">${skl('80%', 12)}${skl('20px', 20, 'border-radius:50%')}<span></span>${skl('100%', 11)}${skl('100%', 6)}${skl('100%', 11)}</div>`).join('')}</div>`))
+      + (hours ? `<div class="dsec">${tr("Next 24 Hours")}</div>${hours}` : '')
+      + (days ? `<div class="dsec">${daily.length}-Day Forecast</div><div class="wxdays">${days}</div>` : (hours ? '' : `<div class="dsec">${tr("Next 24 Hours")}</div><div class="wxskh">${Array.from({ length: 6 }, () => `<div>${skl('60%', 9)}${skl('22px', 22, 'border-radius:50%;margin:6px auto')}${skl('70%', 12)}</div>`).join('')}</div>
+        <div class="dsec">${tr("Forecast")}</div><div class="wxdays">${Array.from({ length: 5 }, () => `<div class="wxd">${skl('80%', 12)}${skl('20px', 20, 'border-radius:50%')}<span></span>${skl('100%', 11)}${skl('100%', 6)}${skl('100%', 11)}</div>`).join('')}</div>`))
       + (a.attribution ? `<div class="wxfoot">${esc(a.attribution)}</div>` : '');
   }
   _rHeader() {
@@ -85,7 +85,7 @@ export class HomePanels {
       return `<div class="person ${home ? 'home' : 'away'}" data-act="more" data-id="${p}"${E.phones[p] ? ' data-lp="phone"' : ''} title="${esc(nm)}: ${esc(st.state)}${E.phones[p] ? ' · hold for phone' : ''}">
         ${pic ? `<img src="${esc(pic)}" draggable="false" alt="">` : `<span>${esc(nm[0])}</span>`}<i></i></div>`;
     }).join('');
-    const al = ALARM[this.v(E.alarm)] || [this.v(E.alarm) || '—', 'mdi:shield', '#94a3b8'];
+    const al = alarmInfo(this.v(E.alarm));
     const open = E.doors.filter(d => this.doorOpen(d));
     const unlocked = E.locks.filter(l => this.v(l.id) === 'unlocked');
     const lit = ROOMS.reduce((n, r) => n + (r.lights || []).filter(l => this.v(l) === 'on').length, 0);
@@ -118,7 +118,7 @@ export class HomePanels {
   }
 
   _rGlance() {
-    const al = ALARM[this.v(E.alarm)] || [this.v(E.alarm) || '—', 'mdi:shield', '#94a3b8'];
+    const al = alarmInfo(this.v(E.alarm));
     const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length + E.entrances.filter(g => this.entState(g) === 'open').length;
     const temps = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
     const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
@@ -157,7 +157,7 @@ export class HomePanels {
         <button class="ibtn" data-act="actemp" data-id="${id}" data-d="1" aria-label="Raise temperature">${ic('mdi:plus')}</button></div>
       <div class="modes">${modes.map(m => `<button class="mbtn ${mode === m ? 'on' : ''}" style="--c:${m === 'off' ? '#94a3b8' : HVAC_COLOR[m] || '#60a5fa'}" data-act="acmode" data-id="${id}" data-mode="${m}">${ic(HVAC_ICON[m] || 'mdi:thermostat')}<em>${esc(pretty(m))}</em></button>`).join('')}</div>
       <div class="picks">${this.pickChip(id, 'fan', 'Fan', 'mdi:fan')}${this.pickChip(id, 'swing', 'Swing ↕', 'mdi:arrow-up-down')}${this.pickChip(id, 'swingh', 'Swing ↔', 'mdi:arrow-left-right')}${this.pickChip(id, 'preset', 'Preset', 'mdi:star-four-points-outline')}</div>
-      ${extras.length ? `<div class="xsw">${extras.map(e => `<button class="xs ${this.on(e) ? 'on' : ''}" data-act="toggle" data-id="${e}">${ic(/jet/.test(e) ? 'mdi:weather-windy' : /display/.test(e) ? 'mdi:monitor' : 'mdi:toggle-switch-outline')}<span>${esc(pretty(e.split('.')[1].slice(obj.length + 1)))}</span><b>${this.on(e) ? 'On' : 'Off'}</b></button>`).join('')}</div>` : ''}
+      ${extras.length ? `<div class="xsw">${extras.map(e => `<button class="xs ${this.on(e) ? 'on' : ''}" data-act="toggle" data-id="${e}">${ic(/jet/.test(e) ? 'mdi:weather-windy' : /display/.test(e) ? 'mdi:monitor' : 'mdi:toggle-switch-outline')}<span>${esc(pretty(e.split('.')[1].slice(obj.length + 1)))}</span><b>${this.on(e) ? 'On' : tr("Off")}</b></button>`).join('')}</div>` : ''}
     </div>`;
   }
 
@@ -173,7 +173,7 @@ export class HomePanels {
       return `<div class="ac ${on ? 'on' : ''} open" style="--c:${col}">
         <div class="acrow" data-act="more" data-id="${a.id}"${a.power ? ` data-id2="${a.power}"` : ''}>
           <div class="acic ${on ? 'spin-' + mode : ''}">${ic(on ? (HVAC_ICON[mode] || 'mdi:air-conditioner') : 'mdi:air-conditioner')}</div>
-          <div class="acn"><b>${esc(a.name)}</b><span>${on ? `${esc(mode.replace('_', ' '))} → ${this._acT(a.id) ?? '—'}°` : 'Off'}${p != null && p > 0 ? ` · ${Math.round(p)} W` : ''}</span></div>
+          <div class="acn"><b>${esc(a.name)}</b><span>${on ? `${esc(mode.replace('_', ' '))} → ${this._acT(a.id) ?? '—'}°` : tr("Off")}${p != null && p > 0 ? ` · ${Math.round(p)} W` : ''}</span></div>
           <div class="act"><b style="color:${rgb(tempRGB(t))}">${t != null ? Number(t).toFixed(1) + '°' : '—'}</b>${h != null ? `<span>${ic('mdi:water-percent')}${Math.round(h)}%</span>` : ''}</div>
           <button class="pow ${on ? 'on' : ''}" data-act="acpow" data-id="${a.id}">${ic('mdi:power')}</button>
         </div>${ctl}</div>`;
@@ -182,7 +182,7 @@ export class HomePanels {
       const t = this.n(r.temp), h = r.hum ? this.n(r.hum) : null;
       return `<button class="rtemp" data-act="more" data-id="${r.temp}"${r.hum ? ` data-id2="${r.hum}"` : ''} style="--c:${rgb(tempRGB(t))}">${ic(r.icon)}<span>${esc(r.name)}</span><b>${t != null ? t.toFixed(1) + '°' : '—'}</b>${h != null ? `<em>${Math.round(h)}%</em>` : ''}</button>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:air-conditioner')}<h3>Climate</h3><span class="pill">${E.acs.filter(a => this.climOn(a.id)).length} running</span></div>
+    return `<div class="ch">${ic('mdi:air-conditioner')}<h3>${tr("Climate")}</h3><span class="pill">${E.acs.filter(a => this.climOn(a.id)).length} running</span></div>
       <div class="rtemps">${rooms}</div>
       <div class="acs full">${rows}</div>`;
   }
@@ -283,7 +283,7 @@ export class HomePanels {
       </div>` : ''}
       ${ac}
       ${sec('Lights', 'l', lights)}
-      ${sec(r.locks?.length ? 'Entrance' : 'Doors', 'd', entry)}
+      ${sec(r.locks?.length ? tr("Entrance") : tr("Doors"), 'd', entry)}
       ${sec('Plugs', 'p', plugs)}
       ${sec('Furniture', 'f', furn)}
       ${sec('Devices', 'v', devs)}
@@ -311,10 +311,10 @@ export class HomePanels {
       const locked = v === 'locked';
       return `<button class="lrow lockrow ${locked ? 'good' : 'bad'}" data-act="lock" data-id="${id}" style="position:relative">${ic(locked ? 'mdi:lock' : 'mdi:lock-open-variant')}<span>${name}</span><b>${locked ? tr('Locked') : esc(tr(pretty(v)))}</b></button>`;
     }
-    if (d === 'script' || d === 'scene') return `<button class="lrow ${v === 'on' ? 'on cool' : ''}" data-act="run" data-id="${id}">${ic(icon)}<span>${name}</span><b>${tr(d === 'scene' ? 'Activate' : v === 'on' ? 'Running' : 'Run')}</b></button>`;
+    if (d === 'script' || d === 'scene') return `<button class="lrow ${v === 'on' ? 'on cool' : ''}" data-act="run" data-id="${id}">${ic(icon)}<span>${name}</span><b>${tr(d === 'scene' ? tr("Activate") : v === 'on' ? tr("Running") : tr("Run"))}</b></button>`;
     if (d === 'button' || d === 'input_button') return `<button class="lrow" data-act="press" data-id="${id}">${ic(icon)}<span>${name}</span><b>${tr('Press')}</b></button>`;
     let val;
-    if (d === 'binary_sensor') val = tr(BIN_LABEL[a.device_class]?.[v === 'on' ? 0 : 1] || (v === 'on' ? 'On' : 'Off'));
+    if (d === 'binary_sensor') val = tr(BIN_LABEL[a.device_class]?.[v === 'on' ? 0 : 1] || (v === 'on' ? 'On' : tr("Off")));
     else if (!isNaN(parseFloat(v)) && isFinite(v)) { const x = parseFloat(v); val = `${Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 10) / 10}${a.unit_of_measurement ? ' ' + a.unit_of_measurement : ''}`; }
     else val = tr(pretty(v));
     const active = this.on(id) || (d === 'climate' && this.climOn(id));

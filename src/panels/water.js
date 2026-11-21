@@ -9,9 +9,9 @@ export class WaterPanels {
     const W = E.water;
     const lvl = clamp(this.n(W.tank) ?? 0, 0, 100);
     const col = lvl < 20 ? '#f43f5e' : lvl < 40 ? '#fbbf24' : '#38bdf8';
-    const sw = (id, n, i, sub, id2) => this.s(id) ? `<button class="tile wide ${this.on(id) ? 'on' : ''}" data-act="${i.includes('pump') ? 'pump' : 'toggle'}" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}>${ic(i, this.on(id) && i.includes('pump') ? 'pulse' : '')}<span>${esc(n)}</span><em class="sub">${sub || (this.on(id) ? 'On' : 'Off')}</em></button>` : '';
+    const sw = (id, n, i, sub, id2) => this.s(id) ? `<button class="tile wide ${this.on(id) ? 'on' : ''}" data-act="${i.includes('pump') ? 'pump' : 'toggle'}" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}>${ic(i, this.on(id) && i.includes('pump') ? 'pulse' : '')}<span>${esc(n)}</span><em class="sub">${sub || (this.on(id) ? 'On' : tr("Off"))}</em></button>` : '';
     if (W.tank && (!this._tankTr || Date.now() - this._tankTr.at > 5 * 60e3)) setTimeout(() => this._loadTankTrend(), 0);
-    return `<div class="ch">${ic('mdi:water')}<h3>Water</h3>${W.tank ? this._tankPill(lvl) : ''}</div>
+    return `<div class="ch">${ic('mdi:water')}<h3>${tr("Water")}</h3>${W.tank ? this._tankPill(lvl) : ''}</div>
       <div class="water ${W.tank ? '' : 'notank'}">
         ${!W.tank ? '' : `<div class="tank" data-act="more" data-id="${W.tank}" data-id2="${W.quality}" style="--lvl:${lvl}%;--c:${col}">
           <div class="liquid"><svg class="wave" viewBox="0 0 200 20" preserveAspectRatio="none"><path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V20 H0Z"/></svg></div>
@@ -76,7 +76,7 @@ export class WaterPanels {
     }).join('');
     const ok = id => this.ok(id) ? esc(this.v(id)) : '—';
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info
-    return `<div class="ch">${ic('mdi:sprinkler')}<h3>Irrigation</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? 'Watering tomorrow' : 'Scheduled'}</button>`}</div>
+    return `<div class="ch">${ic('mdi:sprinkler')}<h3>${tr("Irrigation")}</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? tr("Watering tomorrow") : tr("Scheduled")}</button>`}</div>
       ${v ? `<div class="valves">${v}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('No valves yet: add them in the card editor (Panels → Irrigation).')}</div>`}
       ${!(I.next || I.notify) ? '' : `<div class="nextirr">
         ${I.next ? `<div class="ni" data-act="more" data-id="${I.next}"${I.time ? ` data-id2="${I.time}"` : ''}>${ic('mdi:calendar-clock')}<div><span>${tr('Next watering')}</span><b>${ok(I.next)}</b></div></div>` : ''}

@@ -195,7 +195,7 @@ export const pretty = o => {
   if (o == null) return '—';
   let s = String(o).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
   if (s === s.toUpperCase()) s = s.toLowerCase();
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return tr(s.charAt(0).toUpperCase() + s.slice(1)); // a state shown to the user: in the card's language
 };
 // entities a tap switches on / off
 export const TOGGLE_DOMAINS = ['light', 'switch', 'fan', 'input_boolean', 'siren', 'humidifier', 'cover', 'valve', 'automation', 'remote', 'vacuum'];
@@ -278,6 +278,8 @@ export const ALARM = {
   armed_vacation: ['Vacation', 'mdi:shield-airplane', '#38bdf8'], arming: ['Arming…', 'mdi:shield-sync', '#fbbf24'],
   pending: ['Pending…', 'mdi:shield-alert', '#fb923c'], triggered: ['TRIGGERED', 'mdi:bell-ring', '#ef4444'],
 };
+// an alarm state's label (in the card's language), icon and colour
+export const alarmInfo = st => { const a = ALARM[st] || [st || '—', 'mdi:shield', '#94a3b8']; return [tr(a[0]), a[1], a[2]]; };
 
 
 // the shared settings the card changes (an imported binding cannot be assigned from another module)

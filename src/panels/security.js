@@ -1,7 +1,7 @@
 // Sweet Home — Security, the alarm keypad, cameras.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, esc, ic, pretty, ALARM } from '../core.js';
+import { E, esc, ic, pretty, ALARM, alarmInfo } from '../core.js';
 
 export class SecurityPanels {
   _openKeypad(svc) {
@@ -9,9 +9,9 @@ export class SecurityPanels {
     this._pin = ''; this._pinSvc = svc; this._pick = null;
     const sh = this.$('sheet');
     sh.innerHTML = `<div class="sheet keypad" role="dialog" aria-label="Alarm code">
-      <div class="sh-h"><div><b>Enter alarm code</b><span>to ${esc(label)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
+      <div class="sh-h"><div><b>${tr("Enter alarm code")}</b><span>to ${esc(label)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
       <div class="pin-dots" id="pinDots" aria-live="polite"></div><div class="pin-msg" id="pinMsg"></div>
-      <div class="pad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k => `<button class="key k-${k}" data-act="pin" data-k="${k}" aria-label="${k === 'del' ? 'Delete' : k === 'ok' ? 'Submit' : k}">${k === 'del' ? ic('mdi:backspace-outline') : k === 'ok' ? ic('mdi:check-bold') : k}</button>`).join('')}</div></div>`;
+      <div class="pad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'].map(k => `<button class="key k-${k}" data-act="pin" data-k="${k}" aria-label="${k === 'del' ? tr("Delete") : k === 'ok' ? tr("Submit") : k}">${k === 'del' ? ic('mdi:backspace-outline') : k === 'ok' ? ic('mdi:check-bold') : k}</button>`).join('')}</div></div>`;
     sh.classList.add('open');
     this._renderPin();
     this._keyH = e => {
@@ -40,13 +40,13 @@ export class SecurityPanels {
     const sent = await this.call('alarm_control_panel', svc, { entity_id: E.alarm, code });
     const ok = sent && await this._waitState(E.alarm, s => svc === 'alarm_disarm' ? s === 'disarmed' : s !== before, 3500);
     this._pinBusy = false; this._pin = '';
-    if (ok) { this.haptic('success'); this._closeSheet(); this._toast(svc === 'alarm_disarm' ? 'Alarm turned off' : 'Alarm armed'); }
+    if (ok) { this.haptic('success'); this._closeSheet(); this._toast(svc === 'alarm_disarm' ? tr("Alarm turned off") : tr("Alarm armed")); }
     else { this.haptic('failure'); this._renderPin('Wrong code, try again', true); const d = this.$('pinDots'); d?.classList.remove('shake'); void d?.offsetWidth; d?.classList.add('shake'); }
   }
   _rSecurity() {
     const st = this.v(E.alarm);
-    const al = ALARM[st] || [st || '—', 'mdi:shield', '#94a3b8'];
-    const btn = (svc, icon, label, match) => `<button class="abtn ${st === match ? 'on' : ''}" data-act="alarm" data-svc="${svc}" title="${label}">${ic(icon)}<span>${label}</span></button>`;
+    const al = alarmInfo(st);
+    const btn = (svc, icon, label, match) => (label = tr(label), `<button class="abtn ${st === match ? 'on' : ''}" data-act="alarm" data-svc="${svc}" title="${label}">${ic(icon)}<span>${label}</span></button>`);
     // a lock shows what it locks (door, gate, garage…) with a small padlock that tells its state; a plain lock is a padlock
     const locks = E.locks.map(l => {
       const s = this.v(l.id); const locked = s === 'locked'; const bad = !this.ok(l.id);
@@ -74,13 +74,13 @@ export class SecurityPanels {
       const st = this.entState(g), src = g.sensors?.find(x => this.ok(x)) || g.sensors?.[0] || g.sensor, o = st === 'open' || st === 'moving';
       return `<div class="door ${st === 'bad' ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${src}">${ic(o ? g.icons?.[1] || 'mdi:door-open' : g.icons?.[0] || 'mdi:door-closed')}<span>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</span></div>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:shield-home')}<h3>Security</h3>${E.alarm ? `<span class="pill" style="--c:${al[2]}">${al[0]}</span>` : ''}</div>
+    return `<div class="ch">${ic('mdi:shield-home')}<h3>${tr("Security")}</h3>${E.alarm ? `<span class="pill" style="--c:${al[2]}">${al[0]}</span>` : ''}</div>
       ${!E.alarm ? '' : `<div class="alarm" style="--c:${al[2]}">
         <div class="shield ${st === 'triggered' ? 'blink' : ''}" data-act="more" data-id="${E.alarm}">${ic(al[1])}</div>
         <div class="abtns">${btn('alarm_disarm', 'mdi:shield-off-outline', 'Off', 'disarmed')}${btn('alarm_arm_away', 'mdi:lock', 'Away', 'armed_away')}${btn('alarm_arm_night', 'mdi:weather-night', 'Night', 'armed_night')}${btn('alarm_arm_vacation', 'mdi:airplane', 'Trip', 'armed_vacation')}</div>
       </div>`}
       ${locks || gate ? `<div class="locks">${locks}${gate}</div>` : ''}
-      ${doors ? `<div class="dsec">Doors</div><div class="doors">${doors}</div>` : ''}`;
+      ${doors ? `<div class="dsec">${tr("Doors")}</div><div class="doors">${doors}</div>` : ''}`;
   }
 
   _rCams() {
@@ -92,10 +92,10 @@ export class SecurityPanels {
         <div class="camlive" data-live="${c.id}"></div>
         <div class="cam-ov">
           <div class="cam-top"><span class="live ${mo ? 'mo' : ''}"><i></i>${mo ? 'MOTION' : 'LIVE'}</span>
-            <span class="tags">${person ? `<i class="tag p">${ic('mdi:walk')}Person</i>` : ''}${car ? `<i class="tag c">${ic('mdi:car')}Car</i>` : ''}${dOpen ? `<i class="tag d">${ic('mdi:gate-open')}Gate Open</i>` : ''}</span></div>
+            <span class="tags">${person ? `<i class="tag p">${ic('mdi:walk')}${tr("Person")}</i>` : ''}${car ? `<i class="tag c">${ic('mdi:car')}${tr("Car")}</i>` : ''}${dOpen ? `<i class="tag d">${ic('mdi:gate-open')}${tr("Gate Open")}</i>` : ''}</span></div>
           <div class="cam-bot"><b>${esc(c.name)}</b>
             ${face ? `<span>${ic('mdi:face-recognition')}${esc(face)}</span>` : ''}${plate ? `<span>${ic('mdi:card-text')}${esc(plate)}</span>` : ''}
-            ${c.relay && this.s(c.relay) ? `<button class="relay" data-act="relay" data-id="${c.relay}">${ic('mdi:gate-open')}${c.relay === E.gate.relay ? 'Open Gate' : 'Open'}</button>` : ''}</div>
+            ${c.relay && this.s(c.relay) ? `<button class="relay" data-act="relay" data-id="${c.relay}">${ic('mdi:gate-open')}${c.relay === E.gate.relay ? tr("Open Gate") : tr("Open")}</button>` : ''}</div>
         </div></div>`;
     }).join('');
     // face recognition badge: panels.security.face, else the cameras' face sensors (Frigate); the newest name, or
@@ -103,7 +103,7 @@ export class SecurityPanels {
     const fids = E.face ? [E.face] : [...new Set(E.cameras.map(c => c.face).filter(id => id && this.s(id)))];
     const named = fids.filter(id => this.ok(id) && !/^no.?faces?$/i.test(this.v(id))).sort((a, b) => new Date(this.s(b).last_changed) - new Date(this.s(a).last_changed))[0];
     const face = fids.length ? `<span class="pill tankpill"${named ? ' style="--c:#2dd4bf"' : ''} data-act="more" data-id="${named || fids[0]}">${ic(named ? 'mdi:face-recognition' : 'mdi:face-man-outline')}${esc(named ? this.v(named) : tr('No face'))}</span>` : '';
-    return `<div class="ch">${ic('mdi:cctv')}<h3>Cameras</h3>${face}</div><div class="camgrid">${tiles}</div>`;
+    return `<div class="ch">${ic('mdi:cctv')}<h3>${tr("Cameras")}</h3>${face}</div><div class="camgrid">${tiles}</div>`;
   }
   // Live view: HA's own picture-entity card in live mode (WebRTC / HLS, whatever the camera offers) inside each tile.
   // Only while the Security tab is open and the page is visible; snapshots stay underneath as a placeholder.

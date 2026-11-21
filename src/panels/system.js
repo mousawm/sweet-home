@@ -29,12 +29,12 @@ export class SystemPanels {
         <div class="swn"><b>${esc(nm.n)}</b><span>${nm.id ? `${nm.vm ? 'VM' : 'CT'} ${nm.id}` : ''}${up ? '' : ' · stopped'}${r.pct != null ? ` · ${Math.round(r.pct)}% of its swap` : ''}</span>
           <div class="bar"><i style="width:${(r.mb / max * 100).toFixed(1)}%;background:${col}"></i></div></div>
         <strong>${sz(r.mb)}</strong>
-        ${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}Rebooting…</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}Reboot</button>`) : '<span class="swnr"></span>'}</div>`;
+        ${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : '<span class="swnr"></span>'}</div>`;
     }).join('');
     const sumTop = rows.reduce((a, r) => a + r.mb, 0);
-    return head('mdi:swap-horizontal-bold', 'Swap Usage', np != null ? `Node ${Math.round(np)}% used${used != null && tot ? ` · ${(used / 1024).toFixed(1)} of ${(tot / 1024).toFixed(1)} GB` : ''}` : '')
+    return head('mdi:swap-horizontal-bold', tr("Swap Usage"), np != null ? `Node ${Math.round(np)}% used${used != null && tot ? ` · ${(used / 1024).toFixed(1)} of ${(tot / 1024).toFixed(1)} GB` : ''}` : '')
       + (np != null ? `<div class="swnode" data-act="more" data-id="${L.swap}"><div class="bar"><i style="width:${clamp(np, 0, 100)}%;background:${np > 90 ? '#f43f5e' : np > 70 ? '#fbbf24' : '#f472b6'}"></i></div></div>` : '')
-      + `<div class="dsec">Top ${top.length} containers · ${(sumTop / 1024).toFixed(2)} GB listed</div>`
+      + `<div class="dsec">${tr("Top")} ${top.length} containers · ${(sumTop / 1024).toFixed(2)} ${tr("GB listed")}</div>`
       + (list || '<div class="wxwait">No container reports swap yet</div>')
       + (ids.length < 20 ? `<div class="swnote">${ic('mdi:information-outline')}Only ${ids.length} container${ids.length === 1 ? '' : 's'} report swap. The rest have their Proxmox VE "Swap used" sensor disabled in Home Assistant.</div>` : '');
   }
@@ -82,12 +82,12 @@ export class SystemPanels {
     const unG = new Map();
     for (const st of unRaw) { const dev = h.entities?.[st.entity_id]?.device_id, k = dev || st.entity_id; (unG.get(k) || unG.set(k, []).get(k)).push(st); }
     const un = [...unG.values()].map(g => {
-      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="Offline" data-short="1">Offline · ${agoShort(st.last_changed, lang)}</b>${hide(st.entity_id)}</div>`;
+      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="Offline" data-short="1">${'Offline ·'} ${agoShort(st.last_changed, lang)}</b>${hide(st.entity_id)}</div>`;
       const dn = tc(devName(st.entity_id)), e = h.entities?.[st.entity_id], ar = h.areas?.[e?.area_id || h.devices?.[e?.device_id]?.area_id]?.name;
       const parts = g.map(x => { const n = nm(x); return tc(n.toLowerCase().startsWith(dn.toLowerCase()) ? n.slice(dn.length).replace(/^[\s:·-]+/, '') || n : n); });
       const sub = [parts.length <= 3 ? parts.join(', ') : `${parts.length} parts offline`, ar ? tc(ar) : ''].filter(Boolean).join(' · ');
       const since = g.map(x => x.last_changed).sort()[0];
-      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="Offline" data-short="1">Offline · ${agoShort(since, lang)}</b>${hide(st.entity_id)}</div>`;
+      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="Offline" data-short="1">${'Offline ·'} ${agoShort(since, lang)}</b>${hide(st.entity_id)}</div>`;
     });
     // low batteries
     const seenDev = new Set();
@@ -99,7 +99,7 @@ export class SystemPanels {
     const weak = all.filter(st => st.entity_id.startsWith('sensor.') && st.attributes.device_class === 'signal_strength' && /dBm/i.test(st.attributes.unit_of_measurement || '') && !isNaN(num(st)) && num(st) < A.rssiMin && !A.excludeEntities.includes(st.entity_id) && !exDev(st.entity_id))
       .sort((a, b) => num(a) - num(b)).map(st => {
         const dev = h.entities?.[st.entity_id]?.device_id, rb = dev && Object.keys(h.entities || {}).find(e => e.startsWith('button.') && h.entities[e].device_id === dev && h.states[e] && (h.states[e].attributes.device_class === 'restart' || /reboot|restart/.test(e)));
-        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${Math.round(num(st))} dBm</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}Rebooting…</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}Reboot</button>`) : ''}${hide(st.entity_id)}</div>`;
+        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${Math.round(num(st))} dBm</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : ''}${hide(st.entity_id)}</div>`;
       });
     // pending updates, as on HA's Settings page: update entities that are on, can be installed and are not skipped
     const upd = all.filter(st => st.entity_id.startsWith('update.') && st.state === 'on' && (st.attributes.supported_features & 1)
@@ -108,7 +108,7 @@ export class SystemPanels {
         const a = st.attributes, name = tc(a.title || (a.friendly_name || st.entity_id).replace(/\s*update$/i, ''));
         const busy = a.in_progress !== false && a.in_progress != null;
         const ver = busy ? `Updating${typeof a.in_progress === 'number' ? ` · ${a.in_progress}%` : '…'}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
-        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${esc(ver)}</small></span>${busy ? '' : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}Update</button>`}</div>`;
+        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${esc(ver)}</small></span>${busy ? '' : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}${tr("Update")}</button>`}</div>`;
       });
     // HA Repairs: the same list as Settings → Repairs (ignored ones left out), loaded by _loadRepairs every 30 s;
     // "restart required" issues share one two-tap Restart Home Assistant button
@@ -117,10 +117,10 @@ export class SystemPanels {
     const rep = reps.map(i => {
       const nm = i.translation_placeholders?.name || tc(pretty(i.issue_domain || i.domain || ''));
       const restart = /restart_required/.test(i.translation_key || '');
-      const what = restart ? 'Restart required' : tc(pretty(String(i.translation_key || i.issue_id).replace(/_/g, ' ')));
+      const what = restart ? tr("Restart required") : tc(pretty(String(i.translation_key || i.issue_id).replace(/_/g, ' ')));
       return `<div class="mrow ${i.severity === 'error' || i.severity === 'critical' ? 'open' : ''}" data-act="repairs">${ic(restart ? 'mdi:restart-alert' : 'mdi:wrench-outline')}<span class="m2">${esc(nm)}<small>${esc(what)}${i.domain && i.domain !== i.issue_domain ? ` · ${esc(tc(i.domain))}` : ''}</small></span></div>`;
     });
-    if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">Restart Home Assistant<small>to apply the changes above</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}Restart</button></div>`); // attached to the last row so the count is the number of repairs
+    if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>to apply the changes above</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
     return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
   }
   async _loadRepairs() {
@@ -136,16 +136,17 @@ export class SystemPanels {
     const LIM = 5;
     const body = secs.map(([k, title, icon, rows]) => {
       const open = this._alOpen.has(k), shown = open ? rows : rows.slice(0, LIM);
-      const more = rows.length > LIM ? `<button class="almore" data-act="alexp" data-k="${k}">${open ? 'Show less' : `+${rows.length - LIM} more`}</button>` : '';
+      const more = rows.length > LIM ? `<button class="almore" data-act="alexp" data-k="${k}">${open ? tr("Show less") : `+${rows.length - LIM} more`}</button>` : '';
       return `<div class="dsec alsec">${ic(icon)}${title}<i>${rows.length}</i></div>${shown.join('')}${more}`;
     }).join('');
-    return `<div class="card acard"><div class="ch">${ic('mdi:alert-circle-outline')}<h3>Needs Attention</h3><span class="pill" style="--c:#f43f5e">${this._alertCount}</span></div>${body}</div>`;
+    return `<div class="card acard"><div class="ch">${ic('mdi:alert-circle-outline')}<h3>${tr("Needs Attention")}</h3><span class="pill" style="--c:#f43f5e">${this._alertCount}</span></div>${body}</div>`;
   }
 
   /* ---------- energy history (long-term statistics) ---------- */
   _rLab() {
     const L = E.lab;
     const ring = (id, label, col, id2, dt) => {
+      label = tr(label);
       const v = clamp(this.n(id) ?? 0, 0, 100); const C = 2 * Math.PI * 26;
       return `<div class="ring" data-act="more" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}${dt ? ` data-dt="${dt}"` : ''}><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" class="rb"/><circle cx="32" cy="32" r="26" class="rf" style="stroke:${col};stroke-dasharray:${C};stroke-dashoffset:${C * (1 - v / 100)}"/></svg><b>${v.toFixed(0)}<small>%</small></b><span>${label}</span></div>`;
     };
@@ -183,10 +184,10 @@ export class SystemPanels {
     const shown = L.guests.length || 5, head = list.slice(0, shown), rest = list.slice(shown);
     const edit = this._editing && h.user?.is_admin;
     const more = head.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') + (rest.length ? (this._labMore ? rest.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') : '')
-      + `<button class="vmmore" data-act="labmore">${this._labMore ? 'Show less' : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
+      + `<button class="vmmore" data-act="labmore">${this._labMore ? tr("Show less") : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
       + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
     const upd = this.n(L.updates);
-    return `<div class="ch">${ic('mdi:server')}<h3>Home Lab</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? 'Online' : 'Offline'}</span>` : ''}</div>
+    return `<div class="ch">${ic('mdi:server')}<h3>${tr("Home Lab")}</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? tr("Online") : tr("Offline")}</span>` : ''}</div>
       <div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
       <div class="stats3 ${L.temp ? 's4' : ''}">
         ${L.temp ? `<div data-act="more" data-id="${L.temp}">${ic('mdi:thermometer')}<b>${this.f(L.temp, 0)}</b></div>` : ''}
@@ -249,6 +250,6 @@ export class SystemPanels {
       return `<div class="dev" data-act="more" data-id="${d.bat}"${d.trk || d.chg || d.chgState ? ` data-id2="${d.trk || d.chg || d.chgState}"` : ''}>${ic(d.icon)}<div class="dn"><b>${esc(d.name)}</b><span>${where ? esc(where) + ' · ' : ''}${chg ? 'charging' : 'on battery'}</span></div>
         <div class="batt" style="--b:${b}%;--c:${col}"><i></i>${chg ? ic('mdi:lightning-bolt') : ''}</div><em>${b.toFixed(0)}%</em></div>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:devices')}<h3>Devices</h3></div><div class="devs">${rows}</div>`;
+    return `<div class="ch">${ic('mdi:devices')}<h3>${tr("Devices")}</h3></div><div class="devs">${rows}</div>`;
   }
 }

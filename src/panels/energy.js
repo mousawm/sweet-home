@@ -12,19 +12,19 @@ export class EnergyPanels {
     const cons = this._eConsumers().map(([id, n, i]) => [n, i, this.n(id), id]).filter(c => c[2] != null && c[2] >= 6).sort((a, b) => b[2] - a[2]).slice(0, 6);
     const max = Math.max(1, ...cons.map(c => c[2]));
     const big = (id, icon, label, w, col, sub) => `<div class="pwb" data-act="more" data-id="${id}" style="--c:${col}">${ic(icon)}<span>${label}</span><b>${fmtW(w)}</b><small>${sub}</small></div>`;
-    return head('mdi:flash', 'Power Now', exp ? `Sending ${fmtW(-g).replace(/<\/?small>/g, ' ').trim()} to the grid` : sol > 1 ? `Solar covers ${selfUse}% of the home` : 'All from the grid')
+    return head('mdi:flash', tr("Power Now"), exp ? `Sending ${fmtW(-g).replace(/<\/?small>/g, ' ').trim()} to the grid` : sol > 1 ? `Solar covers ${selfUse}% of the home` : tr("All from the grid"))
       + `<div class="pwbig">
           ${big(E.energy.current, 'mdi:home-lightning-bolt', 'Home', home, '#e7ecf6', this.ok(E.energy.current) ? this.f(E.energy.current, 1) : 'using now')}
           ${big(E.energy.solar, 'mdi:solar-panel-large', 'Solar', sol, '#fbbf24', sol > 1 ? 'producing' : 'idle')}
-          ${big(E.energy.grid, 'mdi:transmission-tower', exp ? 'To Grid' : 'From Grid', Math.abs(g), exp ? '#34d399' : '#60a5fa', exp ? 'exporting' : 'importing')}
+          ${big(E.energy.grid, 'mdi:transmission-tower', exp ? tr("To Grid") : tr("From Grid"), Math.abs(g), exp ? '#34d399' : '#60a5fa', exp ? 'exporting' : 'importing')}
         </div>
         ${home > 0 ? `<div class="pwmix"><i style="width:${selfUse}%;background:#fbbf24"></i><i style="width:${100 - selfUse}%;background:#60a5fa"></i></div>
-          <div class="pwmixl"><span><i style="background:#fbbf24"></i>Solar ${selfUse}%</span><span><i style="background:#60a5fa"></i>Grid ${100 - selfUse}%</span></div>` : ''}
-        <div class="dsec">Today</div>
+          <div class="pwmixl"><span><i style="background:#fbbf24"></i>${tr("Solar")} ${selfUse}%</span><span><i style="background:#60a5fa"></i>${tr("Grid")} ${100 - selfUse}%</span></div>` : ''}
+        <div class="dsec">${tr("Today")}</div>
         <div class="spark pwspark" id="spark2">${this._sparkSVG()}</div>
         ${this._eCardKpis()}
-        ${cons.length ? `<div class="dsec">Using Power Now</div><div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${esc(n)}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}</div>` : ''}
-        <button class="pwgo" data-act="tab" data-tab="energy" data-to="energy">${ic('mdi:lightning-bolt')}Open Energy Tab${ic('mdi:chevron-right')}</button>`;
+        ${cons.length ? `<div class="dsec">${tr("Using Power Now")}</div><div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${esc(n)}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}</div>` : ''}
+        <button class="pwgo" data-act="tab" data-tab="energy" data-to="energy">${ic('mdi:lightning-bolt')}${tr("Open Energy Tab")}${ic('mdi:chevron-right')}</button>`;
   }
   _rEnergy() {
     const g = this.n(E.energy.grid) ?? 0, s = Math.max(0, this.n(E.energy.solar) ?? 0);
@@ -39,7 +39,7 @@ export class EnergyPanels {
     const DX = [246, 150, 54];
     const devPaths = top.map((c, k) => `<path class="fl act dev s${spd(c[2])}" d="${k === 0 ? 'M246 186 L246 212' : `M246 186 C246 200, ${DX[k]} 196, ${DX[k]} 212`}"/>`).join('');
     const devNodes = top.map(([n, i, w, id], k) => `<div class="node n-dev" style="left:${(DX[k] / 300 * 100).toFixed(2)}%" data-act="more" data-id="${id}">${ic(i)}<b>${fmtW(w)}</b><span>${esc(n)}</span></div>`).join('');
-    return `<div class="ch">${ic('mdi:solar-power-variant')}<h3>Energy</h3><span class="pill" style="--c:${exporting ? '#34d399' : '#fbbf24'}">${exporting ? 'Exporting' : 'Importing'}</span></div>
+    return `<div class="ch">${ic('mdi:solar-power-variant')}<h3>${tr("Energy")}</h3><span class="pill" style="--c:${exporting ? '#34d399' : '#fbbf24'}">${exporting ? tr("Exporting") : tr("Importing")}</span></div>
       <div class="flow" style="height:${FH}px">
         <svg viewBox="0 0 300 ${FH}" class="flowsvg">
           <defs>
@@ -50,15 +50,15 @@ export class EnergyPanels {
           <path class="fl ${exporting ? 'act s' + spd(-g) : ''} exp" d="M124 22 C78 22, 54 48, 54 94"/>
           ${devPaths}
         </svg>
-        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : ''}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>Solar</span></div>
-        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : ''}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? 'To Grid' : 'From Grid'}</span></div>
-        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : ''}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>Home${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
+        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : ''}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>${tr("Solar")}</span></div>
+        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : ''}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? tr("To Grid") : tr("From Grid")}</span></div>
+        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : ''}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>${tr("Home")}${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
         ${devNodes}
       </div>
       <div class="spark" id="spark">${this._sparkSVG()}</div>
       ${this._eCardKpis()}
       ${this.s(E.forecast.today) ? `<div class="fc" data-act="more" data-id="${E.forecast.today}" data-id2="${E.forecast.tomorrow}">${ic('mdi:weather-sunny-alert')}
-        <div><span>Solar Forecast</span><b>Today ${this.f(E.forecast.today, 1)} · Tomorrow ${this.f(E.forecast.tomorrow, 1)}</b>
+        <div><span>${tr("Solar Forecast")}</span><b>${tr("Today")} ${this.f(E.forecast.today, 1)} · Tomorrow ${this.f(E.forecast.tomorrow, 1)}</b>
         <em>${this.ok(E.forecast.remaining) ? `${this.f(E.forecast.remaining, 1)} still to come today` : ''}${this.ok(E.forecast.peak) ? ` · peak at ${new Date(this.v(E.forecast.peak)).toLocaleTimeString(this._hass?.locale?.language || 'en', { hour: '2-digit', minute: '2-digit' })}` : ''}</em></div></div>` : ''}
       <div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${esc(n)}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}
         ${E.energy.extra.filter(x => this.s(x.id)).map(x => `<div class="crow" data-act="more" data-id="${x.id}">${ic(x.icon)}<span>${esc(x.name)}</span><div class="bar"><i style="width:0"></i></div><b>${this.f(x.id, 2)}</b></div>`).join('')}
@@ -72,8 +72,8 @@ export class EnergyPanels {
     const lang = this._hass?.locale?.language || 'en';
     const fd = (d, o) => d.toLocaleDateString(lang, o);
     let s, e, period, n, label;
-    if (p === 'day') { s = new Date(Y, M, D + off); e = new Date(Y, M, D + off + 1); period = 'hour'; n = 24; label = off === 0 ? 'Today' : off === -1 ? 'Yesterday' : fd(s, { weekday: 'short', day: 'numeric', month: 'short' }); }
-    else if (p === 'week') { const dow = (now.getDay() + 6) % 7; s = new Date(Y, M, D - dow + 7 * off); e = new Date(Y, M, D - dow + 7 * off + 7); period = 'day'; n = 7; label = off === 0 ? 'This Week' : off === -1 ? 'Last Week' : `${fd(s, { day: 'numeric', month: 'short' })} – ${fd(new Date(e - 864e5), { day: 'numeric', month: 'short' })}`; }
+    if (p === 'day') { s = new Date(Y, M, D + off); e = new Date(Y, M, D + off + 1); period = 'hour'; n = 24; label = off === 0 ? tr("Today") : off === -1 ? tr("Yesterday") : fd(s, { weekday: 'short', day: 'numeric', month: 'short' }); }
+    else if (p === 'week') { const dow = (now.getDay() + 6) % 7; s = new Date(Y, M, D - dow + 7 * off); e = new Date(Y, M, D - dow + 7 * off + 7); period = 'day'; n = 7; label = off === 0 ? tr("This Week") : off === -1 ? tr("Last Week") : `${fd(s, { day: 'numeric', month: 'short' })} – ${fd(new Date(e - 864e5), { day: 'numeric', month: 'short' })}`; }
     else if (p === 'month') { s = new Date(Y, M + off, 1); e = new Date(Y, M + off + 1, 1); period = 'day'; n = Math.round((e - s) / 864e5); label = fd(s, { month: 'long', year: 'numeric' }); }
     else { s = new Date(Y + off, 0, 1); e = new Date(Y + off + 1, 0, 1); period = 'month'; n = 12; label = String(Y + off); }
     const idx = t => p === 'day' ? t.getHours() : p === 'week' ? Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - s) / 864e5) : p === 'month' ? t.getDate() - 1 : t.getMonth();
@@ -153,10 +153,10 @@ export class EnergyPanels {
     const tpl = (id, k, dp) => id ? `<b class="${g(this.n(id))}">${this.f(id, dp)}</b>` : `<b class="${g(T[k])}">${this._eKwh(k, dp)}</b>`;
     const st = this.s(E.energy.stored) ? E.energy.stored : null; // Stored: only with a stored-energy sensor that exists
     return `<div class="kpis ${st ? 'four e4' : ''}">
-          <div data-act="more" data-id="${S.gridIn}" data-id2="${S.gridOut}"><span>Today</span><b class="${g(T.d)}">${this._eKwh('d', 2)}</b></div>
-          <div data-act="more" data-id="${E.energy.monthly || S.gridIn}"><span>Month</span>${tpl(E.energy.monthly, 'm', 1)}</div>
-          <div data-act="more" data-id="${E.energy.yearly || S.gridIn}"><span>Year</span>${tpl(E.energy.yearly, 'y', 0)}</div>
-          ${st ? `<div data-act="more" data-id="${st}"><span>Stored</span><b class="${g(this.n(st))}">${this.f(st, 0)}</b></div>` : ''}
+          <div data-act="more" data-id="${S.gridIn}" data-id2="${S.gridOut}"><span>${tr("Today")}</span><b class="${g(T.d)}">${this._eKwh('d', 2)}</b></div>
+          <div data-act="more" data-id="${E.energy.monthly || S.gridIn}"><span>${tr("Month")}</span>${tpl(E.energy.monthly, 'm', 1)}</div>
+          <div data-act="more" data-id="${E.energy.yearly || S.gridIn}"><span>${tr("Year")}</span>${tpl(E.energy.yearly, 'y', 0)}</div>
+          ${st ? `<div data-act="more" data-id="${st}"><span>${tr("Stored")}</span><b class="${g(this.n(st))}">${this.f(st, 0)}</b></div>` : ''}
         </div>`;
   }
   _eKwh(k, dp) { const v = this._etot?.[k]; return v == null ? '—' : `${v.toFixed(dp)}<small>kWh</small>`; }
@@ -195,7 +195,7 @@ export class EnergyPanels {
     this._ehCur = d;
     const kwh = v => v == null ? '—' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
     const seg = ['day', 'week', 'month', 'year'].map(k => `<button class="${p === k ? 'on' : ''}" data-act="ehp" data-p="${k}">${tc(k)}</button>`).join('');
-    const head = `<div class="ch">${ic('mdi:chart-bar-stacked')}<h3>Energy History</h3><span class="pill" style="--c:#fbbf24">kWh</span></div>
+    const head = `<div class="ch">${ic('mdi:chart-bar-stacked')}<h3>${tr("Energy History")}</h3><span class="pill" style="--c:#fbbf24">kWh</span></div>
       <div class="ehtop"><div class="seg ehseg">${seg}</div>
         <div class="ehnav"><button class="ehnow ${off < 0 ? '' : 'hide'}" data-act="ehnow" ${off < 0 ? '' : 'tabindex="-1" aria-hidden="true"'}>${ic('mdi:calendar-today')}${{ day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' }[p]}</button><button class="ibtn" data-act="ehnav" data-d="-1" aria-label="Previous">${ic('mdi:chevron-left')}</button><b>${esc(R.label)}</b>
         <button class="ibtn" data-act="ehnav" data-d="1" aria-label="Next" ${off >= 0 ? 'disabled' : ''}>${ic('mdi:chevron-right')}</button></div></div>`;
@@ -206,10 +206,10 @@ export class EnergyPanels {
         <div class="ehbal skel"><span class="skl" style="width:40%;height:16px"></span><span class="skl" style="width:100%;height:8px;margin-top:10px"></span></div>
         <div class="ehread"></div><div class="ehchart skel">${Array.from({ length: 16 }, (_, i) => `<i style="height:${25 + ((i * 37) % 60)}%"></i>`).join('')}</div>
         <div class="ehlg"><span class="skl" style="width:70%;height:22px"></span></div>
-        <div class="dsec">Devices</div><div class="cons">${'<div class="crow ehrow skrow"><span class="skl" style="width:16px;height:16px"></span><span class="skl"></span><span class="skl" style="height:6px"></span><span class="skl"></span><span class="skl"></span></div>'.repeat(7)}</div>`;
-      return head + `<div class="ehwrap ehbusy">${this._ehBody || sk}<div class="ehspin">${ic('mdi:loading', 'spin')}<span>Loading ${esc(R.label.toLowerCase())}…</span></div></div>`;
+        <div class="dsec">${tr("Devices")}</div><div class="cons">${'<div class="crow ehrow skrow"><span class="skl" style="width:16px;height:16px"></span><span class="skl"></span><span class="skl" style="height:6px"></span><span class="skl"></span><span class="skl"></span></div>'.repeat(7)}</div>`;
+      return head + `<div class="ehwrap ehbusy">${this._ehBody || sk}<div class="ehspin">${ic('mdi:loading', 'spin')}<span>${tr("Loading")} ${esc(R.label.toLowerCase())}…</span></div></div>`;
     }
-    if (d.error) return head + `<div class="sk-empty eh-msg">Couldn't load energy history</div>`;
+    if (d.error) return head + `<div class="sk-empty eh-msg">${tr("Couldn't load energy history")}</div>`;
     const sum = a => a.reduce((x, y) => x + y, 0);
     const used = sum(d.home), H = this._eSrc();
     const devs = this._eDevs().filter(x => d.dev[x.stat]).map(({ stat: id, n, i, c }) => ({ id, n: tc(n), i, c, a: d.dev[id], t: sum(d.dev[id]) })).filter(x => x.t > 0.005).sort((a, b) => b.t - a.t);
@@ -228,33 +228,33 @@ export class EnergyPanels {
     const yl = [ymax, ymax / 2, 0].map(v => `<i style="top:${y(v)}%">${kwh(v)}</i>`).join('');
     const xl = Array.from({ length: R.n }, (_, i) => `<i>${esc(R.xl(i))}</i>`).join('');
     const b = this._eh.bar;
-    const readout = b != null && b < R.n ? `<div class="ehread"><b>${esc(R.bl(b))}</b> · ${kwh(d.home[b])} kWh used · ${d.gi[b] - d.go[b] < 0 ? `<span style="color:var(--green)">net exported ${kwh(d.go[b] - d.gi[b])}</span>` : `<span style="color:#60a5fa">net imported ${kwh(d.gi[b] - d.go[b])}</span>`}${series.map(x => x.a[b] > 0.005 ? ` · <span style="color:${x.c}">${esc(x.n)} ${kwh(x.a[b])}</span>` : '').join('')}</div>` : `<div class="ehread mu">Tap a bar for details</div>`;
+    const readout = b != null && b < R.n ? `<div class="ehread"><b>${esc(R.bl(b))}</b> · ${kwh(d.home[b])} kWh used · ${d.gi[b] - d.go[b] < 0 ? `<span style="color:var(--green)">net exported ${kwh(d.go[b] - d.gi[b])}</span>` : `<span style="color:#60a5fa">net imported ${kwh(d.gi[b] - d.go[b])}</span>`}${series.map(x => x.a[b] > 0.005 ? ` · <span style="color:${x.c}">${esc(x.n)} ${kwh(x.a[b])}</span>` : '').join('')}</div>` : `<div class="ehread mu">${tr("Tap a bar for details")}</div>`;
     // "Show all" (only while some devices are picked) comes first: always on the top row, never wrapped onto a line of its own
-    const legend = (this._eh.sel ? `<button class="lg rst" data-act="ehreset">${ic('mdi:restore')}Show all</button>` : '')
-      + [...series.map(x => `<span class="lg" data-act="ehdev" data-id="${x.id}"><i style="background:${x.c}"></i>${esc(x.n)}</span>`), `<span class="lg"><i style="background:#475569"></i>Other</span>`].join('');
+    const legend = (this._eh.sel ? `<button class="lg rst" data-act="ehreset">${ic('mdi:restore')}${tr("Show all")}</button>` : '')
+      + [...series.map(x => `<span class="lg" data-act="ehdev" data-id="${x.id}"><i style="background:${x.c}"></i>${esc(x.n)}</span>`), `<span class="lg"><i style="background:#475569"></i>${tr("Other")}</span>`].join('');
     const mx = Math.max(0.01, ...devs.map(x => x.t)), tracked = sum(devs.map(x => x.t)), den = Math.max(used, tracked, 0.01);
     const rows = devs.map(x => { const on = sel.includes(x.id); return `<div class="crow ehrow ${on ? 'on' : ''}" data-act="ehdev" data-id="${x.id}" style="--c:${x.c}">${ic(x.i)}<span>${esc(x.n)}</span><div class="bar"><i style="width:${(x.t / mx * 100).toFixed(1)}%;background:${x.c}"></i></div><b>${kwh(x.t)}</b><em>${Math.round(x.t / den * 100)}%</em></div>`; }).join('')
-      + (used - tracked > 0.05 ? `<div class="crow ehrow untr">${ic('mdi:home-outline')}<span>Untracked</span><div class="bar"><i style="width:${((used - tracked) / Math.max(mx, used - tracked) * 100).toFixed(1)}%;background:#475569"></i></div><b>${kwh(used - tracked)}</b><em>${Math.round((used - tracked) / den * 100)}%</em></div>` : '');
+      + (used - tracked > 0.05 ? `<div class="crow ehrow untr">${ic('mdi:home-outline')}<span>${tr("Untracked")}</span><div class="bar"><i style="width:${((used - tracked) / Math.max(mx, used - tracked) * 100).toFixed(1)}%;background:#475569"></i></div><b>${kwh(used - tracked)}</b><em>${Math.round((used - tracked) / den * 100)}%</em></div>` : '');
     this._ehBody = `
       <div class="kpis four">
-        <div data-act="more" data-id="${E.energy.current}"><span>Used</span><b>${kwh(used)}</b></div>
-        <div data-act="more" data-id="${H.gridIn}"><span>From Grid</span><b>${kwh(sum(d.gi))}</b></div>
-        <div data-act="more" data-id="${H.solar}"><span>Solar</span><b class="amber">${kwh(sum(d.so))}</b></div>
-        <div data-act="more" data-id="${H.gridOut}"><span>Exported</span><b class="green">${kwh(sum(d.go))}</b></div>
+        <div data-act="more" data-id="${E.energy.current}"><span>${tr("Used")}</span><b>${kwh(used)}</b></div>
+        <div data-act="more" data-id="${H.gridIn}"><span>${tr("From Grid")}</span><b>${kwh(sum(d.gi))}</b></div>
+        <div data-act="more" data-id="${H.solar}"><span>${tr("Solar")}</span><b class="amber">${kwh(sum(d.so))}</b></div>
+        <div data-act="more" data-id="${H.gridOut}"><span>${tr("Exported")}</span><b class="green">${kwh(sum(d.go))}</b></div>
       </div>
       ${(() => { // grid balance, as HA's "Grid energy balance": imported − exported
         const gi = sum(d.gi), go = sum(d.go), net = gi - go, exp = net < 0, tot = Math.max(0.01, gi + go);
         return `<div class="ehbal ${exp ? 'exp' : 'imp'}" data-act="more" data-id="${exp ? H.gridOut : H.gridIn}">
-          <div class="ehbal-t">${ic(exp ? 'mdi:transmission-tower-export' : 'mdi:transmission-tower-import')}<span>${exp ? 'Net Exported' : 'Net Imported'}</span><b>${kwh(Math.abs(net))}<small>kWh</small></b></div>
+          <div class="ehbal-t">${ic(exp ? 'mdi:transmission-tower-export' : 'mdi:transmission-tower-import')}<span>${exp ? tr("Net Exported") : tr("Net Imported")}</span><b>${kwh(Math.abs(net))}<small>kWh</small></b></div>
           <div class="ehbal-bar"><i class="in" style="width:${(gi / tot * 100).toFixed(1)}%"></i><i class="out" style="width:${(go / tot * 100).toFixed(1)}%"></i></div>
-          <div class="ehbal-l"><span>${ic('mdi:arrow-down')}Imported ${kwh(gi)}</span><span>Exported ${kwh(go)}${ic('mdi:arrow-up')}</span></div></div>`;
+          <div class="ehbal-l"><span>${ic('mdi:arrow-down')}${tr("Imported")} ${kwh(gi)}</span><span>${tr("Exported")} ${kwh(go)}${ic('mdi:arrow-up')}</span></div></div>`;
       })()}
       ${readout}
       <div class="ehchart"><div class="ehy">${yl}</div><svg viewBox="0 0 ${R.n * bw} 100" preserveAspectRatio="none">
         ${[0, 50, 100].map(v => `<line x1="0" x2="${R.n * bw}" y1="${v}" y2="${v}" class="gl"/>`).join('')}${bars}</svg>
         <div class="ehx" style="grid-template-columns:repeat(${R.n},1fr)">${xl}</div></div>
       <div class="ehlg">${legend}</div>
-      <div class="dsec">Devices · tap to show in chart</div>
+      <div class="dsec">${tr("Devices · tap to show in chart")}</div>
       <div class="cons">${rows || '<div class="sk-empty">No device data for this period</div>'}</div>`;
     return head + `<div class="ehwrap">${this._ehBody}</div>`;
   }
@@ -309,9 +309,9 @@ export class EnergyPanels {
     // inspected point
     const ci = this._spkI != null && this._spkI <= nowI && S[this._spkI] != null ? this._spkI : null;
     const tip = ci == null ? '' : `<div class="spk-cur" style="left:${pct(ci)}%"></div>
-      <div class="spk-tip ${ci > B * 0.6 ? 'l' : ''}" style="left:${pct(ci)}%"><b>${ci === nowI ? 'Now' : fmt(ci)}</b>
-        <span><i style="background:#fbbf24"></i>Solar ${fmtW(S[ci] + X[ci])}</span><span><i style="background:#60a5fa"></i>Grid ${fmtW(I[ci])}</span>
-        <span><i style="background:#34d399"></i>Exported ${fmtW(X[ci])}</span><span><i class="dash"></i>Home ${fmtW(Hm[ci])}</span></div>`;
+      <div class="spk-tip ${ci > B * 0.6 ? 'l' : ''}" style="left:${pct(ci)}%"><b>${ci === nowI ? tr("Now") : fmt(ci)}</b>
+        <span><i style="background:#fbbf24"></i>${tr("Solar")} ${fmtW(S[ci] + X[ci])}</span><span><i style="background:#60a5fa"></i>${tr("Grid")} ${fmtW(I[ci])}</span>
+        <span><i style="background:#34d399"></i>${tr("Exported")} ${fmtW(X[ci])}</span><span><i class="dash"></i>${tr("Home")} ${fmtW(Hm[ci])}</span></div>`;
     const leg = (k, col, name, cls = '') => `<button class="${hide.has(k) ? 'off' : ''}" data-act="spk" data-k="${k}"><i class="${cls}" style="background:${col}"></i>${name}</button>`;
     return `<div class="spk-wrap">
       <div class="spk-y"><i>${yl.map(t => t.replace(/<[^>]+>/g, '')).sort((a, b) => b.length - a.length)[0] || ''}</i>${yl.join('')}</div>

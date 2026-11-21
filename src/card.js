@@ -495,7 +495,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? 'Lights' : kind === 'temps' ? 'Temperatures' : kind === 'weather' ? 'Weather' : kind === 'power' ? 'Power' : kind.startsWith('jf') ? 'Jellyfin library' : kind.startsWith('mup:') ? 'Coming up' : kind === 'swap' ? 'Swap usage' : kind === 'wanted' ? 'Wanted episodes' : 'Phone'}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'wanted' ? tr("Wanted episodes") : tr("Phone")}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind === 'wanted' && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || String(this._wanted.n) !== String(this.v(E.mserver.sonarr.wanted)))) this._loadWanted();
@@ -512,10 +512,10 @@ export class SweetHomeCard extends HTMLElement {
     else if (this._info === 'lights') {
       const rooms = ROOMS.filter(r => (r.lights || []).some(l => this.s(l)));
       const all = rooms.flatMap(r => r.lights.filter(l => this.s(l))), on = all.filter(l => this.v(l) === 'on').length;
-      html = head('mdi:lightbulb-group', 'Lights', `${on} of ${all.length} on · tap to switch`) + rooms.map(r => {
+      html = head('mdi:lightbulb-group', tr("Lights"), `${on} of ${all.length} on · tap to switch`) + rooms.map(r => {
         const rows = r.lights.filter(l => this.s(l)).map(l => {
           const st = this.s(l), isOn = st.state === 'on', fx = r.lightFx?.[l];
-          const lv = isOn && st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) + '%' : isOn ? 'On' : st.state === 'off' ? 'Off' : pretty(st.state);
+          const lv = isOn && st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) + '%' : isOn ? 'On' : st.state === 'off' ? tr("Off") : pretty(st.state);
           const icon = fx === 'strip' ? 'mdi:led-strip-variant' : fx === 'tv' ? 'mdi:television-ambient-light' : fx === 'spots' ? 'mdi:light-recessed' : isOn ? 'mdi:ceiling-light' : 'mdi:ceiling-light-outline';
           const nm = r.lightNames?.[l] || tc((st.attributes.friendly_name || l).replace(/^Shelly\s*/i, ''));
           return `<button class="lrow ${isOn ? 'on' : ''}" data-act="toggle" data-id="${l}">${ic(icon)}<span>${esc(nm)}</span><b>${esc(lv)}</b></button>`;
@@ -547,7 +547,7 @@ export class SweetHomeCard extends HTMLElement {
         + row(P.tracker, 'mdi:map-marker', 'Location', tc(pretty(where || '—')))
         + row(P.location, 'mdi:map', 'Address', this.ok(P.location) ? this.v(P.location) : '—')
         + row(P.ringer, rg[1], 'Ringer Mode', rg[0])
-        + row(P.wifi, 'mdi:wifi', 'Wi-Fi', this.ok(P.wifi) && this.v(P.wifi) !== '<not connected>' ? this.v(P.wifi) : 'Not connected')
+        + row(P.wifi, 'mdi:wifi', 'Wi-Fi', this.ok(P.wifi) && this.v(P.wifi) !== '<not connected>' ? this.v(P.wifi) : tr("Not connected"))
         + (P.entities || []).map(id => this._entRow(id)).join('')
         + `<div class="phbtns">${P.buttons.filter(([id]) => this.s(id)).map(([id, n, i0]) => {
           const d = id.split('.')[0], fn = this.s(id).attributes.friendly_name || id;
@@ -562,9 +562,9 @@ export class SweetHomeCard extends HTMLElement {
       const inside = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
       const avg = inside.length ? inside.reduce((a, b) => a + b, 0) / inside.length : null;
       const w = this.s(E.weather);
-      const out = w ? `<div class="dsec">Outside</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}${isFinite(parseFloat(w.attributes.temperature)) ? `<b style="color:${rgb(tempRGB(Number(w.attributes.temperature)))}">${Number(w.attributes.temperature).toFixed(1)}°</b>` : '<b>—</b>'}</div>` : '';
-      html = head('mdi:home-thermometer', 'Temperatures', avg != null ? `Average ${avg.toFixed(1)}° · ${Math.min(...inside).toFixed(1)}° – ${Math.max(...inside).toFixed(1)}°` : 'No readings')
-        + `<div class="dsec">Rooms</div>${rows}${out}`;
+      const out = w ? `<div class="dsec">${tr("Outside")}</div><div class="mrow trow" data-act="info" data-kind="weather" data-id="${E.weather}">${ic(WEATHER_ICON[w.state] || 'mdi:weather-partly-cloudy')}<span>${esc(wxName(w.state))}</span>${w.attributes.humidity != null ? `<em>${Math.round(w.attributes.humidity)}%</em>` : ''}${isFinite(parseFloat(w.attributes.temperature)) ? `<b style="color:${rgb(tempRGB(Number(w.attributes.temperature)))}">${Number(w.attributes.temperature).toFixed(1)}°</b>` : '<b>—</b>'}</div>` : '';
+      html = head('mdi:home-thermometer', tr("Temperatures"), avg != null ? `Average ${avg.toFixed(1)}° · ${Math.min(...inside).toFixed(1)}° – ${Math.max(...inside).toFixed(1)}°` : tr("No readings"))
+        + `<div class="dsec">${tr("Rooms")}</div>${rows}${out}`;
     }
     if (box._html === html) return; box._html = html;
     const tpl = document.createElement('template'); tpl.innerHTML = html;
@@ -596,7 +596,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   pickChip(id, kind, label, icon) {
     const st = this.s(id); if (!st) return '';
-    const P = PICK[kind]; const opts = P.list(st) || []; if (!opts.length) return ''; label = tc(label);
+    const P = PICK[kind]; const opts = P.list(st) || []; if (!opts.length) return ''; label = tr(tc(label));
     return `<button class="pick" data-act="pick" data-id="${id}" data-kind="${kind}">${icon ? ic(icon) : ''}<span>${esc(label)}</span><b>${esc(pretty(P.cur(st)))}</b>${ic('mdi:chevron-down', 'chev')}</button>`;
   }
   // colour swatches + custom picker for RGB lights; white presets use colour temperature when supported
@@ -631,7 +631,7 @@ export class SweetHomeCard extends HTMLElement {
   slider(id, kind, pct, color, ownLabel = true) {
     const lid = this.sliderLabel(id, kind);
     return `<div class="slrow">${ic(kind === 'vol' ? 'mdi:volume-high' : 'mdi:brightness-6')}<input type="range" class="sl" min="1" max="100" value="${pct}" style="--p:${pct}%;--c:${color}"
-      data-${kind === 'vol' ? 'vol' : 'bright'}="${id}" data-lbl="${lid}" aria-label="${kind === 'vol' ? 'Volume' : 'Brightness'}">${ownLabel ? `<em id="${lid}">${pct}%</em>` : ''}</div>`;
+      data-${kind === 'vol' ? 'vol' : 'bright'}="${id}" data-lbl="${lid}" aria-label="${kind === 'vol' ? tr("Volume") : tr("Brightness")}">${ownLabel ? `<em id="${lid}">${pct}%</em>` : ''}</div>`;
   }
 
   _update() {
@@ -726,7 +726,7 @@ export class SweetHomeCard extends HTMLElement {
     put('time', d.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }));
     put('date', d.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' }));
     const hr = d.getHours();
-    const g = tr(hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening');
+    const g = tr(hr < 5 ? tr("Good night") : hr < 12 ? tr("Good morning") : hr < 17 ? tr("Good afternoon") : tr("Good evening"));
     put('greet', `${g}${this.name() ? ', ' + this.name() : ''}`);
     if (d.getSeconds() % 30 === 0) { this._alertCount = null; this._rerender('alerts', 'tabs'); }
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
@@ -795,7 +795,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'close': this._select(null); break;
       case 'roomclose': if (e.target !== t) return; this._select(null); break; // a tap beside the room pop-up
       case 'furn': if (performance.now() - (this._cvTap || 0) < 600) break; this._selectFurn(Number(t.dataset.idx)); break;
-      case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(tr(id.startsWith('scene.') ? 'Scene activated' : 'Script started')); break;
+      case 'run': this.call('homeassistant', 'turn_on', { entity_id: id }); this._toast(tr(id.startsWith('scene.') ? tr("Scene activated") : tr("Script started"))); break;
       case 'press': this.call(id.split('.')[0], 'press', { entity_id: id }); this._toast(tr('Pressed')); break;
       case 'dfold': { const k = t.dataset.k; (this._dOpen ||= new Set()).has(k) ? this._dOpen.delete(k) : this._dOpen.add(k); this._rerender('drawer'); break; }
       case 'hintx': this._hintDone(); break;
@@ -818,7 +818,7 @@ export class SweetHomeCard extends HTMLElement {
       }
       case 'alarm': {
         const svc = t.dataset.svc; const st = this.s(E.alarm);
-        if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast('The alarm is already off'); return; }
+        if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast(tr("The alarm is already off")); return; }
         // Alarmo needs the user's PIN to disarm; arming only needs it when code_arm_required is set
         const needCode = svc === 'alarm_disarm' || !!st?.attributes.code_arm_required;
         if (needCode) this._openKeypad(svc); else this.call('alarm_control_panel', svc, { entity_id: E.alarm });
@@ -830,7 +830,7 @@ export class SweetHomeCard extends HTMLElement {
         if (locked && !this._armConfirm(t, id, 'Tap again to unlock')) return;
         this.call('lock', locked ? 'unlock' : 'lock', { entity_id: id }); break;
       }
-      case 'relay': if (!this._armConfirm(t, id, id === E.gate.relay ? 'Tap again to open the gate' : 'Tap again to open')) return; this.call('switch', 'turn_on', { entity_id: id }); this._toast(id === E.gate.relay ? 'Opening the gate' : 'Opening'); break;
+      case 'relay': if (!this._armConfirm(t, id, id === E.gate.relay ? tr("Tap again to open the gate") : tr("Tap again to open"))) return; this.call('switch', 'turn_on', { entity_id: id }); this._toast(id === E.gate.relay ? tr("Opening the gate") : tr("Opening")); break;
       case 'entrance': { // a gate / garage door: second tap to open, close, or stop it while it moves
         const g = E.entrances.find(x => x.id === id); if (!g) break;
         const st = this.entState(g), d = id.split('.')[0], nm = this.s(id)?.attributes.friendly_name || g.name;
@@ -850,7 +850,7 @@ export class SweetHomeCard extends HTMLElement {
       }
       case 'valve': { // irrigation zones need a second tap, like the locks
         const on = this.on(id);
-        if (!this._armConfirm(t, id, on ? 'Tap again to stop' : 'Tap again to water')) return;
+        if (!this._armConfirm(t, id, on ? tr("Tap again to stop") : tr("Tap again to water"))) return;
         const d = id.split('.')[0]; // a valve opens / closes; a switch or helper turns on / off
         if (d === 'valve') this.call('valve', on ? 'close_valve' : 'open_valve', { entity_id: id });
         else this.call(d === 'input_boolean' ? 'input_boolean' : 'switch', on ? 'turn_off' : 'turn_on', { entity_id: id });
@@ -903,9 +903,9 @@ export class SweetHomeCard extends HTMLElement {
       case 'spk': { const k = t.dataset.k, h = this._spkHide || (this._spkHide = new Set()); h.has(k) ? h.delete(k) : h.add(k); this._spkPaint(); break; }
       case 'alexp': { const k = t.dataset.k; this._alOpen.has(k) ? this._alOpen.delete(k) : this._alOpen.add(k); this._rerender('alerts'); break; }
       case 'repairs': history.pushState(null, '', '/config/repairs'); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); break;
-      case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast('Restarting Home Assistant…'); break;
-      case 'install': if (!this._armConfirm(t, id, 'Tap again to update')) return; this.call('update', 'install', { entity_id: id }); this._toast('Update started'); setTimeout(() => this._rerender('alerts'), 3000); break;
-      case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast('Reboot sent'); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
+      case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast(tr("Restarting Home Assistant…")); break;
+      case 'install': if (!this._armConfirm(t, id, 'Tap again to update')) return; this.call('update', 'install', { entity_id: id }); this._toast(tr("Update started")); setTimeout(() => this._rerender('alerts'), 3000); break;
+      case 'reboot': if (!this._armConfirm(t, id, 'Tap again to reboot')) return; this.call('button', 'press', { entity_id: id }); this._toast(tr("Reboot sent")); (this._rbAt ||= {})[id] = Date.now(); setTimeout(() => { if (this._info) this._renderInfo(); this._rerender('alerts'); }, 20e3); if (this._info) this._renderInfo(); this._rerender('alerts'); break;
       case 'rnbadge': if (!this._editing) break; this._pendNames = null; this._openInfo('rnbadge:' + t.dataset.i); break;
       case 'rnbsave': { const i = Number(t.dataset.i), v = this._pendNames?.['badge:' + i]; this._pendNames = null; this._closeSheet(); if (v !== undefined) this._saveBadgeName(i, v); break; }
       case 'rnphone': { // the phone panel's rows and buttons, renamed for this dashboard
@@ -977,7 +977,7 @@ export class SweetHomeCard extends HTMLElement {
   _pinDefault(kind, v) {
     const cur = devGet(kind), same = cur === String(v);
     devSet(kind, same ? null : v);
-    const name = kind === 'floor' ? (() => { const l = (MODEL.levels || []).find(x => String(x.level) === String(v)); return l ? (l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name)) : v; })() : tr(v === 'top' ? 'Floor plan' : '3D view');
+    const name = kind === 'floor' ? (() => { const l = (MODEL.levels || []).find(x => String(x.level) === String(v)); return l ? (l.name.startsWith('Floor ') ? tr('Floor {0}', l.level) : tr(l.name)) : v; })() : tr(v === 'top' ? tr("Floor plan") : '3D view');
     this._toast(same ? tr('Default cleared on this device') : tr('{0} is now the default on this device', name));
     this.haptic('success');
   }
@@ -1013,7 +1013,7 @@ export class SweetHomeCard extends HTMLElement {
     if (!src) { undo(); this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); return; }
     const cfg = JSON.parse(JSON.stringify(this._config || {}));
     const list = src.house != null ? cfg.house?.furniture : cfg.house?.rooms?.[src.room]?.furniture, piece = list?.[src.i ?? src.house];
-    if (!piece) { undo(); this._toast('Could not find this piece in the configuration', true); return; }
+    if (!piece) { undo(); this._toast(tr("Could not find this piece in the configuration"), true); return; }
     movePiece(piece, dx, dz);
     const viaEditor = window.__sweetHomeEditor?.isConnected;
     if (await this._applyConfig(cfg)) { this.haptic(viaEditor ? 'light' : 'success'); if (!viaEditor) this._toast(tr('Moved')); } else undo();
@@ -1094,7 +1094,7 @@ export class SweetHomeCard extends HTMLElement {
     THREE = this._THREE || THREE_LIB; // tests swap in a renderer stub
     let scene;
     try { scene = new HouseScene(THREE, this); scene.arrange = !!this._arrange; await scene.ready; }
-    catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.</span>`; return; }
+    catch (e) { console.warn('sweet-home: 3D view', e); this.$('loading').innerHTML = `<span>${tr("The 3D view needs WebGL, which this browser could not start. The other tabs work as usual.")}</span>`; return; }
     this._three = scene; scene._key = this._houseJSON; // the house it shows
     scene._focusWas = this._focus;
     const V = this._view; this._view = null;
