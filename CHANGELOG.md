@@ -7,9 +7,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
-- card-mod: styles added with `card_mod:` are no longer lost when the card is edited (they were removed each time the card redrew itself, until the page was reloaded).
-
 ### Changed
+
+### Added
+
+## v0.6.45 — 2026-11-21
+
+### Fixed
+
+- card-mod: styles added with `card_mod:` are no longer lost when the card is edited (they were removed each time the card redrew itself, until the page was reloaded).
 
 ### Added
 
