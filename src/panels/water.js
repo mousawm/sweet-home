@@ -15,7 +15,7 @@ export class WaterPanels {
       <div class="water ${W.tank ? '' : 'notank'}">
         ${!W.tank ? '' : `<div class="tank" data-act="more" data-id="${W.tank}" data-id2="${W.quality}" style="--lvl:${lvl}%;--c:${col}">
           <div class="liquid"><svg class="wave" viewBox="0 0 200 20" preserveAspectRatio="none"><path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V20 H0Z"/></svg></div>
-          <div class="tank-lbl"><b>${lvl.toFixed(1)}<small>%</small></b><span>${[W.quality ? `Quality ${this.f(W.quality, 0)}` : '', W.temp ? this.f(W.temp, 0) : ''].filter(Boolean).join(' · ')}</span></div>
+          <div class="tank-lbl ${lvl >= 58 ? 'wet' : 'dry'}"><b>${lvl.toFixed(1)}<small>%</small></b><span>${[W.quality ? `${tr('Quality')} ${this.f(W.quality, 0)}` : '', W.temp ? this.f(W.temp, 0) : ''].filter(Boolean).join(' · ')}</span></div>
         </div>`}
         <div class="wtiles">
           ${W.pumps.map(p => sw(p.id, p.name, 'mdi:water-pump', this.on(p.id) ? this._pumpOn(p) : p.info && this.ok(p.info) ? esc(this.v(p.info)) : null, p.power || p.info)).join('')}

@@ -7,6 +7,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- Light look: the water tank's level ("80.0 %") was dark navy on the blue water. It is now white on the water and dark on the empty glass above it, whatever the level. "Quality" under it is translated too.
+
 ### Changed
 
 ### Added

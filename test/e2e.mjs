@@ -482,6 +482,15 @@ try {
   }));
   { const r = await cardModSurvives(p); check('card-mod: its styles stay after the card is redrawn (config change, house change)', r === true, r); }
   { const r = await p.evaluate(async () => {
+    // the water tank's label: on the water (wet) or on the empty glass above it (dry), so it can be coloured to stay readable
+    const h = card._hass._raw || card._hass, cfg0 = card._config, id = 'sensor.water_tank_level';
+    card.setConfig({ ...cfg0, panels: { ...(cfg0.panels || {}), water: { ...(cfg0.panels?.water || {}), tank: id } } }); await new Promise(r => setTimeout(r, 900));
+    const lbl = lvl => { h.states[id] = { entity_id: id, state: String(lvl), attributes: {} }; card._hass = h; const t = document.createElement('template'); t.innerHTML = card._rWater(); return t.content.querySelector('.tank-lbl')?.className; };
+    const full = lbl(80), low = lbl(30);
+    delete h.states[id]; card._hass = h; card.setConfig(cfg0); await new Promise(r => setTimeout(r, 900));
+    return (/\bwet\b/.test(full) && /\bdry\b/.test(low)) || JSON.stringify({ full, low });
+  }); check('water tank: the level label knows whether it sits on the water or on the empty glass (readable in the light look)', r === true, r); }
+  { const r = await p.evaluate(async () => {
     // the energy flow: a bubble glows only while power flows through it (grid / solar sensors picked in the config)
     const cfg0 = card._config; card.setConfig({ ...cfg0, panels: { ...(cfg0.panels || {}), energy: { grid_power: 'sensor.grid_power', solar_power: 'sensor.solar_power' } } }); await new Promise(r => setTimeout(r, 900));
     const h = card._hass._raw || card._hass, keep = { ...h.states }, out = {};

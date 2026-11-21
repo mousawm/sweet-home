@@ -710,6 +710,9 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 :host([look=light]) .seg button{color:var(--mu)}
 :host([look=light]) .seg button.on,:host([look=light]) .app.solo .seg button.on{background:var(--card-background-color,#fff);color:var(--tx);box-shadow:0 1px 3px rgba(15,23,42,.18),0 0 0 1px rgba(15,23,42,.04)}
 :host([look=light]) .art{background:rgba(15,23,42,.06)}
+/* the water tank's label: white on the water, dark on the empty glass above it (light look) */
+:host([look=light]) .tank-lbl.wet{color:#fff;text-shadow:0 1px 6px rgba(8,47,73,.45)}:host([look=light]) .tank-lbl.wet span{color:#e0f2fe}
+:host([look=light]) .tank-lbl.dry{color:var(--tx);text-shadow:none}:host([look=light]) .tank-lbl.dry span{color:var(--mu)}
 :host([look=light]) .pill{color:color-mix(in srgb,var(--c,#64748b) 65%,#0f172a)}
 :host([look=light]) .clock #time{background:linear-gradient(120deg,#0f172a 30%,#4f46e5 70%,#0d9488);-webkit-background-clip:text;background-clip:text}
 :host([look=light]) :is(.jfi em,.mlib div.go span,.jfshowh em){color:#6d28d9}:host([look=light]) .n-dev ha-icon{color:#7c3aed}
