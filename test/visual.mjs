@@ -78,7 +78,10 @@ try {
     const time = await pixels(p, clock);
     check('light look: a light page and light panels', page.lum > 200 && panel.lum > 200, JSON.stringify({ page, panel }));
     check('light look: the 3D picture stays dark and drawn', pic.lum < 110 && pic.colours > 80, JSON.stringify(pic));
-    check('light look: the clock is dark on the light page (readable)', time.lum < page.lum - 40, JSON.stringify({ time, page })); }
+    check('light look: the clock is dark on the light page (readable)', time.lum < page.lum - 40, JSON.stringify({ time, page }));
+    const on = await rectOf(p, '#modeSeg > button.on'), seg = await rectOf(p, '#modeSeg');
+    const pill = await pixels(p, { x: on.x + 4, y: on.y + 3, width: 6, height: 4 }), track = await pixels(p, { x: seg.x + seg.width - 10, y: seg.y + 4, width: 4, height: 4 });
+    check('light look: the selected view mode stands out on its light track', pill.lum > 240 && pill.lum - track.lum > 6 && track.lum > 200, JSON.stringify({ pill, track })); }
   await p.evaluate(() => card.setConfig({ ...card._config, appearance: 'dark' })); await p.waitForTimeout(1500);
   { const page = await pixels(p, { x: 0, y: 0, width: 1400, height: 20 }); check('dark look (the default) is unchanged: a dark page', page.lum < 60, JSON.stringify(page)); }
   check('no page errors (light look)', !p.errors.length, p.errors.join(' | '));
