@@ -144,7 +144,10 @@ export class SystemPanels {
 
   /* ---------- energy history (long-term statistics) ---------- */
   _rLab() {
-    const L = E.lab;
+    // several Proxmox nodes: the gauges of the node picked with the chips (the first one, or homelab.node, by default)
+    const sel = this._labNode && E.lab.byNode?.[this._labNode] ? this._labNode : E.lab.node;
+    const L = sel !== E.lab.node ? { ...E.lab, ...E.lab.byNode[sel] } : E.lab;
+    const nodes = E.lab.nodes?.length > 1 ? `<div class="labnodes" role="tablist">${E.lab.nodes.map(n => `<button data-act="labnode" data-node="${esc(n)}" role="tab" aria-selected="${n === sel}" class="${n === sel ? 'on' : ''}">${ic('mdi:server')}${esc(n)}</button>`).join('')}</div>` : '';
     const ring = (id, label, col, id2, dt) => {
       label = tr(label);
       const v = clamp(this.n(id) ?? 0, 0, 100); const C = 2 * Math.PI * 26;
@@ -188,7 +191,7 @@ export class SystemPanels {
       + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
     const upd = this.n(L.updates);
     return `<div class="ch">${ic('mdi:server')}<h3>${tr("Home Lab")}</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? tr("Online") : tr("Offline")}</span>` : ''}</div>
-      <div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
+      ${nodes}<div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
       <div class="stats3 ${L.temp ? 's4' : ''}">
         ${L.temp ? `<div data-act="more" data-id="${L.temp}">${ic('mdi:thermometer')}<b>${this.f(L.temp, 0)}</b></div>` : ''}
         <div data-act="more" data-id="${L.cts}">${ic('mdi:docker')}<b>${esc(this.v(L.cts) || '—')}</b><span>containers</span></div>

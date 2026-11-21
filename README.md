@@ -401,13 +401,14 @@ listed below).
   [JellyHA](https://github.com/zupancicmarko/JellyHA), and a tapped movie or episode is played on the TV through the
   official Jellyfin integration, so both have to be installed). Not set: `jellyfin` when the official integration is
   installed, else `hybrid`. Pick it in the card editor under Panels → Media Server.
+  Several Sonarr, Radarr or qBittorrent servers (one Home Assistant integration entry each) are all used: their counts and speeds add up, their queues and calendars are combined.
   `jellyfin: false`, `sonarr: false`, `radarr: false`, `qbittorrent: false` (the **Found from** switches): leave that
   integration out. Jellyfin off hides Now Watching (Shows and Movies then show only their counts); Sonarr off hides
   Shows, Wanted and its Coming Up items; Radarr off hides Movies and its Coming Up items; qBittorrent off hides Downloads.
   A section also hides by itself when its integration isn't installed.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
-- **homelab**: found from the Proxmox VE custom integration. Options (all in the card editor under Panels → Home Lab):
+- **homelab**: found from the Proxmox VE custom integration. With several Proxmox nodes, the card shows one chip per node to switch its gauges; `node` sets the one shown first (default: the first). Options (all in the card editor under Panels → Home Lab):
   - `cpu`, `memory`, `disk`, `swap`, `temperature`, `containers`, `vms`, `updates`: your own sensors in place of the
     node's (empty: found from the Proxmox node). With no Proxmox node, picking them still gives a Home Lab card
   - `auto_guests` (on by default): every container and VM is listed (the `pinned` ones first, the rest behind

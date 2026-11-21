@@ -712,6 +712,33 @@ try {
     card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 500));
     return (out.all === 'Now Watching,Library,Coming Up,Downloads' && out.some === 'Library' && out.noWanted) || JSON.stringify(out);
   }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching, Wanted and Downloads', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // two Radarr servers and two qBittorrents (one config entry each), two Proxmox nodes
+    const h = card._hass._raw || card._hass, cfg0 = card._config, out = {};
+    const add = (id, pl, v, entry) => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl, config_entry_id: entry }; };
+    add('sensor.radarr_movies', 'radarr', '300', 'r1'); add('sensor.radarr_4k_movies', 'radarr', '40', 'r2');
+    add('sensor.qbittorrent_download_speed', 'qbittorrent', '2.5', 'q1'); add('sensor.qbit_nas_download_speed', 'qbittorrent', '1.5', 'q2');
+    add('sensor.qbittorrent_active_torrents', 'qbittorrent', '3', 'q1'); add('sensor.qbit_nas_active_torrents', 'qbittorrent', '4', 'q2');
+    add('sensor.node_pve2_cpu_used', 'proxmoxve', '77', 'p1');
+    const pveEnt = h.entities['sensor.node_pve_cpu_used']; h.entities['sensor.node_pve_cpu_used'] = { entity_id: 'sensor.node_pve_cpu_used', platform: 'proxmoxve', config_entry_id: 'p1' }; // as in Home Assistant: every node is Proxmox's
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    const ms = card._rMServer();
+    out.movies = /<b>340<\/b><span>Movies/.test(ms);
+    out.speed = /<b>4\.0<small>MB\/s/.test(ms);
+    out.torrents = /<b>7<small>\//.test(ms);
+    card._setTab('system'); await new Promise(r => setTimeout(r, 300));
+    const R = card.shadowRoot, chips = () => [...R.querySelectorAll('#lab .labnodes button')];
+    out.chips = chips().map(b => b.textContent.trim()).join() === 'pve,pve2' && chips()[0].classList.contains('on');
+    chips()[1].click(); await new Promise(r => setTimeout(r, 100));
+    out.switched = chips()[1].classList.contains('on') && R.querySelector('#lab .ring[data-id="sensor.node_pve2_cpu_used"]') !== null;
+    chips()[0].click(); await new Promise(r => setTimeout(r, 100));
+    out.back = R.querySelector('#lab .ring[data-id="sensor.node_pve_cpu_used"]') !== null;
+    card._setTab('home');
+    for (const id of ['sensor.radarr_movies', 'sensor.radarr_4k_movies', 'sensor.qbittorrent_download_speed', 'sensor.qbit_nas_download_speed', 'sensor.qbittorrent_active_torrents', 'sensor.qbit_nas_active_torrents', 'sensor.node_pve2_cpu_used']) { delete h.states[id]; delete h.entities[id]; }
+    if (pveEnt) h.entities['sensor.node_pve_cpu_used'] = pveEnt; else delete h.entities['sensor.node_pve_cpu_used'];
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    return Object.values(out).every(Boolean) || JSON.stringify({ ...out, ms: ms.slice(ms.indexOf('mlib'), ms.indexOf('mlib') + 600) });
+  }); check('several instances: two Radarr servers and two qBittorrents add up; Home Lab switches between Proxmox nodes', r === true, r); }
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
   await p.waitForTimeout(1500);
@@ -1018,6 +1045,15 @@ try {
         if (x && /[A-Za-z]/.test(x) && t(x) !== x && !n.parentElement.closest('.lbl, .sh-h, style')) left.add(x);
       }
     }
+    // the Media Server (the demo house has none): rendered on its own
+    const h = card._hass._raw || card._hass, add = (id, pl, v) => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('media_player.jellyfin_tv', 'jellyfin', 'idle'); add('sensor.sonarr_shows', 'sonarr', '4'); add('sensor.sonarr_wanted', 'sonarr', '1'); add('calendar.sonarr', 'sonarr', 'off');
+    add('sensor.radarr_movies', 'radarr', '9'); add('sensor.qbittorrent_download_speed', 'qbittorrent', '0'); add('sensor.radarr_queue', 'radarr', '1');
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    card._mcal = { at: Date.now(), items: [] };
+    const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
+    const w2 = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+    for (let n = w2.nextNode(); n; n = w2.nextNode()) { const x = n.textContent.trim().replace(/\s*›$/, ''); if (x && /[A-Za-z]/.test(x) && t(x) !== x) left.add(x); }
     card._setTab('home');
     return !left.size || JSON.stringify([...left]);
   }); check('Arabic: no translatable English text left on any tab', r === true, r); }

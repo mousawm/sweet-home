@@ -356,8 +356,27 @@ test('"Found from" switches: Jellyfin / Sonarr / Radarr / qBittorrent / Forecast
   const x = M({ jellyfin: false, sonarr: false, radarr: false, qbittorrent: false }, { solar_forecast: false });
   assert.equal(x.E.mserver.jellyfin.off, true);
   assert.equal(x.E.mserver.jellyfin.clients, null);
-  assert.ok(Object.values(x.E.mserver.sonarr).every(v => v === null) && Object.values(x.E.mserver.radarr).every(v => v === null) && Object.values(x.E.mserver.qbt).every(v => v === null));
+  const none = o => Object.entries(o).every(([k, v]) => (k === 'more' ? v.length === 0 : v === null));
+  assert.ok(none(x.E.mserver.sonarr) && none(x.E.mserver.radarr) && none(x.E.mserver.qbt));
   assert.equal(x.E.forecast.today, null, 'Forecast.Solar off: no Solar Forecast box');
   assert.equal(x.hasMS, false, 'everything off: no Media Server card');
   assert.equal(M({ jellyfin: false }).hasMS, true, 'Sonarr still on: the card stays');
+});
+
+test('several instances: Sonarr / Radarr / qBittorrent per config entry, every Proxmox node', () => {
+  const h = JSON.parse(JSON.stringify(hass));
+  const add = (id, p, entry, state = '1') => { h.states[id] = st(state); h.entities[id] = { platform: p, config_entry_id: entry }; };
+  add('sensor.radarr_movies', 'radarr', 'r1', '300'); add('sensor.radarr_4k_movies', 'radarr', 'r2', '40');
+  add('sensor.qbittorrent_download_speed', 'qbittorrent', 'q1', '2'); add('sensor.qbit_2_download_speed', 'qbittorrent', 'q2', '3');
+  add('sensor.sonarr_shows', 'sonarr', 's1', '48');
+  for (const n of ['pve', 'pve2']) add(`sensor.node_${n}_cpu_used`, 'proxmoxve', 'p1', '10');
+  const M = c => buildModel({ panels: c || {} }, h).E;
+  const E = M();
+  assert.deepEqual([E.mserver.radarr.movies, E.mserver.radarr.more.map(m => m.movies)], ['sensor.radarr_movies', ['sensor.radarr_4k_movies']], 'a second Radarr server');
+  assert.deepEqual(E.mserver.qbt.more.map(m => m.down), ['sensor.qbit_2_download_speed'], 'a second qBittorrent');
+  assert.deepEqual([E.mserver.sonarr.shows, E.mserver.sonarr.more], ['sensor.sonarr_shows', []], 'one Sonarr: nothing more');
+  assert.deepEqual([E.lab.node, E.lab.nodes], ['pve', ['pve', 'pve2']], 'every Proxmox node');
+  assert.equal(E.lab.byNode.pve2.cpu, 'sensor.node_pve2_cpu_used');
+  assert.equal(M({ homelab: { node: 'pve2' } }).lab.cpu, 'sensor.node_pve2_cpu_used', 'homelab.node: the node shown first');
+  assert.deepEqual(M({ media_server: { radarr: false } }).mserver.radarr.more, [], 'switched off: none of its instances');
 });

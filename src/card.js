@@ -369,8 +369,8 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('car'), deps: all(Object.values(E.car).filter(v => typeof v === 'string' && v.includes('.'))), render: () => this._rCar() },
       { el: $('cams'), deps: all(E.cameras.map(c => [c.person, c.car, c.motion, c.face, c.plate, c.relay, c.door]), E.face), render: () => this._rCams(), after: () => this._refreshCams(true) },
       { el: $('media'), deps: all(E.media.tv, E.media.shield, E.media.echoes, E.media.ytTimer, E.media.ytLimit, E.media.ytBlock, E.media.ytForce, E.media.ytSelect), render: () => this._rMedia() },
-      { el: $('mserver'), deps: all(Object.values(E.mserver).map(o => Object.values(o).filter(v => typeof v === 'string')), this._jfPlayers()), render: () => this._rMServer() },
-      { el: $('lab'), deps: all(Object.values(E.lab).filter(x => typeof x === 'string'), this._labGuestIds().map(g => [`binary_sensor.${g}_status`, `sensor.${g}_status`, `sensor.${g}_cpu_used`, `sensor.${g}_memory_used_percentage`])), render: () => this._rLab() },
+      { el: $('mserver'), deps: all(Object.values(E.mserver).map(o => [Object.values(o).filter(v => typeof v === 'string'), (o.more || []).map(m => Object.values(m))]), this._jfPlayers()), render: () => this._rMServer() },
+      { el: $('lab'), deps: all(Object.values(E.lab).filter(x => typeof x === 'string'), Object.values(E.lab.byNode || {}).map(o => Object.values(o)), this._labGuestIds().map(g => [`binary_sensor.${g}_status`, `sensor.${g}_status`, `sensor.${g}_cpu_used`, `sensor.${g}_memory_used_percentage`])), render: () => this._rLab() },
       { el: $('devices'), deps: all(E.devices.map(d => [d.bat, d.chg, d.trk, d.chgState]), E.persons), render: () => this._rDevices() },
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
     ];
@@ -926,6 +926,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
+      case 'labnode': this._labNode = t.dataset.node === E.lab.node ? null : t.dataset.node; this._rerender('lab'); break; // Home Lab: another Proxmox node
       case 'labgrip': break; // dragged, see _labDragSetup
       case 'labreset': this._labSaveOrder(null); break;
       case 'tab': this._setTab(t.dataset.tab); if (t.dataset.to) this._goCard(t.dataset.to); break;

@@ -303,7 +303,8 @@ export class MediaPanels {
       const S = E.mserver, start = new Date(), end = new Date(Date.now() + 14 * 864e5);
       const q = `?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
       const get = id => this.s(id) ? this._hass.callApi('GET', `calendars/${id}${q}`).catch(() => []) : Promise.resolve([]);
-      const [tv, mv] = await Promise.all([get(S.sonarr.cal), get(S.radarr.cal)]);
+      const cals = o => [o.cal, ...(o.more || []).map(m => m.cal)].filter(Boolean); // every Sonarr / Radarr instance
+      const [tv, mv] = (await Promise.all([cals(S.sonarr), cals(S.radarr)].map(ids => Promise.all(ids.map(get))))).map(r => r.flat());
       const when = ev => new Date(ev.start?.dateTime || (ev.start?.date + 'T00:00:00'));
       const items = [
         ...tv.map(ev => { const [show, ep, ...t] = String(ev.summary || '').split(' - '); return { k: 'tv', t: when(ev), show: show || ev.summary, ep: ep || '', title: t.join(' - ') }; }),
@@ -381,14 +382,16 @@ export class MediaPanels {
     }).join('');
     const clients = this.n(J.clients);
     // --- downloads
-    const down = this.n(Q.down) ?? 0, up = this.n(Q.up) ?? 0, qst = this.v(Q.status), alt = this.on(Q.alt), err = this.n(Q.errored) ?? 0;
-    const qOK = this.v(Q.conn) === 'connected';
+    // several Sonarr / Radarr / qBittorrent instances (one per config entry): their numbers add up
+    const each = (o, k) => [o[k], ...(o.more || []).map(m => m[k])].filter(Boolean);
+    const sum = (o, k) => { const v = each(o, k).map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+    const down = sum(Q, 'down') ?? 0, up = sum(Q, 'up') ?? 0, qst = this.v(Q.status), alt = this.on(Q.alt), err = sum(Q, 'errored') ?? 0;
+    const qOK = each(Q, 'conn').some(id => this.v(id) === 'connected');
     const queue = [];
-    const sq = this.s(SO.queue)?.attributes || {};
-    for (const [k, v] of Object.entries(sq)) if (!['unit_of_measurement', 'friendly_name', 'icon', 'state_class'].includes(k)) {
-      const pct = parseFloat(v); queue.push(`<div class="mqr" data-act="more" data-id="${SO.queue}">${ic('mdi:television-classic')}<span>${esc(k)}</span><b>${isNaN(pct) ? esc(String(v)) : pct.toFixed(0) + '%'}</b><div class="jfbar"><i style="width:${isNaN(pct) ? 0 : pct}%"></i></div></div>`);
+    for (const qid of each(SO, 'queue')) for (const [k, v] of Object.entries(this.s(qid)?.attributes || {})) if (!['unit_of_measurement', 'friendly_name', 'icon', 'state_class'].includes(k)) {
+      const pct = parseFloat(v); queue.push(`<div class="mqr" data-act="more" data-id="${qid}">${ic('mdi:television-classic')}<span>${esc(k)}</span><b>${isNaN(pct) ? esc(String(v)) : pct.toFixed(0) + '%'}</b><div class="jfbar"><i style="width:${isNaN(pct) ? 0 : pct}%"></i></div></div>`);
     }
-    const rq = this.n(RA.queue) ?? 0;
+    const rq = sum(RA, 'queue') ?? 0;
     if (rq > 0) queue.push(`<div class="mqr" data-act="more" data-id="${RA.queue}">${ic('mdi:movie-open')}<span>${rq} movie${rq > 1 ? 's' : ''} in the Radarr queue</span><b></b></div>`);
     // --- coming up
     const items = (this._mcal?.items || []).slice(0, 6);
@@ -401,7 +404,7 @@ export class MediaPanels {
         <div class="mut"><b>${esc(x.show)}</b><span>${x.k === 'tv' ? esc([x.ep, x.title && x.title !== 'TBA' ? x.title : ''].filter(Boolean).join(' · ')) : esc(REL[x.rel] || 'Movie')}</span></div></div>`).join('');
     // --- library + disks
     const disks = [], byDisk = new Map();
-    for (const [k, v] of Object.entries(this.s(SO.disk)?.attributes || {})) {
+    for (const did of each(SO, 'disk')) for (const [k, v] of Object.entries(this.s(did)?.attributes || {})) {
       const m = String(v).match(/^([\d.]+)\/([\d.]+)\s*([A-Za-z]+)/); if (!m || k === '/') continue;
       const key = m[1] + '/' + m[2], nm = k.replace(/^\//, ''), cur = byDisk.get(key);
       if (!cur || nm.length < cur.nm.length) byDisk.set(key, { nm, free: +m[1], tot: +m[2] });
@@ -413,10 +416,10 @@ export class MediaPanels {
     }
     // the library tiles: Shows / Movies open the Jellyfin library (counts from Sonarr / Radarr); each one shows when its
     // integration is on (the "Found from" switches in the editor)
-    const tile = (kind, id, icon, label, cls = '') => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
-    const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', 'Shows'),
-      (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', 'Movies'),
-      SO.wanted && tile('wanted', SO.wanted, 'mdi:magnify', 'Wanted', (this.n(SO.wanted) ?? 0) > 0 ? 'warn' : '')].filter(Boolean);
+    const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
+    const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows')),
+      (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies')),
+      SO.wanted && tile('wanted', SO.wanted, 'mdi:magnify', tr('Wanted'), (sum(SO, 'wanted') ?? 0) > 0 ? 'warn' : '', sum(SO, 'wanted'))].filter(Boolean);
     const pill = sessions.length ? [`${sessions.length} watching`, '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
       ${J.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null ? ` · ${clients} client${clients === 1 ? '' : 's'}` : ''}</div>
@@ -429,7 +432,7 @@ export class MediaPanels {
       <div class="mdl">
         <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>${tr("Download")}</span></div>
         <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>${tr("Upload")}</span></div>
-        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(this.v(Q.active) ?? '—')}<small>/ ${esc(this.v(Q.all) ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
+        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(sum(Q, 'active') ?? '—')}<small>/ ${esc(sum(Q, 'all') ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
         <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? tr("Slow") : tr("Full")}</b><span>${tr("Speed limit")}</span></button>
       </div>`}
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}

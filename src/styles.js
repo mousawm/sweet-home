@@ -683,6 +683,11 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .rpop{--tx:var(--primary-text-color,#e7ecf6);--mu:var(--secondary-text-color,#8b97b2);--line:var(--divider-color,rgba(var(--ink),.12));--panel2:color-mix(in srgb,var(--tx) 6%,transparent)}
 .rpop .dh{background:var(--ha-card-background,var(--card-background-color,#0f172a))}
 .rpop .drawer.open{border-color:var(--divider-color,rgba(var(--ink),.12));color:var(--tx)}
+/* Home Lab: one chip per Proxmox node when there are several */
+.labnodes{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
+.labnodes button{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--mu);background:var(--panel2);border:1px solid var(--line)}
+.labnodes button ha-icon{--mdc-icon-size:15px}
+.labnodes button.on{color:var(--teal);border-color:color-mix(in srgb,var(--teal) 50%,transparent);background:color-mix(in srgb,var(--teal) 14%,transparent)}
 .rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
 .rpop.open{display:flex;animation:fade .2s}
 .rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:var(--ha-card-background,var(--card-background-color,#0f172a));border-radius:var(--ha-dialog-border-radius,22px);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}

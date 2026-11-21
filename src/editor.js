@@ -1301,9 +1301,10 @@ class SweetHomeCardEditor extends HTMLElement {
   _integrations(det, k, cur, set) {
     const ents = this._hass.entities || {}, states = this._hass.states;
     const of = p => Object.keys(ents).filter(id => ents[id].platform === p && states[id]);
-    const n = p => { const c = of(p).length; return c ? `${c} ${c === 1 ? t('entity') : t('entities')}` : ''; };
-    const pve = (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(m => m && ents[m[0]]?.platform === 'proxmoxve')
-      || Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(Boolean) || [])[1];
+    // "14 entities", or with several servers of the same integration (one config entry each) "2 servers · 14 entities"
+    const n = p => { const ids = of(p), c = ids.length, k = new Set(ids.map(id => ents[id].config_entry_id || '-')).size;
+      return c ? `${k > 1 ? `${k} ${t('servers')} · ` : ''}${c} ${c === 1 ? t('entity') : t('entities')}` : ''; };
+    const nodes = [...new Set(Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).filter(Boolean).map(m => m[1]))], pve = nodes[0];
     const hybrid = ['hybrid', 'jellyha'].includes(cur.integration) || (!cur.integration && !of('jellyfin').length && of('jellyha').length);
     // [key stored in the panel's config (null: no switch), name, what it shows, found, detail, hint when not found]
     const rows = {
@@ -1315,7 +1316,7 @@ class SweetHomeCardEditor extends HTMLElement {
         ['radarr', 'Radarr', 'Movies, Coming Up', of('radarr').length > 0, n('radarr'), 'Add the Radarr integration'],
         ['qbittorrent', 'qBittorrent', 'Downloads', of('qbittorrent').length > 0, n('qbittorrent'), 'Add the qBittorrent integration'],
       ],
-      homelab: [[null, 'Proxmox VE', 'Server, containers and VMs', !!pve, pve ? `${t('node')} ${pve}` : '', 'Add the Proxmox VE integration (HACS)']],
+      homelab: [[null, 'Proxmox VE', 'Server, containers and VMs', !!pve, pve ? `${nodes.length > 1 ? t('nodes') : t('node')} ${nodes.join(', ')}` : '', 'Add the Proxmox VE integration (HACS)']],
     }[k];
     if (!rows) return;
     const box = document.createElement('div'); box.className = 'sh-int';
