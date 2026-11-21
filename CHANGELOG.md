@@ -7,10 +7,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- card-mod: styles added with `card_mod:` are no longer lost when the card is edited (they were removed each time the card redrew itself, until the page was reloaded).
+
 ### Changed
 
 ### Added
 
+- Sweet Home 3D follows the dashboard theme: the theme's card corners, border and shadow, and with a dark theme its card background and text colours, so it matches the cards around it. With a light theme it stays a dark tile.
+- README: a *Styling* section with the card's colour variables, the parts to style with card-mod, and examples.
 - Sweet Home 3D: **room zoom**. The new `room` option (card editor → Look → *Zoom on one room*) opens the card framed on one room, on its floor, with no floor buttons. Closing a room's pop-up, or tapping the 3D / floor plan buttons, comes back to it.
 
 ## v0.6.44 — 2026-11-20

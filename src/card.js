@@ -387,6 +387,7 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
+    if (this._solo) this.toggleAttribute('dark-theme', !!h?.themes?.darkMode); // Sweet Home 3D: blends with a dark theme's cards
     FAHR = String(h?.config?.unit_system?.temperature || '').toUpperCase().includes('F');
     this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
@@ -549,6 +550,8 @@ export class SweetHomeCard extends HTMLElement {
       document.head.appendChild(l);
     }
     // Arabic uses the device's own Arabic font (SF Arabic on Apple, Noto on Android, Segoe UI on Windows): nothing loaded from outside
+    // card-mod puts its own <card-mod> element (the card_mod styles) inside the card: kept through the redraw, in its place
+    const cmods = [...this.shadowRoot.children].filter(el => el.localName === 'card-mod').map(el => [el, el === this.shadowRoot.firstElementChild]);
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
     <div class="app${this._solo ? ' solo' : ''}" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
@@ -612,6 +615,7 @@ export class SweetHomeCard extends HTMLElement {
       this.toggleAttribute('solo', true);
       if (px && /^[\d.]+(px|vh|em|rem)$/.test(px)) this.style.setProperty('--solo-h', px); else this.style.removeProperty('--solo-h');
     }
+    for (const [el, first] of cmods) { if (first) this.shadowRoot.prepend(el); else this.shadowRoot.appendChild(el); }
     const K3 = this._keep3d; // the same house: the old 3D view (canvas, labels, camera) is moved into the new page as it is
     if (K3) { this.$('viewport').replaceWith(K3.vp); const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; } }
     const $ = id => this.shadowRoot.getElementById(id);
@@ -5185,6 +5189,12 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .app.solo .viewport{flex:none;height:var(--solo-h,420px)}
 :host([solo][layout=grid]),:host([solo][layout=grid]) .app.solo{height:100%}
 :host([solo][layout=grid]) .app.solo .viewport{flex:1 1 auto;height:auto;min-height:120px}
+/* Sweet Home 3D sits among other cards: the theme's card corners, border and shadow (as ha-card). With a dark theme it
+   also takes the theme's card background and text colours; with a light one it stays a dark tile, like a media card */
+.app.solo .stage{background:#0f1626;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:var(--ha-card-border-radius,12px);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color,var(--line)));box-shadow:var(--ha-card-box-shadow,none)}
+.app.solo .viewport{border-radius:max(4px,calc(var(--ha-card-border-radius,12px) - 4px))}
+:host([solo][dark-theme]) .app.solo .stage{background:var(--ha-card-background,var(--card-background-color,var(--panel)));backdrop-filter:none;-webkit-backdrop-filter:none}
+:host([solo][dark-theme]) .app.solo{--tx:var(--primary-text-color,#e7ecf6);--mu:var(--secondary-text-color,#8b97b2);color:var(--tx)}
 .rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
 .rpop.open{display:flex;animation:fade .2s}
 .rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:#0f172a;border-radius:22px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
