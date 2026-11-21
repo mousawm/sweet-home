@@ -423,6 +423,56 @@ listed below).
   - While the dashboard is edited, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
     lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
 
+## Styling: themes and card-mod
+
+**Sweet Home 3D follows your theme.** It takes the theme's card corners, border and shadow, like any other card
+(`--ha-card-border-radius`, `--ha-card-border-width`, `--ha-card-border-color`, `--ha-card-box-shadow`). With a dark
+theme it also takes the theme's card background and text colours (`--ha-card-background` / `--card-background-color`,
+`--primary-text-color`, `--secondary-text-color`). With a light theme it stays a dark tile, like a media card. The
+full Sweet Home dashboard keeps its own look.
+
+**card-mod** works with both cards: add `card_mod:` to the card, as with any other card. Sweet Home has no `ha-card`
+element, so style `:host` (its colours) or one of the parts below instead of `ha-card`. The styles stay when you edit
+the card.
+
+| Colour variable (on `:host`) | Used for |
+|---|---|
+| `--teal` | The accent: selected buttons, icons and highlights (the 3D room outline keeps its own colour) |
+| `--amber`, `--rose`, `--violet`, `--blue`, `--green` | Lights, alerts, media, cold and good states |
+| `--panel`, `--panel2`, `--line` | Panel background, inner rows, borders |
+| `--tx`, `--mu` | Text and muted text |
+| `--bg` | The full dashboard's background |
+
+| Part | What it is |
+|---|---|
+| `.app` | The whole card |
+| `.top`, `.tabs`, `.foot` | The full card's header (greeting, clock, chips), tab bar and footer |
+| `.stage`, `.stage-top`, `.viewport` | The 3D view's frame, its title and buttons row, and the 3D picture |
+| `.card` | Each panel (Security, Energy…) |
+| `.drawer` | A room's controls (on Sweet Home 3D: the room pop-up) |
+
+```yaml
+# a different accent colour
+card_mod:
+  style: |
+    :host { --teal: #f59e0b; }
+```
+
+```yaml
+# Sweet Home 3D with no frame: only the 3D picture and its buttons
+type: custom:sweet-home-3d-card
+card_mod:
+  style: |
+    .stage { background: none; border: none; box-shadow: none; padding: 0; }
+```
+
+```yaml
+# the full card without the clock header and the footer
+card_mod:
+  style: |
+    .top, .foot { display: none; }
+```
+
 ## Gestures
 
 | Gesture | Action |

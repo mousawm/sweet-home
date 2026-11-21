@@ -28,6 +28,19 @@ async function open(query, viewport = { width: 1500, height: 2200 }) {
   return p;
 }
 
+  // card-mod puts a <card-mod> element (holding the card_mod styles) inside the card: it must survive the card's redraws
+  const cardModSurvives = pg => pg.evaluate(async () => {
+    const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), cfg0 = card._config, out = {};
+    const cm = document.createElement('card-mod'); cm.innerHTML = '<style>:host{--teal:rgb(1, 2, 3)}</style>'; R.appendChild(cm);
+    const teal = () => getComputedStyle(card).getPropertyValue('--teal').trim();
+    out.applied = teal() === 'rgb(1, 2, 3)';
+    card.setConfig({ ...cfg0, title: 'Renamed' }); await wait(700); // a soft redraw (the house is the same)
+    out.soft = cm.isConnected && cm.parentNode === R && teal() === 'rgb(1, 2, 3)' && R.querySelectorAll('card-mod').length === 1;
+    card.setConfig({ ...cfg0, house: { ...(cfg0.house || {}), wall_height: 1.2 } }); await wait(1200); // the house changed: rebuilt
+    out.hard = cm.isConnected && teal() === 'rgb(1, 2, 3)' && R.querySelectorAll('card-mod').length === 1;
+    card.setConfig(cfg0); await wait(1200); cm.remove();
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  });
 try {
   console.log('card');
   let p = await open('?config=demo');
@@ -467,6 +480,7 @@ try {
     const f = await col(71.6, '°F'), c = await col(22, '°C'), hot = await col(71.6, '°C'); card._select(null); card.hass = h;
     return f && f === c && f !== hot;
   }));
+  { const r = await cardModSurvives(p); check('card-mod: its styles stay after the card is redrawn (config change, house change)', r === true, r); }
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -948,6 +962,21 @@ try {
     const sel2 = editor.querySelector('ha-form select[name=room]'); sel2.value = ''; sel2.dispatchEvent(new Event('change')); out.removed = editor._config.room === undefined;
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('Sweet Home 3D room zoom: by name or area, on its floor without floor buttons; closing a room, 3D / floor plan come back to it', r === true, r); }
+  { const r = await cardModSurvives(p); check('Sweet Home 3D: card-mod styles stay after the card is redrawn', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, st = () => getComputedStyle(R.querySelector('.stage')), out = {}, h = card._hass._raw || card._hass;
+    card.style.setProperty('--ha-card-border-radius', '20px'); card.style.setProperty('--ha-card-background', 'rgb(40, 41, 42)'); card.style.setProperty('--primary-text-color', 'rgb(200, 201, 202)');
+    card.hass = { ...h, themes: { darkMode: false } }; await new Promise(r => setTimeout(r, 450));
+    out.radius = st().borderTopLeftRadius === '20px';
+    out.lightKeepsDark = !card.hasAttribute('dark-theme') && st().backgroundColor !== 'rgb(40, 41, 42)';
+    card.hass = { ...h, themes: { darkMode: true } }; await new Promise(r => setTimeout(r, 450));
+    out.dark = card.hasAttribute('dark-theme') && st().backgroundColor === 'rgb(40, 41, 42)' && getComputedStyle(R.querySelector('.title b')).color === 'rgb(200, 201, 202)';
+    out.popupOwn = getComputedStyle(R.getElementById('drawer')).backgroundColor !== 'rgb(40, 41, 42)';
+    out.got = [st().backgroundColor, getComputedStyle(R.querySelector('.title b')).color];
+    for (const v of ['--ha-card-border-radius', '--ha-card-background', '--primary-text-color']) card.style.removeProperty(v);
+    card.hass = { ...h, themes: { darkMode: false } };
+    return Object.values(out).filter(v => typeof v === 'boolean').every(Boolean) || JSON.stringify(out);
+  }); check('Sweet Home 3D: the theme\'s card corners always; a dark theme\'s card background and text colour too', r === true, r); }
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
