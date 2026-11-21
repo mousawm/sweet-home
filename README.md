@@ -66,8 +66,9 @@ as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
 
 ### Manual
 
-Download `sweet-home-card.js` from the latest release and put it in `/config/www/`. Then add
-`/local/sweet-home-card.js` as a JavaScript module resource.
+Download `sweet-home-card.js` and `sweet-home-editor.js` from the latest release and put both in `/config/www/`.
+Then add `/local/sweet-home-card.js` as a JavaScript module resource. The card loads the editor file by itself, and
+only when you edit the card.
 
 ## Add it to Home Assistant
 

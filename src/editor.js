@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
+import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -157,10 +157,6 @@ function footprint(f) {
 }
 const fpBox = fp => fp.rect || [fp.circle[0] - fp.circle[2], fp.circle[1] - fp.circle[2], fp.circle[0] + fp.circle[2], fp.circle[1] + fp.circle[2]];
 const inBox = ([x, z], [a, b, c, d], pad = 0) => x >= a - pad && x <= c + pad && z >= b - pad && z <= d + pad;
-function movePiece(f, dx, dz) {
-  if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
-  else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
-}
 // resize a piece to the rectangle x1,z1 – x2,z2 (or, for round pieces, to the distance from its centre)
 function sizePiece(f, x1, z1, x2, z2) {
   const t = String(f.type || 'box'); const w = r2(Math.abs(x2 - x1)), d = r2(Math.abs(z2 - z1)), cx = r2((x1 + x2) / 2), cz = r2((z1 + z2) / 2);

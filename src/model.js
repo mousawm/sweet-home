@@ -997,3 +997,11 @@ export function buildModel(cfg = {}, hass) {
     startTab: cfg.start_tab || 'home',
   };
 }
+
+// move a furniture piece by dx, dz (metres; a piece drawn from → to moves both ends). Used by the editor and by the
+// card when a piece is dragged in the 3D view.
+export function movePiece(f, dx, dz) {
+  const r2 = v => Math.round(v * 100) / 100, N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
+  if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
+  else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
+}

@@ -3,10 +3,9 @@
  * MIT licence. Use: `type: custom:sweet-home-card` (best in a panel view). Configure it in the card editor or YAML;
  * without any configuration the house is built from your Home Assistant areas.
  */
-import * as THREE_LIB from 'three';
+import { THREE_LIB } from './three.js'; // the parts of three.js the scene uses
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
-import { buildModel, cleanConfig } from './model.js';
-import { movePiece } from './editor.js';
+import { buildModel, cleanConfig, movePiece } from './model.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart } from './core.js';
 import { HouseScene } from './scene.js';
@@ -19,6 +18,17 @@ import { WaterPanels } from './panels/water.js';
 import { RenameTools } from './panels/rename.js';
 import { HomePanels } from './panels/home.js';
 import './strategy.js';
+
+// The card editor is its own file (sweet-home-editor.js, next to this one): only someone editing the card downloads it.
+// Its address carries the version, so a browser never keeps an editor from another version.
+let editorLoad = null;
+function loadEditor() {
+  if (customElements.get('sweet-home-card-editor')) return Promise.resolve();
+  return (editorLoad ||= import(new URL(`./sweet-home-editor.js?v=${VERSION}`, import.meta.url).href).catch(e => {
+    editorLoad = null;
+    throw new Error(`Sweet Home: could not load sweet-home-editor.js, which must sit next to sweet-home-card.js (${e.message})`);
+  }));
+}
 
 /* ------------------------------------------------------------------ */
 /* Card                                                                */
@@ -79,7 +89,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     if (this._sections?.length) this._rerender(); // the pencils on the panels come and go
   }
-  static getConfigElement() { return document.createElement('sweet-home-card-editor'); }
+  static async getConfigElement() { await loadEditor(); return document.createElement('sweet-home-card-editor'); }
   static getStubConfig() { return { title: 'My Home' }; }
   // a new config (card editor): throw the old house away and build again
   _rebuild(soft = false) {
@@ -891,7 +901,6 @@ export class SweetHomeCard extends HTMLElement {
       }
       case 'ehreset': this._eh = { ...this._eh, sel: null }; this._rerender('ehist'); break;
       case 'spk': { const k = t.dataset.k, h = this._spkHide || (this._spkHide = new Set()); h.has(k) ? h.delete(k) : h.add(k); this._spkPaint(); break; }
-      case 'press': this.call('button', 'press', { entity_id: id }); this._toast(`${t.dataset.label || 'Command'} sent`); break;
       case 'alexp': { const k = t.dataset.k; this._alOpen.has(k) ? this._alOpen.delete(k) : this._alOpen.add(k); this._rerender('alerts'); break; }
       case 'repairs': history.pushState(null, '', '/config/repairs'); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); break;
       case 'harestart': if (!this._armConfirm(t, id, 'Tap again to restart Home Assistant')) return; this.call('homeassistant', 'restart', {}); this._toast('Restarting Home Assistant…'); break;
@@ -1122,7 +1131,7 @@ export class SweetHome3DCard extends SweetHomeCard {
   static TYPE = 'sweet-home-3d-card';
   static SOLO = true;
   static getStubConfig() { return {}; }
-  static getConfigElement() { const e = document.createElement('sweet-home-card-editor'); e.solo = true; return e; }
+  static async getConfigElement() { await loadEditor(); const e = document.createElement('sweet-home-card-editor'); e.solo = true; return e; }
   getCardSize() { const h = parseInt(this._config?.height, 10); return Math.max(4, Math.round((h || 480) / 50)); }
   getGridOptions() { return { columns: 12, rows: 8, min_columns: 4, min_rows: 4 }; }
   // Home Assistant sets layout "grid" on cards in a sections view: the 3D view then fills the size picked there

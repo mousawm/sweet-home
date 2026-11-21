@@ -9,6 +9,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Changed
 
+- Faster loading: the card file is about 20% smaller (1.40 MB → 1.14 MB; 420 KB → 344 KB compressed). It now takes only the parts of three.js the 3D view uses, and the card editor is its own file (`sweet-home-editor.js`), downloaded only when you edit the card. Manual installs need both files next to each other.
+
 ### Added
 
 ## v0.6.45 — 2026-11-21
