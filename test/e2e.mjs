@@ -880,6 +880,21 @@ try {
   check('drawing a separate wall at an angle and making it a half wall', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
   await p.waitForTimeout(1500);
   check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
+  { const r = await p.evaluate(async () => {
+    editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 30));
+    const sel = () => editor.querySelector('ha-form select[name=appearance]'), out = {};
+    out.options = sel() && [...sel().options].map(o => o.value).join() === 'dark,light,auto';
+    sel().value = 'light'; sel().dispatchEvent(new Event('change'));
+    await new Promise(r => setTimeout(r, 700)); out.light = editor._config.appearance === 'light' && card.getAttribute('look') === 'light';
+    const h = card._hass._raw || card._hass;
+    sel().value = 'auto'; sel().dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 700));
+    card.hass = { ...h, themes: { darkMode: true } }; out.autoDark = card.getAttribute('look') === 'dark';
+    card.hass = { ...h, themes: { darkMode: false } }; out.autoLight = card.getAttribute('look') === 'light';
+    sel().value = 'dark'; sel().dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 700));
+    out.dark = editor._config.appearance === undefined && card.getAttribute('look') === 'dark';
+    card.hass = h; editor._step = 'rooms'; editor._render();
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('editor, Look: Appearance dark (default, not saved) / light / auto (follows the Home Assistant theme)', r === true, r); }
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

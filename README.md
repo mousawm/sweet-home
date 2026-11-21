@@ -192,6 +192,7 @@ Each 3D view uses the device's graphics. One or two on a dashboard is fine; it p
 | `people` | Each person's phone panel (long press their picture): `{person.x: {name, tracker, battery, charging, location, ringer, wifi, entities, buttons}}`. With none of `tracker`, `battery`, `charging`, `location`, `ringer`, `wifi` given they are all found on the person's phone (Companion app); once you give one, only the ones you give show; `entities` adds rows, `buttons` adds buttons (ring the phone, scripts…): `entity_id` or `{entity, name, icon}`. Without a name, a button shows its own name without "button" and the phone's name; without an icon, one is picked from what it does (ring → bell, location → target, flashlight, lock…). While the dashboard is edited, the pencil on the phone panel renames its rows and buttons for this dashboard. Set it up in the card editor: Panels → People. |
 | `room` | Sweet Home 3D only: zoom on one room, by its area, id or name (its floor buttons are hidden) |
 | `height` | Sweet Home 3D only: the height of the 3D view in pixels (default `420`; in a Sections view the card's size is used) |
+| `appearance` | The full card's look: `dark` (default), `light`, or `auto` (light or dark with your Home Assistant theme). The 3D view stays dark in both. Card editor: Look → Appearance. Sweet Home 3D always follows the theme. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
 | `default_view` | where the 3D view starts, per kind of device: `{phone: top, tablet: top, pc: 3d}` (`top` = floor plan from above, `3d` = angled view; not set: 3D on a computer, the floor plan on phones and tablets) |
 | `default_floor` | the floor shown first, per kind of device: `{phone: 0, tablet: 1, pc: 0}` (the floor's level; not set: the ground floor) |
@@ -432,7 +433,7 @@ card (`ha-card`), so it takes the theme's card background, corners, border and s
 `--ha-card-box-shadow`). Theme rules for cards also apply, such as a card-mod theme's `card-mod-card: ha-card {...}`.
 Its title, buttons and the room pop-up use the theme's text and divider colours (`--primary-text-color`,
 `--secondary-text-color`, `--divider-color`). The 3D picture itself stays dark, like a camera image, with the labels
-on it keeping their own colours. The full Sweet Home dashboard keeps its own look.
+on it keeping their own colours. The full Sweet Home dashboard has its own dark look, or a light one with `appearance: light` (or `auto`, to follow your theme's light or dark mode).
 
 **card-mod** works with both cards: add `card_mod:` to the card, as with any other card. On Sweet Home 3D, `ha-card {…}`
 styles the card itself; on both cards you can also style `:host` (the colours) or one of the parts below. The styles

@@ -1783,7 +1783,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '' };
+    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -1796,7 +1796,7 @@ class SweetHomeCardEditor extends HTMLElement {
       // Sweet Home 3D: the height of its 3D view (in a sections view, the size picked there wins); the full card: its first tab
       ...(this.solo ? [{ name: 'height', selector: { number: { min: 0, max: 1200, step: 10, unit_of_measurement: 'px', mode: 'box' } } },
         { name: 'room', selector: { select: { mode: 'dropdown', options: [{ value: '', label: t('Whole house') }, ...this._rooms.map((r, i) => ({ value: String(r.area || r.name || ''), label: this._roomName(r, i) })).filter(o => o.value)] } } }]
-        : [{ name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
+        : [{ name: 'appearance', selector: { select: { mode: 'dropdown', options: [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Follow Home Assistant (light or dark theme)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
@@ -1805,7 +1805,7 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(floors.length > 1 ? [{ type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'floor_' + d, selector: FLOOR })) }] : []),
     ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
-      if (!this.solo) { if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab; }
+      if (!this.solo) { if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab; if (['light', 'auto'].includes(v.appearance)) C.appearance = v.appearance; else delete C.appearance; }
       if (this.solo) { if (Number(v.height) > 0) C.height = Number(v.height); else delete C.height; if (v.room) C.room = v.room; else delete C.room; }
       const was = H.type;
       if (v.type === 'gltf') { H.type = 'gltf'; if (v.url) H.url = v.url; else delete H.url; } else { delete H.type; delete H.url; }
@@ -1821,7 +1821,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }

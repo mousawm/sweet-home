@@ -57,6 +57,7 @@ export class SweetHomeCard extends HTMLElement {
     const NAMES = ['names', 'light_names', 'lightNames', 'motion_names', 'motionNames'];
     this._houseJSON = JSON.stringify([this._config.house ?? null, this._config.language ?? null], (k, v) => (NAMES.includes(k) ? undefined : v));
     setSmart(this._config.smart_icons !== false);
+    this._applyLook();
     if (!this._built || prev === this._cfgJSON) return;
     this._softNext = (this._softNext ?? true) && prevHouse === this._houseJSON; // soft only if no change in the batch touched the house
     clearTimeout(this._rbT);
@@ -134,6 +135,7 @@ export class SweetHomeCard extends HTMLElement {
     h = this._withNames(h?._raw || h);
     this._hass = h;
     setFahr(String(h?.config?.unit_system?.temperature || '').toUpperCase().includes('F'));
+    this._applyLook();
     this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
     if (!this._model) this._model = buildModel(this._config || {}, h);
@@ -415,6 +417,13 @@ export class SweetHomeCard extends HTMLElement {
   }
 
   get _solo() { return this.constructor.SOLO === true; }
+  // light or dark look: `appearance` dark (default) / light / auto (Home Assistant's light or dark theme). Sweet Home 3D
+  // always follows the theme, like the cards around it.
+  _applyLook() {
+    const a = this._solo ? 'auto' : this._config?.appearance || 'dark';
+    const light = a === 'light' || (a === 'auto' && this._hass?.themes?.darkMode === false);
+    if (this.getAttribute('look') !== (light ? 'light' : 'dark')) this.setAttribute('look', light ? 'light' : 'dark');
+  }
   // Sweet Home 3D `room`: the room it is zoomed on (its id, Home Assistant area or name)
   _focusId() {
     const v = this._solo ? String(this._config?.room ?? '').trim().toLowerCase() : ''; if (!v) return null;

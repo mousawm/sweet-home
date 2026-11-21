@@ -68,6 +68,22 @@ try {
   check('no page errors (3D view)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('full card: light look');
+  p = await open('?config=demo', { width: 1400, height: 1000 });
+  await p.evaluate(() => card.setConfig({ ...card._config, appearance: 'light' })); await p.waitForTimeout(1500);
+  { const glance = await rectOf(p, '#glance'), vp = await rectOf(p, '#viewport'), clock = await rectOf(p, '#time');
+    const page = await pixels(p, { x: 0, y: 0, width: 1400, height: 20 });
+    const panel = await pixels(p, { x: glance.x + glance.width - 30, y: glance.y + 8, width: 20, height: 6 });
+    const pic = await pixels(p, { x: vp.x + 20, y: vp.y + 20, width: vp.width - 40, height: vp.height - 40 });
+    const time = await pixels(p, clock);
+    check('light look: a light page and light panels', page.lum > 200 && panel.lum > 200, JSON.stringify({ page, panel }));
+    check('light look: the 3D picture stays dark and drawn', pic.lum < 110 && pic.colours > 80, JSON.stringify(pic));
+    check('light look: the clock is dark on the light page (readable)', time.lum < page.lum - 40, JSON.stringify({ time, page })); }
+  await p.evaluate(() => card.setConfig({ ...card._config, appearance: 'dark' })); await p.waitForTimeout(1500);
+  { const page = await pixels(p, { x: 0, y: 0, width: 1400, height: 20 }); check('dark look (the default) is unchanged: a dark page', page.lum < 60, JSON.stringify(page)); }
+  check('no page errors (light look)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
   console.log('Sweet Home 3D: theme');
   for (const [name, dark, card, text] of [['light theme', false, [255, 255, 255], [33, 33, 33]], ['dark theme', true, [28, 28, 28], [225, 225, 225]]]) {
     p = await open('?config=demo&card=3d');

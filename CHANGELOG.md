@@ -15,6 +15,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- The full Sweet Home dashboard has a **light look**: `appearance: light`, or `auto` to follow your Home Assistant theme (light or dark). Set it in the card editor under Look → Appearance. Panels, tabs, header and pop-ups turn light, with darker accent colours so text stays readable; the 3D view stays dark. Dark stays the default and looks the same as before.
+
 ## v0.6.45 — 2026-11-21
 
 ### Fixed
