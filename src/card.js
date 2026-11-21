@@ -387,7 +387,6 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
-    if (this._solo) this.toggleAttribute('dark-theme', !!h?.themes?.darkMode); // Sweet Home 3D: blends with a dark theme's cards
     FAHR = String(h?.config?.unit_system?.temperature || '').toUpperCase().includes('F');
     this._syncEditing();
     setLang(this._config?.language || h?.locale?.language || h?.language);
@@ -553,7 +552,7 @@ export class SweetHomeCard extends HTMLElement {
     // card-mod puts its own <card-mod> element (the card_mod styles) inside the card: kept through the redraw, in its place
     const cmods = [...this.shadowRoot.children].filter(el => el.localName === 'card-mod').map(el => [el, el === this.shadowRoot.firstElementChild]);
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
-    <div class="app${this._solo ? ' solo' : ''}" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
+    ${this._solo ? '<ha-card class="sh-card">' : ''}<div class="app${this._solo ? ' solo' : ''}" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
       <header class="top">
         <div class="hello">
@@ -606,7 +605,7 @@ export class SweetHomeCard extends HTMLElement {
       <section class="tab" data-tab="system"><div class="tgrid"><div class="alerts" id="alerts"></div><div class="card" id="lab"></div><div class="card" id="devices"></div></div></section>
       </main>
       <footer class="foot">Sweet Home · v${VERSION}</footer>
-    </div>
+    </div>${this._solo ? '</ha-card>' : ''}
     ${this._solo ? `<div class="rpop" id="rpop" data-act="roomclose" dir="${isRTL() ? 'rtl' : 'ltr'}"><aside class="drawer" id="drawer" role="dialog" aria-modal="true"></aside></div>` : ''}
     <div class="sheet-bg" id="sheet" data-act="sheetclose"></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
@@ -5189,15 +5188,27 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .app.solo .viewport{flex:none;height:var(--solo-h,420px)}
 :host([solo][layout=grid]),:host([solo][layout=grid]) .app.solo{height:100%}
 :host([solo][layout=grid]) .app.solo .viewport{flex:1 1 auto;height:auto;min-height:120px}
-/* Sweet Home 3D sits among other cards: the theme's card corners, border and shadow (as ha-card). With a dark theme it
-   also takes the theme's card background and text colours; with a light one it stays a dark tile, like a media card */
-.app.solo .stage{background:#0f1626;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:var(--ha-card-border-radius,12px);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color,var(--line)));box-shadow:var(--ha-card-box-shadow,none)}
-.app.solo .viewport{border-radius:max(4px,calc(var(--ha-card-border-radius,12px) - 4px))}
-:host([solo][dark-theme]) .app.solo .stage{background:var(--ha-card-background,var(--card-background-color,var(--panel)));backdrop-filter:none;-webkit-backdrop-filter:none}
-:host([solo][dark-theme]) .app.solo{--tx:var(--primary-text-color,#e7ecf6);--mu:var(--secondary-text-color,#8b97b2);color:var(--tx)}
+/* Sweet Home 3D sits among other cards, so it follows the dashboard theme like they do. It is drawn inside a real
+   ha-card: the theme's card background, corners, border and shadow apply (and card-mod theme rules such as
+   card-mod-card: ha-card {...}). Its text, dividers and buttons take the theme's colours; the 3D picture stays dark (like
+   a camera image), with its own colours for the labels on it. Without a theme (or before ha-card is loaded) it falls back
+   to the card's own dark look. */
+.sh-card{display:block;box-sizing:border-box;min-width:0}
+:host([layout=grid]) .sh-card{height:100%}
+:where(ha-card.sh-card:not(:defined)){background:var(--ha-card-background,var(--card-background-color,#111827));border-radius:var(--ha-card-border-radius,12px);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color,rgba(255,255,255,.08)));box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color,#e7ecf6)}
+.app.solo{--tx:var(--primary-text-color,#e7ecf6);--mu:var(--secondary-text-color,#8b97b2);--line:var(--divider-color,rgba(255,255,255,.08));--panel2:color-mix(in srgb,var(--tx) 6%,transparent);color:var(--tx);font-family:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Inter,'Segoe UI',Roboto,system-ui,sans-serif))}
+.app.solo .stage{background:none;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.app.solo .seg{background:color-mix(in srgb,var(--tx) 6%,transparent)}
+.app.solo .seg button.on{background:color-mix(in srgb,var(--tx) 12%,transparent);color:var(--tx);box-shadow:none}
+@media (hover:hover){.app.solo .ibtn:hover{background:color-mix(in srgb,var(--tx) 10%,transparent)}}
+.app.solo .viewport{--tx:#e7ecf6;--mu:#8b97b2;--line:rgba(255,255,255,.08);--panel2:rgba(255,255,255,.04);color:var(--tx);border-color:var(--divider-color,rgba(255,255,255,.08));border-radius:max(4px,calc(var(--ha-card-border-radius,12px) - 4px))}
+/* the room pop-up: the theme's card surface and text colours */
+.rpop{--tx:var(--primary-text-color,#e7ecf6);--mu:var(--secondary-text-color,#8b97b2);--line:var(--divider-color,rgba(255,255,255,.12));--panel2:color-mix(in srgb,var(--tx) 6%,transparent)}
+.rpop .dh{background:var(--ha-card-background,var(--card-background-color,#0f172a))}
+.rpop .drawer.open{border-color:var(--divider-color,rgba(255,255,255,.12));color:var(--tx)}
 .rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
 .rpop.open{display:flex;animation:fade .2s}
-.rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:#0f172a;border-radius:22px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+.rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:var(--ha-card-background,var(--card-background-color,#0f172a));border-radius:var(--ha-dialog-border-radius,22px);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
 @media (max-width:860px){.rpop{align-items:flex-end}.rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{width:100%;max-height:80vh;border-radius:22px 22px 0 0}}
 `;
 

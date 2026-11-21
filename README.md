@@ -425,15 +425,17 @@ listed below).
 
 ## Styling: themes and card-mod
 
-**Sweet Home 3D follows your theme.** It takes the theme's card corners, border and shadow, like any other card
-(`--ha-card-border-radius`, `--ha-card-border-width`, `--ha-card-border-color`, `--ha-card-box-shadow`). With a dark
-theme it also takes the theme's card background and text colours (`--ha-card-background` / `--card-background-color`,
-`--primary-text-color`, `--secondary-text-color`). With a light theme it stays a dark tile, like a media card. The
-full Sweet Home dashboard keeps its own look.
+**Sweet Home 3D follows your theme**, light or dark, like any other card. It is drawn inside Home Assistant's own
+card (`ha-card`), so it takes the theme's card background, corners, border and shadow (`--ha-card-background` /
+`--card-background-color`, `--ha-card-border-radius`, `--ha-card-border-width`, `--ha-card-border-color`,
+`--ha-card-box-shadow`). Theme rules for cards also apply, such as a card-mod theme's `card-mod-card: ha-card {...}`.
+Its title, buttons and the room pop-up use the theme's text and divider colours (`--primary-text-color`,
+`--secondary-text-color`, `--divider-color`). The 3D picture itself stays dark, like a camera image, with the labels
+on it keeping their own colours. The full Sweet Home dashboard keeps its own look.
 
-**card-mod** works with both cards: add `card_mod:` to the card, as with any other card. Sweet Home has no `ha-card`
-element, so style `:host` (its colours) or one of the parts below instead of `ha-card`. The styles stay when you edit
-the card.
+**card-mod** works with both cards: add `card_mod:` to the card, as with any other card. On Sweet Home 3D, `ha-card {…}`
+styles the card itself; on both cards you can also style `:host` (the colours) or one of the parts below. The styles
+stay when you edit the card.
 
 | Colour variable (on `:host`) | Used for |
 |---|---|
