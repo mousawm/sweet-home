@@ -930,7 +930,7 @@ try {
     const R = card.shadowRoot, out = {};
     card.layout = 'grid'; card.style.cssText = 'display:block;height:300px'; await new Promise(r => setTimeout(r, 50));
     const vh = R.getElementById('viewport').getBoundingClientRect().height, ch = card.getBoundingClientRect().height;
-    out.fills = card.getAttribute('layout') === 'grid' && vh > 150 && vh < 300 && Math.abs(R.querySelector('.stage').getBoundingClientRect().height - ch) < 2;
+    out.fills = card.getAttribute('layout') === 'grid' && vh > 150 && vh < 300 && Math.abs(R.querySelector('.sh-card').getBoundingClientRect().height - ch) < 2;
     card.layout = undefined; card.style.cssText = '';
     out.steps = [...editor.querySelectorAll('[data-step]')].map(b => b.dataset.step).join() === 'rooms,look';
     editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 30));
@@ -964,19 +964,26 @@ try {
   }); check('Sweet Home 3D room zoom: by name or area, on its floor without floor buttons; closing a room, 3D / floor plan come back to it', r === true, r); }
   { const r = await cardModSurvives(p); check('Sweet Home 3D: card-mod styles stay after the card is redrawn', r === true, r); }
   { const r = await p.evaluate(async () => {
-    const R = card.shadowRoot, st = () => getComputedStyle(R.querySelector('.stage')), out = {}, h = card._hass._raw || card._hass;
-    card.style.setProperty('--ha-card-border-radius', '20px'); card.style.setProperty('--ha-card-background', 'rgb(40, 41, 42)'); card.style.setProperty('--primary-text-color', 'rgb(200, 201, 202)');
-    card.hass = { ...h, themes: { darkMode: false } }; await new Promise(r => setTimeout(r, 450));
-    out.radius = st().borderTopLeftRadius === '20px';
-    out.lightKeepsDark = !card.hasAttribute('dark-theme') && st().backgroundColor !== 'rgb(40, 41, 42)';
-    card.hass = { ...h, themes: { darkMode: true } }; await new Promise(r => setTimeout(r, 450));
-    out.dark = card.hasAttribute('dark-theme') && st().backgroundColor === 'rgb(40, 41, 42)' && getComputedStyle(R.querySelector('.title b')).color === 'rgb(200, 201, 202)';
-    out.popupOwn = getComputedStyle(R.getElementById('drawer')).backgroundColor !== 'rgb(40, 41, 42)';
-    out.got = [st().backgroundColor, getComputedStyle(R.querySelector('.title b')).color];
-    for (const v of ['--ha-card-border-radius', '--ha-card-background', '--primary-text-color']) card.style.removeProperty(v);
-    card.hass = { ...h, themes: { darkMode: false } };
-    return Object.values(out).filter(v => typeof v === 'boolean').every(Boolean) || JSON.stringify(out);
-  }); check('Sweet Home 3D: the theme\'s card corners always; a dark theme\'s card background and text colour too', r === true, r); }
+    const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), out = {}, cs = el => getComputedStyle(el);
+    const box = R.querySelector('.sh-card'); out.haCard = box?.localName === 'ha-card' && box.contains(R.getElementById('viewport'));
+    // a light theme: white cards, dark text, big corners and a shadow
+    const V = { '--card-background-color': 'rgb(255, 255, 255)', '--primary-text-color': 'rgb(33, 33, 33)', '--secondary-text-color': 'rgb(114, 114, 114)', '--divider-color': 'rgb(224, 224, 224)', '--ha-card-border-radius': '18px', '--ha-card-box-shadow': 'rgb(0, 0, 0) 0px 4px 10px 0px' };
+    for (const [k, v] of Object.entries(V)) card.style.setProperty(k, v);
+    await wait(100);
+    out.surface = cs(box).backgroundColor === 'rgb(255, 255, 255)' && cs(box).borderTopLeftRadius === '18px' && cs(box).boxShadow.includes('4px 10px');
+    out.text = cs(R.querySelector('.title b')).color === 'rgb(33, 33, 33)' && cs(R.querySelector('.title span')).color === 'rgb(114, 114, 114)';
+    out.stagePlain = cs(R.querySelector('.stage')).backgroundColor === 'rgba(0, 0, 0, 0)';
+    out.pictureOwn = cs(R.getElementById('legend')).color !== 'rgb(114, 114, 114)'; // the labels on the 3D picture keep their own colours
+    card._select('kitchen'); await wait(100);
+    const dr = R.getElementById('drawer'); out.popup = cs(dr).backgroundColor === 'rgb(255, 255, 255)' && cs(dr).color === 'rgb(33, 33, 33)';
+    card._select(null);
+    // a card-mod theme (card-mod-card: ha-card {...}) or card_mod `ha-card` styles reach the card
+    const cm = document.createElement('card-mod'); cm.innerHTML = '<style>ha-card{border-radius:30px}</style>'; R.appendChild(cm); await wait(50);
+    out.cardModHaCard = cs(box).borderTopLeftRadius === '30px'; cm.remove();
+    for (const k of Object.keys(V)) card.style.removeProperty(k);
+    await wait(50); out.fallback = cs(box).backgroundColor !== 'rgb(255, 255, 255)'; // the theme gone: not white any more
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Sweet Home 3D: inside an ha-card that follows the theme (light or dark), with a themed pop-up; card-mod ha-card styles apply', r === true, r); }
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

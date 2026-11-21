@@ -13,7 +13,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
-- Sweet Home 3D follows the dashboard theme: the theme's card corners, border and shadow, and with a dark theme its card background and text colours, so it matches the cards around it. With a light theme it stays a dark tile.
+- Sweet Home 3D follows the dashboard theme, light or dark, like the cards around it. It is drawn inside Home Assistant's card (`ha-card`), so it takes the theme's card background, corners, border and shadow, as well as card-mod theme rules and `card_mod` `ha-card` styles. Its title, buttons and room pop-up use the theme's text colours; the 3D picture stays dark, like a camera image.
 - README: a *Styling* section with the card's colour variables, the parts to style with card-mod, and examples.
 - Sweet Home 3D: **room zoom**. The new `room` option (card editor → Look → *Zoom on one room*) opens the card framed on one room, on its floor, with no floor buttons. Closing a room's pop-up, or tapping the 3D / floor plan buttons, comes back to it.
 
