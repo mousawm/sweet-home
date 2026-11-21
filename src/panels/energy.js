@@ -38,7 +38,9 @@ export class EnergyPanels {
     const top = cons.slice(0, 3), FH = top.length ? 292 : 170;
     const DX = [246, 150, 54];
     const devPaths = top.map((c, k) => `<path class="fl act dev s${spd(c[2])}" d="${k === 0 ? 'M246 186 L246 212' : `M246 186 C246 200, ${DX[k]} 196, ${DX[k]} 212`}"/>`).join('');
-    const devNodes = top.map(([n, i, w, id], k) => `<div class="node n-dev" style="left:${(DX[k] / 300 * 100).toFixed(2)}%" data-act="more" data-id="${id}">${ic(i)}<b>${fmtW(w)}</b><span>${esc(n)}</span></div>`).join('');
+    // a bubble glows while power flows through it (Solar producing, Grid importing or exporting, Home and devices using)
+    const on = w => (Math.abs(w) > 5 ? 'on' : '');
+    const devNodes = top.map(([n, i, w, id], k) => `<div class="node n-dev ${on(w)}" style="left:${(DX[k] / 300 * 100).toFixed(2)}%" data-act="more" data-id="${id}">${ic(i)}<b>${fmtW(w)}</b><span>${esc(n)}</span></div>`).join('');
     return `<div class="ch">${ic('mdi:solar-power-variant')}<h3>${tr("Energy")}</h3><span class="pill" style="--c:${exporting ? '#34d399' : '#fbbf24'}">${exporting ? tr("Exporting") : tr("Importing")}</span></div>
       <div class="flow" style="height:${FH}px">
         <svg viewBox="0 0 300 ${FH}" class="flowsvg">
@@ -50,9 +52,9 @@ export class EnergyPanels {
           <path class="fl ${exporting ? 'act s' + spd(-g) : ''} exp" d="M124 22 C78 22, 54 48, 54 94"/>
           ${devPaths}
         </svg>
-        <div class="node n-sun" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : ''}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>${tr("Solar")}</span></div>
-        <div class="node n-grid ${exporting ? 'exp' : ''}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : ''}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? tr("To Grid") : tr("From Grid")}</span></div>
-        <div class="node n-home" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : ''}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>${tr("Home")}${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
+        <div class="node n-sun ${on(s)}" ${this.s(E.energy.solar) ? `data-act="more" data-id="${E.energy.solar}"` : ''}>${ic('mdi:solar-panel-large')}<b>${fmtW(s)}</b><span>${tr("Solar")}</span></div>
+        <div class="node n-grid ${exporting ? 'exp' : ''} ${on(g)}" ${this.s(E.energy.grid) ? `data-act="more" data-id="${E.energy.grid}"` : ''}>${ic('mdi:transmission-tower')}<b>${fmtW(Math.abs(g))}</b><span>${exporting ? tr("To Grid") : tr("From Grid")}</span></div>
+        <div class="node n-home ${on(home)}" ${this.s(E.energy.current) ? `data-act="more" data-id="${E.energy.current}"` : ''}>${ic('mdi:home-lightning-bolt')}<b>${fmtW(home)}</b><span>${tr("Home")}${E.energy.current ? ` · ${this.f(E.energy.current, 1)}` : ''}</span></div>
         ${devNodes}
       </div>
       <div class="spark" id="spark">${this._sparkSVG()}</div>

@@ -481,6 +481,25 @@ try {
     return f && f === c && f !== hot;
   }));
   { const r = await cardModSurvives(p); check('card-mod: its styles stay after the card is redrawn (config change, house change)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // the energy flow: a bubble glows only while power flows through it (grid / solar sensors picked in the config)
+    const cfg0 = card._config; card.setConfig({ ...cfg0, panels: { ...(cfg0.panels || {}), energy: { grid_power: 'sensor.grid_power', solar_power: 'sensor.solar_power' } } }); await new Promise(r => setTimeout(r, 900));
+    const h = card._hass._raw || card._hass, keep = { ...h.states }, out = {};
+    const flow = (grid, solar) => {
+      h.states = { ...keep, 'sensor.grid_power': { ...keep['sensor.grid_power'], state: String(grid) }, 'sensor.solar_power': { ...keep['sensor.solar_power'], state: String(solar) } };
+      card._hass = h; const t = document.createElement('template'); t.innerHTML = card._rEnergy();
+      const cls = sel => t.content.querySelector(sel)?.className || '';
+      return { sun: /\bon\b/.test(cls('.n-sun')), grid: /\bon\b/.test(cls('.n-grid')), exp: /\bexp\b/.test(cls('.n-grid')), home: /\bon\b/.test(cls('.n-home')), devs: [...t.content.querySelectorAll('.n-dev')].map(d => /\bon\b/.test(d.className)) };
+    };
+    const night = flow(438, 0);
+    out.night = !night.sun && night.grid && night.home && night.devs.every(Boolean);
+    const sunny = flow(-500, 2100);
+    out.exporting = sunny.sun && sunny.grid && sunny.exp && sunny.home;
+    const idle = flow(0, 0);
+    out.idle = !idle.sun && !idle.grid && !idle.home;
+    h.states = keep; card._hass = h; card.setConfig(cfg0); await new Promise(r => setTimeout(r, 900));
+    return Object.values(out).every(Boolean) || JSON.stringify({ ...out, night, sunny, idle });
+  }); check('energy flow: a bubble glows only while power flows (no Solar glow at 0 W, Grid glows importing or exporting)', r === true, r); }
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
