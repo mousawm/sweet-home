@@ -482,9 +482,15 @@ ha-icon.spin{animation:spin 1.2s linear infinite}
 .node{position:absolute;display:flex;flex-direction:column;align-items:center;width:96px;cursor:pointer;line-height:1.15}
 .node ha-icon{--mdc-icon-size:24px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin-bottom:4px}
 .node b{font-size:15px;font-weight:700}.node span{font-size:10.5px;color:var(--mu);white-space:nowrap}
-.n-sun{left:50%;top:-4px;transform:translateX(-50%)}.n-sun ha-icon{background:rgba(251,191,36,.16);color:var(--amber);box-shadow:0 0 24px -6px var(--amber)}
+.n-sun{left:50%;top:-4px;transform:translateX(-50%)}.n-sun ha-icon{background:rgba(251,191,36,.16);color:var(--amber)}
 .n-grid{left:6px;top:96px}.n-grid ha-icon{background:rgba(96,165,250,.16);color:var(--blue)}.n-grid.exp ha-icon{background:rgba(52,211,153,.18);color:var(--green)}
-.n-home{right:6px;top:96px}.n-home ha-icon{background:rgba(167,139,250,.18);color:var(--violet);box-shadow:0 0 24px -6px var(--violet)}
+.n-home{right:6px;top:96px}.n-home ha-icon{background:rgba(167,139,250,.18);color:var(--violet)}
+/* the glow: power flowing through the bubble (none at 0 W) */
+.node ha-icon{transition:box-shadow .4s}
+.n-sun.on ha-icon{box-shadow:0 0 24px -6px var(--amber)}
+.n-grid.on ha-icon{box-shadow:0 0 24px -6px var(--blue)}.n-grid.exp.on ha-icon{box-shadow:0 0 24px -6px var(--green)}
+.n-home.on ha-icon{box-shadow:0 0 24px -6px var(--violet)}
+.n-dev.on ha-icon{box-shadow:0 0 18px -7px var(--violet)}
 .spark{margin:26px 0 12px;min-height:150px}
 .spk-wrap{display:grid;grid-template-columns:max-content 1fr;column-gap:6px;grid-template-rows:120px 16px}
 .spk-y{position:relative;font-size:9.5px;font-variant-numeric:tabular-nums}.spk-y i{display:block;visibility:hidden;height:0;font-style:normal}.spk-y::before{content:'kW';position:absolute;top:-15px;left:0;font-size:9px;color:var(--mu);opacity:.7}.spk-y span{position:absolute;right:0;transform:translateY(-50%);line-height:1;color:var(--mu)}
