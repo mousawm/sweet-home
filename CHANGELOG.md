@@ -11,6 +11,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+- Sweet Home 3D: **room zoom**. The new `room` option (card editor → Look → *Zoom on one room*) opens the card framed on one room, on its floor, with no floor buttons. Closing a room's pop-up, or tapping the 3D / floor plan buttons, comes back to it.
+
 ## v0.6.44 — 2026-11-20
 
 ### Fixed
