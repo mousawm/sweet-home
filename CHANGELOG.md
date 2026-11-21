@@ -7,10 +7,16 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+### Changed
+
+### Added
+
+## v0.6.46 — 2026-11-21
+
+### Fixed
+
 - Energy flow: a bubble now glows only while power flows through it. Before, Solar and Home always glowed (Solar even at 0 W at night) while the Grid and the devices never did. Now Solar glows while producing, the Grid while importing (blue) or exporting (green), and Home and each device while using power.
-
 - Light look (and Sweet Home 3D in a light theme): the Lights / Climate / Presence switch had a muddy grey track and its selected option barely stood out. It now has a soft light track with the selected option on a white pill, and darker labels. The media artwork placeholder is light too.
-
 - Arabic: about 130 texts that were always shown in English are now translated. They include panel and section titles (Energy History, Media Server, Coming Up, Library, Storage…), buttons (Show all, Reboot, Reconnect…), status words (Downloading, Importing, Stopped…), alarm states, AC modes, Home Lab gauges and the option chips. A new test checks every tab for English text left untranslated.
 
 ### Changed
@@ -20,7 +26,6 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Added
 
 - Several servers of the same kind are all used. **Media Server:** two Sonarr, Radarr or qBittorrent servers (for example a 4K Radarr) add up their shows, movies, wanted, speeds and torrents, and combine their queues, calendars and storage; the editor's *Found from* list says *2 servers*. **Home Lab:** with several Proxmox nodes, one chip per node switches the gauges; `homelab.node` sets the one shown first.
-
 - The full Sweet Home dashboard has a **light look**: `appearance: light`, or `auto` to follow your Home Assistant theme (light or dark). Set it in the card editor under Look → Appearance. Panels, tabs, header and pop-ups turn light, with darker accent colours so text stays readable; the 3D view stays dark. Dark stays the default and looks the same as before.
 
 ## v0.6.45 — 2026-11-21
