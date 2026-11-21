@@ -712,6 +712,33 @@ try {
     card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 500));
     return (out.all === 'Now Watching,Library,Coming Up,Downloads' && out.some === 'Library' && out.noWanted) || JSON.stringify(out);
   }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching, Wanted and Downloads', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // two Radarr servers and two qBittorrents (one config entry each), two Proxmox nodes
+    const h = card._hass._raw || card._hass, cfg0 = card._config, out = {};
+    const add = (id, pl, v, entry) => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl, config_entry_id: entry }; };
+    add('sensor.radarr_movies', 'radarr', '300', 'r1'); add('sensor.radarr_4k_movies', 'radarr', '40', 'r2');
+    add('sensor.qbittorrent_download_speed', 'qbittorrent', '2.5', 'q1'); add('sensor.qbit_nas_download_speed', 'qbittorrent', '1.5', 'q2');
+    add('sensor.qbittorrent_active_torrents', 'qbittorrent', '3', 'q1'); add('sensor.qbit_nas_active_torrents', 'qbittorrent', '4', 'q2');
+    add('sensor.node_pve2_cpu_used', 'proxmoxve', '77', 'p1');
+    const pveEnt = h.entities['sensor.node_pve_cpu_used']; h.entities['sensor.node_pve_cpu_used'] = { entity_id: 'sensor.node_pve_cpu_used', platform: 'proxmoxve', config_entry_id: 'p1' }; // as in Home Assistant: every node is Proxmox's
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    const ms = card._rMServer();
+    out.movies = /<b>340<\/b><span>Movies/.test(ms);
+    out.speed = /<b>4\.0<small>MB\/s/.test(ms);
+    out.torrents = /<b>7<small>\//.test(ms);
+    card._setTab('system'); await new Promise(r => setTimeout(r, 300));
+    const R = card.shadowRoot, chips = () => [...R.querySelectorAll('#lab .labnodes button')];
+    out.chips = chips().map(b => b.textContent.trim()).join() === 'pve,pve2' && chips()[0].classList.contains('on');
+    chips()[1].click(); await new Promise(r => setTimeout(r, 100));
+    out.switched = chips()[1].classList.contains('on') && R.querySelector('#lab .ring[data-id="sensor.node_pve2_cpu_used"]') !== null;
+    chips()[0].click(); await new Promise(r => setTimeout(r, 100));
+    out.back = R.querySelector('#lab .ring[data-id="sensor.node_pve_cpu_used"]') !== null;
+    card._setTab('home');
+    for (const id of ['sensor.radarr_movies', 'sensor.radarr_4k_movies', 'sensor.qbittorrent_download_speed', 'sensor.qbit_nas_download_speed', 'sensor.qbittorrent_active_torrents', 'sensor.qbit_nas_active_torrents', 'sensor.node_pve2_cpu_used']) { delete h.states[id]; delete h.entities[id]; }
+    if (pveEnt) h.entities['sensor.node_pve_cpu_used'] = pveEnt; else delete h.entities['sensor.node_pve_cpu_used'];
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    return Object.values(out).every(Boolean) || JSON.stringify({ ...out, ms: ms.slice(ms.indexOf('mlib'), ms.indexOf('mlib') + 600) });
+  }); check('several instances: two Radarr servers and two qBittorrents add up; Home Lab switches between Proxmox nodes', r === true, r); }
   await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entrances]')][0]; i.value = 'cover.garage_door'; i.dispatchEvent(new Event('change')); });
   check('picking entrances in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '["cover.garage_door"]'));
   await p.waitForTimeout(1500);
@@ -880,6 +907,21 @@ try {
   check('drawing a separate wall at an angle and making it a half wall', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
   await p.waitForTimeout(1500);
   check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
+  { const r = await p.evaluate(async () => {
+    editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 30));
+    const sel = () => editor.querySelector('ha-form select[name=appearance]'), out = {};
+    out.options = sel() && [...sel().options].map(o => o.value).join() === 'dark,light,auto';
+    sel().value = 'light'; sel().dispatchEvent(new Event('change'));
+    await new Promise(r => setTimeout(r, 700)); out.light = editor._config.appearance === 'light' && card.getAttribute('look') === 'light';
+    const h = card._hass._raw || card._hass;
+    sel().value = 'auto'; sel().dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 700));
+    card.hass = { ...h, themes: { darkMode: true } }; out.autoDark = card.getAttribute('look') === 'dark';
+    card.hass = { ...h, themes: { darkMode: false } }; out.autoLight = card.getAttribute('look') === 'light';
+    sel().value = 'dark'; sel().dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 700));
+    out.dark = editor._config.appearance === undefined && card.getAttribute('look') === 'dark';
+    card.hass = h; editor._step = 'rooms'; editor._render();
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('editor, Look: Appearance dark (default, not saved) / light / auto (follows the Home Assistant theme)', r === true, r); }
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -990,6 +1032,31 @@ try {
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
   check('right-to-left layout and Arabic text', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'rtl' && card.shadowRoot.querySelector('#tabs').textContent.includes('الرئيسية')));
+  { const r = await p.evaluate(async () => {
+    // every panel, rendered in Arabic: no text the dictionary can translate is left in English
+    const { t, setLang } = await import('/src/i18n.js'); setLang('ar');
+    const left = new Set(), R = card.shadowRoot;
+    for (const tab of ['home', 'security', 'climate', 'energy', 'water', 'media', 'system']) {
+      if (!card._tabOn(tab)) continue;
+      card._setTab(tab); await new Promise(r => setTimeout(r, 300));
+      const w = document.createTreeWalker(R, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const x = n.textContent.trim();
+        if (x && /[A-Za-z]/.test(x) && t(x) !== x && !n.parentElement.closest('.lbl, .sh-h, style')) left.add(x);
+      }
+    }
+    // the Media Server (the demo house has none): rendered on its own
+    const h = card._hass._raw || card._hass, add = (id, pl, v) => { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('media_player.jellyfin_tv', 'jellyfin', 'idle'); add('sensor.sonarr_shows', 'sonarr', '4'); add('sensor.sonarr_wanted', 'sonarr', '1'); add('calendar.sonarr', 'sonarr', 'off');
+    add('sensor.radarr_movies', 'radarr', '9'); add('sensor.qbittorrent_download_speed', 'qbittorrent', '0'); add('sensor.radarr_queue', 'radarr', '1');
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    card._mcal = { at: Date.now(), items: [] };
+    const tpl = document.createElement('template'); tpl.innerHTML = card._rMServer();
+    const w2 = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+    for (let n = w2.nextNode(); n; n = w2.nextNode()) { const x = n.textContent.trim().replace(/\s*›$/, ''); if (x && /[A-Za-z]/.test(x) && t(x) !== x) left.add(x); }
+    card._setTab('home');
+    return !left.size || JSON.stringify([...left]);
+  }); check('Arabic: no translatable English text left on any tab', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

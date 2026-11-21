@@ -4,6 +4,7 @@ globalThis.document = { createElement: () => ({ style: {}, setAttribute() {}, ap
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {} }); globalThis.customCards = []; globalThis.localStorage = { getItem() {}, setItem() {} };
 try {
   await import(new URL('../dist/sweet-home-card.js', import.meta.url));
+  await import(new URL('../dist/sweet-home-editor.js', import.meta.url));
   const { buildModel } = await import(new URL('../src/model.js', import.meta.url));
   const m = buildModel({}, { states: {}, entities: {}, devices: {}, areas: {}, floors: {} });
   if (!m.rooms || !m.E) throw new Error('empty model');

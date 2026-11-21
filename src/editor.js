@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
+import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -157,10 +157,6 @@ function footprint(f) {
 }
 const fpBox = fp => fp.rect || [fp.circle[0] - fp.circle[2], fp.circle[1] - fp.circle[2], fp.circle[0] + fp.circle[2], fp.circle[1] + fp.circle[2]];
 const inBox = ([x, z], [a, b, c, d], pad = 0) => x >= a - pad && x <= c + pad && z >= b - pad && z <= d + pad;
-function movePiece(f, dx, dz) {
-  if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
-  else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
-}
 // resize a piece to the rectangle x1,z1 – x2,z2 (or, for round pieces, to the distance from its centre)
 function sizePiece(f, x1, z1, x2, z2) {
   const t = String(f.type || 'box'); const w = r2(Math.abs(x2 - x1)), d = r2(Math.abs(z2 - z1)), cx = r2((x1 + x2) / 2), cz = r2((z1 + z2) / 2);
@@ -1305,9 +1301,10 @@ class SweetHomeCardEditor extends HTMLElement {
   _integrations(det, k, cur, set) {
     const ents = this._hass.entities || {}, states = this._hass.states;
     const of = p => Object.keys(ents).filter(id => ents[id].platform === p && states[id]);
-    const n = p => { const c = of(p).length; return c ? `${c} ${c === 1 ? t('entity') : t('entities')}` : ''; };
-    const pve = (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(m => m && ents[m[0]]?.platform === 'proxmoxve')
-      || Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(Boolean) || [])[1];
+    // "14 entities", or with several servers of the same integration (one config entry each) "2 servers · 14 entities"
+    const n = p => { const ids = of(p), c = ids.length, k = new Set(ids.map(id => ents[id].config_entry_id || '-')).size;
+      return c ? `${k > 1 ? `${k} ${t('servers')} · ` : ''}${c} ${c === 1 ? t('entity') : t('entities')}` : ''; };
+    const nodes = [...new Set(Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).filter(Boolean).map(m => m[1]))], pve = nodes[0];
     const hybrid = ['hybrid', 'jellyha'].includes(cur.integration) || (!cur.integration && !of('jellyfin').length && of('jellyha').length);
     // [key stored in the panel's config (null: no switch), name, what it shows, found, detail, hint when not found]
     const rows = {
@@ -1319,7 +1316,7 @@ class SweetHomeCardEditor extends HTMLElement {
         ['radarr', 'Radarr', 'Movies, Coming Up', of('radarr').length > 0, n('radarr'), 'Add the Radarr integration'],
         ['qbittorrent', 'qBittorrent', 'Downloads', of('qbittorrent').length > 0, n('qbittorrent'), 'Add the qBittorrent integration'],
       ],
-      homelab: [[null, 'Proxmox VE', 'Server, containers and VMs', !!pve, pve ? `${t('node')} ${pve}` : '', 'Add the Proxmox VE integration (HACS)']],
+      homelab: [[null, 'Proxmox VE', 'Server, containers and VMs', !!pve, pve ? `${nodes.length > 1 ? t('nodes') : t('node')} ${nodes.join(', ')}` : '', 'Add the Proxmox VE integration (HACS)']],
     }[k];
     if (!rows) return;
     const box = document.createElement('div'); box.className = 'sh-int';
@@ -1787,7 +1784,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '' };
+    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -1800,7 +1797,7 @@ class SweetHomeCardEditor extends HTMLElement {
       // Sweet Home 3D: the height of its 3D view (in a sections view, the size picked there wins); the full card: its first tab
       ...(this.solo ? [{ name: 'height', selector: { number: { min: 0, max: 1200, step: 10, unit_of_measurement: 'px', mode: 'box' } } },
         { name: 'room', selector: { select: { mode: 'dropdown', options: [{ value: '', label: t('Whole house') }, ...this._rooms.map((r, i) => ({ value: String(r.area || r.name || ''), label: this._roomName(r, i) })).filter(o => o.value)] } } }]
-        : [{ name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
+        : [{ name: 'appearance', selector: { select: { mode: 'dropdown', options: [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Follow Home Assistant (light or dark theme)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
@@ -1809,7 +1806,7 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(floors.length > 1 ? [{ type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'floor_' + d, selector: FLOOR })) }] : []),
     ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
-      if (!this.solo) { if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab; }
+      if (!this.solo) { if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab; if (['light', 'auto'].includes(v.appearance)) C.appearance = v.appearance; else delete C.appearance; }
       if (this.solo) { if (Number(v.height) > 0) C.height = Number(v.height); else delete C.height; if (v.room) C.room = v.room; else delete C.room; }
       const was = H.type;
       if (v.type === 'gltf') { H.type = 'gltf'; if (v.url) H.url = v.url; else delete H.url; } else { delete H.type; delete H.url; }
@@ -1825,7 +1822,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }

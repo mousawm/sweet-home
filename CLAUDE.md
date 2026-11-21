@@ -19,3 +19,16 @@
 - When asked to "create a PR and merge it": open the PR, then **wait for its GitHub checks (Build and HACS validation) to finish and pass before merging**. Running `npm test` locally first is still required, but it does not replace CI (CI runs on a clean machine and also checks that `dist/` is up to date).
 - If a check fails: find the cause, fix it on the branch, and wait for the checks again. Never merge on red or on checks still running; if it can't be fixed, report why instead of merging.
 - After merging, confirm the checks on `main` passed too.
+
+## Code layout
+
+- `src/card.js`: the card element (config, hass, build, tabs, clicks, room selection, sheets) and `SweetHome3DCard`.
+- `src/panels/*.js`: one file per area (home, security, energy, water, media, system, rename). Each exports a class
+  whose methods are installed on `SweetHomeCard.prototype` in `card.js`, so `this` is the card.
+- `src/scene.js`: the Three.js scene (`HouseScene`). `src/styles.js`: the stylesheet. `src/core.js`: shared helpers
+  and the current model (`MODEL`, `E`, `ROOMS`…, switched with `useModel`); change `FAHR` / `SHARED` / `SMART` only
+  through `setFahr` / `setShared` / `setSmart`.
+- `src/model.js`: config + Home Assistant → model (pure, unit-tested). `src/editor.js`: the card editor. `src/i18n.js`:
+  translations (`t()`).
+- Tests: `test/model.test.mjs` (model), `test/e2e.mjs` (card and editor in a browser, fake WebGL), `test/visual.mjs`
+  (real WebGL screenshots, pixel checks).

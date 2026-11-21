@@ -140,7 +140,7 @@ if (new URLSearchParams(location.search).get('editor')) {
   });
   if (!customElements.get('ha-switch')) customElements.define('ha-switch', class extends HTMLElement { connectedCallback() { this.innerHTML = '<input type=checkbox>'; } });
   document.body.style.cssText += ';display:grid;grid-template-columns:420px 1fr;gap:12px;--primary-color:#03a9f4;--divider-color:#3a3f4b;--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--secondary-background-color:#1c1f26;--card-background-color:#111318;--error-color:#ef4444;--warning-color:#ffa600';
-  const ed = C.getConfigElement(); // Sweet Home 3D: the editor without the Panels step ed.style.cssText = 'padding:12px;max-height:100vh;overflow:auto;font-size:14px';
+  const ed = await C.getConfigElement(); // loads sweet-home-editor.js; Sweet Home 3D: the editor without the Panels step ed.style.cssText = 'padding:12px;max-height:100vh;overflow:auto;font-size:14px';
   document.body.appendChild(ed); ed.setConfig(cfg); ed.hass = hass;
   ed.addEventListener('config-changed', e => { window.lastConfig = e.detail.config; el.setConfig(e.detail.config); ed.setConfig(e.detail.config); });
   window.editor = ed;

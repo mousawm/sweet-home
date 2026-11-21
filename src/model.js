@@ -832,8 +832,10 @@ export function buildModel(cfg = {}, hass) {
   });
 
   // Proxmox VE (custom integration "proxmoxve"): the first node
-  const pveNode = (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(m => m && R.platform(m[0]) === 'proxmoxve') || [])[1]
-    || (Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).find(Boolean) || [])[1];
+  // Proxmox VE: every node (sensor.node_<name>_cpu_used); Proxmox's own first, then any other
+  const nodeIds = Object.keys(states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)).filter(Boolean);
+  const pveNodes = [...new Set([...nodeIds.filter(m => R.platform(m[0]) === 'proxmoxve'), ...nodeIds].map(m => m[1]))];
+  const pveNode = (P.homelab?.node && pveNodes.includes(P.homelab.node) ? P.homelab.node : pveNodes[0]) || null;
   // Home Lab: every sensor is found from the node's name, or picked in the card editor (panels.homelab: cpu, memory, disk,
   // swap, temperature, containers, vms, updates). auto_guests (on by default): every container / VM is listed, pinned ones
   // first; off: only the pinned ones.
@@ -848,10 +850,31 @@ export function buildModel(cfg = {}, hass) {
     guests: arr(HL.pinned).map(g => typeof g === 'string' ? [g, null, null] : [g.key, g.name, g.icon]),
     order: arr(HL.order).map(String), // guest order set by dragging the rows (Proxmox ids)
     auto: HL.auto_guests !== false,
-  } : { guests: [], order: [], auto: true };
+    nodes: pveNodes,
+  } : { guests: [], order: [], auto: true, nodes: [] };
+  // the other nodes' gauges (the Home Lab card switches between nodes; picked sensors are the first node's only)
+  if (lab.nodes.length > 1) lab.byNode = Object.fromEntries(pveNodes.map(n => {
+    const nd = suf => `${suf[0]}.node_${n}_${suf[1]}`;
+    return [n, n === pveNode ? null : { node: n, status: nd(['binary_sensor', 'status']), cpu: nd(['sensor', 'cpu_used']), mem: nd(['sensor', 'memory_used_percentage']),
+      disk: nd(['sensor', 'disk_used_percentage']), cts: nd(['sensor', 'containers_running']), vms: nd(['sensor', 'virtual_machines_running']),
+      updates: nd(['sensor', 'total_updates']), swap: nd(['sensor', 'swap_used_percentage']), swapUsed: nd(['sensor', 'swap_used']),
+      swapTotal: nd(['sensor', 'swap_total']), update: nd(['update', 'software_update']), temp: null }];
+  }).filter(([, v]) => v));
 
   // media server: Jellyfin / Sonarr / Radarr / qBittorrent are found by their integration
   const plat = (p, re) => R.ofPlatform(p, re)[0] || null;
+  // the instances of an integration: its entities grouped by config entry (two Radarr servers, two qBittorrents…)
+  const instances = p => {
+    const by = new Map();
+    for (const id of R.ofPlatform(p)) { const k = R.ents[id]?.config_entry_id || '-'; if (!by.has(k)) by.set(k, new Set()); by.get(k).add(id); }
+    return [...by.values()];
+  };
+  // fields for each instance: the first instance's are the main ones, the others go under `more`
+  const perInstance = (p, make) => {
+    const list = instances(p).map(ids => make((re) => [...ids].find(id => re.test(id)) || null));
+    const first = list.length ? list[0] : make(() => null);
+    return { ...first, more: list.slice(1) };
+  };
   const MS = P.media_server || {};
   // Jellyfin: `integration` jellyfin (the official integration only) or hybrid ("Jellyfin + JellyHA": playing on the TV
   // through the official integration, everything else on the Media Server card — Now Watching, the clients, the
@@ -870,16 +893,16 @@ export function buildModel(cfg = {}, hass) {
   }
   // the "Found from" switches in the editor: panels.media_server.jellyfin / sonarr / radarr / qbittorrent: false hides
   // that part of the Media Server card (its entities are left out)
-  const off = (o, k) => (MS[k] === false ? Object.fromEntries(Object.keys(o).map(x => [x, null])) : o);
+  const off = (o, k) => (MS[k] === false ? Object.fromEntries(Object.keys(o).map(x => [x, x === 'more' ? [] : null])) : o);
   const mserver = {
     jellyfin: MS.jellyfin === false ? { kind: 'off', view: null, clients: null, playClients: null, tv: MS.jellyfin_tv || null, off: true } : jfIntegration(),
-    sonarr: off({ upcoming: plat('sonarr', /_upcoming$/), wanted: plat('sonarr', /_wanted$/), queue: plat('sonarr', /^sensor\..*_queue$/), shows: plat('sonarr', /_shows$/), disk: plat('sonarr', /_disk_space/), cal: plat('sonarr', /^calendar\./) }, 'sonarr'),
-    radarr: off({ movies: plat('radarr', /_movies$/), queue: plat('radarr', /^sensor\..*_queue$/), health: plat('radarr', /^binary_sensor\..*_health$/), disk: plat('radarr', /_disk_space/), cal: plat('radarr', /^calendar\./) }, 'radarr'),
-    qbt: off({
-      down: plat('qbittorrent', /_download_speed$/), up: plat('qbittorrent', /_upload_speed$/), status: plat('qbittorrent', /_status$/), conn: plat('qbittorrent', /_connection_status$/),
-      active: plat('qbittorrent', /_active_torrents$/), all: plat('qbittorrent', /_all_torrents$/), errored: plat('qbittorrent', /_errored_torrents$/), ratio: plat('qbittorrent', /_global_ratio$/),
-      alt: plat('qbittorrent', /^switch\..*_alternative_speed$/),
-    }, 'qbittorrent'),
+    sonarr: off(perInstance('sonarr', f => ({ upcoming: f(/_upcoming$/), wanted: f(/_wanted$/), queue: f(/^sensor\..*_queue$/), shows: f(/_shows$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'sonarr'),
+    radarr: off(perInstance('radarr', f => ({ movies: f(/_movies$/), queue: f(/^sensor\..*_queue$/), health: f(/^binary_sensor\..*_health$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'radarr'),
+    qbt: off(perInstance('qbittorrent', f => ({
+      down: f(/_download_speed$/), up: f(/_upload_speed$/), status: f(/_status$/), conn: f(/_connection_status$/),
+      active: f(/_active_torrents$/), all: f(/_all_torrents$/), errored: f(/_errored_torrents$/), ratio: f(/_global_ratio$/),
+      alt: f(/^switch\..*_alternative_speed$/),
+    })), 'qbittorrent'),
   };
   const hasMS = !!((!mserver.jellyfin.off && (mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.view, /^media_player\./).length || R.ofPlatform('jellyfin', /^media_player\./).length)) || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
 
@@ -996,4 +1019,12 @@ export function buildModel(cfg = {}, hass) {
     tabsOrder: arr(cfg.tabs),
     startTab: cfg.start_tab || 'home',
   };
+}
+
+// move a furniture piece by dx, dz (metres; a piece drawn from → to moves both ends). Used by the editor and by the
+// card when a piece is dragged in the 3D view.
+export function movePiece(f, dx, dz) {
+  const r2 = v => Math.round(v * 100) / 100, N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
+  if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
+  else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
 }

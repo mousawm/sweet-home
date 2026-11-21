@@ -1,5 +1,6 @@
 name: Release
-# Publishes a release for the version in package.json (v<version>, with dist/sweet-home-card.js attached)
+# Publishes a release for the version in package.json (v<version>, with dist/sweet-home-card.js and
+# dist/sweet-home-editor.js attached: HACS installs every file of the release)
 # only when main is pushed with a version that has no release yet. Pushes without a version bump do nothing,
 # so fixes collect under "Unreleased" in CHANGELOG.md until a release is cut (see CLAUDE.md).
 # The release notes are that version's section of CHANGELOG.md.
@@ -35,7 +36,7 @@ jobs:
             found && !/^### *$/ { print }
           ' CHANGELOG.md > notes.md
           if [ -s notes.md ] && grep -q '[^[:space:]]' notes.md; then
-            gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md
           else
-            gh release create "$TAG" dist/sweet-home-card.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
           fi
