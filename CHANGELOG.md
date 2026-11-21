@@ -7,6 +7,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- Light look (and Sweet Home 3D in a light theme): the Lights / Climate / Presence switch had a muddy grey track and its selected option barely stood out. It now has a soft light track with the selected option on a white pill, and darker labels. The media artwork placeholder is light too.
+
 - Arabic: about 130 texts that were always shown in English are now translated. They include panel and section titles (Energy History, Media Server, Coming Up, Library, Storage…), buttons (Show all, Reboot, Reconnect…), status words (Downloading, Importing, Stopped…), alarm states, AC modes, Home Lab gauges and the option chips. A new test checks every tab for English text left untranslated.
 
 ### Changed
