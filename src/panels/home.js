@@ -153,7 +153,7 @@ export class HomePanels {
     const extras = this._acExtras(id).filter(e => this.ok(e));
     return `<div class="acctl">
       <div class="tgt"><button class="ibtn" data-act="actemp" data-id="${id}" data-d="-1" aria-label="Lower temperature">${ic('mdi:minus')}</button>
-        <div class="tv ${this._acPend?.[id] ? 'pend' : ''}"><b>${this._acT(id) ?? '—'}<small>°</small></b><span>target · ${a.min_temp ?? (FAHR ? 61 : 16)}–${a.max_temp ?? (FAHR ? 86 : 30)}°</span></div>
+        <div class="tv ${this._acPend?.[id] ? 'pend' : ''}"><b>${this._acT(id) ?? '—'}<small>°</small></b><span>${tr('target')} · ${a.min_temp ?? (FAHR ? 61 : 16)}–${a.max_temp ?? (FAHR ? 86 : 30)}°</span></div>
         <button class="ibtn" data-act="actemp" data-id="${id}" data-d="1" aria-label="Raise temperature">${ic('mdi:plus')}</button></div>
       <div class="modes">${modes.map(m => `<button class="mbtn ${mode === m ? 'on' : ''}" style="--c:${m === 'off' ? '#94a3b8' : HVAC_COLOR[m] || '#60a5fa'}" data-act="acmode" data-id="${id}" data-mode="${m}">${ic(HVAC_ICON[m] || 'mdi:thermostat')}<em>${esc(pretty(m))}</em></button>`).join('')}</div>
       <div class="picks">${this.pickChip(id, 'fan', 'Fan', 'mdi:fan')}${this.pickChip(id, 'swing', 'Swing ↕', 'mdi:arrow-up-down')}${this.pickChip(id, 'swingh', 'Swing ↔', 'mdi:arrow-left-right')}${this.pickChip(id, 'preset', 'Preset', 'mdi:star-four-points-outline')}</div>
@@ -173,7 +173,7 @@ export class HomePanels {
       return `<div class="ac ${on ? 'on' : ''} open" style="--c:${col}">
         <div class="acrow" data-act="more" data-id="${a.id}"${a.power ? ` data-id2="${a.power}"` : ''}>
           <div class="acic ${on ? 'spin-' + mode : ''}">${ic(on ? (HVAC_ICON[mode] || 'mdi:air-conditioner') : 'mdi:air-conditioner')}</div>
-          <div class="acn"><b>${esc(a.name)}</b><span>${on ? `${esc(mode.replace('_', ' '))} → ${this._acT(a.id) ?? '—'}°` : tr("Off")}${p != null && p > 0 ? ` · ${Math.round(p)} W` : ''}</span></div>
+          <div class="acn"><b>${esc(a.name)}</b><span>${on ? `${esc((m => { const x = tr(tc(m)); return x === tc(m) ? m : x; })(mode.replace(/_/g, ' ')))} → ${this._acT(a.id) ?? '—'}°` : tr("Off")}${p != null && p > 0 ? ` · ${Math.round(p)} W` : ''}</span></div>
           <div class="act"><b style="color:${rgb(tempRGB(t))}">${t != null ? Number(t).toFixed(1) + '°' : '—'}</b>${h != null ? `<span>${ic('mdi:water-percent')}${Math.round(h)}%</span>` : ''}</div>
           <button class="pow ${on ? 'on' : ''}" data-act="acpow" data-id="${a.id}">${ic('mdi:power')}</button>
         </div>${ctl}</div>`;
@@ -182,7 +182,7 @@ export class HomePanels {
       const t = this.n(r.temp), h = r.hum ? this.n(r.hum) : null;
       return `<button class="rtemp" data-act="more" data-id="${r.temp}"${r.hum ? ` data-id2="${r.hum}"` : ''} style="--c:${rgb(tempRGB(t))}">${ic(r.icon)}<span>${esc(r.name)}</span><b>${t != null ? t.toFixed(1) + '°' : '—'}</b>${h != null ? `<em>${Math.round(h)}%</em>` : ''}</button>`;
     }).join('');
-    return `<div class="ch">${ic('mdi:air-conditioner')}<h3>${tr("Climate")}</h3><span class="pill">${E.acs.filter(a => this.climOn(a.id)).length} running</span></div>
+    return `<div class="ch">${ic('mdi:air-conditioner')}<h3>${tr("Climate")}</h3><span class="pill">${tr('{0} running', E.acs.filter(a => this.climOn(a.id)).length)}</span></div>
       <div class="rtemps">${rooms}</div>
       <div class="acs full">${rows}</div>`;
   }

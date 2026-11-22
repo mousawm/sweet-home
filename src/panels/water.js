@@ -2,7 +2,7 @@
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { arr } from '../model.js';
 import { t as tr } from '../i18n.js';
-import { E, esc, ic, clamp, BAD, pumpTime } from '../core.js';
+import { E, esc, ic, clamp, BAD, pumpTime, bidi } from '../core.js';
 
 export class WaterPanels {
   _rWater() {
@@ -53,7 +53,7 @@ export class WaterPanels {
     return [tr('On'), ...parts].join(' · ');
   }
   _tankPill(lvl) {
-    const r = this._tankTr?.rate, dur = h => h >= 48 ? `${Math.round(h / 24)} days` : h >= 1 ? `${Math.round(h)} h` : `${Math.max(1, Math.round(h * 60))} min`;
+    const r = this._tankTr?.rate, dur = h => bidi(h >= 48 ? tr('{0} days', Math.round(h / 24)) : h >= 1 ? tr('{0} h', Math.round(h)) : tr('{0} min', Math.max(1, Math.round(h * 60))));
     const rt = v => `${Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)}%/h`;
     let txt, col, icon;
     if (r == null) { txt = 'Trend…'; col = '#94a3b8'; icon = 'mdi:chart-line-variant'; }
@@ -72,7 +72,7 @@ export class WaterPanels {
       const m = mins(I.durations[i]), cfgName = arr(this._config?.panels?.irrigation?.zones ?? this._config?.panels?.irrigation?.valves)[i]?.name;
       const nm = cfgName || this.s(id).attributes.friendly_name || n, bad = BAD.includes(this.v(id));
       return `<button class="valve ${this.on(id) ? 'on' : ''}" data-act="valve" data-id="${id}"${I.durations[i] ? ` data-id2="${I.durations[i]}"` : ''}>
-      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${m} min` : ''}</span></button>`;
+      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${bidi(tr('{0} min', m))}` : ''}</span></button>`;
     }).join('');
     const ok = id => this.ok(id) ? esc(tr(this.v(id))) : '—'; // a weekday such as "Friday" is translated
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info

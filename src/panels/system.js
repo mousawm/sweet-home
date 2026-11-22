@@ -26,16 +26,16 @@ export class SystemPanels {
       const col = r.pct != null && r.pct > 80 ? '#f43f5e' : r.pct != null && r.pct > 50 ? '#fbbf24' : '#f472b6';
       return `<div class="swr" data-act="more" data-id="sensor.${r.g}_swap_used">
         <em>${i + 1}</em>${ic(nm.vm ? 'mdi:monitor' : 'mdi:cube-outline')}
-        <div class="swn"><b>${esc(nm.n)}</b><span>${nm.id ? `${nm.vm ? 'VM' : 'CT'} ${nm.id}` : ''}${up ? '' : ' · stopped'}${r.pct != null ? ` · ${Math.round(r.pct)}% of its swap` : ''}</span>
+        <div class="swn"><b>${esc(nm.n)}</b><span>${nm.id ? `${nm.vm ? 'VM' : 'CT'} ${nm.id}` : ''}${up ? '' : ` · ${tr('stopped')}`}${r.pct != null ? ` · ${tr('{0}% of its swap', Math.round(r.pct))}` : ''}</span>
           <div class="bar"><i style="width:${(r.mb / max * 100).toFixed(1)}%;background:${col}"></i></div></div>
         <strong>${sz(r.mb)}</strong>
         ${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : '<span class="swnr"></span>'}</div>`;
     }).join('');
     const sumTop = rows.reduce((a, r) => a + r.mb, 0);
-    return head('mdi:swap-horizontal-bold', tr("Swap Usage"), np != null ? `Node ${Math.round(np)}% used${used != null && tot ? ` · ${(used / 1024).toFixed(1)} of ${(tot / 1024).toFixed(1)} GB` : ''}` : '')
+    return head('mdi:swap-horizontal-bold', tr("Swap Usage"), np != null ? `${tr('Node {0}% used', Math.round(np))}${used != null && tot ? ` · ${tr('{0} of {1} GB', (used / 1024).toFixed(1), (tot / 1024).toFixed(1))}` : ''}` : '')
       + (np != null ? `<div class="swnode" data-act="more" data-id="${L.swap}"><div class="bar"><i style="width:${clamp(np, 0, 100)}%;background:${np > 90 ? '#f43f5e' : np > 70 ? '#fbbf24' : '#f472b6'}"></i></div></div>` : '')
-      + `<div class="dsec">${tr("Top")} ${top.length} containers · ${(sumTop / 1024).toFixed(2)} ${tr("GB listed")}</div>`
-      + (list || '<div class="wxwait">No container reports swap yet</div>')
+      + `<div class="dsec">${tr('Top {0} containers', top.length)} · ${bidi((sumTop / 1024).toFixed(2))} ${tr("GB listed")}</div>`
+      + (list || `<div class="wxwait">${tr('No container reports swap yet')}</div>`)
       + (ids.length < 20 ? `<div class="swnote">${ic('mdi:information-outline')}Only ${ids.length} container${ids.length === 1 ? '' : 's'} report swap. The rest have their Proxmox VE "Swap used" sensor disabled in Home Assistant.</div>` : '');
   }
   // Leaves a device out of "Needs Attention" (or only out of the low-battery list): saved in the card config
@@ -187,16 +187,16 @@ export class SystemPanels {
     const shown = L.guests.length || 5, head = list.slice(0, shown), rest = list.slice(shown);
     const edit = this._editing && h.user?.is_admin;
     const more = head.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') + (rest.length ? (this._labMore ? rest.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') : '')
-      + `<button class="vmmore" data-act="labmore">${this._labMore ? tr("Show less") : `Show more · ${rest.length} servers`}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
+      + `<button class="vmmore" data-act="labmore">${this._labMore ? tr("Show less") : tr('Show more · {0} servers', rest.length)}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
       + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
     const upd = this.n(L.updates);
     return `<div class="ch">${ic('mdi:server')}<h3>${tr("Home Lab")}</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? tr("Online") : tr("Offline")}</span>` : ''}</div>
       ${nodes}<div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
       <div class="stats3 ${L.temp ? 's4' : ''}">
         ${L.temp ? `<div data-act="more" data-id="${L.temp}">${ic('mdi:thermometer')}<b>${this.f(L.temp, 0)}</b></div>` : ''}
-        <div data-act="more" data-id="${L.cts}">${ic('mdi:docker')}<b>${esc(this.v(L.cts) || '—')}</b><span>containers</span></div>
-        <div data-act="more" data-id="${L.vms}">${ic('mdi:monitor-multiple')}<b>${esc(this.v(L.vms) || '—')}</b><span>VMs</span></div>
-        <div data-act="more" data-id="${L.updates}" data-id2="${L.update}"${upd > 0 ? ' style="color:#fbbf24"' : ''}>${ic('mdi:package-up')}<b>${upd != null ? upd.toFixed(0) : '—'}</b><span>updates</span></div>
+        <div data-act="more" data-id="${L.cts}">${ic('mdi:docker')}<b>${esc(this.v(L.cts) || '—')}</b><span>${tr('containers')}</span></div>
+        <div data-act="more" data-id="${L.vms}">${ic('mdi:monitor-multiple')}<b>${esc(this.v(L.vms) || '—')}</b><span>${tr('VMs')}</span></div>
+        <div data-act="more" data-id="${L.updates}" data-id2="${L.update}"${upd > 0 ? ' style="color:#fbbf24"' : ''}>${ic('mdi:package-up')}<b>${upd != null ? upd.toFixed(0) : '—'}</b><span>${tr('updates')}</span></div>
       </div>
       <div class="vms">${more}</div>`;
   }
@@ -250,7 +250,7 @@ export class SystemPanels {
       const chg = d.chg ? this.on(d.chg) : d.chgState ? /^charging|full/i.test(this.v(d.chgState) || '') : false;
       const col = b < 20 ? '#f43f5e' : b < 40 ? '#fbbf24' : '#34d399';
       const where = d.trk ? this.v(d.trk) : null;
-      return `<div class="dev" data-act="more" data-id="${d.bat}"${d.trk || d.chg || d.chgState ? ` data-id2="${d.trk || d.chg || d.chgState}"` : ''}>${ic(d.icon)}<div class="dn"><b>${esc(d.name)}</b><span>${where ? esc(where) + ' · ' : ''}${chg ? 'charging' : 'on battery'}</span></div>
+      return `<div class="dev" data-act="more" data-id="${d.bat}"${d.trk || d.chg || d.chgState ? ` data-id2="${d.trk || d.chg || d.chgState}"` : ''}>${ic(d.icon)}<div class="dn"><b>${esc(d.name)}</b><span>${where ? esc(where === 'home' ? tr('At home') : where === 'not_home' ? tr('Away') : where) + ' · ' : ''}${chg ? tr('charging') : tr('on battery')}</span></div>
         <div class="batt" style="--b:${b}%;--c:${col}"><i></i>${chg ? ic('mdi:lightning-bolt') : ''}</div><em>${b.toFixed(0)}%</em></div>`;
     }).join('');
     return `<div class="ch">${ic('mdi:devices')}<h3>${tr("Devices")}</h3></div><div class="devs">${rows}</div>`;

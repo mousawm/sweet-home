@@ -6,6 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- Arabic: more text translated: alarm Night / Trip, camera LIVE / MOTION, "Tap again to update / unlock", the solar chart legend and Peak, Climate "N running" / target / AC mode, Home Lab updates / VMs / containers / "Show more · N servers", the Swap sheet, device charging / on battery / at home, Media Server watching / clients, TV state, episode and movie details, the Daily limit picker, and durations (min / h / days).
 
 ### Changed
 
