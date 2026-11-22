@@ -1101,6 +1101,7 @@ try {
     out.bdi = card.f('sensor.living_room_temperature', 1).startsWith('<bdi>');
     { const c = await import('/src/core.js'), i18n = await import('/src/i18n.js'); i18n.setLang('ar'); const ago15 = new Date(Date.now() - 900e3).toISOString();
       out.times = c.agoShort(ago15) === '15 دقيقة' && c.ago(ago15).includes('15') && !/min|ago/.test(c.ago(ago15)); } // "15 min" in Arabic (Intl)
+    { const cs = getComputedStyle(R.getElementById('time')); out.clockRoom = parseFloat(cs.paddingBottom) > 0 && parseFloat(cs.marginBottom) < 0; } // room under the line for "ص" (the gradient only paints inside the box)
     out.sheetRtl = R.getElementById('sheet').dir === 'rtl' && R.getElementById('toast').dir === 'rtl'; // the pop-up sheets are right to left too
     // option names stay as the entity has them ("2 hours"), in their own order (<bdi>): not translated
     out.words = t('2 hours') === '2 hours' && t('Friday') === 'الجمعة' && card.pickChip !== undefined;
