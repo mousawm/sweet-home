@@ -11,6 +11,13 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.52 — 2026-11-22
+
+### Fixed
+- Arabic: the header chips (weather, doors, locks), pickers, door pills, lock badges, the tip and the Jellyfin back button have their spacing mirrored: the tight side is next to the icon, on the right.
+- Arabic: dates a sensor gives as text ("27 Nov at 4:00 AM", next watering, reminders) are written in Arabic and in the right order; the water tank pill ("1.8%/h · empty in ~37 h", full in, steady) is translated and no longer scrambled; sensor values with a unit ("12.5 L/min") keep their order.
+- Arabic: more text translated: alarm Night / Trip, camera LIVE / MOTION, "Tap again to update / unlock", the solar chart legend and Peak, Climate "N running" / target / AC mode, Home Lab updates / VMs / containers / "Show more · N servers", the Swap sheet, device charging / on battery / at home, Media Server watching / clients, TV state, episode and movie details, the Daily limit picker, and durations (min / h / days).
+
 ## v0.6.51 — 2026-11-22
 
 ### Fixed

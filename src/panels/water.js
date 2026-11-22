@@ -2,7 +2,7 @@
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { arr } from '../model.js';
 import { t as tr } from '../i18n.js';
-import { E, esc, ic, clamp, BAD, pumpTime } from '../core.js';
+import { E, esc, ic, clamp, BAD, pumpTime, bidi, whenText } from '../core.js';
 
 export class WaterPanels {
   _rWater() {
@@ -53,13 +53,13 @@ export class WaterPanels {
     return [tr('On'), ...parts].join(' · ');
   }
   _tankPill(lvl) {
-    const r = this._tankTr?.rate, dur = h => h >= 48 ? `${Math.round(h / 24)} days` : h >= 1 ? `${Math.round(h)} h` : `${Math.max(1, Math.round(h * 60))} min`;
-    const rt = v => `${Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)}%/h`;
+    const r = this._tankTr?.rate, dur = h => bidi(h >= 48 ? tr('{0} days', Math.round(h / 24)) : h >= 1 ? tr('{0} h', Math.round(h)) : tr('{0} min', Math.max(1, Math.round(h * 60))));
+    const rt = v => bidi(tr('{0}%/h', Math.abs(v) >= 10 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)));
     let txt, col, icon;
-    if (r == null) { txt = 'Trend…'; col = '#94a3b8'; icon = 'mdi:chart-line-variant'; }
-    else if (Math.abs(r) < 0.2) { txt = 'Steady'; col = '#94a3b8'; icon = 'mdi:minus'; }
-    else if (r < 0) { const h = lvl / -r; txt = `${rt(r)} · empty in ~${dur(h)}`; col = h < 4 ? '#f43f5e' : h < 12 ? '#fbbf24' : '#38bdf8'; icon = 'mdi:arrow-down-bold'; }
-    else { const h = (100 - lvl) / r; txt = `${rt(r)} · full in ~${dur(h)}`; col = '#34d399'; icon = 'mdi:arrow-up-bold'; }
+    if (r == null) { txt = tr('Trend…'); col = '#94a3b8'; icon = 'mdi:chart-line-variant'; }
+    else if (Math.abs(r) < 0.2) { txt = tr('Steady'); col = '#94a3b8'; icon = 'mdi:minus'; }
+    else if (r < 0) { const h = lvl / -r; txt = `${rt(r)} · ${tr('empty in ~{0}', dur(h))}`; col = h < 4 ? '#f43f5e' : h < 12 ? '#fbbf24' : '#38bdf8'; icon = 'mdi:arrow-down-bold'; }
+    else { const h = (100 - lvl) / r; txt = `${rt(r)} · ${tr('full in ~{0}', dur(h))}`; col = '#34d399'; icon = 'mdi:arrow-up-bold'; }
     return `<span class="pill tankpill" style="--c:${col}" data-act="more" data-id="${E.water.tank}">${ic(icon)}${txt}</span>`;
   }
   _rIrrigation() {
@@ -72,9 +72,9 @@ export class WaterPanels {
       const m = mins(I.durations[i]), cfgName = arr(this._config?.panels?.irrigation?.zones ?? this._config?.panels?.irrigation?.valves)[i]?.name;
       const nm = cfgName || this.s(id).attributes.friendly_name || n, bad = BAD.includes(this.v(id));
       return `<button class="valve ${this.on(id) ? 'on' : ''}" data-act="valve" data-id="${id}"${I.durations[i] ? ` data-id2="${I.durations[i]}"` : ''}>
-      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${m} min` : ''}</span></button>`;
+      <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${bidi(tr('{0} min', m))}` : ''}</span></button>`;
     }).join('');
-    const ok = id => this.ok(id) ? esc(tr(this.v(id))) : '—'; // a weekday such as "Friday" is translated
+    const ok = id => { if (!this.ok(id)) return '—'; const v = this.v(id), w = tr(v); return w !== v ? esc(w) : (x => x ? esc(x) : bidi(esc(v)))(whenText(v)); }; // a weekday such as "Friday" is translated; a date in the card's language
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info
     return `<div class="ch">${ic('mdi:sprinkler')}<h3>${tr("Irrigation")}</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? tr("Watering tomorrow") : tr("Scheduled")}</button>`}</div>
       ${v ? `<div class="valves">${v}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('No valves yet: add them in the card editor (Panels → Irrigation).')}</div>`}

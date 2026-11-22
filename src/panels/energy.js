@@ -304,6 +304,7 @@ export class EnergyPanels {
     const grid = [];
     for (let v = -yMin; v <= yMax; v += step) grid.push(`<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="${v === 0 ? 'z' : ''}"/>`);
     const kw = v => v === 0 ? '0' : String(+(v / 1000).toFixed(2));
+    const homeL = (x => x === 'Home use' ? 'Home' : x)(tr('Home use')); // the house's own use (not the Home tab)
     const yl = []; for (let v = -yMin; v <= yMax; v += step) yl.push(`<span style="top:${(y(v) / Ht * 100).toFixed(2)}%">${kw(v)}</span>`);
     const hh = h => `<span style="left:${(h / 24 * 100).toFixed(2)}%">${String(h).padStart(2, '0')}</span>`;
     const fmt = i => { const t = new Date(+day0 + i * 3e5); return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
@@ -313,7 +314,7 @@ export class EnergyPanels {
     const tip = ci == null ? '' : `<div class="spk-cur" style="left:${pct(ci)}%"></div>
       <div class="spk-tip ${ci > B * 0.6 ? 'l' : ''}" style="left:${pct(ci)}%"><b>${ci === nowI ? tr("Now") : fmt(ci)}</b>
         <span><i style="background:#fbbf24"></i>${tr("Solar")} ${fmtW(S[ci] + X[ci])}</span><span><i style="background:#60a5fa"></i>${tr("Grid")} ${fmtW(I[ci])}</span>
-        <span><i style="background:#34d399"></i>${tr("Exported")} ${fmtW(X[ci])}</span><span><i class="dash"></i>${tr("Home")} ${fmtW(Hm[ci])}</span></div>`;
+        <span><i style="background:#34d399"></i>${tr("Exported")} ${fmtW(X[ci])}</span><span><i class="dash"></i>${homeL} ${fmtW(Hm[ci])}</span></div>`;
     const leg = (k, col, name, cls = '') => `<button class="${hide.has(k) ? 'off' : ''}" data-act="spk" data-k="${k}"><i class="${cls}" style="background:${col}"></i>${name}</button>`;
     return `<div class="spk-wrap">
       <div class="spk-y"><i>${yl.map(t => t.replace(/<[^>]+>/g, '')).sort((a, b) => b.length - a.length)[0] || ''}</i>${yl.join('')}</div>
@@ -332,8 +333,8 @@ export class EnergyPanels {
       </div>
       <div class="spk-x">${[0, 6, 12, 18, 24].map(hh).join('')}</div>
     </div>
-    <div class="sk-lg">${leg('solar', '#fbbf24', 'Solar')}${leg('import', '#60a5fa', 'Grid')}${leg('export', '#34d399', 'Exported')}${leg('home', 'transparent', 'Home', 'dash')}
-      <span>${pk >= 0 ? `Peak ${fmtW(Hm[pk])} · ${fmt(pk)}` : ''}</span></div>`;
+    <div class="sk-lg">${leg('solar', '#fbbf24', tr('Solar'))}${leg('import', '#60a5fa', tr('Grid'))}${leg('export', '#34d399', tr('Exported'))}${leg('home', 'transparent', homeL, 'dash')}
+      <span>${pk >= 0 ? `${tr('Peak')} ${fmtW(Hm[pk])} · ${bidi(fmt(pk))}` : ''}</span></div>`;
   }
   // Today's power chart from the SAME data as HA's Energy dashboard: the grid in / out and solar energy
   // meters' 5-minute statistics (kWh per 5 min × 12 = average kW). The live sensors fill the current step.

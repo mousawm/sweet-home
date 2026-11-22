@@ -525,7 +525,7 @@ export class SweetHomeCard extends HTMLElement {
       html = head('mdi:lightbulb-group', tr("Lights"), `${on} of ${all.length} on · tap to switch`) + rooms.map(r => {
         const rows = r.lights.filter(l => this.s(l)).map(l => {
           const st = this.s(l), isOn = st.state === 'on', fx = r.lightFx?.[l];
-          const lv = isOn && st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) + '%' : isOn ? 'On' : st.state === 'off' ? tr("Off") : pretty(st.state);
+          const lv = isOn && st.attributes.brightness ? Math.round(st.attributes.brightness / 2.55) + '%' : isOn ? tr('On') : st.state === 'off' ? tr("Off") : pretty(st.state);
           const icon = fx === 'strip' ? 'mdi:led-strip-variant' : fx === 'tv' ? 'mdi:television-ambient-light' : fx === 'spots' ? 'mdi:light-recessed' : isOn ? 'mdi:ceiling-light' : 'mdi:ceiling-light-outline';
           const nm = r.lightNames?.[l] || tc((st.attributes.friendly_name || l).replace(/^Shelly\s*/i, ''));
           return `<button class="lrow ${isOn ? 'on' : ''}" data-act="toggle" data-id="${l}">${ic(icon)}<span>${esc(nm)}</span><b>${esc(lv)}</b></button>`;
@@ -606,7 +606,7 @@ export class SweetHomeCard extends HTMLElement {
   }
   pickChip(id, kind, label, icon) {
     const st = this.s(id); if (!st) return '';
-    const P = PICK[kind]; const opts = P.list(st) || []; if (!opts.length) return ''; label = tr(tc(label));
+    const P = PICK[kind]; const opts = P.list(st) || []; if (!opts.length) return ''; label = tr(label) !== label ? tr(label) : tr(tc(label));
     return `<button class="pick" data-act="pick" data-id="${id}" data-kind="${kind}">${icon ? ic(icon) : ''}<span>${esc(label)}</span><b>${bidi(esc(pretty(P.cur(st))))}</b>${ic('mdi:chevron-down', 'chev')}</button>`;
   }
   // colour swatches + custom picker for RGB lights; white presets use colour temperature when supported
@@ -958,7 +958,7 @@ export class SweetHomeCard extends HTMLElement {
     // confirmed: drop the blinking "Tap again" tip right away
     if (this._confirm[id] && now - this._confirm[id] < 3500) { delete this._confirm[id]; clearTimeout(el._cfT); el.classList.remove('confirm'); delete el.dataset.tip; this.haptic('success'); return true; }
     this._confirm[id] = now; this.haptic('warning');
-    el.classList.add('confirm'); el.dataset.tip = msg;
+    el.classList.add('confirm'); el.dataset.tip = tr(msg);
     clearTimeout(el._cfT); el._cfT = setTimeout(() => { el.classList.remove('confirm'); }, 3500);
     return false;
   }

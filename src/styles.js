@@ -22,9 +22,9 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 /* the gradient is painted inside the clock's box only: room below the line for letters that go under it (Arabic "ص" / "م"), taken back with a negative margin so nothing moves */
 .clock #time{padding-bottom:.2em;margin-bottom:-.2em}
 .hdr-right{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
-.chip{display:flex;align-items:center;gap:8px;height:42px;box-sizing:border-box;padding:0 14px 0 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.chip{display:flex;align-items:center;gap:8px;height:42px;box-sizing:border-box;padding:0 14px 0 7px;padding-inline:7px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .chip>ha-icon{--mdc-icon-size:16px;width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;color:var(--c,var(--mu));background:color-mix(in srgb,var(--c,#94a3b8) 18%,transparent)}
-.chip.big{padding:0 15px 0 7px;gap:8px}.chip.big>ha-icon{--mdc-icon-size:20px;--c:#fde68a}.chip.big div{display:flex;flex-direction:column;line-height:1.05}.chip.big b{font-size:14.5px}.chip.big span{font-size:10.5px;color:var(--mu);text-transform:capitalize}
+.chip.big{padding:0 15px 0 7px;padding-inline:7px 15px;gap:8px}.chip.big>ha-icon{--mdc-icon-size:20px;--c:#fde68a}.chip.big div{display:flex;flex-direction:column;line-height:1.05}.chip.big b{font-size:14.5px}.chip.big span{font-size:10.5px;color:var(--mu);text-transform:capitalize}
 .chip.warn{--c:var(--rose);border-color:rgba(251,113,133,.45);background:rgba(244,63,94,.14)}
 .chip.good{--c:var(--green)}
 .amber{color:var(--amber)!important}.green{color:var(--green)!important}.blue{color:var(--blue)!important}
@@ -76,7 +76,7 @@ main{scroll-margin-top:84px}
 .picks{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .picks.col{flex-direction:column;align-items:stretch;margin:8px 0;gap:8px} /* v1.21.7: the layout class .col (gap 18px) was leaking in */
 .picks:empty{display:none}
-.pick{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 11px;border-radius:12px;background:rgba(var(--ink),.05);border:1px solid var(--line);font-size:12px;color:var(--mu);transition:border-color .2s,background .2s;min-width:0}
+.pick{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 11px;padding-inline:11px 10px;border-radius:12px;background:rgba(var(--ink),.05);border:1px solid var(--line);font-size:12px;color:var(--mu);transition:border-color .2s,background .2s;min-width:0}
 @media (hover:hover){.pick:hover{border-color:rgba(45,212,191,.45);background:rgba(45,212,191,.08)}}
 .pick ha-icon{--mdc-icon-size:16px}.pick b{color:var(--hi);font-weight:600;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pick .chev{opacity:.6}
 .picks:not(.col) .pick b{margin-left:2px}
@@ -178,7 +178,7 @@ main{scroll-margin-top:84px}
 .confirm{outline:2px solid var(--amber);animation:blink .8s infinite}.tile.confirm{position:relative} /* anchor the tip to the tile, not the card */
 .confirm::after{content:attr(data-tip);position:absolute;left:50%;top:-30px;transform:translateX(-50%);background:#fbbf24;color:#111;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;white-space:nowrap;z-index:5}
 .doors{display:flex;flex-wrap:wrap;gap:6px}
-.door{display:flex;align-items:center;gap:5px;padding:6px 10px 6px 7px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:11.5px;color:var(--mu);cursor:pointer}
+.door{display:flex;align-items:center;gap:5px;padding:6px 10px 6px 7px;padding-inline:7px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:11.5px;color:var(--mu);cursor:pointer}
 .door ha-icon{--mdc-icon-size:16px;color:var(--green)}
 .door.open{color:var(--hi);background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.5)}.door.open ha-icon{color:var(--rose)}
 
@@ -286,7 +286,7 @@ main{scroll-margin-top:84px}
 .jfimg ha-icon{--mdc-icon-size:26px;color:var(--mu)}.jfimg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .jfplayi{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(15,23,42,.75);font-style:normal}.jfplayi ha-icon{--mdc-icon-size:16px;color:#fff}
 .jfpo:active .jfimg{transform:scale(.97)}
-.jfback{display:inline-flex;align-items:center;gap:2px;margin:-4px 0 10px;padding:5px 10px 5px 4px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu);font:inherit;font-size:12px;cursor:pointer}.jfback ha-icon{--mdc-icon-size:18px}
+.jfback{display:inline-flex;align-items:center;gap:2px;margin:-4px 0 10px;padding:5px 10px 5px 4px;padding-inline:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu);font:inherit;font-size:12px;cursor:pointer}.jfback ha-icon{--mdc-icon-size:18px}
 .jfshowh{display:flex;gap:12px;align-items:center;margin-bottom:10px}.jfshowh .jfimg{width:74px;flex:none}
 .jfshowh>div:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}.jfshowh b{font-size:15px}.jfshowh span{font-size:12px;color:var(--mu)}.jfshowh em{font-style:normal;font-size:11px;color:#c4b5fd}
 .jfseas{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 10px;padding:0 16px}.jfseas::-webkit-scrollbar{display:none}
@@ -420,7 +420,7 @@ main{scroll-margin-top:84px}
 .dac .tgt.sm{gap:6px}.dac .ibtn{width:30px;height:30px}.dac .pow{width:30px;height:30px}
 .dac-chev{--mdc-icon-size:18px;color:var(--mu);margin-left:2px}
 .dac.open .acctl{padding-top:2px;border-top:1px solid var(--line)}
-.blbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:rgba(var(--s1),.72);border:1px solid rgba(52,211,153,.5);color:var(--tx);backdrop-filter:blur(6px);will-change:transform}
+.blbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;padding-inline:6px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:rgba(var(--s1),.72);border:1px solid rgba(52,211,153,.5);color:var(--tx);backdrop-filter:blur(6px);will-change:transform}
 .blbl ha-icon{--mdc-icon-size:13px;color:var(--green)}.blbl.unl{border-color:rgba(251,113,133,.7)}.blbl.unl ha-icon{color:var(--rose)}.blbl.na{border-color:var(--line)}.blbl.na ha-icon{color:var(--mu)}
 .blbl button{display:inline-flex;margin-inline-start:2px;color:var(--mu)}.blbl button ha-icon{color:inherit}
 .fb{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;width:10px;height:10px;border-radius:50%;background:rgba(148,163,184,.85);border:2px solid rgba(var(--s1),.8);box-shadow:0 2px 8px rgba(0,0,0,.5);display:grid;place-items:center;will-change:transform;transition:width .2s,height .2s,background .2s}
@@ -438,7 +438,7 @@ main{scroll-margin-top:84px}
 .lvls button.on{background:rgba(45,212,191,.2);color:var(--teal)}.lvls ha-icon{--mdc-icon-size:16px}
 .viewport:has(.drawer.open) .lvls{display:none}
 @media (pointer:coarse){.lvls button{min-height:44px}}
-.hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-radius:14px;background:rgba(var(--s1),.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
+.hint{position:absolute;left:50%;top:12px;transform:translate(-50%,-8px);max-width:min(460px,calc(100% - 24px));display:none;align-items:center;gap:8px;padding:8px 6px 8px 12px;padding-inline:12px 6px;border-radius:14px;background:rgba(var(--s1),.85);border:1px solid rgba(45,212,191,.45);font-size:12.5px;line-height:1.35;box-shadow:0 10px 30px -10px rgba(0,0,0,.6);z-index:2;opacity:0;transition:opacity .4s,transform .4s}
 .hint.on{display:flex;opacity:1;transform:translate(-50%,0)}.hint>ha-icon{color:var(--teal);flex:none}.hint span{flex:1}.hint .ibtn{flex:none;width:32px;height:32px}
 .ch .rnbtn{flex:none}.rnsave{width:100%;display:flex;justify-content:center;gap:8px;margin-top:10px}.rnsave span{flex:none}
 .rnrow{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;padding:8px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px}
@@ -657,8 +657,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   /* header chips: one swipeable row, edge to edge */
   .hdr-right{width:calc(100% + 24px);margin:0 -12px;padding:2px 12px;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-padding:0 12px}
   .hdr-right::-webkit-scrollbar{display:none}
-  .chip{height:38px;flex:none;font-size:12.5px;padding:0 12px 0 6px;gap:7px}.chip>ha-icon{width:26px;height:26px;--mdc-icon-size:15px}
-  .chip.big{padding:0 13px 0 6px}.chip.big b{font-size:13.5px}.chip.big span{font-size:10px}
+  .chip{height:38px;flex:none;font-size:12.5px;padding:0 12px 0 6px;padding-inline:6px 12px;gap:7px}.chip>ha-icon{width:26px;height:26px;--mdc-icon-size:15px}
+  .chip.big{padding:0 13px 0 6px;padding-inline:6px 13px}.chip.big b{font-size:13.5px}.chip.big span{font-size:10px}
   /* avatars: top-right corner of the header */
   .hdr-right .persons{position:absolute;top:0;right:0;margin:0}
   [dir=rtl] .hdr-right .persons{right:auto;left:0}[dir=rtl] .greet{padding-right:0;padding-left:96px} /* right to left: the avatars go to the left, clear of the clock */.person{width:38px;height:38px}

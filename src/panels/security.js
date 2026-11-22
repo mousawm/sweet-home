@@ -91,7 +91,7 @@ export class SecurityPanels {
         <img data-cam="${c.id}" alt="">
         <div class="camlive" data-live="${c.id}"></div>
         <div class="cam-ov">
-          <div class="cam-top"><span class="live ${mo ? 'mo' : ''}"><i></i>${mo ? 'MOTION' : 'LIVE'}</span>
+          <div class="cam-top"><span class="live ${mo ? 'mo' : ''}"><i></i>${mo ? tr('MOTION') : tr('LIVE')}</span>
             <span class="tags">${person ? `<i class="tag p">${ic('mdi:walk')}${tr("Person")}</i>` : ''}${car ? `<i class="tag c">${ic('mdi:car')}${tr("Car")}</i>` : ''}${dOpen ? `<i class="tag d">${ic('mdi:gate-open')}${tr("Gate Open")}</i>` : ''}</span></div>
           <div class="cam-bot"><b>${esc(c.name)}</b>
             ${face ? `<span>${ic('mdi:face-recognition')}${esc(face)}</span>` : ''}${plate ? `<span>${ic('mdi:card-text')}${esc(plate)}</span>` : ''}
