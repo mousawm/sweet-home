@@ -1111,6 +1111,17 @@ try {
     card._setTab('home');
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('Arabic: swipe right for the next tab, Arabic comma, values and option names keep their own direction, weekdays / lock states translated', r === true, r); }
+  { const vs = p.viewportSize(); await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);
+    const r = await p.evaluate(async () => {
+      card._setTab('home'); card._select('living_room'); await new Promise(r => setTimeout(r, 600));
+      const R = card.shadowRoot, d = R.getElementById('drawer').getBoundingClientRect(), v = R.getElementById('viewport').getBoundingClientRect();
+      const sl = R.querySelector('#drawer .sl'), out = {};
+      out.fullWidth = Math.abs((d.left - v.left) - (v.right - d.right)) < 2 && d.width > v.width - 24; // phones: the room panel spans the view, centred, in Arabic too
+      out.fill = !sl || getComputedStyle(sl).backgroundImage.includes('270deg'); // the slider fill starts on the right, with its thumb
+      card._select(null);
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); await p.setViewportSize(vs);
+    check('Arabic on a phone: the room panel is full width and centred, slider fill from the right', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }
