@@ -1,7 +1,7 @@
 // Sweet Home — Header, tabs, At a glance, Climate, Modes, the room panel.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM, alarmInfo } from '../core.js';
+import { E, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM, alarmInfo, bidi } from '../core.js';
 
 export class HomePanels {
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
@@ -318,6 +318,6 @@ export class HomePanels {
     else if (!isNaN(parseFloat(v)) && isFinite(v)) { const x = parseFloat(v); val = `${Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 10) / 10}${a.unit_of_measurement ? ' ' + a.unit_of_measurement : ''}`; }
     else val = tr(pretty(v));
     const active = this.on(id) || (d === 'climate' && this.climOn(id));
-    return `<div class="mrow ${active ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${esc(val)}</b></div>`;
+    return `<div class="mrow ${active ? 'on' : ''}" data-act="more" data-id="${id}">${ic(icon)}<span>${name}</span><b>${bidi(esc(val))}</b></div>`; // "12.5 L/min" stays in its order in Arabic
   }
 }

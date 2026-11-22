@@ -35,6 +35,23 @@ export const tc = s => String(s ?? '').replace(/(^|[\s(/&-])(\p{Ll}[\p{Ll}\d']*)
 const relFmt = L => { try { return new Intl.RelativeTimeFormat(L, { numeric: 'auto' }); } catch (e) { return null; } };
 const unitFmt = (L, unit) => { try { return new Intl.NumberFormat(L, { style: 'unit', unit, unitDisplay: 'long' }); } catch (e) { return null; } };
 const uiLang = () => cardLang(); // times in the language the card is shown in, like the rest of its text
+// a date / time a sensor gives as text ("27 Nov at 4:00 AM", an ISO timestamp): in English as it is; in another
+// language read and written again in that language ("27 نوفمبر، 4:00 ص"), else kept as it is in its own direction
+export const whenText = s => {
+  const x = String(s ?? '').trim(), L = uiLang();
+  if (!x || /^en\b/.test(L)) return x;
+  let d = /^\d{4}-\d{2}-\d{2}/.test(x) ? new Date(x) : null;
+  if (!d || isNaN(d)) {
+    const t = x.replace(/\s+at\s+/i, ' ').replace(/,/g, ' ');
+    const y = /\b\d{4}\b/.test(t) ? '' : ` ${new Date().getFullYear()}`;
+    const m = t.match(/^(.*?)(\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?)?$/);
+    d = m && /[A-Za-z]{3}/.test(m[1]) && /\d/.test(m[1]) ? new Date(`${m[1].trim()}${y} ${m[2] || ''}`.trim()) : null;
+    if (d && !isNaN(d) && y && d < Date.now() - 180 * 864e5) d.setFullYear(d.getFullYear() + 1); // "2 Jan" seen in December: next year
+    if (d && !isNaN(d) && !m[2]) return d.toLocaleDateString(L, { weekday: 'short', day: 'numeric', month: 'long' });
+  }
+  if (!d || isNaN(d)) return null;
+  return d.toLocaleString(L, { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' });
+};
 export const ago = (iso, lang = 'en') => {
   const t = new Date(iso), s = (Date.now() - t) / 1000; if (isNaN(s)) return '';
   const L = uiLang(lang), rel = !/^en\b/.test(L) && relFmt(L);
