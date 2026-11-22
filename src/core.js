@@ -264,8 +264,11 @@ export const ALL_TABS = [
   ['home', 'Home', 'mdi:home-modern'], ['security', 'Security', 'mdi:shield-home'], ['climate', 'Climate', 'mdi:air-conditioner'],
   ['energy', 'Energy', 'mdi:lightning-bolt'], ['water', 'Water & Garden', 'mdi:water'], ['media', 'Media', 'mdi:television-play'], ['system', 'System', 'mdi:server'],
 ];
-export const fmtW = w => { if (w == null || isNaN(w)) return '—'; const a = Math.abs(w); return a >= 1000 ? `${(w / 1000).toFixed(2)}<small>kW</small>` : `${Math.round(w)}<small>W</small>`; };
-export const wxName = st => tc(String(st || '').replace('partlycloudy', 'partly cloudy').replace(/-/g, ' '));
+// a value shown inside text (numbers with units, English option names): <bdi> lays it out by its own direction, so in
+// Arabic "-75 dBm" and "2 hours" don't come out as "dBm 75-" and "hours 2"
+export const bidi = h => `<bdi>${h}</bdi>`;
+export const fmtW = w => { if (w == null || isNaN(w)) return '—'; const a = Math.abs(w); return bidi(a >= 1000 ? `${(w / 1000).toFixed(2)}<small>kW</small>` : `${Math.round(w)}<small>W</small>`); };
+export const wxName = st => tr(tc(String(st || '').replace('partlycloudy', 'partly cloudy').replace(/-/g, ' ')));
 export const WEATHER_ICON = { 'clear-night': 'mdi:weather-night', cloudy: 'mdi:weather-cloudy', fog: 'mdi:weather-fog', hail: 'mdi:weather-hail', lightning: 'mdi:weather-lightning', 'lightning-rainy': 'mdi:weather-lightning-rainy', partlycloudy: 'mdi:weather-partly-cloudy', pouring: 'mdi:weather-pouring', rainy: 'mdi:weather-rainy', snowy: 'mdi:weather-snowy', 'snowy-rainy': 'mdi:weather-snowy-rainy', sunny: 'mdi:weather-sunny', windy: 'mdi:weather-windy', 'windy-variant': 'mdi:weather-windy-variant', exceptional: 'mdi:alert-circle-outline' };
 export const ACT_MODE = { heating: 'heat', cooling: 'cool', drying: 'dry', fan: 'fan_only' };
 export const acMode = st => !st || st.state === 'off' ? 'off' : ACT_MODE[st.attributes?.hvac_action] || st.state;

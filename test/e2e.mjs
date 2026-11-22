@@ -1085,6 +1085,27 @@ try {
     card._setTab('home');
     return !left.size || JSON.stringify([...left]);
   }); check('Arabic: no translatable English text left on any tab', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, out = {}, main = R.querySelector('main');
+    // swiping: in Arabic the next tab is to the left, so a swipe to the right opens it
+    const swipe = dx => { const t0 = new Touch({ identifier: 1, target: main, clientX: 400, clientY: 500 }), t1 = new Touch({ identifier: 1, target: main, clientX: 400 + dx, clientY: 505 });
+      main.dispatchEvent(new TouchEvent('touchstart', { touches: [t0], changedTouches: [t0], bubbles: true }));
+      main.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [t1], bubbles: true })); };
+    card._setTab('home'); const ids = card._tabList().map(x => x[0]);
+    swipe(160); out.rightIsNext = card._tab === ids[1];
+    swipe(-160); out.leftIsBack = card._tab === 'home';
+    // the greeting joins with an Arabic comma
+    const g = R.getElementById('greet').textContent; out.comma = !card.name() || (g.includes('،') && !g.includes(', '));
+    // values keep their own direction; option names with a duration or a weekday are in Arabic
+    const { t } = await import('/src/i18n.js');
+    out.bdi = card.f('sensor.living_room_temperature', 1).startsWith('<bdi>');
+    out.words = t('2 hours') === 'ساعتان' && t('30 min') === '30 دقيقة' && t('Friday') === 'الجمعة';
+    // the lock tiles' state is translated
+    card._setTab('security'); await new Promise(r => setTimeout(r, 300));
+    out.locks = ![...R.querySelectorAll('#security .lock span')].some(sp => /^(locked|unlocked)$/i.test(sp.textContent.trim()));
+    card._setTab('home');
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Arabic: swipe right for the next tab, Arabic comma, values keep their direction, durations / weekdays / lock states translated', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

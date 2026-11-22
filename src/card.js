@@ -7,7 +7,7 @@ import { THREE_LIB } from './three.js'; // the parts of three.js the scene uses
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
 import { buildModel, cleanConfig, movePiece } from './model.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
-import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart } from './core.js';
+import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart, bidi } from './core.js';
 import { HouseScene } from './scene.js';
 import { CSS } from './styles.js';
 import { MediaPanels } from './panels/media.js';
@@ -189,7 +189,7 @@ export class SweetHomeCard extends HTMLElement {
     const st = this.s(id); if (!st || BAD.includes(st.state)) return '—';
     const x = parseFloat(st.state); if (isNaN(x)) return esc(st.state);
     const u = unit ? (st.attributes.unit_of_measurement || '') : '';
-    return `${x.toFixed(d)}${u ? `<small>${esc(u)}</small>` : ''}`;
+    return bidi(`${x.toFixed(d)}${u ? `<small>${esc(u)}</small>` : ''}`);
   }
   // an entrance (gate, garage door…): open / closed / moving / bad (unavailable) / unknown (a relay without a sensor)
   // Sensors: a contact sensor (on = open), a cover or lock, or a text sensor such as Frigate's state classification
@@ -495,9 +495,9 @@ export class SweetHomeCard extends HTMLElement {
     const name = tc((st.attributes.friendly_name || id).replace(/^Shelly\s*/i, ''));
     const sh = this.$('sheet');
     sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${esc(P.title)}">
-      <div class="sh-h"><div><b>${esc(P.title)}</b><span>${esc(name)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
+      <div class="sh-h"><div><b>${esc(tr(P.title))}</b><span>${esc(name)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
       <div class="opts">${opts.map((o, i) => `<button class="opt ${o === cur ? 'on' : ''}" data-act="pickopt" data-i="${i}">
-        ${kind === 'hvac' ? ic(HVAC_ICON[o] || 'mdi:thermostat') : ''}<span>${esc(pretty(o))}</span>${o === cur ? ic('mdi:check') : ''}</button>`).join('')}</div></div>`;
+        ${kind === 'hvac' ? ic(HVAC_ICON[o] || 'mdi:thermostat') : ''}<span>${bidi(esc(pretty(o)))}</span>${o === cur ? ic('mdi:check') : ''}</button>`).join('')}</div></div>`;
     sh.classList.add('open');
   }
   // Info sheets opened from the header chips ("N lights on", "xx° inside"); they refresh live while open
@@ -606,7 +606,7 @@ export class SweetHomeCard extends HTMLElement {
   pickChip(id, kind, label, icon) {
     const st = this.s(id); if (!st) return '';
     const P = PICK[kind]; const opts = P.list(st) || []; if (!opts.length) return ''; label = tr(tc(label));
-    return `<button class="pick" data-act="pick" data-id="${id}" data-kind="${kind}">${icon ? ic(icon) : ''}<span>${esc(label)}</span><b>${esc(pretty(P.cur(st)))}</b>${ic('mdi:chevron-down', 'chev')}</button>`;
+    return `<button class="pick" data-act="pick" data-id="${id}" data-kind="${kind}">${icon ? ic(icon) : ''}<span>${esc(label)}</span><b>${bidi(esc(pretty(P.cur(st))))}</b>${ic('mdi:chevron-down', 'chev')}</button>`;
   }
   // colour swatches + custom picker for RGB lights; white presets use colour temperature when supported
   colorRow(id) {
@@ -718,9 +718,10 @@ export class SweetHomeCard extends HTMLElement {
       this._touchDown = e.touches.length > 0;
       if (!g) return; const c = e.changedTouches[0], dx = c.clientX - g.x, dy = c.clientY - g.y, dt = performance.now() - g.t; g = null;
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6 || dt > 700) return;
-      const ids = this._tabList().map(t => t[0]), i = ids.indexOf(this._tab || 'home'), j = i + (dx < 0 ? 1 : -1);
+      const fwd = isRTL() ? dx > 0 : dx < 0; // right to left: the next tab is to the left, reached with a swipe to the right
+      const ids = this._tabList().map(t => t[0]), i = ids.indexOf(this._tab || 'home'), j = i + (fwd ? 1 : -1);
       if (j < 0 || j >= ids.length) return;
-      this._setTab(ids[j], dx < 0 ? 'next' : 'prev');
+      this._setTab(ids[j], fwd ? 'next' : 'prev');
     }, { passive: true });
     el.addEventListener('touchcancel', e => { g = null; this._touchDown = e.touches.length > 0; });
   }
@@ -736,7 +737,7 @@ export class SweetHomeCard extends HTMLElement {
     put('date', d.toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'long' }));
     const hr = d.getHours();
     const g = tr(hr < 5 ? tr("Good night") : hr < 12 ? tr("Good morning") : hr < 17 ? tr("Good afternoon") : tr("Good evening"));
-    put('greet', `${g}${this.name() ? ', ' + this.name() : ''}`);
+    put('greet', this.name() ? tr('{0}, {1}', g, this.name()) : g);
     if (d.getSeconds() % 30 === 0) { this._alertCount = null; this._rerender('alerts', 'tabs'); }
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
   }

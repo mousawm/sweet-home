@@ -1,7 +1,7 @@
 // Sweet Home — Energy, Energy History, the car.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, tc, esc, ic, clamp, skl, skPill, CAR_SVG, pretty, fmtW } from '../core.js';
+import { E, tc, esc, ic, clamp, skl, skPill, CAR_SVG, pretty, fmtW, bidi } from '../core.js';
 
 export class EnergyPanels {
   // Power sheet: from the header "… now" chip, instead of HA's more-info of the grid sensor
@@ -60,8 +60,8 @@ export class EnergyPanels {
       <div class="spark" id="spark">${this._sparkSVG()}</div>
       ${this._eCardKpis()}
       ${this.s(E.forecast.today) ? `<div class="fc" data-act="more" data-id="${E.forecast.today}" data-id2="${E.forecast.tomorrow}">${ic('mdi:weather-sunny-alert')}
-        <div><span>${tr("Solar Forecast")}</span><b>${tr("Today")} ${this.f(E.forecast.today, 1)} · Tomorrow ${this.f(E.forecast.tomorrow, 1)}</b>
-        <em>${this.ok(E.forecast.remaining) ? `${this.f(E.forecast.remaining, 1)} still to come today` : ''}${this.ok(E.forecast.peak) ? ` · peak at ${new Date(this.v(E.forecast.peak)).toLocaleTimeString(this._hass?.locale?.language || 'en', { hour: '2-digit', minute: '2-digit' })}` : ''}</em></div></div>` : ''}
+        <div><span>${tr("Solar Forecast")}</span><b>${tr("Today")} ${this.f(E.forecast.today, 1)} · ${tr('Tomorrow')} ${this.f(E.forecast.tomorrow, 1)}</b>
+        <em>${this.ok(E.forecast.remaining) ? `${tr('{0} still to come today', this.f(E.forecast.remaining, 1))}` : ''}${this.ok(E.forecast.peak) ? ` · ${tr('peak at {0}', '')}${new Date(this.v(E.forecast.peak)).toLocaleTimeString(this._hass?.locale?.language || 'en', { hour: '2-digit', minute: '2-digit' })}` : ''}</em></div></div>` : ''}
       <div class="cons">${cons.map(([n, i, w, id]) => `<div class="crow" data-act="more" data-id="${id}">${ic(i)}<span>${esc(n)}</span><div class="bar"><i style="width:${(w / max * 100).toFixed(1)}%"></i></div><b>${fmtW(w)}</b></div>`).join('')}
         ${E.energy.extra.filter(x => this.s(x.id)).map(x => `<div class="crow" data-act="more" data-id="${x.id}">${ic(x.icon)}<span>${esc(x.name)}</span><div class="bar"><i style="width:0"></i></div><b>${this.f(x.id, 2)}</b></div>`).join('')}
       </div>`;
@@ -161,7 +161,7 @@ export class EnergyPanels {
           ${st ? `<div data-act="more" data-id="${st}"><span>${tr("Stored")}</span><b class="${g(this.n(st))}">${this.f(st, 0)}</b></div>` : ''}
         </div>`;
   }
-  _eKwh(k, dp) { const v = this._etot?.[k]; return v == null ? '—' : `${v.toFixed(dp)}<small>kWh</small>`; }
+  _eKwh(k, dp) { const v = this._etot?.[k]; return v == null ? '—' : bidi(`${v.toFixed(dp)}<small>kWh</small>`); }
 
   async _ehLoad(key, R) {
     const H = this._eSrc(), DV = this._eDevs(), ids = [H.gridIn, H.gridOut, H.solar, ...DV.map(d => d.stat)];
@@ -196,7 +196,7 @@ export class EnergyPanels {
     if (!d && this._hass) this._ehLoad(key, R);
     this._ehCur = d;
     const kwh = v => v == null ? '—' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
-    const seg = ['day', 'week', 'month', 'year'].map(k => `<button class="${p === k ? 'on' : ''}" data-act="ehp" data-p="${k}">${tc(k)}</button>`).join('');
+    const seg = ['day', 'week', 'month', 'year'].map(k => `<button class="${p === k ? 'on' : ''}" data-act="ehp" data-p="${k}">${tr(tc(k))}</button>`).join('');
     const head = `<div class="ch">${ic('mdi:chart-bar-stacked')}<h3>${tr("Energy History")}</h3><span class="pill" style="--c:#fbbf24">kWh</span></div>
       <div class="ehtop"><div class="seg ehseg">${seg}</div>
         <div class="ehnav"><button class="ehnow ${off < 0 ? '' : 'hide'}" data-act="ehnow" ${off < 0 ? '' : 'tabindex="-1" aria-hidden="true"'}>${ic('mdi:calendar-today')}${{ day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' }[p]}</button><button class="ibtn" data-act="ehnav" data-d="-1" aria-label="Previous">${ic('mdi:chevron-left')}</button><b>${esc(R.label)}</b>

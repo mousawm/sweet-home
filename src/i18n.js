@@ -138,7 +138,11 @@ const AR = {
   'No valves yet: add them in the card editor (Panels → Irrigation).': 'لا توجد محابس بعد: أضفها من محرر البطاقة (اللوحات ← الري).',
   'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)': 'ارتفاع العرض ثلاثي الأبعاد (فارغ: 420 بكسل؛ في عرض الأقسام يُستخدم حجم البطاقة)',
   Appearance: 'المظهر', Dark: 'داكن', Light: 'فاتح', 'Follow Home Assistant (light or dark theme)': 'اتباع Home Assistant (سمة فاتحة أو داكنة)',
-  Quality: 'الجودة',
+  Quality: 'الجودة', '{0}, {1}': '{0}، {1}', Day: 'اليوم', Week: 'الأسبوع', '{0} still to come today': '{0} متبقية اليوم', 'peak at {0}': 'الذروة عند {0}',
+  'Swing ↕': 'التأرجح ↕', 'Swing ↔': 'التأرجح ↔', Swing: 'تأرجح', 'Daily limit': 'الحد اليومي', Choose: 'اختر', 'Fan speed': 'سرعة المروحة', 'Vertical swing': 'التأرجح العمودي', 'Horizontal swing': 'التأرجح الأفقي', Preset: 'الوضع المسبق',
+  Monday: 'الاثنين', Tuesday: 'الثلاثاء', Wednesday: 'الأربعاء', Thursday: 'الخميس', Friday: 'الجمعة', Saturday: 'السبت', Sunday: 'الأحد',
+  'Partly Cloudy': 'غائم جزئيًا', Sunny: 'مشمس', Cloudy: 'غائم', Rainy: 'ممطر', 'Clear Night': 'صافٍ ليلًا', Fog: 'ضباب', Snowy: 'مثلج', Windy: 'عاصف', 'Windy Variant': 'عاصف', Lightning: 'برق',
+  'Lightning Rainy': 'عاصفة رعدية', Pouring: 'أمطار غزيرة', Hail: 'برد', 'Snowy Rainy': 'ثلج ومطر', Exceptional: 'طقس استثنائي',
   'Whole house': 'المنزل بالكامل', 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)': 'التكبير على غرفة واحدة (تُخفى أزرار الطوابق، وعند إغلاق النافذة يعود العرض إليها)',
   'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”',
   // entrances
@@ -238,8 +242,20 @@ let DICT = null, LANG = 'en';
 export function setLang(lang) { LANG = String(lang || 'en').toLowerCase(); DICT = DICTS[LANG.split('-')[0]] || null; }
 export const lang = () => LANG;
 export const isRTL = () => /^(ar|he|fa|ur)/.test(LANG);
+// Arabic for option names such as "30 min", "2 hours", "1 Week" (select / input_select options): one, two (dual),
+// 3–10 (plural) and more (singular after a number)
+const AR_UNITS = [[/^(min|mins|minutes?)$/i, ['دقيقة', 'دقيقتان', 'دقائق']], [/^(h|hrs?|hours?)$/i, ['ساعة', 'ساعتان', 'ساعات']],
+  [/^(days?)$/i, ['يوم', 'يومان', 'أيام']], [/^(weeks?)$/i, ['أسبوع', 'أسبوعان', 'أسابيع']], [/^(months?)$/i, ['شهر', 'شهران', 'أشهر']]];
+function arDuration(s) {
+  const m = String(s).trim().match(/^(\d+)\s*([A-Za-z]+)$/);
+  if (!m) return null;
+  const n = Number(m[1]), u = AR_UNITS.find(([re]) => re.test(m[2]));
+  if (!u || isNaN(n)) return null;
+  const [one, two, many] = u[1];
+  return n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${many}` : `${n} ${one}`;
+}
 export function t(s, ...a) {
-  let x = (DICT && DICT[s]) ?? s;
+  let x = (DICT && DICT[s]) ?? (DICT === AR ? arDuration(s) : null) ?? s;
   for (let i = 0; i < a.length; i++) x = x.split(`{${i}}`).join(String(a[i]));
   return x;
 }

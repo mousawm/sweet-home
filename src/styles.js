@@ -48,6 +48,7 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 .tab.on{display:block}
 @keyframes tabin{from{opacity:0;transform:translateY(8px)}}
 .tab.from-next{animation:tabnext .3s ease}.tab.from-prev{animation:tabprev .3s ease}
+[dir=rtl] .tab.from-next{animation-name:tabprev}[dir=rtl] .tab.from-prev{animation-name:tabnext} /* right to left: the next tab slides in from the left */
 @keyframes tabnext{from{opacity:0;transform:translateX(40px)}}@keyframes tabprev{from{opacity:0;transform:translateX(-40px)}}
 main{scroll-margin-top:84px}
 .home-grid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr) 340px;align-items:start}
@@ -655,7 +656,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .chip{height:38px;flex:none;font-size:12.5px;padding:0 12px 0 6px;gap:7px}.chip>ha-icon{width:26px;height:26px;--mdc-icon-size:15px}
   .chip.big{padding:0 13px 0 6px}.chip.big b{font-size:13.5px}.chip.big span{font-size:10px}
   /* avatars: top-right corner of the header */
-  .hdr-right .persons{position:absolute;top:0;right:0;margin:0}.person{width:38px;height:38px}
+  .hdr-right .persons{position:absolute;top:0;right:0;margin:0}
+  [dir=rtl] .hdr-right .persons{right:auto;left:0}[dir=rtl] .greet{padding-right:0;padding-left:96px} /* right to left: the avatars go to the left, clear of the clock */.person{width:38px;height:38px}
   .seg button span{display:none}
   .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
   .camgrid{grid-template-columns:1fr;gap:10px} /* phones: cameras stacked, full width */
@@ -694,6 +696,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .labnodes button{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--mu);background:var(--panel2);border:1px solid var(--line)}
 .labnodes button ha-icon{--mdc-icon-size:15px}
 .labnodes button.on{color:var(--teal);border-color:color-mix(in srgb,var(--teal) 50%,transparent);background:color-mix(in srgb,var(--teal) 14%,transparent)}
+/* right to left: arrows and chevrons that mean back / forward point the other way */
+[dir=rtl] :is(ha-icon[icon="mdi:chevron-left"],ha-icon[icon="mdi:chevron-right"],ha-icon[icon="mdi:arrow-left"],ha-icon[icon="mdi:arrow-right"],ha-icon[icon="mdi:arrow-right-thin"],ha-icon[icon="mdi:arrow-left-thin"]){transform:scaleX(-1)}
 .rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
 .rpop.open{display:flex;animation:fade .2s}
 .rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:var(--ha-card-background,var(--card-background-color,#0f172a));border-radius:var(--ha-dialog-border-radius,22px);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}

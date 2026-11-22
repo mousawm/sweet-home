@@ -74,7 +74,7 @@ export class WaterPanels {
       return `<button class="valve ${this.on(id) ? 'on' : ''}" data-act="valve" data-id="${id}"${I.durations[i] ? ` data-id2="${I.durations[i]}"` : ''}>
       <div class="drops">${ic('mdi:sprinkler-variant')}</div><b>${esc(nm)}</b><span>${bad ? tr('Unavailable') : this.on(id) ? tr('Watering') : tr('Closed')}${m != null ? ` · ${m} min` : ''}</span></button>`;
     }).join('');
-    const ok = id => this.ok(id) ? esc(this.v(id)) : '—';
+    const ok = id => this.ok(id) ? esc(tr(this.v(id))) : '—'; // a weekday such as "Friday" is translated
     // v1.21.8: the header pill is the Water Tomorrow switch (the separate row is gone); long press = more-info
     return `<div class="ch">${ic('mdi:sprinkler')}<h3>${tr("Irrigation")}</h3>${!I.tomorrow ? '' : `<button class="pill pillsw ${this.on(I.tomorrow) ? 'on' : ''}" style="--c:${this.on(I.tomorrow) ? '#34d399' : '#94a3b8'}" data-act="toggle" data-id="${I.tomorrow}" aria-pressed="${this.on(I.tomorrow)}">${this.on(I.tomorrow) ? tr("Watering tomorrow") : tr("Scheduled")}</button>`}</div>
       ${v ? `<div class="valves">${v}</div>` : `<div class="empty">${ic('mdi:information-outline')} ${tr('No valves yet: add them in the card editor (Panels → Irrigation).')}</div>`}
