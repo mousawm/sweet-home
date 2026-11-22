@@ -6,11 +6,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Room panel: white in the light look (dark glass in the dark look), and on phones the 3D view behind the open panel is dimmed and blurred so the panel stands out (light and dark looks).
 
 ### Changed
 
 ### Added
+
+## v0.6.50 — 2026-11-22
+
+### Fixed
+- Room panel: white in the light look (dark glass in the dark look), and on phones the 3D view behind the open panel is dimmed and blurred so the panel stands out (light and dark looks).
 
 ## v0.6.49 — 2026-11-22
 
