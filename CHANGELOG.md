@@ -11,6 +11,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Arabic: numbers with units and English option names keep their order. "-75 dBm" and "-175 kWh" no longer show as "dBm 75-" and "kWh-", and option names such as "2 hours", "30 min" or "1 Week" show as the entity has them, number first, instead of "hours 2". Weekdays are translated.
 - Arabic: more texts translated: the weather condition, Energy History's Day / Week / Month / Year, the solar forecast's "Tomorrow", "still to come today" and "peak at", the AC's swing chips, "Daily limit", the picker's title, and the lock tiles' state. The greeting uses the Arabic comma.
 - Arabic: the pop-up sheets (option pickers, weather, lights…) and messages are laid out right to left too: title on the right, close button on the left, options aligned to the right.
+- Arabic: times such as "15 min" and "15 min ago" (motion, Needs Attention, last changed) are now in Arabic ("15 دقيقة", "قبل 15 دقيقة"). They follow the card's language through the browser's own formatting.
 - Arabic on phones: the people's pictures no longer cover the clock (they move to the left), and back / forward arrows point the right way.
 
 ### Changed

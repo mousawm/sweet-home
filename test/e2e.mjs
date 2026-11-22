@@ -1099,6 +1099,8 @@ try {
     // values keep their own direction; option names with a duration or a weekday are in Arabic
     const { t } = await import('/src/i18n.js');
     out.bdi = card.f('sensor.living_room_temperature', 1).startsWith('<bdi>');
+    { const c = await import('/src/core.js'), i18n = await import('/src/i18n.js'); i18n.setLang('ar'); const ago15 = new Date(Date.now() - 900e3).toISOString();
+      out.times = c.agoShort(ago15) === '15 دقيقة' && c.ago(ago15).includes('15') && !/min|ago/.test(c.ago(ago15)); } // "15 min" in Arabic (Intl)
     out.sheetRtl = R.getElementById('sheet').dir === 'rtl' && R.getElementById('toast').dir === 'rtl'; // the pop-up sheets are right to left too
     // option names stay as the entity has them ("2 hours"), in their own order (<bdi>): not translated
     out.words = t('2 hours') === '2 hours' && t('Friday') === 'الجمعة' && card.pickChip !== undefined;

@@ -241,6 +241,8 @@ const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
 export function setLang(lang) { LANG = String(lang || 'en').toLowerCase(); DICT = DICTS[LANG.split('-')[0]] || null; }
 export const lang = () => LANG;
+// the language the card is shown in: one it has a translation for, else English
+export const uiLang = () => (DICT ? LANG : 'en');
 export const isRTL = () => /^(ar|he|fa|ur)/.test(LANG);
 export function t(s, ...a) {
   let x = (DICT && DICT[s]) ?? s;
