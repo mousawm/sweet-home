@@ -54,7 +54,7 @@ export class SecurityPanels {
       const pad = locked ? 'mdi:lock' : s === 'unlocked' ? 'mdi:lock-open-variant' : s === 'jammed' ? 'mdi:lock-alert' : 'mdi:lock-clock';
       return `<button class="lock ${cls}" data-act="lock" data-id="${l.id}" data-kind="${l.kind || 'padlock'}">
         <div class="lk-ic">${l.icon ? `${ic(l.icon)}<i class="lk-b">${ic(pad)}</i>` : ic(pad)}</div>
-        <b>${esc(l.name)}</b><span>${esc(s || '—')}</span></button>`;
+        <b>${esc(l.name)}</b><span>${esc(s ? pretty(s) : '—')}</span></button>`;
     }).join('');
     // gates, garage doors, barriers, shutters: a second tap opens / closes (or stops one that is moving)
     const gate = E.entrances.filter(g => this.s(g.id)).map(g => {

@@ -1,7 +1,7 @@
 // Sweet Home — Needs Attention, Home Lab, Devices.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, tc, ago, agoShort, esc, ic, clamp, BAD, guestInfo, pretty } from '../core.js';
+import { E, tc, ago, agoShort, esc, ic, clamp, BAD, guestInfo, pretty, bidi } from '../core.js';
 
 export class SystemPanels {
   // Swap sheet: double tap the Home Lab Swap ring → the 10 LXC containers using the most swap, each with
@@ -99,7 +99,7 @@ export class SystemPanels {
     const weak = all.filter(st => st.entity_id.startsWith('sensor.') && st.attributes.device_class === 'signal_strength' && /dBm/i.test(st.attributes.unit_of_measurement || '') && !isNaN(num(st)) && num(st) < A.rssiMin && !A.excludeEntities.includes(st.entity_id) && !exDev(st.entity_id))
       .sort((a, b) => num(a) - num(b)).map(st => {
         const dev = h.entities?.[st.entity_id]?.device_id, rb = dev && Object.keys(h.entities || {}).find(e => e.startsWith('button.') && h.entities[e].device_id === dev && h.states[e] && (h.states[e].attributes.device_class === 'restart' || /reboot|restart/.test(e)));
-        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${Math.round(num(st))} dBm</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : ''}${hide(st.entity_id)}</div>`;
+        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${bidi(`${Math.round(num(st))} dBm`)}</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : ''}${hide(st.entity_id)}</div>`;
       });
     // pending updates, as on HA's Settings page: update entities that are on, can be installed and are not skipped
     const upd = all.filter(st => st.entity_id.startsWith('update.') && st.state === 'on' && (st.attributes.supported_features & 1)

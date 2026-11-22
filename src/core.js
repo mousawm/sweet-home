@@ -3,7 +3,7 @@
  * and the 3D scene.
  */
 import { FURN_TYPES } from './model.js';
-import { t as tr } from './i18n.js';
+import { t as tr, uiLang as cardLang } from './i18n.js';
 
 export const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';
 
@@ -29,26 +29,33 @@ export const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], clim
 /* ------------------------------------------------------------------ */
 // Title Case for names: capitalise each word that is all lowercase (keeps LED, TV, iPad, LocalAI as they are)
 export const tc = s => String(s ?? '').replace(/(^|[\s(/&-])(\p{Ll}[\p{Ll}\d']*)(?=$|[\s),./&-])/gu, (m, a, w) => a + w[0].toUpperCase() + w.slice(1));
-// "just now", "5 min ago", "2 h 10 min ago", "yesterday 21:40", "Sat 14:05", "12 Nov 09:30"
+// "just now", "5 min ago", "2 h 10 min ago", "yesterday 21:40", "Sat 14:05", "12 Nov 09:30". In the card's language:
+// English as written here; any other language through the browser's own formatting (Intl), so "15 min ago" reads
+// "قبل 15 دقيقة" in Arabic and is right in every language, with no word list to keep up.
+const relFmt = L => { try { return new Intl.RelativeTimeFormat(L, { numeric: 'auto' }); } catch (e) { return null; } };
+const unitFmt = (L, unit) => { try { return new Intl.NumberFormat(L, { style: 'unit', unit, unitDisplay: 'long' }); } catch (e) { return null; } };
+const uiLang = () => cardLang(); // times in the language the card is shown in, like the rest of its text
 export const ago = (iso, lang = 'en') => {
   const t = new Date(iso), s = (Date.now() - t) / 1000; if (isNaN(s)) return '';
-  if (s < 45) return 'just now';
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 6 * 3600) { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return `${h} h${m ? ` ${m} min` : ''} ago`; }
-  const hm = t.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }), now = new Date();
+  const L = uiLang(lang), rel = !/^en\b/.test(L) && relFmt(L);
+  if (s < 45) return rel ? rel.format(0, 'second') : 'just now';
+  if (s < 3600) return rel ? rel.format(-Math.round(s / 60), 'minute') : `${Math.round(s / 60)} min ago`;
+  if (s < 6 * 3600) { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return rel ? rel.format(-Math.round(s / 3600), 'hour') : `${h} h${m ? ` ${m} min` : ''} ago`; }
+  const hm = t.toLocaleTimeString(L, { hour: '2-digit', minute: '2-digit' }), now = new Date();
   const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
-  if (days === 0) return `today ${hm}`;
-  if (days === 1) return `yesterday ${hm}`;
-  if (days < 7) return `${t.toLocaleDateString(lang, { weekday: 'short' })} ${hm}`;
-  return `${t.toLocaleDateString(lang, { day: 'numeric', month: 'short' })} ${hm}`;
+  if (days === 0) return `${rel ? rel.format(0, 'day') : 'today'} ${hm}`;
+  if (days === 1) return `${rel ? rel.format(-1, 'day') : 'yesterday'} ${hm}`;
+  if (days < 7) return `${t.toLocaleDateString(L, { weekday: 'short' })} ${hm}`;
+  return `${t.toLocaleDateString(L, { day: 'numeric', month: 'short' })} ${hm}`;
 };
-// short form for one-line rows: "now", "5 min", "2 h", "yesterday", "Sat", "12 Nov"
+// short form for one-line rows: "now", "5 min", "2 h", "yesterday", "Sat", "12 Nov" (other languages: Intl, as above)
 export const agoShort = (iso, lang = 'en') => {
   const t = new Date(iso), s = (Date.now() - t) / 1000; if (isNaN(s)) return '';
-  if (s < 45) return 'now'; if (s < 3600) return `${Math.round(s / 60)} min`; if (s < 12 * 3600) return `${Math.round(s / 3600)} h`;
+  const L = uiLang(lang), en = /^en\b/.test(L), rel = !en && relFmt(L), unit = (n, u) => (!en && unitFmt(L, u)?.format(n)) || `${n} ${u === 'minute' ? 'min' : 'h'}`;
+  if (s < 45) return rel ? rel.format(0, 'second') : 'now'; if (s < 3600) return unit(Math.round(s / 60), 'minute'); if (s < 12 * 3600) return unit(Math.round(s / 3600), 'hour');
   const now = new Date(), days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
-  if (days <= 0) return `${Math.round(s / 3600)} h`; if (days === 1) return 'yesterday';
-  return days < 7 ? t.toLocaleDateString(lang, { weekday: 'short' }) : t.toLocaleDateString(lang, { day: 'numeric', month: 'short' });
+  if (days <= 0) return unit(Math.round(s / 3600), 'hour'); if (days === 1) return rel ? rel.format(-1, 'day') : 'yesterday';
+  return days < 7 ? t.toLocaleDateString(L, { weekday: 'short' }) : t.toLocaleDateString(L, { day: 'numeric', month: 'short' });
 };
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // apply Title Case to every configured sensor / device / room name
@@ -264,8 +271,11 @@ export const ALL_TABS = [
   ['home', 'Home', 'mdi:home-modern'], ['security', 'Security', 'mdi:shield-home'], ['climate', 'Climate', 'mdi:air-conditioner'],
   ['energy', 'Energy', 'mdi:lightning-bolt'], ['water', 'Water & Garden', 'mdi:water'], ['media', 'Media', 'mdi:television-play'], ['system', 'System', 'mdi:server'],
 ];
-export const fmtW = w => { if (w == null || isNaN(w)) return '—'; const a = Math.abs(w); return a >= 1000 ? `${(w / 1000).toFixed(2)}<small>kW</small>` : `${Math.round(w)}<small>W</small>`; };
-export const wxName = st => tc(String(st || '').replace('partlycloudy', 'partly cloudy').replace(/-/g, ' '));
+// a value shown inside text (numbers with units, English option names): <bdi> lays it out by its own direction, so in
+// Arabic "-75 dBm" and "2 hours" don't come out as "dBm 75-" and "hours 2"
+export const bidi = h => `<bdi>${h}</bdi>`;
+export const fmtW = w => { if (w == null || isNaN(w)) return '—'; const a = Math.abs(w); return bidi(a >= 1000 ? `${(w / 1000).toFixed(2)}<small>kW</small>` : `${Math.round(w)}<small>W</small>`); };
+export const wxName = st => tr(tc(String(st || '').replace('partlycloudy', 'partly cloudy').replace(/-/g, ' ')));
 export const WEATHER_ICON = { 'clear-night': 'mdi:weather-night', cloudy: 'mdi:weather-cloudy', fog: 'mdi:weather-fog', hail: 'mdi:weather-hail', lightning: 'mdi:weather-lightning', 'lightning-rainy': 'mdi:weather-lightning-rainy', partlycloudy: 'mdi:weather-partly-cloudy', pouring: 'mdi:weather-pouring', rainy: 'mdi:weather-rainy', snowy: 'mdi:weather-snowy', 'snowy-rainy': 'mdi:weather-snowy-rainy', sunny: 'mdi:weather-sunny', windy: 'mdi:weather-windy', 'windy-variant': 'mdi:weather-windy-variant', exceptional: 'mdi:alert-circle-outline' };
 export const ACT_MODE = { heating: 'heat', cooling: 'cool', drying: 'dry', fan: 'fan_only' };
 export const acMode = st => !st || st.state === 'off' ? 'off' : ACT_MODE[st.attributes?.hvac_action] || st.state;

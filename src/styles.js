@@ -48,6 +48,7 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 .tab.on{display:block}
 @keyframes tabin{from{opacity:0;transform:translateY(8px)}}
 .tab.from-next{animation:tabnext .3s ease}.tab.from-prev{animation:tabprev .3s ease}
+[dir=rtl] .tab.from-next{animation-name:tabprev}[dir=rtl] .tab.from-prev{animation-name:tabnext} /* right to left: the next tab slides in from the left */
 @keyframes tabnext{from{opacity:0;transform:translateX(40px)}}@keyframes tabprev{from{opacity:0;transform:translateX(-40px)}}
 main{scroll-margin-top:84px}
 .home-grid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr) 340px;align-items:start}
@@ -63,7 +64,7 @@ main{scroll-margin-top:84px}
 .tgrid.wide1{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
 /* glance */
 .glance{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.gl{display:flex;align-items:center;gap:10px;padding:11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);text-align:left;min-width:0;transition:transform .2s,border-color .2s,background .2s}
+.gl{display:flex;align-items:center;gap:10px;padding:11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);text-align:start;min-width:0;transition:transform .2s,border-color .2s,background .2s}
 @media (hover:hover){.gl:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 8%,transparent)}}
 .gl .gi{width:34px;height:34px;flex:none;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent)}
 .gl .gi ha-icon{--mdc-icon-size:18px}
@@ -91,7 +92,7 @@ main{scroll-margin-top:84px}
 .sh-h img{width:34px;height:34px;border-radius:50%;object-fit:cover}
 .sh-h>ha-icon{color:var(--teal)}.sheet .dsec:first-of-type{margin-top:4px}
 .trow em{font-style:normal;font-size:11.5px;color:var(--mu)}.trow b{font-size:13px;min-width:44px;text-align:right}.trow ha-icon.ac{color:var(--blue);--mdc-icon-size:15px}
-.opt{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);font-size:14px;text-align:left;transition:background .15s}
+.opt{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);font-size:14px;text-align:start;transition:background .15s}
 @media (hover:hover){.opt:hover{background:rgba(var(--ink),.08)}}.opt span{flex:1}
 .opt.on{border-color:var(--teal);background:rgba(45,212,191,.14)}.opt.on ha-icon{color:var(--teal)}
 /* alarm keypad + toast */
@@ -276,7 +277,7 @@ main{scroll-margin-top:84px}
 .mlib div.go{position:relative}.mlib div.go span{color:#c4b5fd}
 .jfwait{margin:0 0 12px;padding:12px;border-radius:14px;background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.35);font-size:13px}.jfwm{display:flex;gap:10px;align-items:flex-start}.jfwm span{flex:1;line-height:1.4}.jfwm ha-icon{--mdc-icon-size:18px;color:var(--teal)}.jfwait .spin{animation:spin 1s linear infinite}.jfwb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.jfwb .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;max-width:none;font-size:13px;line-height:1;padding:9px 16px;cursor:pointer}.jfwb .pill ha-icon{--mdc-icon-size:18px;display:flex}.jfwb .pill.on{background:var(--teal);color:#04342c;border-color:var(--teal)}.jfwh{margin-top:8px;font-size:11px;color:var(--mu)}
 .jfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.jfpo{position:relative;display:flex;flex-direction:column;gap:5px;padding:0;background:none;border:0;color:var(--tx);font:inherit;text-align:left;cursor:pointer;min-width:0}
+.jfpo{position:relative;display:flex;flex-direction:column;gap:5px;padding:0;background:none;border:0;color:var(--tx);font:inherit;text-align:start;cursor:pointer;min-width:0}
 .jfpo span{font-size:11.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .jfimg{position:relative;width:100%;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center}
 .jfimg ha-icon{--mdc-icon-size:26px;color:var(--mu)}.jfimg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -287,7 +288,7 @@ main{scroll-margin-top:84px}
 .jfshowh>div:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}.jfshowh b{font-size:15px}.jfshowh span{font-size:12px;color:var(--mu)}.jfshowh em{font-style:normal;font-size:11px;color:#c4b5fd}
 .jfseas{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 10px;padding:0 16px}.jfseas::-webkit-scrollbar{display:none}
 .jfseas button{flex:none;padding:6px 12px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu);font:inherit;font-size:12px;cursor:pointer}.jfseas button.on{color:var(--hi);border-color:rgba(167,139,250,.6);background:rgba(167,139,250,.18)}
-.jfep{display:flex;align-items:center;gap:10px;width:100%;padding:6px;margin-bottom:6px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--tx);font:inherit;text-align:left;cursor:pointer}
+.jfep{display:flex;align-items:center;gap:10px;width:100%;padding:6px;margin-bottom:6px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--tx);font:inherit;text-align:start;cursor:pointer}
 .jfep .jfimg{width:96px;flex:none;aspect-ratio:16/9;border-radius:8px}.jfep>div:not(.jfimg){flex:1;min-width:0}.jfep b{font-size:12.5px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .jfep .jfepp{--mdc-icon-size:18px;color:#a78bfa;flex:none;margin-right:4px}
 
@@ -357,7 +358,7 @@ main{scroll-margin-top:84px}
 
 /* tiles */
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.tiles.two{grid-template-columns:1fr 1fr}
-.tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);font-size:12px;font-weight:500;color:var(--mu);transition:.2s;text-align:left;min-width:0}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);font-size:12px;font-weight:500;color:var(--mu);transition:.2s;text-align:start;min-width:0}
 .tile span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .tile ha-icon{--mdc-icon-size:20px}
 @media (hover:hover){.tile:hover{background:rgba(var(--ink),.08)}}
@@ -453,7 +454,7 @@ main{scroll-margin-top:84px}
 .mrow.na{opacity:.6}.mrow.na b{color:var(--rose)}
 @media (pointer:coarse){.lrow,.mrow{min-height:48px;padding:12px 14px;font-size:13.5px}.dfold{min-height:44px}.lbl{padding:7px 11px;font-size:12.5px}.drawer .ibtn{min-width:44px;min-height:44px}.fb.big{width:32px;height:32px}}
 .dsec{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin:12px 0 6px}
-.lrow,.mrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px;font-size:12.5px;text-align:left;cursor:pointer}
+.lrow,.mrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px;font-size:12.5px;text-align:start;cursor:pointer}
 .lrow span,.mrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lrow b,.mrow b{font-size:11.5px;color:var(--mu);font-weight:600}
 .lrow ha-icon,.mrow ha-icon{color:var(--mu)}
 .lrow.on{background:linear-gradient(100deg,rgba(251,191,36,.25),rgba(251,191,36,.05));border-color:rgba(251,191,36,.5)}.lrow.on ha-icon{color:var(--amber);filter:drop-shadow(0 0 6px var(--amber))}.lrow.on b{color:var(--amber)}
@@ -655,7 +656,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .chip{height:38px;flex:none;font-size:12.5px;padding:0 12px 0 6px;gap:7px}.chip>ha-icon{width:26px;height:26px;--mdc-icon-size:15px}
   .chip.big{padding:0 13px 0 6px}.chip.big b{font-size:13.5px}.chip.big span{font-size:10px}
   /* avatars: top-right corner of the header */
-  .hdr-right .persons{position:absolute;top:0;right:0;margin:0}.person{width:38px;height:38px}
+  .hdr-right .persons{position:absolute;top:0;right:0;margin:0}
+  [dir=rtl] .hdr-right .persons{right:auto;left:0}[dir=rtl] .greet{padding-right:0;padding-left:96px} /* right to left: the avatars go to the left, clear of the clock */.person{width:38px;height:38px}
   .seg button span{display:none}
   .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
   .camgrid{grid-template-columns:1fr;gap:10px} /* phones: cameras stacked, full width */
@@ -694,6 +696,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .labnodes button{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--mu);background:var(--panel2);border:1px solid var(--line)}
 .labnodes button ha-icon{--mdc-icon-size:15px}
 .labnodes button.on{color:var(--teal);border-color:color-mix(in srgb,var(--teal) 50%,transparent);background:color-mix(in srgb,var(--teal) 14%,transparent)}
+/* right to left: arrows and chevrons that mean back / forward point the other way */
+[dir=rtl] :is(ha-icon[icon="mdi:chevron-left"],ha-icon[icon="mdi:chevron-right"],ha-icon[icon="mdi:arrow-left"],ha-icon[icon="mdi:arrow-right"],ha-icon[icon="mdi:arrow-right-thin"],ha-icon[icon="mdi:arrow-left-thin"]){transform:scaleX(-1)}
 .rpop{position:fixed;inset:0;z-index:59;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,.55);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;font-family:'Inter',system-ui,sans-serif;color:var(--tx)}
 .rpop.open{display:flex;animation:fade .2s}
 .rpop .drawer,.rpop .drawer.open,[dir=rtl].rpop .drawer{position:relative;inset:auto;top:auto;right:auto;bottom:auto;left:auto;width:min(420px,calc(100% - 32px));max-width:none;max-height:min(80vh,720px);transform:none;background:var(--ha-card-background,var(--card-background-color,#0f172a));border-radius:var(--ha-dialog-border-radius,22px);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
