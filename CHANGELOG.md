@@ -11,6 +11,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.51 — 2026-11-22
+
+### Fixed
+- Arabic: the Needs Attention card's section titles (Low Batteries, Weak WiFi, Repairs, Tunnels), "+N more", "Offline", "N parts offline", "Updating" and Home Lab's "Stopped" are translated.
+
+### Added
+- `room_backdrop` option (Look, on by default): on phones the 3D view behind an open room is blurred and a tap outside the room closes it. Off: no blur, and a tap on another room switches to it.
+
 ## v0.6.50 — 2026-11-22
 
 ### Fixed

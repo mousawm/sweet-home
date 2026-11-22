@@ -1118,6 +1118,14 @@ try {
       const sl = R.querySelector('#drawer .sl'), out = {};
       out.fullWidth = Math.abs((d.left - v.left) - (v.right - d.right)) < 2 && d.width > v.width - 24; // phones: the room panel spans the view, centred, in Arabic too
       out.fill = !sl || getComputedStyle(sl).backgroundImage.includes('270deg'); // the slider fill starts on the right, with its thumb
+      // room_backdrop (default on): the 3D view behind is blurred and a tap on it closes the room
+      const bk = R.getElementById('rback'); out.backdrop = !!bk && getComputedStyle(bk).visibility === 'visible' && getComputedStyle(bk).backdropFilter.includes('blur');
+      bk?.click(); await new Promise(r => setTimeout(r, 300)); out.tapCloses = !card._sel && !R.getElementById('drawer').classList.contains('open');
+      // off: no backdrop (a tap on the 3D view picks another room, as before)
+      card.setConfig({ ...card._config, room_backdrop: false }); card._rebuild?.(); await new Promise(r => setTimeout(r, 600));
+      out.offNoBackdrop = !card.shadowRoot.getElementById('rback');
+      card.setConfig({ ...card._config, room_backdrop: undefined }); card._rebuild?.(); await new Promise(r => setTimeout(r, 600));
+      card._select('living_room'); await new Promise(r => setTimeout(r, 400));
       card._select(null);
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); await p.setViewportSize(vs);

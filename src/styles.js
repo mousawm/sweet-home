@@ -432,6 +432,7 @@ main{scroll-margin-top:84px}
 [dir=rtl] .lvls{right:auto;left:12px}[dir=rtl] .legend{left:auto;right:12px}[dir=rtl] .lrow,[dir=rtl] .mrow{text-align:right}
 [dir=rtl] #cv,[dir=rtl] .labels{direction:ltr}[dir=rtl] .lbl,[dir=rtl] .fb{direction:rtl}
 [dir=rtl]{font-family:'Noto Kufi Arabic','SF Arabic','Noto Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
+.rback{display:none} /* only on phones (below) */
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(var(--s1),.72);border:1px solid rgba(var(--ink),.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}
 .lvls button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--mu);min-height:36px}
 .lvls button.on{background:rgba(45,212,191,.2);color:var(--teal)}.lvls ha-icon{--mdc-icon-size:16px}
@@ -664,9 +665,10 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .seg button span{display:none}
   .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-width:none;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
   [dir=rtl] .drawer{left:8px;right:8px;transform:translateY(calc(100% + 20px))} /* right to left: full width too, not shrunk to its content */
-  /* phones: the 3D view behind the open room panel is dimmed and blurred, so the panel stands out */
-  .viewport::after{content:'';position:absolute;inset:0;z-index:4;border-radius:inherit;background:rgba(2,6,23,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s,visibility .3s}
-  .viewport:has(.drawer.open)::after{opacity:1;visibility:visible}
+  /* phones (room_backdrop, on by default): the 3D view behind the open room panel is dimmed and blurred, and a tap on it
+     closes the panel; off: no backdrop, a tap on another room switches to it */
+  .rback{display:block;position:absolute;inset:0;z-index:4;border-radius:inherit;background:rgba(2,6,23,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s}
+  .viewport:has(.drawer.open) .rback{opacity:1;visibility:visible}
   .drawer{z-index:5}
   .camgrid{grid-template-columns:1fr;gap:10px} /* phones: cameras stacked, full width */
 }

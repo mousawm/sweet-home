@@ -297,6 +297,7 @@ export class SweetHomeCard extends HTMLElement {
             <div class="hint" id="hint" role="note"></div>
             <div class="lvls" id="lvls" role="tablist" aria-label="${tr('Floors')}"></div>
             <div class="loading" id="loading"><div class="spinner"></div><span>${tr('Building your home…')}</span></div>
+            ${!this._solo && this._config?.room_backdrop !== false ? '<div class="rback" id="rback" data-act="roomclose"></div>' : ''}
             ${this._solo ? '' : '<aside class="drawer" id="drawer"></aside>'}
           </div>
         </section>
