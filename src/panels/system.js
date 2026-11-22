@@ -82,12 +82,12 @@ export class SystemPanels {
     const unG = new Map();
     for (const st of unRaw) { const dev = h.entities?.[st.entity_id]?.device_id, k = dev || st.entity_id; (unG.get(k) || unG.set(k, []).get(k)).push(st); }
     const un = [...unG.values()].map(g => {
-      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="Offline" data-short="1">${'Offline ·'} ${agoShort(st.last_changed, lang)}</b>${hide(st.entity_id)}</div>`;
+      const st = g[0]; if (g.length === 1) return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic(DI[st.entity_id.split('.')[0]] || 'mdi:lan-disconnect')}${lab(st)}<b data-ago="${st.last_changed}" data-pre="${tr('Offline')}" data-short="1">${tr('Offline')} · ${agoShort(st.last_changed, lang)}</b>${hide(st.entity_id)}</div>`;
       const dn = tc(devName(st.entity_id)), e = h.entities?.[st.entity_id], ar = h.areas?.[e?.area_id || h.devices?.[e?.device_id]?.area_id]?.name;
       const parts = g.map(x => { const n = nm(x); return tc(n.toLowerCase().startsWith(dn.toLowerCase()) ? n.slice(dn.length).replace(/^[\s:·-]+/, '') || n : n); });
-      const sub = [parts.length <= 3 ? parts.join(', ') : `${parts.length} parts offline`, ar ? tc(ar) : ''].filter(Boolean).join(' · ');
+      const sub = [parts.length <= 3 ? parts.join(', ') : tr('{0} parts offline', parts.length), ar ? tc(ar) : ''].filter(Boolean).join(' · ');
       const since = g.map(x => x.last_changed).sort()[0];
-      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="Offline" data-short="1">${'Offline ·'} ${agoShort(since, lang)}</b>${hide(st.entity_id)}</div>`;
+      return `<div class="mrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:lan-disconnect')}<span class="m2">${esc(dn)}<small>${esc(sub)}</small></span><b data-ago="${since}" data-pre="${tr('Offline')}" data-short="1">${tr('Offline')} · ${agoShort(since, lang)}</b>${hide(st.entity_id)}</div>`;
     });
     // low batteries
     const seenDev = new Set();
@@ -107,7 +107,7 @@ export class SystemPanels {
       .sort((a, b) => nm(a).localeCompare(nm(b))).map(st => {
         const a = st.attributes, name = tc(a.title || (a.friendly_name || st.entity_id).replace(/\s*update$/i, ''));
         const busy = a.in_progress !== false && a.in_progress != null;
-        const ver = busy ? `Updating${typeof a.in_progress === 'number' ? ` · ${a.in_progress}%` : '…'}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
+        const ver = busy ? `${tr('Updating')}${typeof a.in_progress === 'number' ? ` · ${a.in_progress}%` : '…'}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
         return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${esc(ver)}</small></span>${busy ? '' : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}${tr("Update")}</button>`}</div>`;
       });
     // HA Repairs: the same list as Settings → Repairs (ignored ones left out), loaded by _loadRepairs every 30 s;
@@ -120,7 +120,7 @@ export class SystemPanels {
       const what = restart ? tr("Restart required") : tc(pretty(String(i.translation_key || i.issue_id).replace(/_/g, ' ')));
       return `<div class="mrow ${i.severity === 'error' || i.severity === 'critical' ? 'open' : ''}" data-act="repairs">${ic(restart ? 'mdi:restart-alert' : 'mdi:wrench-outline')}<span class="m2">${esc(nm)}<small>${esc(what)}${i.domain && i.domain !== i.issue_domain ? ` · ${esc(tc(i.domain))}` : ''}</small></span></div>`;
     });
-    if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>to apply the changes above</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
+    if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>${tr('to apply the changes above')}</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
     return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
   }
   async _loadRepairs() {
@@ -136,8 +136,8 @@ export class SystemPanels {
     const LIM = 5;
     const body = secs.map(([k, title, icon, rows]) => {
       const open = this._alOpen.has(k), shown = open ? rows : rows.slice(0, LIM);
-      const more = rows.length > LIM ? `<button class="almore" data-act="alexp" data-k="${k}">${open ? tr("Show less") : `+${rows.length - LIM} more`}</button>` : '';
-      return `<div class="dsec alsec">${ic(icon)}${title}<i>${rows.length}</i></div>${shown.join('')}${more}`;
+      const more = rows.length > LIM ? `<button class="almore" data-act="alexp" data-k="${k}">${open ? tr("Show less") : tr('+{0} more', rows.length - LIM)}</button>` : '';
+      return `<div class="dsec alsec">${ic(icon)}${tr(title)}<i>${rows.length}</i></div>${shown.join('')}${more}`;
     }).join('');
     return `<div class="card acard"><div class="ch">${ic('mdi:alert-circle-outline')}<h3>${tr("Needs Attention")}</h3><span class="pill" style="--c:#f43f5e">${this._alertCount}</span></div>${body}</div>`;
   }
@@ -162,7 +162,7 @@ export class SystemPanels {
       const cpuId = pick('cpu_used'), memId = pick('memory_used_percentage'), cpu = cpuId ? this.n(cpuId) : null, mem = memId ? this.n(memId) : null;
       const id1 = cpuId || stId || `binary_sensor.${keys[0]}_status`;
       const grip = this._editing && this._hass?.user?.is_admin ? `<b class="vmg" data-act="labgrip" title="${tr('Drag to reorder')}" aria-label="${tr('Drag to reorder')}">${ic('mdi:drag')}</b>` : ic(i);
-      return `<div class="vm ${up ? '' : 'off'}" data-act="more" data-id="${id1}" data-gid="${esc(gid)}"${memId ? ` data-id2="${memId}"` : ''}>${grip}<span>${esc(n)}</span><i class="dot ${up ? 'green' : 'red'}"></i>${up ? `<em>CPU ${cpu != null ? cpu.toFixed(1) : '—'}%</em><em>RAM ${mem != null ? mem.toFixed(0) : '—'}%</em>` : '<em></em><em>Stopped</em>'}</div>`;
+      return `<div class="vm ${up ? '' : 'off'}" data-act="more" data-id="${id1}" data-gid="${esc(gid)}"${memId ? ` data-id2="${memId}"` : ''}>${grip}<span>${esc(n)}</span><i class="dot ${up ? 'green' : 'red'}"></i>${up ? `<em>CPU ${cpu != null ? cpu.toFixed(1) : '—'}%</em><em>RAM ${mem != null ? mem.toFixed(0) : '—'}%</em>` : `<em></em><em>${tr('Stopped')}</em>`}</div>`;
     };
     // every other Proxmox guest behind "Show more": running ones first, busiest memory first, stopped ones last
     // group every guest key by its Proxmox id; the pinned ones (by id) are left out

@@ -200,6 +200,7 @@ Each 3D view uses the device's graphics. One or two on a dashboard is fine; it p
 | `modes` | Mode buttons on the Home tab, under At a glance (`entity_id` or `{entity, name, icon}`): switches, helpers, lights and automations light up while on; scenes, scripts and buttons run with one tap. Pick them in the card editor: Panels → Modes. |
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
+| `room_backdrop` | Phones: the 3D view behind an open room is dimmed and blurred, and a tap outside the room closes it (default). `false`: no blur, and a tap on another room switches to it. Card editor: Look |
 | `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
