@@ -717,6 +717,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 :host([look=light]) .aurora{opacity:.12}
 :host([look=light]) .card{box-shadow:0 10px 30px -18px rgba(15,23,42,.35),inset 0 1px 0 rgba(255,255,255,.6)}
 :host([look=light]) .viewport,:host([look=light]) .cam{--ink:255,255,255;--s1:8,12,24;--s2:10,15,30;--s3:13,19,36;--hi:#fff;--tx:#e7ecf6;--mu:#8b97b2;--line:rgba(255,255,255,.08);--panel2:rgba(255,255,255,.04);--teal:#2dd4bf;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;--blue:#60a5fa;--green:#34d399;color:var(--tx)}
+:host([look=light]) .viewport .drawer{--ink:15,23,42;--s1:255,255,255;--s2:255,255,255;--s3:255,255,255;--hi:#0f172a;--tx:#0f172a;--mu:#5b6478;--line:rgba(15,23,42,.1);--panel2:rgba(15,23,42,.04);--teal:#0d9488;--amber:#b45309;--rose:#e11d48;--violet:#7c3aed;--blue:#2563eb;--green:#059669;color:var(--tx);background:rgba(255,255,255,.96);border-color:rgba(15,23,42,.08);box-shadow:0 20px 50px -20px rgba(15,23,42,.5)}
+:host([look=light]) .viewport .drawer .dh{background:rgba(255,255,255,.96)}:host([look=light]) .viewport .drawer .dstats b{filter:brightness(.72) saturate(1.3)} /* light look: a white room panel */
 /* pale text colours chosen for the dark look: darker shades of the same colours on a light background */
 :host([look=light]) .seg{background:rgba(15,23,42,.06);border-color:rgba(15,23,42,.08)}
 :host([look=light]) .seg button{color:var(--mu)}

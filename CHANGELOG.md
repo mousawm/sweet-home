@@ -6,7 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Room panel: back to its original dark glass in the light look too, and on phones the 3D view behind the open panel is dimmed and blurred so the panel stands out (light and dark looks).
+- Room panel: white in the light look (dark glass in the dark look), and on phones the 3D view behind the open panel is dimmed and blurred so the panel stands out (light and dark looks).
 
 ### Changed
 
