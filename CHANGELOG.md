@@ -6,13 +6,17 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Light look: the room panel over the 3D view is frosted light glass that shows the house blurred behind it (it was a heavy dark block), with readable temperatures.
-- Arabic on phones: the room panel fills the width and is centred (it shrank to its content), and slider fills start on the right with their thumb.
-- Arabic: the clock's "ص" / "م" (AM / PM) was cut off at the bottom. The gradient on the clock was painted only inside its tight line box, so the part of the letter below the line disappeared.
 
 ### Changed
 
 ### Added
+
+## v0.6.49 — 2026-11-22
+
+### Fixed
+- Light look: the room panel over the 3D view is frosted light glass that shows the house blurred behind it (it was a heavy dark block), with readable temperatures.
+- Arabic on phones: the room panel fills the width and is centred (it shrank to its content), and slider fills start on the right with their thumb.
+- Arabic: the clock's "ص" / "م" (AM / PM) was cut off at the bottom. The gradient on the clock was painted only inside its tight line box, so the part of the letter below the line disappeared.
 
 ## v0.6.48 — 2026-11-22
 
