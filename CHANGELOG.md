@@ -7,6 +7,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 
+- Arabic: the clock's "ص" / "م" (AM / PM) was cut off at the bottom. The gradient on the clock was painted only inside its tight line box, so the part of the letter below the line disappeared.
+
 ### Changed
 
 ### Added

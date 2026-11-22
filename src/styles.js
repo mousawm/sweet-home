@@ -19,6 +19,8 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 .clock{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
 .clock #time{font-size:52px;font-weight:700;letter-spacing:-2px;line-height:1.05;background:linear-gradient(120deg,#fff 30%,#a5b4fc 70%,#5eead4);-webkit-background-clip:text;background-clip:text;color:transparent}
 .clock .date{font-size:16px;color:var(--mu);font-weight:500}
+/* the gradient is painted inside the clock's box only: room below the line for letters that go under it (Arabic "ص" / "م"), taken back with a negative margin so nothing moves */
+.clock #time{padding-bottom:.2em;margin-bottom:-.2em}
 .hdr-right{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
 .chip{display:flex;align-items:center;gap:8px;height:42px;box-sizing:border-box;padding:0 14px 0 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .chip>ha-icon{--mdc-icon-size:16px;width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;color:var(--c,var(--mu));background:color-mix(in srgb,var(--c,#94a3b8) 18%,transparent)}
