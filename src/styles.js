@@ -120,6 +120,7 @@ main{scroll-margin-top:84px}
 .slrow{display:flex;align-items:center;gap:10px;padding:4px 12px 8px}
 .slrow ha-icon{--mdc-icon-size:16px;color:var(--mu)}.slrow em{font-style:normal;font-size:11.5px;font-weight:600;width:36px;text-align:right;color:var(--tx)}
 .sl{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:3px;outline:none;background:linear-gradient(90deg,var(--c) var(--p),rgba(var(--ink),.1) var(--p));cursor:pointer}
+[dir=rtl] .sl{background:linear-gradient(270deg,var(--c) var(--p),rgba(var(--ink),.1) var(--p))} /* right to left: the slider's thumb starts on the right, so its fill does too */
 .sl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--c);box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .sl::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--c)}
 .sl:focus-visible{box-shadow:0 0 0 3px rgba(45,212,191,.4)}
@@ -661,7 +662,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .hdr-right .persons{position:absolute;top:0;right:0;margin:0}
   [dir=rtl] .hdr-right .persons{right:auto;left:0}[dir=rtl] .greet{padding-right:0;padding-left:96px} /* right to left: the avatars go to the left, clear of the clock */.person{width:38px;height:38px}
   .seg button span{display:none}
-  .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
+  .drawer{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-width:none;max-height:calc(100% - 16px);transform:translateY(calc(100% + 20px))}
+  [dir=rtl] .drawer{left:8px;right:8px;transform:translateY(calc(100% + 20px))} /* right to left: full width too, not shrunk to its content */
   .camgrid{grid-template-columns:1fr;gap:10px} /* phones: cameras stacked, full width */
 }
 
@@ -711,6 +713,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 :host([look=light]) .aurora{opacity:.12}
 :host([look=light]) .card{box-shadow:0 10px 30px -18px rgba(15,23,42,.35),inset 0 1px 0 rgba(255,255,255,.6)}
 :host([look=light]) .viewport,:host([look=light]) .cam{--ink:255,255,255;--s1:8,12,24;--s2:10,15,30;--s3:13,19,36;--hi:#fff;--tx:#e7ecf6;--mu:#8b97b2;--line:rgba(255,255,255,.08);--panel2:rgba(255,255,255,.04);--teal:#2dd4bf;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;--blue:#60a5fa;--green:#34d399;color:var(--tx)}
+:host([look=light]) .viewport .drawer{--ink:15,23,42;--s1:255,255,255;--s2:255,255,255;--s3:255,255,255;--hi:#0f172a;--tx:#0f172a;--mu:#5b6478;--line:rgba(15,23,42,.1);--panel2:rgba(15,23,42,.05);--teal:#0d9488;--amber:#b45309;--rose:#e11d48;--violet:#7c3aed;--blue:#2563eb;--green:#059669;color:var(--tx);background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.7);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);box-shadow:0 20px 50px -20px rgba(15,23,42,.45)}
+:host([look=light]) .viewport .drawer .dh{background:rgba(255,255,255,.55)}:host([look=light]) .viewport .drawer .dstats b{filter:brightness(.72) saturate(1.3)} /* light look: the room panel is frosted light glass over the 3D view */
 /* pale text colours chosen for the dark look: darker shades of the same colours on a light background */
 :host([look=light]) .seg{background:rgba(15,23,42,.06);border-color:rgba(15,23,42,.08)}
 :host([look=light]) .seg button{color:var(--mu)}
