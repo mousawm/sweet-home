@@ -1099,13 +1099,15 @@ try {
     // values keep their own direction; option names with a duration or a weekday are in Arabic
     const { t } = await import('/src/i18n.js');
     out.bdi = card.f('sensor.living_room_temperature', 1).startsWith('<bdi>');
-    out.words = t('2 hours') === 'ساعتان' && t('30 min') === '30 دقيقة' && t('Friday') === 'الجمعة';
+    out.sheetRtl = R.getElementById('sheet').dir === 'rtl' && R.getElementById('toast').dir === 'rtl'; // the pop-up sheets are right to left too
+    // option names stay as the entity has them ("2 hours"), in their own order (<bdi>): not translated
+    out.words = t('2 hours') === '2 hours' && t('Friday') === 'الجمعة' && card.pickChip !== undefined;
     // the lock tiles' state is translated
     card._setTab('security'); await new Promise(r => setTimeout(r, 300));
     out.locks = ![...R.querySelectorAll('#security .lock span')].some(sp => /^(locked|unlocked)$/i.test(sp.textContent.trim()));
     card._setTab('home');
     return Object.values(out).every(Boolean) || JSON.stringify(out);
-  }); check('Arabic: swipe right for the next tab, Arabic comma, values keep their direction, durations / weekdays / lock states translated', r === true, r); }
+  }); check('Arabic: swipe right for the next tab, Arabic comma, values and option names keep their own direction, weekdays / lock states translated', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

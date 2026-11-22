@@ -316,8 +316,8 @@ export class SweetHomeCard extends HTMLElement {
       <footer class="foot">Sweet Home · v${VERSION}</footer>
     </div>${this._solo ? '</ha-card>' : ''}
     ${this._solo ? `<div class="rpop" id="rpop" data-act="roomclose" dir="${isRTL() ? 'rtl' : 'ltr'}"><aside class="drawer" id="drawer" role="dialog" aria-modal="true"></aside></div>` : ''}
-    <div class="sheet-bg" id="sheet" data-act="sheetclose"></div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
+    <div class="sheet-bg" id="sheet" data-act="sheetclose" dir="${isRTL() ? 'rtl' : 'ltr'}"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" dir="${isRTL() ? 'rtl' : 'ltr'}"></div>`;
     if (this._solo) { // Sweet Home 3D: only the 3D view; `height` sets it outside a sections grid
       const hh = this._config?.height, px = typeof hh === 'number' || /^\d+$/.test(String(hh ?? '')) ? `${hh}px` : hh;
       this.toggleAttribute('solo', true);

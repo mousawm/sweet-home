@@ -8,8 +8,9 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 - Arabic: swiping between tabs now goes the right way. The next tab is to the left, so swipe right to open it, and the tab slides in from the left.
-- Arabic: numbers with units and English option names keep their order. "-75 dBm" and "-175 kWh" no longer show as "dBm 75-" and "kWh-", and "2 hours" no longer shows as "hours 2". Durations ("30 min", "2 hours", "1 Week") and weekdays are translated.
+- Arabic: numbers with units and English option names keep their order. "-75 dBm" and "-175 kWh" no longer show as "dBm 75-" and "kWh-", and option names such as "2 hours", "30 min" or "1 Week" show as the entity has them, number first, instead of "hours 2". Weekdays are translated.
 - Arabic: more texts translated: the weather condition, Energy History's Day / Week / Month / Year, the solar forecast's "Tomorrow", "still to come today" and "peak at", the AC's swing chips, "Daily limit", the picker's title, and the lock tiles' state. The greeting uses the Arabic comma.
+- Arabic: the pop-up sheets (option pickers, weather, lights…) and messages are laid out right to left too: title on the right, close button on the left, options aligned to the right.
 - Arabic on phones: the people's pictures no longer cover the clock (they move to the left), and back / forward arrows point the right way.
 
 ### Changed

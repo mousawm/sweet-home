@@ -242,20 +242,8 @@ let DICT = null, LANG = 'en';
 export function setLang(lang) { LANG = String(lang || 'en').toLowerCase(); DICT = DICTS[LANG.split('-')[0]] || null; }
 export const lang = () => LANG;
 export const isRTL = () => /^(ar|he|fa|ur)/.test(LANG);
-// Arabic for option names such as "30 min", "2 hours", "1 Week" (select / input_select options): one, two (dual),
-// 3–10 (plural) and more (singular after a number)
-const AR_UNITS = [[/^(min|mins|minutes?)$/i, ['دقيقة', 'دقيقتان', 'دقائق']], [/^(h|hrs?|hours?)$/i, ['ساعة', 'ساعتان', 'ساعات']],
-  [/^(days?)$/i, ['يوم', 'يومان', 'أيام']], [/^(weeks?)$/i, ['أسبوع', 'أسبوعان', 'أسابيع']], [/^(months?)$/i, ['شهر', 'شهران', 'أشهر']]];
-function arDuration(s) {
-  const m = String(s).trim().match(/^(\d+)\s*([A-Za-z]+)$/);
-  if (!m) return null;
-  const n = Number(m[1]), u = AR_UNITS.find(([re]) => re.test(m[2]));
-  if (!u || isNaN(n)) return null;
-  const [one, two, many] = u[1];
-  return n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${many}` : `${n} ${one}`;
-}
 export function t(s, ...a) {
-  let x = (DICT && DICT[s]) ?? (DICT === AR ? arDuration(s) : null) ?? s;
+  let x = (DICT && DICT[s]) ?? s;
   for (let i = 0; i < a.length; i++) x = x.split(`{${i}}`).join(String(a[i]));
   return x;
 }
