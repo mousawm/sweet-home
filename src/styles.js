@@ -13,6 +13,9 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 .a3{width:460px;height:460px;background:#0d9488;bottom:-200px;left:-120px;animation-delay:-16s}
 @keyframes drift{to{transform:translate(80px,60px) scale(1.15)}}
 @media (hover:none){.tile:active,.ibtn:active,.pick:active,.opt:active,.gl:active,.tb:active,.abtn:active{filter:brightness(1.3)}}
+/* phones: no grey rectangle from the browser on a tap (it ignores rounded corners); the card's own press effect shows instead */
+:host{-webkit-tap-highlight-color:transparent}
+@media (hover:none){:host([look=light]) :is(.tile,.ibtn,.pick,.opt,.gl,.tb,.abtn):active{filter:brightness(.93)}:is(.tile,.abtn,.lrow,.mrow,.valve,.dev,.go):active{transform:scale(.97);transition:transform .1s}}
 @media (pointer:coarse){.aurora{animation:none}.fl.act{animation-timing-function:steps(8)}.pulse,.valve.on .drops{animation-timing-function:steps(6)}.np.playing .eq i{animation-timing-function:steps(4)}.car.charging .cbarf{animation-timing-function:steps(12)}} /* battery: a drifting backdrop makes every card's backdrop blur recompute each frame, forever */
 .top{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px;flex-wrap:wrap}
 .greet{font-size:15px;color:var(--mu);font-weight:500;letter-spacing:.2px}
