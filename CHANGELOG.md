@@ -8,6 +8,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+- README: new screenshots (the Doors timeline and list, the animation between them, and the light look) and the newer features: Doors view, update progress, live tab counters, the light look.
 
 ### Added
 
