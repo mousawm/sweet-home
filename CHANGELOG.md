@@ -8,9 +8,13 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
-- Needs Attention and the System tab's counter follow changes within a second (an update's progress, a battery, a device going offline or coming back, Home Assistant repairs), instead of refreshing every 30 seconds.
 
 ### Added
+
+## v0.6.54 — 2026-11-24
+
+### Changed
+- Needs Attention and the System tab's counter follow changes within a second (an update's progress, a battery, a device going offline or coming back, Home Assistant repairs), instead of refreshing every 30 seconds.
 
 ## v0.6.53 — 2026-11-24
 
