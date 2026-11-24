@@ -748,7 +748,8 @@ export class SweetHomeCard extends HTMLElement {
     // Needs Attention and the System tab's counter: redrawn within a second of a change to an entity they watch (an update's
     // progress, a battery, a device going offline…: _update marks it), at most once a second; and every 30 s (repairs, times)
     if (d.getSeconds() % 30 === 0 || this._alDirty) { this._alDirty = false; this._alertCount = null; this._rerender('alerts', 'tabs'); }
-    if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
+    if (d.getSeconds() === 0 && this._tab === 'security' && this.$('security')?.querySelector('.dv')) this._rerender('security'); // the 24-hour strips move with the clock
+    if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre ? `${el.dataset.pre} · ` : ''}${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
   }
 
   /* ---------- click handling ---------- */
@@ -804,6 +805,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'toggle': this.call('homeassistant', 'toggle', { entity_id: id }); break;
       case 'color': this.call('light', 'turn_on', t.dataset.k ? { entity_id: id, color_temp_kelvin: Number(t.dataset.k) } : { entity_id: id, rgb_color: t.dataset.rgb.split(',').map(Number) }); break;
       case 'more': this.more(id); break;
+      case 'doorsview': this._doorsFlip(); break;
       case 'mode': this._setMode(t.dataset.mode); break;
       case 'view': this._three?.view(t.dataset.view); break;
       case 'spin': { const on = this._three?.toggleSpin(); t.classList.toggle('on', !!on); break; }
