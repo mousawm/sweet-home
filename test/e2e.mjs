@@ -353,23 +353,26 @@ try {
     const row = card.shadowRoot.querySelector('#security .dv [data-k="sensor.gate_cam_gate_state"]'); card._setTab('home');
     return !!row && row.classList.contains('open') && row.textContent.includes('Gate');
   }));
-  // Doors: a 24-hour timeline from Home Assistant's history that opens into the detailed list (doors_view: both / timeline / list)
+  // Doors: a 24-hour timeline from Home Assistant's history; Show details opens more in the same rows (doors_view: both /
+  // timeline / list; doors_timeline: fill / aligned)
   {
-    const mk = view => p.evaluate(async view => {
-      window.keptCard ||= card; const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(window.keptCard._config)); cfg.panels.security = view ? { doors_view: view } : {};
+    const mk = (view, bars) => p.evaluate(async ([view, bars]) => {
+      window.keptCard ||= card; const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(window.keptCard._config));
+      cfg.panels.security = { ...(view ? { doors_view: view } : {}), ...(bars ? { doors_timeline: bars } : {}) };
       el.setConfig(cfg); card.remove(); document.body.appendChild(el); window.card = el;
       const H = window.hassObj, now = Date.now(), sec = m => (now - m * 60e3) / 1000; window.histAsks = [];
       // every door: open 3 h ago for 4 min, and 20 min ago for 1 min
       el.hass = { ...H, callWS: async m => { if (m.type !== 'history/history_during_period') return H.callWS(m); window.histAsks.push(m);
         return Object.fromEntries(m.entity_ids.map(id => [id, [{ s: 'off', lu: sec(1440) }, { s: 'on', lu: sec(180) }, { s: 'off', lu: sec(176) }, { s: 'on', lu: sec(20) }, { s: 'off', lu: sec(19) }]])); } };
       await new Promise(r => setTimeout(r, 200)); el._setTab('security'); await new Promise(r => setTimeout(r, 400));
-    }, view);
-    const look = () => p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)];
-      // (.dghost: the old view fading out for a moment after a switch; left out)
-      return { tl: q('.dv:not(.exp):not(.dghost) > .dtls > .dtl').length, rows: q('.dv.exp:not(.dghost) > .drow').length, btn: q('.dv:not(.dghost) > button.dmore').length, btnTxt: q('.dv:not(.dghost) > button.dmore')[0]?.textContent.trim() || '', marks: q('.dv:not(.dghost) > .dtls .dtrack i').length, sum: q('.dv:not(.dghost) > .dsum')[0]?.textContent || '',
-        asked: (window.histAsks || []).length, grp: q('.dv:not(.dghost) > .dgrp').map(g => g.textContent), when: q('.dv:not(.dghost) > .drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
+    }, [view, bars]);
+    const look = () => p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)], shown = el => el.getBoundingClientRect().height > 3;
+      return { tl: q('.dtl').length, det: !!q('.dv.det').length, btn: q('.dmore').length, btnTxt: q('.dmore')[0]?.textContent.trim() || '', marks: q('.dtl .dtrack i').length, sum: q('.dsum')[0]?.textContent || '',
+        asked: (window.histAsks || []).length, grp: q('.dgrp').filter(shown).map(g => g.textContent), ext: q('.dext').filter(shown).length, axis: q('.daxis').filter(shown).length,
+        lefts: [...new Set(q('.dtl .dtrack').map(t => Math.round(t.getBoundingClientRect().left)))].length, items: card._doorItems().length }; });
     await mk(null); let r = await look();
-    check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
+    check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && !r.det && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`) && !r.grp.length && !r.ext, JSON.stringify(r));
+    check('…by default each bar starts after its own name (fill), with no hour labels', r.lefts > 1 && r.axis === 0, JSON.stringify(r));
     check('…tapping a door\'s bar shows when the opening nearest the tap was and how long it lasted', await p.evaluate(async () => {
       let more = 0; const h = () => more++; card.addEventListener('hass-more-info', h);
       const trk = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = trk.getBoundingClientRect();
@@ -389,20 +392,24 @@ try {
       const ok3 = [...card.shadowRoot.querySelectorAll('#sheet .dlog b')].every(b => b.textContent === bz.querySelector('b').textContent); card._closeSheet();
       return ok1 && ok2 && ok3 && times.length > 1;
     }));
-    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
-    check('…Show details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.btnTxt === 'Show less' && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
-    check('…in the list, tapping a door\'s bar shows the same bubble', await p.evaluate(async () => {
-      const st = card.shadowRoot.querySelector('#security .drow .dstrip'), b = st.getBoundingClientRect();
-      st.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 2, clientY: b.top + b.height / 2 }));
-      await new Promise(r => setTimeout(r, 100)); const tip = card.shadowRoot.querySelector('#security .drow .dtip');
-      return !!tip && /·/.test(tip.textContent) && tip.getBoundingClientRect().bottom <= st.querySelector('.dtrack').getBoundingClientRect().top + 1;
+    const first = await p.evaluateHandle(() => card.shadowRoot.querySelector('#security .dtl'));
+    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(700); r = await look();
+    check('…Show details opens a second line in the same rows (nothing redrawn), with the Last hour title', r.det && r.tl === r.items && r.ext === r.items && r.grp[0] === 'Last hour' && r.btnTxt === 'Show less'
+      && await p.evaluate(f => f.isConnected && f === card.shadowRoot.querySelector('#security .dtl') && /openings today/.test(f.querySelector('.dext').textContent) && /last opened/.test(f.querySelector('.dext').textContent), first), JSON.stringify(r));
+    check('…a bar there still shows the bubble', await p.evaluate(async () => {
+      const t = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = t.getBoundingClientRect();
+      t.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 2, clientY: b.top + 4 }));
+      await new Promise(r => setTimeout(r, 100)); const tip = card.shadowRoot.querySelector('#security .dtip');
+      return !!tip && /·/.test(tip.textContent) && tip.getBoundingClientRect().bottom <= b.top + 1;
     }));
-    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
-    check('…and Show less turns it back', r.tl === r.items && r.rows === 0, JSON.stringify(r));
+    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(700); r = await look();
+    check('…and Show less closes it again', !r.det && r.tl === r.items && !r.ext && !r.grp.length && r.btnTxt.startsWith('Show details'), JSON.stringify(r));
+    await mk('both', 'aligned'); r = await look();
+    check('doors_timeline: aligned puts every bar on one scale, with the hour labels', r.lefts === 1 && r.axis === 1 && r.tl === r.items, JSON.stringify(r));
     await mk('list'); r = await look();
-    check('doors_view: list shows only the list', r.rows === r.items && r.btn === 0, JSON.stringify(r));
+    check('doors_view: list shows the details, with no button', r.det && r.ext === r.items && r.btn === 0, JSON.stringify(r));
     await mk('timeline'); r = await look();
-    check('doors_view: timeline shows only the timeline', r.tl === r.items && r.btn === 0 && r.rows === 0, JSON.stringify(r));
+    check('doors_view: timeline shows only the timeline', !r.det && r.tl === r.items && r.btn === 0 && !r.ext, JSON.stringify(r));
     check('a door that opens shows at once, before the history has it', await p.evaluate(async () => {
       const id = card._doorItems()[0].id, H = card._hass._raw || card._hass; card.hass = { ...H, states: { ...H.states, [id]: { ...H.states[id], state: 'on', last_changed: new Date().toISOString() } } };
       await new Promise(r => setTimeout(r, 300)); const row = card.shadowRoot.querySelector(`#security .dtl[data-k="${id}"]`);

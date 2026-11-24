@@ -190,38 +190,54 @@ main{scroll-margin-top:84px}
 .dlog b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dlog .dlog-n{--mdc-icon-size:14px;color:var(--amber);flex:none}
 .dlog-t{margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}.dlog-d{min-width:78px;text-align:end;color:var(--mu);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .dlog.open .dlog-ic{background:color-mix(in srgb,var(--rose) 18%,transparent);color:var(--rose)}.dlog.open .dlog-d{color:var(--rose);font-weight:600}
-/* Doors: 24-hour timeline (C) and the detailed list (B) */
-.dv{display:flex;flex-direction:column}
+/* Doors: one set of rows. Timeline: name, 24-hour bar, time. Show details (.det) opens a second line in each row,
+   turns the rows into cards and shows the group titles, all with transitions on the same elements */
+.dv{display:flex;flex-direction:column;--dease:cubic-bezier(.2,.8,.2,1);--ddur:.42s}
 .dhead{margin:12px 0 8px}
-.dmore{width:100%;margin-top:12px;padding:10px}.dv.exp .dmore{margin-top:6px}.dmore:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-.dsum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.dmore{width:100%;margin-top:10px;padding:10px}.dmore:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.dmore ha-icon{transition:transform var(--ddur) var(--dease)}.dv.det .dmore ha-icon{transform:rotate(180deg)}
+.dsum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .dsum>*{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu)}.dsum b{color:var(--hi);font-weight:600}
-.dsum button{font:inherit;cursor:pointer;transition:border-color .2s,background .2s}.dsum button:hover{border-color:var(--teal)}.dsum button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.dsum button{font-family:inherit;line-height:inherit;cursor:pointer;transition:border-color .2s,background .2s}.dsum button:hover{border-color:var(--teal)}.dsum button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .dsum .bad{color:var(--rose);border-color:rgba(251,113,133,.45);background:rgba(244,63,94,.12)}.dsum .bad b{color:var(--rose)}
 .dsum .warn{color:var(--amber);border-color:rgba(251,191,36,.4)}.dsum .warn b{color:var(--amber)}
-.dtls{display:flex;flex-direction:column;gap:8px}
-/* each bar starts right after its door's name and ends at the time */
-.dtl{display:flex;align-items:center;gap:10px;position:relative;cursor:pointer}
-.dtl .dtrack{flex:1 1 auto;min-width:48px;cursor:pointer}
-.dtrack i.hit{box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 45%,transparent);filter:brightness(1.25)}
-.dtip{position:absolute;top:-30px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
-@keyframes dtip{from{opacity:0;transform:translateY(3px)}}
-.dnm{display:flex;align-items:center;gap:6px;min-width:0;flex:0 1 auto;max-width:48%;font-size:12px;color:var(--hi)}.dnm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dnm ha-icon,.dic ha-icon{--mdc-icon-size:16px;color:var(--green);flex:none}
-.dtrack{position:relative;height:16px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;box-sizing:border-box}
+/* fill: each bar runs from its door's name to its time. aligned: every row shares the columns (one scale, hour labels) */
+.dtls{display:flex;flex-direction:column}
+.dv.aligned .dtls{display:grid;grid-template-columns:fit-content(42%) minmax(0,1fr) max-content;column-gap:10px}
+.dtl{display:grid;grid-template-columns:minmax(0,max-content) minmax(48px,1fr) max-content;column-gap:10px;align-items:center;position:relative;cursor:pointer;
+  margin-block:4px;padding:2px 0;border:1px solid transparent;border-radius:14px;
+  transition:background-color var(--ddur) var(--dease),border-color var(--ddur) var(--dease),padding var(--ddur) var(--dease),margin var(--ddur) var(--dease)}
+.dv.aligned .dtl,.dv.aligned .daxis,.dv.aligned .dgrp{grid-column:1/-1}
+.dv.aligned .dtl,.dv.aligned .daxis{grid-template-columns:subgrid}
+@supports not (grid-template-columns:subgrid){.dv.aligned .dtl,.dv.aligned .daxis{grid-template-columns:minmax(0,118px) minmax(0,1fr) 82px}}
+.dv.det .dtl{padding:9px 11px;margin-block:3px;background:var(--panel2);border-color:var(--line)}
+.dv.det .dtl.open{background:rgba(244,63,94,.1);border-color:rgba(251,113,133,.45)}
+.dnm{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--hi);transition:font-size var(--ddur) var(--dease)}
+.dnm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dv.det .dnm{font-size:13px}
+.dnm ha-icon{--mdc-icon-size:16px;color:var(--green);flex:none}.dtl.open .dnm ha-icon{color:var(--rose)}
+.dbadge{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;border-radius:6px;background:var(--rose);color:#fff;white-space:nowrap;flex:none;
+  overflow:hidden;max-width:0;opacity:0;padding:1px 0;transition:max-width var(--ddur) var(--dease),opacity var(--ddur) var(--dease),padding var(--ddur) var(--dease)}
+.dv.det .dbadge{max-width:64px;opacity:1;padding:1px 6px}
+.dtl .dtrack{cursor:pointer}
+.dtrack{position:relative;height:16px;border-radius:5px;background:var(--card-bg,var(--panel2));border:1px solid var(--line);overflow:hidden;box-sizing:border-box}
 .dtrack i{position:absolute;top:2px;bottom:2px;min-width:3px;border-radius:2px;background:var(--teal);opacity:.85}
 .dtrack i.now{background:var(--rose);opacity:1}
-.dago{flex:none;font-size:11px;color:var(--mu);text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dtl.open .dnm ha-icon,.drow.open .dic ha-icon{color:var(--rose)}.dtl.open .dago{color:var(--rose);font-weight:600}
-.dgrp{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);margin:8px 0 6px}.dgrp:first-of-type{margin-top:0}
-.drow{display:grid;grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"ic mid when" "tr tr tr";column-gap:10px;row-gap:7px;align-items:center;padding:9px 11px 9px 9px;padding-inline:9px 11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px;cursor:pointer}
-.drow .dic{grid-area:ic;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--green) 16%,transparent)}
-.drow.open{background:rgba(244,63,94,.12);border-color:rgba(251,113,133,.45)}.drow.open .dic{background:color-mix(in srgb,var(--rose) 18%,transparent)}
-.dmid{grid-area:mid;min-width:0;display:flex;flex-direction:column;gap:2px}.dmid b{font-size:13px;font-weight:600;color:var(--hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dmid small,.dwhen small{font-size:11px;color:var(--mu)}
-.dbadge{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:6px;background:var(--rose);color:#fff;margin-inline-start:6px;vertical-align:1px}
-.dwhen{grid-area:when;text-align:end;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}.dwhen b{font-size:13px;font-weight:600;color:var(--hi)}.drow.open .dwhen b{color:var(--rose)}
-.drow{position:relative}.dstrip{grid-area:tr;padding-block:7px;margin-block:-7px;cursor:pointer}.drow .dtrack{height:6px;border:0;border-radius:3px}.drow .dtrack i{top:0;bottom:0}
+.dtrack i.hit{box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 45%,transparent);filter:brightness(1.25)}
+.dago{font-size:11px;color:var(--mu);text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtl.open .dago{color:var(--rose);font-weight:600}
+/* what opens: a second line in each row, and the group titles (0fr → 1fr) */
+.dext,.dgrp{grid-column:1/-1;display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--ddur) var(--dease),opacity .3s ease}
+.dext>div,.dgrp>div{overflow:hidden;min-height:0}
+.dext>div{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--mu);white-space:nowrap}
+.dext>div>span:first-child{overflow:hidden;text-overflow:ellipsis}.dext>div>span:last-child{font-variant-numeric:tabular-nums}
+.dgrp>div{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mu)}
+.dv.det .dext,.dv.det .dgrp{grid-template-rows:1fr;opacity:1;transition:grid-template-rows var(--ddur) var(--dease),opacity .3s ease .08s}
+.dv.det .dext>div{padding-top:5px}.dv.det .dgrp>div{padding:8px 0 3px}.dv.det .dtls>.dgrp:first-child>div{padding-top:0}
+.daxis{font-size:9.5px;color:var(--mu);margin-top:2px;display:grid;column-gap:10px}.daxis div{display:flex;justify-content:space-between}
+.dv.fill .daxis{display:none}
+@media (prefers-reduced-motion:reduce){.dv,.dv *{transition:none!important}}
+.dtip{position:absolute;top:-30px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
+@keyframes dtip{from{opacity:0;transform:translateY(3px)}}
 
 
 /* climate */

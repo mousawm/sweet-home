@@ -1617,7 +1617,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const list = body.querySelector('.sh-pl');
     const set = (k, v) => { if (v === undefined || (typeof v === 'object' && !Object.keys(v).length)) delete P[k]; else P[k] = v; if (!Object.keys(P).length) delete this._config.panels; this._emit(); };
     const schemas = {
-      security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'entrances', selector: { entity: { domain: ['cover', 'switch', 'button', 'input_button', 'input_boolean', 'script'], multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'doors_view', selector: { select: { mode: 'dropdown', options: [['both', 'Timeline, Show details opens the list'], ['timeline', 'Timeline only (last 24 h)'], ['list', 'List only (last opened)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }, { name: 'face', selector: { entity: { domain: ['sensor', 'input_text', 'text'] } } }],
+      security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'entrances', selector: { entity: { domain: ['cover', 'switch', 'button', 'input_button', 'input_boolean', 'script'], multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'doors_view', selector: { select: { mode: 'dropdown', options: [['both', 'Timeline, Show details opens more'], ['timeline', 'Timeline only (last 24 h)'], ['list', 'List only (last opened)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'doors_timeline', selector: { select: { mode: 'dropdown', options: [['fill', 'Fill each row'], ['aligned', 'Aligned, with hour labels (-24 h / -12 h / now)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'cameras', selector: { entity: { domain: 'camera', multiple: true } } }, { name: 'face', selector: { entity: { domain: ['sensor', 'input_text', 'text'] } } }],
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'current', label: 'Current (shown next to Home)', selector: { entity: { domain: 'sensor', device_class: 'current' } } },
         { name: 'stored_sensor', selector: { entity: { domain: 'sensor' } } },
@@ -1727,6 +1727,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'irrigation' && (cur.zones || cur.valves)) { data.zones = arr(cur.zones ?? cur.valves).map(entityId).filter(Boolean); delete data.valves; }
         if (k === 'car' && cur.color) data.color = hex2rgb(cur.color);
         let schema = enStats ? schemas[k].filter(f => !['month_sensor', 'year_sensor'].includes(f.name)) : schemas[k];
+        if (k === 'security' && cur.doors_view === 'list') schema = schema.filter(f => f.name !== 'doors_timeline'); // the bars' layout is for the timeline
         if (k === 'homelab') { // the Proxmox guests Home Assistant has (sensor / binary_sensor <lxc|qemu>_…_status), by name
           const keys = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^(?:binary_)?sensor\.((?:lxc|qemu)_.+)_status$/)?.[1]).filter(Boolean))];
           const nm = g => (this._reg.name(`sensor.${g}_status`) || this._reg.name(`binary_sensor.${g}_status`) || g).replace(/\s*status$/i, '');
@@ -1744,6 +1745,9 @@ class SweetHomeCardEditor extends HTMLElement {
             }
             if (k === 'homelab' && kk === 'pinned') // a guest written with its own name / icon keeps them
               val = (Array.isArray(vv) ? vv : String(vv || '').split(',').map(x => x.trim()).filter(Boolean)).map(g => arr(next.pinned).find(o => typeof o === 'object' && o?.key === g) || g);
+            if (k === 'security' && kk === 'doors_view' && (vv === 'list') !== (next.doors_view === 'list')) { // the Timeline bars field comes and goes with it
+              if (vv) next[kk] = vv; else delete next[kk]; set(k, next); this._render(); return;
+            }
             if (k === 'energy' && kk === 'energy_dashboard_totals') { // on is the default: stored only when off; the form changes with it
               const was = next[kk] !== false; if (vv === false) next[kk] = false; else delete next[kk];
               if (was !== (vv !== false)) { set(k, next); this._render(); return; }
@@ -1761,7 +1765,7 @@ class SweetHomeCardEditor extends HTMLElement {
           set(k, next);
         }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
           name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
-          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', doors_view: 'Doors view', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
+          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', doors_view: 'Doors view', doors_timeline: 'Timeline bars', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
