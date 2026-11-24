@@ -1169,6 +1169,22 @@ try {
       card.hass = h; card._repairs = null; card._repAt = Date.now(); card._alertCount = null; card._rerender('tabs');
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('the System tab counts repairs on load, before the System tab is opened', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // the dashboard left open on the Home tab: each tab's badge follows a live change within a second, no tab opened
+      const H = card._hass._raw || card._hass, E = card._model.E, out = {};
+      const set = async (id, state, attrs = id === 'sensor.x_live_battery' ? { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Live Battery' } : null) => { const h = card._hass._raw || card._hass; card.hass = { ...h, states: { ...h.states, [id]: { ...(h.states[id] || { entity_id: id, attributes: {} }), entity_id: id, state, last_changed: new Date().toISOString(), ...(attrs ? { attributes: attrs } : {}) } } }; await new Promise(r => setTimeout(r, 1300)); };
+      const bd = k => card.shadowRoot.querySelector(`.tb[data-tab="${k}"] .bd`)?.outerHTML ?? ''; // some badges are icons
+      card._setTab('home'); card.hass = H; await new Promise(r => setTimeout(r, 300));
+      const run = async (key, id, onSt, offSt) => { if (!id || !card.shadowRoot.querySelector(`.tb[data-tab="${key}"]`)) return; await set(id, offSt); const a = bd(key); await set(id, onSt); const b = bd(key); await set(id, offSt); const c = bd(key); out[key] = a !== b && a === c || [a, b, c]; };
+      await run('security', E.doors[0]?.id, E.doors[0]?.open || 'on', 'off');
+      await run('climate', E.acs[0]?.id, 'cool', 'off');
+      await run('energy', E.car.charging, 'on', 'off');
+      await run('water', E.water.tank, '10', '80');
+      await run('media', E.media.tv, 'playing', 'idle');
+      await run('system', 'sensor.x_live_battery', '4', '90'); // a battery going low
+      card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
+      return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
+    }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }
