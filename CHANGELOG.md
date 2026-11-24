@@ -6,9 +6,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Phones: pressing a tile or button no longer shows the browser's grey rectangle around it (it ignored the rounded corners); the card's own press effect shows instead (a small press-in, and a slight darkening in the light look).
 
 ### Changed
+
+### Added
+
+## v0.6.53 — 2026-11-24
+
+### Fixed
+- Phones: pressing a tile or button no longer shows the browser's grey rectangle around it (it ignored the rounded corners); the card's own press effect shows instead (a small press-in, and a slight darkening in the light look).
 
 ### Added
 - Needs Attention → Updates: an update being installed shows a progress bar and its percentage (Home Assistant's update progress), "Updating to <version>", and a moving bar when no percentage is reported; it follows the progress live.
