@@ -50,6 +50,9 @@ export class SystemPanels {
   // sections in priority order; each holds pre-rendered rows. Shared by the card and the System-tab badge.
   _alertSections() {
     const h = this._hass; if (!h) return [];
+    // repairs are part of the count, so the System tab's counter needs them too, not only the Needs Attention card:
+    // loaded from here (whichever renders first) so the counter is right on load, without opening the System tab
+    if (!this._repAt || Date.now() - this._repAt > 30e3) setTimeout(() => this._loadRepairs(), 0);
     const A = E.alerts, lang = h.locale?.language || 'en';
     const devName = id => { const d = h.devices?.[h.entities?.[id]?.device_id]; return d ? (d.name_by_user || d.name || '') : ''; };
     // excluded devices: by device ID (what the card editor writes) or by name
@@ -138,10 +141,9 @@ export class SystemPanels {
     if (!this._repSub && this._hass.connection?.subscribeEvents) {
       this._repSub = this._hass.connection.subscribeEvents(() => { this._repAt = 0; this._loadRepairs(); }, 'repairs_issue_registry_updated').catch(() => null);
     }
-    this._repBusy = false; this._repAt = Date.now(); this._rerender('alerts', 'tabs');
+    this._repBusy = false; this._repAt = Date.now(); this._alertCount = null; this._rerender('alerts', 'tabs'); // count again with the repairs
   }
   _rAlerts() {
-    if (!this._repAt || Date.now() - this._repAt > 30e3) setTimeout(() => this._loadRepairs(), 0);
     const secs = this._alertSections(); this._alertCount = secs.reduce((n, x) => n + x[3].length, 0);
     if (!secs.length) return '';
     this._alOpen = this._alOpen || new Set();

@@ -1151,6 +1151,18 @@ try {
       card.hass = h; await new Promise(r => setTimeout(r, 1300));
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('an update being installed shows a bar and its percentage (a moving bar without one)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // a Home Assistant repair is counted on the System tab from the start, without opening the System tab first
+      const h = card._hass._raw || card._hass;
+      card._setTab('home'); card.hass = h; card._repairs = null; card._repAt = 0; card._alertCount = null; card._rerender('tabs'); await new Promise(r => setTimeout(r, 500));
+      const n0 = card._alertCount ?? 0;
+      card.hass = { ...h, callWS: async m => m.type === 'repairs/list_issues' ? { issues: [{ issue_id: 'x_test', domain: 'demo', issue_domain: 'demo', translation_key: 'x_test', severity: 'warning', ignored: false }] } : h.callWS(m) };
+      card._repAt = 0; card._alertCount = null; card._rerender('tabs'); await new Promise(r => setTimeout(r, 500));
+      const out = { home: card._tab === 'home', count: card._alertCount === n0 + 1,
+        badge: Number(card.shadowRoot.querySelector('.tb[data-tab="system"] .bd')?.textContent || 0) === n0 + 1 };
+      card.hass = h; card._repairs = null; card._repAt = Date.now(); card._alertCount = null; card._rerender('tabs');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('the System tab counts repairs on load, before the System tab is opened', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

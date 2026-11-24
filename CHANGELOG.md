@@ -6,6 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- The System tab's counter now shows Home Assistant repairs as soon as the dashboard loads, without opening the System tab first.
 
 ### Changed
 
