@@ -6,6 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- Security → Doors timeline: the strips now reach close to the times on the right. The time column was a fixed width and left a wide empty gap on phones; the name and time columns now take only what their text needs.
 
 ### Changed
 - README: new screenshots (the Doors timeline and list, the animation between them, and the light look) and the newer features: Doors view, update progress, live tab counters, the light look.

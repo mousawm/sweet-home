@@ -192,8 +192,10 @@ main{scroll-margin-top:84px}
 .dsum span{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu)}.dsum b{color:var(--hi);font-weight:600}
 .dsum .bad{color:var(--rose);border-color:rgba(251,113,133,.45);background:rgba(244,63,94,.12)}.dsum .bad b{color:var(--rose)}
 .dsum .warn{color:var(--amber);border-color:rgba(251,191,36,.4)}.dsum .warn b{color:var(--amber)}
-.dtls{display:flex;flex-direction:column;gap:7px}
-.dtl{display:grid;grid-template-columns:minmax(0,118px) minmax(0,1fr) 82px;gap:8px;align-items:center;cursor:pointer}
+/* one set of columns for every row (subgrid): the name and the time take what their longest text needs, the strips the rest */
+.dtls{display:grid;grid-template-columns:fit-content(42%) minmax(0,1fr) max-content;column-gap:10px;row-gap:7px}
+.dtl,.daxis{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:center}.dtl{cursor:pointer}
+@supports not (grid-template-columns:subgrid){.dtl,.daxis{grid-template-columns:minmax(0,118px) minmax(0,1fr) 82px;column-gap:10px}}
 .dnm{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--hi)}.dnm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dnm ha-icon,.dic ha-icon{--mdc-icon-size:16px;color:var(--green);flex:none}
 .dtrack{position:relative;height:16px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;box-sizing:border-box}
@@ -201,7 +203,7 @@ main{scroll-margin-top:84px}
 .dtrack i.now{background:var(--rose);opacity:1}
 .dago{font-size:11px;color:var(--mu);text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dtl.open .dnm ha-icon,.drow.open .dic ha-icon{color:var(--rose)}.dtl.open .dago{color:var(--rose);font-weight:600}
-.daxis{display:grid;grid-template-columns:minmax(0,118px) minmax(0,1fr) 82px;gap:8px;font-size:9.5px;color:var(--mu);margin-top:4px}.daxis div{display:flex;justify-content:space-between}
+.daxis{font-size:9.5px;color:var(--mu);margin-top:-3px}.daxis div{display:flex;justify-content:space-between}
 .dgrp{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);margin:8px 0 6px}.dgrp:first-of-type{margin-top:0}
 .drow{display:grid;grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"ic mid when" "tr tr tr";column-gap:10px;row-gap:7px;align-items:center;padding:9px 11px 9px 9px;padding-inline:9px 11px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);margin-bottom:6px;cursor:pointer}
 .drow .dic{grid-area:ic;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--green) 16%,transparent)}
