@@ -65,7 +65,9 @@ security, climate, energy, water, media and your home lab.
 
 The Doors block on the Security tab shows each door's day at a glance. A strip per door marks every time it opened in
 the last 24 hours (red while it is open now), with how long ago it last opened, and a summary on top: how many are open
-now, how many openings, the busiest door, and openings at night (midnight to 5 am). **Show details** opens it into a
+now, how many openings, the busiest door, and openings at night (midnight to 5 am). Each bar runs from the door's
+name to its time, oldest on the left; tap it to see the opening nearest your tap, when it was and how long it
+stayed open ("14:32 · 4 min"). **Show details** opens it into a
 list: *Open now*, *Last hour* and *Earlier*, each door with the time it last opened, how many times today and its
 strip. **Show less** folds it back. The doors come from your door sensors and from gates with an open / closed sensor.
 

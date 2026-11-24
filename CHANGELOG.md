@@ -6,12 +6,13 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Security → Doors timeline: the strips now reach close to the times on the right. The time column was a fixed width and left a wide empty gap on phones; the name and time columns now take only what their text needs.
 
 ### Changed
+- Security → Doors timeline: each bar now starts right after its door's name and runs to the time on the right, with no empty gaps (the -24 h / -12 h / now labels are gone).
 - README: new screenshots (the Doors timeline and list, the animation between them, and the light look) and the newer features: Doors view, update progress, live tab counters, the light look.
 
 ### Added
+- Security → Doors timeline: tap a door's bar to see the opening nearest your tap, when it was and how long it stayed open ("14:32 · 4 min"); on a computer, hover a mark.
 
 ## v0.6.56 — 2026-11-24
 

@@ -369,6 +369,14 @@ try {
         asked: (window.histAsks || []).length, grp: q('.dgrp').map(g => g.textContent), when: q('.drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
     await mk(null); let r = await look();
     check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
+    check('…tapping a door\'s bar shows when the opening nearest the tap was and how long it lasted', await p.evaluate(async () => {
+      let more = 0; const h = () => more++; card.addEventListener('hass-more-info', h);
+      const trk = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = trk.getBoundingClientRect();
+      trk.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 1, clientY: b.top + 4 }));
+      await new Promise(r => setTimeout(r, 100)); card.removeEventListener('hass-more-info', h);
+      const tip = card.shadowRoot.querySelector('#security .dtip'), row = trk.closest('.dtl').getBoundingClientRect(), nm = trk.previousElementSibling.getBoundingClientRect(), ago = trk.nextElementSibling.getBoundingClientRect();
+      return !!tip && /^\d{1,2}:\d\d( [AP]M)? · (1 min|open now)$/.test(tip.textContent) && !!trk.querySelector('i.hit') && more === 0 && b.left - nm.right < 14 && ago.left - b.right < 14 && row.width > 0;
+    }));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
     check('…Show details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.btnTxt === 'Show less' && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
