@@ -353,6 +353,12 @@ try {
     const chip = [...card.shadowRoot.querySelectorAll('#security .door')].find(d => d.textContent.trim() === 'Gate'); card._setTab('home');
     return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state';
   }));
+  check('the Security tab\'s counter follows a gate opening and closing right away', await p.evaluate(async () => {
+    const H = window.hassObj, put = async st => { card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: st }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } }; await new Promise(r => setTimeout(r, 150)); };
+    const badge = () => Number(card.shadowRoot.querySelector('.tb[data-tab="security"] .bd')?.textContent || 0);
+    card._setTab('home'); await put('closed'); const n0 = badge(); await put('open'); const n1 = badge(); await put('closed'); const n2 = badge();
+    card.hass = H; return n1 > n0 && n2 === n0 || JSON.stringify([n0, n1, n2]);
+  }).then(r => { if (r !== true) console.log('      got', r); return r === true; }));
   check('rename sheets show each entity\'s name (not "false")', await p.evaluate(async () => {
     card.editMode = true; card._setTab('security'); await new Promise(r => setTimeout(r, 200));
     card.shadowRoot.querySelector('#security [data-act=rnsec]').click(); await new Promise(r => setTimeout(r, 200));

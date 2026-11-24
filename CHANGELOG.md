@@ -7,6 +7,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 - The System tab's counter now shows Home Assistant repairs as soon as the dashboard loads, without opening the System tab first.
+- The Security tab's counter now follows a gate or garage door opening or closing right away, not on the 30-second refresh.
 
 ### Changed
 
