@@ -350,9 +350,40 @@ try {
   check('a gate with an open / closed sensor is listed with the doors, open while its sensor says open', await p.evaluate(async () => {
     const H = window.hassObj; card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: 'open' }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } };
     await new Promise(r => setTimeout(r, 250)); card._setTab('security'); await new Promise(r => setTimeout(r, 150));
-    const chip = [...card.shadowRoot.querySelectorAll('#security .door')].find(d => d.textContent.trim() === 'Gate'); card._setTab('home');
-    return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state';
+    const row = card.shadowRoot.querySelector('#security .dv [data-k="sensor.gate_cam_gate_state"]'); card._setTab('home');
+    return !!row && row.classList.contains('open') && row.textContent.includes('Gate');
   }));
+  // Doors: a 24-hour timeline from Home Assistant's history that opens into the detailed list (doors_view: both / timeline / list)
+  {
+    const mk = view => p.evaluate(async view => {
+      window.keptCard ||= card; const T = customElements.get('t-card'), el = new T(), cfg = JSON.parse(JSON.stringify(window.keptCard._config)); cfg.panels.security = view ? { doors_view: view } : {};
+      el.setConfig(cfg); card.remove(); document.body.appendChild(el); window.card = el;
+      const H = window.hassObj, now = Date.now(), sec = m => (now - m * 60e3) / 1000; window.histAsks = [];
+      // every door: open 3 h ago for 4 min, and 20 min ago for 1 min
+      el.hass = { ...H, callWS: async m => { if (m.type !== 'history/history_during_period') return H.callWS(m); window.histAsks.push(m);
+        return Object.fromEntries(m.entity_ids.map(id => [id, [{ s: 'off', lu: sec(1440) }, { s: 'on', lu: sec(180) }, { s: 'off', lu: sec(176) }, { s: 'on', lu: sec(20) }, { s: 'off', lu: sec(19) }]])); } };
+      await new Promise(r => setTimeout(r, 200)); el._setTab('security'); await new Promise(r => setTimeout(r, 400));
+    }, view);
+    const look = () => p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)];
+      return { tl: q('.dv:not(.exp) .dtl').length, rows: q('.dv.exp .drow').length, btn: q('.dv button.dmore').length, btnTxt: q('.dv button.dmore')[0]?.textContent.trim() || '', marks: q('.dtl .dtrack i').length, sum: q('.dsum')[0]?.textContent || '',
+        asked: (window.histAsks || []).length, grp: q('.dgrp').map(g => g.textContent), when: q('.drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
+    await mk(null); let r = await look();
+    check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
+    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
+    check('…Show details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.btnTxt === 'Show less' && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
+    await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
+    check('…and Show less turns it back', r.tl === r.items && r.rows === 0, JSON.stringify(r));
+    await mk('list'); r = await look();
+    check('doors_view: list shows only the list', r.rows === r.items && r.btn === 0, JSON.stringify(r));
+    await mk('timeline'); r = await look();
+    check('doors_view: timeline shows only the timeline', r.tl === r.items && r.btn === 0 && r.rows === 0, JSON.stringify(r));
+    check('a door that opens shows at once, before the history has it', await p.evaluate(async () => {
+      const id = card._doorItems()[0].id, H = card._hass._raw || card._hass; card.hass = { ...H, states: { ...H.states, [id]: { ...H.states[id], state: 'on', last_changed: new Date().toISOString() } } };
+      await new Promise(r => setTimeout(r, 300)); const row = card.shadowRoot.querySelector(`#security .dtl[data-k="${id}"]`);
+      return row?.classList.contains('open') && !!row.querySelector('.dtrack i.now') && row.querySelector('.dago').textContent.startsWith('Open') && card.shadowRoot.querySelector('#security .dtl') === row;
+    }));
+    await p.evaluate(async () => { const k = window.keptCard; card.remove(); document.body.appendChild(k); window.card = k; k.hass = window.hassObj; k._setTab('home'); delete window.keptCard; await new Promise(r => setTimeout(r, 200)); });
+  }
   check('the Security tab\'s counter follows a gate opening and closing right away', await p.evaluate(async () => {
     const H = window.hassObj, put = async st => { card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: st }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } }; await new Promise(r => setTimeout(r, 150)); };
     const badge = () => Number(card.shadowRoot.querySelector('.tb[data-tab="security"] .bd')?.textContent || 0);
