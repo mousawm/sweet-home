@@ -1140,7 +1140,15 @@ try {
       const out = {}; out.pct = row()?.querySelector('.uppct')?.textContent.includes('42%') && row()?.querySelector('.upbar>i')?.style.width === '42%';
       put({ in_progress: true, update_percentage: null }); card._rerender('alerts'); await new Promise(r => setTimeout(r, 300));
       out.ind = !!row()?.querySelector('.upbar.ind') && !row()?.querySelector('.uppct');
-      card.hass = h; card._rerender('alerts'); card._setTab('home');
+      // a battery dropping low: the System tab's counter follows within a second (not on the 30 s refresh)
+      card.hass = h; card._rerender('alerts', 'tabs'); card._setTab('home'); await new Promise(r => setTimeout(r, 1300));
+      const badge = () => Number(card.shadowRoot.querySelector('.tb[data-tab="system"] .bdg, [data-tab="system"] .badge')?.textContent || 0);
+      const n0 = card._alertCount ?? 0;
+      card.hass = { ...h, states: { ...h.states, 'sensor.x_test_battery': { entity_id: 'sensor.x_test_battery', state: '5', last_changed: new Date().toISOString(), attributes: { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Test Battery' } } } };
+      await new Promise(r => setTimeout(r, 300)); card.hass = { ...card._hass._raw || card._hass, states: { ...(card._hass._raw || card._hass).states, 'sensor.x_test_battery': { entity_id: 'sensor.x_test_battery', state: '4', last_changed: new Date().toISOString(), attributes: { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Test Battery' } } } };
+      await new Promise(r => setTimeout(r, 1400));
+      out.fast = card._alertCount === n0 + 1;
+      card.hass = h; await new Promise(r => setTimeout(r, 1300));
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('an update being installed shows a bar and its percentage (a moving bar without one)', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
