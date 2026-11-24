@@ -128,7 +128,7 @@ export class SecurityPanels {
       return { ...x, evs, since, lastOpen, lc, today: evs.filter(e => !e.cut && e.t >= +day0).length, n24: evs.filter(e => !e.cut).length };
     }).sort((a, b) => (b.o - a.o) || ((b.lastOpen || 0) - (a.lastOpen || 0)) || ((b.lc || 0) - (a.lc || 0)));
     const marks = d => d.evs.map(e => { const a = Math.max(e.t, from), b = e.end ?? now;
-      return `<i class="${e.end == null ? 'now' : ''}" style="inset-inline-start:${((a - from) / 864e5 * 100).toFixed(2)}%;width:${Math.max(0, (b - a) / 864e5 * 100).toFixed(2)}%"></i>`; }).join('');
+      return `<i class="${e.end == null ? 'now' : ''}" data-s="${e.t}" data-e="${e.end ?? ''}"${e.cut ? ' data-c="1"' : ''} title="${esc(this._dmText(e.t, e.end, e.cut))}" style="inset-inline-start:${((a - from) / 864e5 * 100).toFixed(2)}%;width:${Math.max(0, (b - a) / 864e5 * 100).toFixed(2)}%"></i>`; }).join('');
     const ago = (t, pre = '') => `<span data-ago="${new Date(t).toISOString()}" data-pre="${esc(pre)}" data-short="1">${pre ? `${esc(pre)} · ` : ''}${agoShort(new Date(t).toISOString(), lang)}</span>`;
     const icon = d => ic(d.o ? d.icons[1] : d.icons[0]), cls = d => d.na ? 'na' : d.o ? 'open' : '';
     const exp = mode === 'list' || (mode === 'both' && !!this._doorsExp);
@@ -140,8 +140,7 @@ export class SecurityPanels {
       const tot = D.reduce((s, d) => s + d.n24, 0), busy = D.reduce((b, d) => (d.n24 > (b?.n24 || 0) ? d : b), null), nOpen = D.filter(d => d.o).length;
       const night = D.reduce((s, d) => s + d.evs.filter(e => !e.cut && new Date(e.t).getHours() < 5).length, 0);
       body = `<div class="dsum">${nOpen ? `<span class="bad"><b>${nOpen}</b> ${tr('open now')}</span>` : ''}<span><b>${tot}</b> ${tr(tot === 1 ? 'opening' : 'openings')}</span>${busy ? `<span>${tr('Busiest')}: <b>${esc(busy.name)}</b></span>` : ''}${night ? `<span class="warn">${tr('At night')}: <b>${night}</b></span>` : ''}</div>
-        <div class="dtls">${D.map(d => `<div class="dtl ${cls(d)}" data-act="more" data-id="${d.id}" data-k="${d.id}"><div class="dnm">${icon(d)}<span>${esc(d.name)}</span></div><div class="dtrack" data-t="${d.id}">${marks(d)}</div><div class="dago">${d.na ? tr('Unavailable') : d.since ? ago(d.since, tr('Open')) : d.lastOpen ? ago(d.lastOpen) : d.lc ? ago(d.lc) : '—'}</div></div>`).join('')}</div>
-        <div class="daxis"><span></span><div><span>-24 h</span><span>-12 h</span><span>${tr('now')}</span></div><span></span></div>`;
+        <div class="dtls">${D.map(d => `<div class="dtl ${cls(d)}" data-act="more" data-id="${d.id}" data-k="${d.id}"><div class="dnm">${icon(d)}<span>${esc(d.name)}</span></div><div class="dtrack" data-t="${d.id}" data-act="dmark">${marks(d)}</div><div class="dago">${d.na ? tr('Unavailable') : d.since ? ago(d.since, tr('Open')) : d.lastOpen ? ago(d.lastOpen) : d.lc ? ago(d.lc) : '—'}</div></div>`).join('')}</div>`;
     } else { // B: grouped rows with the time of the last opening
       const g = [['open', 'Open now', []], ['hour', 'Last hour', []], ['earlier', 'Earlier', []]];
       D.forEach(d => g[d.o ? 0 : d.lastOpen && now - d.lastOpen < 36e5 ? 1 : 2][2].push(d));
@@ -153,27 +152,70 @@ export class SecurityPanels {
     }
     return `<div class="dv ${exp ? 'exp' : ''}">${head}${body}${more}</div>`;
   }
+  // what a door's opening says: "14:32 · 4 min", "14:32 · open now", "until 06:10" (open since before the 24 hours)
+  _dmText(s, e, cut) {
+    const lang = this._hass?.locale?.language, hm = t => new Date(t).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+    const m = e ? Math.round((e - s) / 60e3) : 0, dur = m < 1 ? tr('{0} min', '<1') : m < 60 ? tr('{0} min', m) : `${tr('{0} h', Math.floor(m / 60))}${m % 60 ? ` ${tr('{0} min', m % 60)}` : ''}`;
+    if (cut) return e ? tr('until {0}', hm(e)) : tr('open now');
+    return `${hm(s)} · ${e ? dur : tr('open now')}`;
+  }
+  // a tap on a door's 24-hour bar: a bubble over the opening nearest the tap (or "No openings") for a few seconds
+  _doorMark(trk, e) {
+    const row = trk.closest('.dtl'); if (!row) return;
+    clearTimeout(this._dtipT); row.parentElement.querySelectorAll('.dtip').forEach(x => x.remove()); row.parentElement.querySelectorAll('.dtrack i.hit').forEach(x => x.classList.remove('hit'));
+    const r = trk.getBoundingClientRect(), rr = row.getBoundingClientRect(), x = e?.clientX || r.right;
+    let best = null, bd = Infinity;
+    for (const m of trk.querySelectorAll('i')) { const b = m.getBoundingClientRect(), d = x < b.left ? b.left - x : x > b.right ? x - b.right : 0; if (d < bd) { bd = d; best = m; } }
+    const tip = document.createElement('div'); tip.className = 'dtip';
+    let cx = x - rr.left;
+    if (best) { const b = best.getBoundingClientRect(); cx = (b.left + b.right) / 2 - rr.left; best.classList.add('hit');
+      tip.textContent = this._dmText(+best.dataset.s, best.dataset.e ? +best.dataset.e : null, !!best.dataset.c); }
+    else tip.textContent = tr('No openings in 24 h');
+    row.appendChild(tip);
+    tip.style.left = `${Math.max(0, Math.min(rr.width - tip.offsetWidth, cx - tip.offsetWidth / 2))}px`;
+    this._dtipT = setTimeout(() => { tip.remove(); best?.classList.remove('hit'); }, 3500);
+  }
   // Show details / Show less: the timeline opens into the list. Each door's row slides from where it was to where it is now, and
   // its 24-hour strip shrinks (or grows) into place, while the times and group titles fade in.
   _doorsFlip() {
     const box = this.$('security')?.querySelector('.dv'); if (!box) return;
     const rect = sel => new Map([...box.querySelectorAll(sel)].map(el => [el.dataset.k || el.dataset.t, el.getBoundingClientRect()]));
-    const rows0 = rect('[data-k]'), tr0 = rect('[data-t]'), h0 = box.getBoundingClientRect().height;
-    this._doorsExp = !this._doorsExp; this._rerender('security');
+    const rows0 = rect('[data-k]'), tr0 = rect('[data-t]'), b0 = box.getBoundingClientRect(), m0 = box.querySelector('.dmore')?.getBoundingClientRect(), ghost = box.cloneNode(true);
+    // only the Doors block is redrawn (not the alarm, locks and gates above it), so the animation starts at once
+    this._doorsExp = !this._doorsExp;
+    const tmp = document.createElement('div'); tmp.innerHTML = this._rDoors(); const fresh = tmp.firstElementChild;
+    if (fresh) box.replaceWith(fresh); else this._rerender('security');
     const nb = this.$('security')?.querySelector('.dv'); if (!nb || !nb.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const h1 = nb.getBoundingClientRect().height, o = { duration: 460, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' };
-    nb.style.overflow = 'hidden'; nb.animate([{ height: `${h0}px` }, { height: `${h1}px` }], o).onfinish = () => { nb.style.overflow = ''; };
+    const b1 = nb.getBoundingClientRect(), ease = 'cubic-bezier(.22,1,.36,1)', o = { duration: 520, easing: ease, fill: 'backwards' };
+    // the block grows / shrinks to its new height; the content below follows
+    nb.style.overflow = 'hidden'; nb.animate([{ height: `${b0.height}px` }, { height: `${b1.height}px` }], { duration: 520, easing: ease }).onfinish = () => { nb.style.overflow = ''; };
+    // each door's row slides from where it was to where it is now; a row that gets taller (timeline → list) unfolds
+    // from the old row's height, and its 24-hour strip shrinks (or grows) into place
     let i = 0;
     nb.querySelectorAll('[data-k]').forEach(el => {
       const a = rows0.get(el.dataset.k), b = el.getBoundingClientRect(); if (!a) return;
-      const dy = a.top - b.top, delay = i++ * 22;
-      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { ...o, delay });
+      const dy = a.top - b.top, delay = i++ * 16, grow = b.height - a.height, r = getComputedStyle(el).borderRadius || '0px';
+      el.animate([{ transform: `translateY(${dy}px)`, ...(grow > 1 ? { clipPath: `inset(0 0 ${grow}px 0 round ${r})` } : {}) }, { transform: 'none', ...(grow > 1 ? { clipPath: `inset(0 0 0 0 round ${r})` } : {}) }], { ...o, delay });
       const t = el.querySelector('[data-t]'), ta = tr0.get(el.dataset.k); if (!t || !ta) return;
       const tb = t.getBoundingClientRect(); if (!tb.width || !tb.height) return;
       t.style.transformOrigin = '0 0';
       t.animate([{ transform: `translate(${ta.left - tb.left}px,${ta.top - tb.top - dy}px) scale(${ta.width / tb.width},${ta.height / tb.height})` }, { transform: 'none' }], { ...o, delay });
     });
-    nb.querySelectorAll('.dfade, .dsum, .daxis, .dago').forEach((el, j) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: 180 + j * 10, easing: 'ease-out', fill: 'backwards' }));
+    // what is new in this view fades in once the rows are on their way
+    nb.querySelectorAll('.dfade, .dsum, .dago').forEach((el, j) => el.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 140 + Math.min(j, 12) * 12, easing: 'ease-out', fill: 'backwards' }));
+    // the button rides on the bottom edge, and its arrow turns instead of flipping
+    const mb = nb.querySelector('.dmore'); if (mb && m0) mb.animate([{ transform: `translateY(${m0.top - mb.getBoundingClientRect().top}px)` }, { transform: 'none' }], o);
+    nb.querySelector('.dmore ha-icon')?.animate([{ transform: 'rotate(180deg)' }, { transform: 'none' }], { duration: 520, easing: ease });
+    // what only the old view had (the summary, the group titles, the list's row cards) stays on top for a moment and
+    // fades out, so nothing vanishes in a single frame; the rows' text, the heading and the button are left out, as
+    // the new view has them too (moving into place)
+    ghost.querySelectorAll('.dtl > *, .drow > *, .dhead, .dmore, .dtip').forEach(x => { x.style.visibility = 'hidden'; });
+    ghost.querySelectorAll('[data-act]').forEach(x => x.removeAttribute('data-act'));
+    ghost.querySelectorAll('[data-k],[data-t]').forEach(x => { delete x.dataset.k; delete x.dataset.t; });
+    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: `${b0.width}px`, margin: '0', pointerEvents: 'none', zIndex: '2' });
+    ghost.setAttribute('aria-hidden', 'true'); ghost.classList.add('dghost');
+    nb.style.position = 'relative'; nb.appendChild(ghost);
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' }).onfinish = () => ghost.remove();
   }
 
   _rCams() {

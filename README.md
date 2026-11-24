@@ -14,7 +14,8 @@ security, climate, energy, water, media and your home lab.
 - **Works with no setup**: without any configuration it builds a simple house from your Home Assistant areas. Draw
   your real floor plan in the card editor, or load your own `.glb` model.
 - **Panels**, each shown only when Home Assistant has something for it:
-  - **Security**: alarm with a PIN keypad, locks, doors, live cameras
+  - **Security**: alarm with a PIN keypad, locks, gates and garage doors, live cameras, and every door's last 24 hours:
+    a timeline that opens into a list of when each door last opened (see [Doors](#doors-the-last-24-hours))
   - **Climate**: ACs, temperatures
   - **Energy**: live power flow and a chart of today, plus history by day, week, month and year from your Energy
     settings, an electric car and the Forecast.Solar forecast
@@ -22,11 +23,16 @@ security, climate, energy, water, media and your home lab.
   - **Media**: TV and speakers, plus a media server card from Jellyfin (or Jellyfin + JellyHA), Sonarr, Radarr and
     qBittorrent: now watching, the library, coming up, downloads and storage. Tap a movie or episode to play it on your TV
   - **Home Lab**: Proxmox VE node and guests
-  - **Needs Attention**: unavailable devices, low batteries, weak Wi-Fi, repairs, updates
+  - **Needs Attention**: unavailable devices, low batteries, weak Wi-Fi, repairs, updates (with a live progress bar
+    while one installs)
 - **Sweet Home 3D card**: only the 3D view, to place among your other cards. Tap a room and its controls open as a
   pop-up. See [Only the 3D view](#only-the-3d-view-sweet-home-3d).
 - **Shows what it found**: each panel's settings list the integrations it reads (Jellyfin, Sonarr, Radarr,
   qBittorrent, Forecast.Solar, Proxmox VE…), found or not found, with a switch to turn each part off.
+- **Dark or light**: a dark look by default, a light one with `appearance: light`, or `auto` to follow your Home
+  Assistant theme.
+- **Live counters**: each tab shows what needs you (open doors, ACs running, alerts…) and follows changes within a
+  second.
 - **English and Arabic**, with a right-to-left layout for Arabic.
 - **Made for phones**:
   - Swipe between tabs. Haptics. Long press opens more-info; double tap opens the second entity.
@@ -48,6 +54,28 @@ security, climate, energy, water, media and your home lab.
 | ![The Sweet Home 3D card next to other cards on a dashboard](docs/screenshots/sweet-home-3d.webp) | ![The room pop-up of the Sweet Home 3D card: lights with brightness, the front door lock, blinds and the robot vacuum](docs/screenshots/sweet-home-3d-room.webp) |
 | **Floor plan editor** | **On a phone** |
 | ![The card editor: rooms, walls, doors, windows and furniture drawn on a plan](docs/screenshots/editor-plan.webp) | ![A room popup on a phone: lights with brightness, the front door lock and blinds](docs/screenshots/phone-room.webp) |
+| **Doors: the last 24 hours** | **Show details: when each door last opened** |
+| ![The Doors timeline: open now, openings, busiest door and openings at night, then one 24-hour strip per door](docs/screenshots/doors-timeline.webp) | ![The Doors list: Open now and Last hour, each door with the time of its last opening and how often it opened today](docs/screenshots/doors-list.webp) |
+
+**Light look** (`appearance: light`)
+
+![The Home tab in the light look: the 3D house, At a glance and Modes on light panels](docs/screenshots/light-look.webp)
+
+### Doors: the last 24 hours
+
+The Doors block on the Security tab shows each door's day at a glance. A strip per door marks every time it opened in
+the last 24 hours (red while it is open now), with how long ago it last opened, and a summary on top: how many are open
+now, how many openings, the busiest door, and openings at night (midnight to 5 am). Each bar runs from the door's
+name to its time, oldest on the left; tap it to see the opening nearest your tap, when it was and how long it
+stayed open ("14:32 · 4 min"). **Show details** opens it into a
+list: *Open now*, *Last hour* and *Earlier*, each door with the time it last opened, how many times today and its
+strip. **Show less** folds it back. The doors come from your door sensors and from gates with an open / closed sensor.
+
+<img src="docs/screenshots/doors-animation.webp" alt="Show details opens the timeline into the list: each door slides into place and its strip shrinks into the row" width="380">
+
+The times come from Home Assistant's history (read every 5 minutes); a door that opens or closes shows at once. Choose
+what it shows with `doors_view` (card editor: Panels → Security → *Doors view*): `both` (default: the timeline, with
+Show details), `timeline` or `list`.
 
 ## Install
 
@@ -357,8 +385,9 @@ each marked *found* (with how many entities) or *not found* (with what to instal
 hides its part of the card; it is stored only when off, as `<integration>: false` under that panel (the keys are
 listed below).
 
-- **security**: `alarm`, `locks`, `entrances`, `doors`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance), `face` (a sensor with the last face recognised, shown as a badge on the Cameras card: the name, or *No face*. Without it, the cameras' own face sensors are used; Frigate's `sensor.<camera>_last_recognized_face` is found by itself)
+- **security**: `alarm`, `locks`, `entrances`, `doors`, `doors_view`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance), `face` (a sensor with the last face recognised, shown as a badge on the Cameras card: the name, or *No face*. Without it, the cameras' own face sensors are used; Frigate's `sensor.<camera>_last_recognized_face` is found by itself)
   - `locks`: `entity_id` or `{entity, name, kind, icon}`. A lock shows a padlock (green locked, red unlocked, amber locking or jammed). To show what it locks instead, with a small padlock for the state, set `kind`: `door`, `sliding`, `gate`, `garage`, `window`, `safe`, `car`, `locker`, or an `icon`.
+  - `doors`: door sensors (`binary_sensor` with the door or garage door class; not given: all of them). `doors_view`: `both` (default), `timeline` or `list`, see [Doors](#doors-the-last-24-hours).
   - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open (without one it shows as closed). The sensor can be a door / contact sensor (on = open), a cover or lock, or a text sensor such as a camera's Frigate state classification (`open`, `closed`, `opening`…; words of your own with `open_states` / `closed_states`). `sensor_2` (or a list) is a backup used when the first gives no clear reading. In the card editor, Panels → Security shows two sensor pickers per gate, with suggestions: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
 - **climate**: `entities`
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:
@@ -426,6 +455,8 @@ listed below).
     batteries), `battery_exclude`
   - While the dashboard is edited, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
     lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
+  - An update being installed shows its progress ("Updating to 2026.12.0", a bar and its percentage, or a moving bar
+    when Home Assistant reports no percentage).
 
 ## Styling: themes and card-mod
 
@@ -498,7 +529,7 @@ Locks, gate relays and other risky switches need a second tap to confirm.
 
 ```bash
 npm install
-npm run build      # → dist/sweet-home-card.js (three.js is bundled)
+npm run build      # → dist/sweet-home-card.js (three.js is bundled) and dist/sweet-home-editor.js (the card editor)
 npm run check      # build + module evaluation test
 npm test           # check + model tests + browser tests (npx playwright install chromium once)
 python3 -m http.server 8799   # then open http://127.0.0.1:8799/test/?config=demo

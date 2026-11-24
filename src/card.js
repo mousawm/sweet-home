@@ -806,6 +806,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'color': this.call('light', 'turn_on', t.dataset.k ? { entity_id: id, color_temp_kelvin: Number(t.dataset.k) } : { entity_id: id, rgb_color: t.dataset.rgb.split(',').map(Number) }); break;
       case 'more': this.more(id); break;
       case 'doorsview': this._doorsFlip(); break;
+      case 'dmark': this._doorMark(t, e); break;
       case 'mode': this._setMode(t.dataset.mode); break;
       case 'view': this._three?.view(t.dataset.view); break;
       case 'spin': { const on = this._three?.toggleSpin(); t.classList.toggle('on', !!on); break; }
