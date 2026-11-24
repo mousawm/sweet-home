@@ -132,9 +132,9 @@ export class SecurityPanels {
     const ago = (t, pre = '') => `<span data-ago="${new Date(t).toISOString()}" data-pre="${esc(pre)}" data-short="1">${pre ? `${esc(pre)} · ` : ''}${agoShort(new Date(t).toISOString(), lang)}</span>`;
     const icon = d => ic(d.o ? d.icons[1] : d.icons[0]), cls = d => d.na ? 'na' : d.o ? 'open' : '';
     const exp = mode === 'list' || (mode === 'both' && !!this._doorsExp);
-    const head = mode === 'both'
-      ? `<button class="dsec dhead" data-act="doorsview" aria-expanded="${exp}"><span>${tr('Doors')}${exp ? '' : ` · ${tr('last 24 h')}`}</span><em>${tr(exp ? 'Less' : 'Details')}${ic('mdi:chevron-down')}</em></button>`
-      : `<div class="dsec dhead"><span>${tr('Doors')}${exp ? '' : ` · ${tr('last 24 h')}`}</span></div>`;
+    const head = `<div class="dsec dhead"><span>${tr('Doors')}${exp ? '' : ` · ${tr('last 24 h')}`}</span></div>`;
+    // both: the timeline opens into the list with a "Show details" button under it (like Home Lab's Show more)
+    const more = mode === 'both' ? `<button class="vmmore dmore" data-act="doorsview" aria-expanded="${exp}">${exp ? tr('Show less') : tr('Show details · {0} doors', D.length)}${ic(exp ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '';
     let body;
     if (!exp) { // C: one 24-hour strip per door
       const tot = D.reduce((s, d) => s + d.n24, 0), busy = D.reduce((b, d) => (d.n24 > (b?.n24 || 0) ? d : b), null), nOpen = D.filter(d => d.o).length;
@@ -151,9 +151,9 @@ export class SecurityPanels {
         <div class="dtrack" data-t="${d.id}">${marks(d)}</div></div>`;
       body = g.filter(x => x[2].length).map(([k, l, list]) => `<div class="dgrp dfade">${tr(l)}</div>${list.map(row).join('')}`).join('');
     }
-    return `<div class="dv ${exp ? 'exp' : ''}">${head}${body}</div>`;
+    return `<div class="dv ${exp ? 'exp' : ''}">${head}${body}${more}</div>`;
   }
-  // Details / Less: the timeline opens into the list. Each door's row slides from where it was to where it is now, and
+  // Show details / Show less: the timeline opens into the list. Each door's row slides from where it was to where it is now, and
   // its 24-hour strip shrinks (or grows) into place, while the times and group titles fade in.
   _doorsFlip() {
     const box = this.$('security')?.querySelector('.dv'); if (!box) return;

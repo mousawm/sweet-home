@@ -365,14 +365,14 @@ try {
       await new Promise(r => setTimeout(r, 200)); el._setTab('security'); await new Promise(r => setTimeout(r, 400));
     }, view);
     const look = () => p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)];
-      return { tl: q('.dv:not(.exp) .dtl').length, rows: q('.dv.exp .drow').length, btn: q('.dv button.dhead').length, marks: q('.dtl .dtrack i').length, sum: q('.dsum')[0]?.textContent || '',
+      return { tl: q('.dv:not(.exp) .dtl').length, rows: q('.dv.exp .drow').length, btn: q('.dv button.dmore').length, btnTxt: q('.dv button.dmore')[0]?.textContent.trim() || '', marks: q('.dtl .dtrack i').length, sum: q('.dsum')[0]?.textContent || '',
         asked: (window.histAsks || []).length, grp: q('.dgrp').map(g => g.textContent), when: q('.drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
     await mk(null); let r = await look();
-    check('Doors open as a 24-hour timeline drawn from the history, with a Details button', r.items > 1 && r.tl === r.items && r.btn === 1 && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
+    check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
-    check('…Details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
+    check('…Show details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.btnTxt === 'Show less' && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
-    check('…and Less turns it back', r.tl === r.items && r.rows === 0, JSON.stringify(r));
+    check('…and Show less turns it back', r.tl === r.items && r.rows === 0, JSON.stringify(r));
     await mk('list'); r = await look();
     check('doors_view: list shows only the list', r.rows === r.items && r.btn === 0, JSON.stringify(r));
     await mk('timeline'); r = await look();

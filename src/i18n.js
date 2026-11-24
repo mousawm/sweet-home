@@ -237,10 +237,10 @@ const AR = {
   'Watched today': 'شوهد اليوم', 'Water': 'المياه', 'Watering tomorrow': 'الري غدًا',
   'Weather': 'الطقس', 'Year': 'السنة', 'Yesterday': 'أمس',
   // Doors: timeline and list
-  'last 24 h': 'آخر 24 ساعة', Details: 'التفاصيل', Less: 'أقل', 'open now': 'مفتوح الآن', opening: 'فتح', openings: 'مرات فتح', Busiest: 'الأكثر استخدامًا',
+  'last 24 h': 'آخر 24 ساعة', 'open now': 'مفتوح الآن', opening: 'فتح', openings: 'مرات فتح', Busiest: 'الأكثر استخدامًا',
   'At night': 'ليلًا', now: 'الآن', 'Open now': 'مفتوح الآن', 'Last hour': 'آخر ساعة', Earlier: 'سابقًا', 'Opened at {0}': 'فُتح الساعة {0}',
   '1 opening today': 'فُتح مرة واحدة اليوم', '{0} openings today': 'فُتح {0} مرات اليوم', 'No openings today': 'لم يُفتح اليوم', 'since {0}': 'منذ {0}', 'last change': 'آخر تغيير',
-  'Doors view': 'عرض الأبواب', 'Timeline, tap Details for the list': 'خط زمني، واضغط التفاصيل لعرض القائمة', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
+  'Doors view': 'عرض الأبواب', 'Show details · {0} doors': 'عرض التفاصيل · {0} أبواب', 'Timeline, Show details opens the list': 'خط زمني، و«عرض التفاصيل» يفتح القائمة', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

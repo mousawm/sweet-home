@@ -186,10 +186,8 @@ main{scroll-margin-top:84px}
 .door.open{color:var(--hi);background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.5)}.door.open ha-icon{color:var(--rose)}
 /* Doors: 24-hour timeline (C) and the detailed list (B) */
 .dv{display:flex;flex-direction:column}
-.dhead{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:none;border:0;padding:0;font:inherit;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin:12px 0 8px;text-align:start}
-button.dhead{cursor:pointer}button.dhead:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:6px}
-.dhead em{font-style:normal;display:flex;align-items:center;gap:2px;letter-spacing:.3px;text-transform:none;font-size:12px;color:var(--teal);font-weight:600}
-.dhead em ha-icon{--mdc-icon-size:18px;transition:transform .35s cubic-bezier(.2,.8,.2,1)}.dv.exp .dhead em ha-icon{transform:rotate(180deg)}
+.dhead{margin:12px 0 8px}
+.dmore{width:100%;margin-top:12px;padding:10px}.dv.exp .dmore{margin-top:6px}.dmore:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .dsum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .dsum span{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu)}.dsum b{color:var(--hi);font-weight:600}
 .dsum .bad{color:var(--rose);border-color:rgba(251,113,133,.45);background:rgba(244,63,94,.12)}.dsum .bad b{color:var(--rose)}
