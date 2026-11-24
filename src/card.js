@@ -171,6 +171,7 @@ export class SweetHomeCard extends HTMLElement {
   disconnectedCallback() {
     if (this._popKey) { window.removeEventListener('keydown', this._popKey); this._popKey = null; }
     clearInterval(this._clockT); clearInterval(this._camT); clearInterval(this._histT);
+    if (this._repSub) { const p = this._repSub; this._repSub = null; p.then(u => u?.()).catch(() => {}); } // the repairs listener
     this._unmountCams(); if (this._visH) { document.removeEventListener('visibilitychange', this._visH); this._visH = null; }
     if (this._three) this._three.pause();
     // while the dashboard or this card is being edited: the 3D view is kept for the card that replaces this one
@@ -646,6 +647,10 @@ export class SweetHomeCard extends HTMLElement {
 
   _update() {
     const h = this._hass; if (!h) return;
+    // a change to an entity Needs Attention watches: redraw it (and the tab counter) on the next clock tick
+    const ad = this._alDeps; if (ad) { const p = this._alPrev; let ch = !p || p.length !== ad.length; for (let i = 0; !ch && i < ad.length; i++) ch = h.states[ad[i]] !== p[i];
+      if (ch) { this._alPrev = ad.map(id => h.states[id]); if (p) this._alDirty = true; } }
+    { const n = Object.keys(h.states).length; if (n !== this._alN) { if (this._alN != null) this._alDirty = true; this._alN = n; } } // an entity added or removed
     for (const sec of this._sections) {
       if (sec.off) continue;
       if (sec.tab === undefined) sec.tab = sec.el.closest('.tab')?.dataset.tab || null;
@@ -739,11 +744,9 @@ export class SweetHomeCard extends HTMLElement {
     const hr = d.getHours();
     const g = tr(hr < 5 ? tr("Good night") : hr < 12 ? tr("Good morning") : hr < 17 ? tr("Good afternoon") : tr("Good evening"));
     put('greet', this.name() ? tr('{0}, {1}', g, this.name()) : g);
-    if (d.getSeconds() % 30 === 0) { this._alertCount = null; this._rerender('alerts', 'tabs'); }
-    else if (this._updBusy?.length && this._hass) { // an update installing: redraw when its progress changes (or it ends)
-      const sig = this._updBusy.map(id => { const a = this._hass.states[id]?.attributes || {}; return `${a.in_progress}|${a.update_percentage}`; }).join();
-      if (sig !== this._updSig) { this._updSig = sig; this._rerender('alerts', 'tabs'); }
-    }
+    // Needs Attention and the System tab's counter: redrawn within a second of a change to an entity they watch (an update's
+    // progress, a battery, a device going offline…: _update marks it), at most once a second; and every 30 s (repairs, times)
+    if (d.getSeconds() % 30 === 0 || this._alDirty) { this._alDirty = false; this._alertCount = null; this._rerender('alerts', 'tabs'); }
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
   }
 

@@ -68,6 +68,11 @@ export class SystemPanels {
     };
     const num = st => parseFloat(st.state);
     const all = Object.values(h.states);
+    // every entity that could add, change or drop a row (whatever its state now): watched on each Home Assistant update,
+    // so the list and the System tab's counter follow within a second instead of on the 30 s refresh (_update / _tick)
+    this._alDeps = all.filter(st => { const id = st.entity_id, d = id.split('.')[0], dc = st.attributes.device_class;
+      return d === 'update' || /^sensor\..*tunnel/.test(id) || (d === 'sensor' && (dc === 'battery' || dc === 'signal_strength')) || A.batteryExtra[id]
+        || A.unavailDomains.includes(d) || A.unavailPlatforms.includes(h.entities?.[id]?.platform); }).map(st => st.entity_id);
     // CloudFlare tunnels that are not healthy — named by the tunnel only ("Cloudflare Tunnels Cloudflare Tunnel pbs" → "PBS")
     const tunName = st => (st.attributes.friendly_name || st.entity_id).replace(/^(\s*cloudflare\s+tunnels?\b)+\s*/i, '').replace(/[-_]+/g, ' ').trim()
       .split(/\s+/).map((w, i, a) => a.length === 1 && w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') || nm(st);
@@ -102,7 +107,6 @@ export class SystemPanels {
         return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${bidi(`${Math.round(num(st))} dBm`)}</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : ''}${hide(st.entity_id)}</div>`;
       });
     // pending updates, as on HA's Settings page: update entities that are on, can be installed and are not skipped
-    const busyIds = []; // updates being installed: watched every second so their bar moves (_tick)
     const upd = all.filter(st => st.entity_id.startsWith('update.') && st.state === 'on' && (st.attributes.supported_features & 1)
       && st.attributes.skipped_version !== st.attributes.latest_version)
       .sort((a, b) => nm(a).localeCompare(nm(b))).map(st => {
@@ -110,7 +114,6 @@ export class SystemPanels {
         // installing: HA's update_percentage (2024.12+), or a number in in_progress (older); none: a moving bar
         const busy = a.in_progress !== false && a.in_progress != null;
         const pct = !busy ? null : typeof a.update_percentage === 'number' ? a.update_percentage : typeof a.in_progress === 'number' ? a.in_progress : null;
-        if (busy) busyIds.push(st.entity_id);
         const ver = busy ? `${tr('Updating to {0}', a.latest_version || '?')}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
         const bar = busy ? `<i class="upbar ${pct == null ? 'ind' : ''}"><i style="width:${pct == null ? 35 : Math.max(2, Math.min(100, pct))}%"></i></i>` : '';
         return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${bidi(esc(ver))}</small>${bar}</span>${busy ? (pct != null ? `<b class="uppct">${bidi(`${Math.round(pct)}%`)}</b>` : '') : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}${tr("Update")}</button>`}</div>`;
@@ -126,12 +129,15 @@ export class SystemPanels {
       return `<div class="mrow ${i.severity === 'error' || i.severity === 'critical' ? 'open' : ''}" data-act="repairs">${ic(restart ? 'mdi:restart-alert' : 'mdi:wrench-outline')}<span class="m2">${esc(nm)}<small>${esc(what)}${i.domain && i.domain !== i.issue_domain ? ` · ${esc(tc(i.domain))}` : ''}</small></span></div>`;
     });
     if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>${tr('to apply the changes above')}</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
-    this._updBusy = busyIds;
     return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
   }
   async _loadRepairs() {
     if (this._repBusy || !this._hass) return; this._repBusy = true;
     try { const r = await this._hass.callWS({ type: 'repairs/list_issues' }); this._repairs = r?.issues || []; } catch (e) { /* not an admin: no repairs */ }
+    // a repair raised or fixed: reload right away (Home Assistant's own event; admins only), not on the next 30 s refresh
+    if (!this._repSub && this._hass.connection?.subscribeEvents) {
+      this._repSub = this._hass.connection.subscribeEvents(() => { this._repAt = 0; this._loadRepairs(); }, 'repairs_issue_registry_updated').catch(() => null);
+    }
     this._repBusy = false; this._repAt = Date.now(); this._rerender('alerts', 'tabs');
   }
   _rAlerts() {
