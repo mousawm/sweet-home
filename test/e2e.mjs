@@ -353,6 +353,12 @@ try {
     const chip = [...card.shadowRoot.querySelectorAll('#security .door')].find(d => d.textContent.trim() === 'Gate'); card._setTab('home');
     return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state';
   }));
+  check('the Security tab\'s counter follows a gate opening and closing right away', await p.evaluate(async () => {
+    const H = window.hassObj, put = async st => { card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: st }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } }; await new Promise(r => setTimeout(r, 150)); };
+    const badge = () => Number(card.shadowRoot.querySelector('.tb[data-tab="security"] .bd')?.textContent || 0);
+    card._setTab('home'); await put('closed'); const n0 = badge(); await put('open'); const n1 = badge(); await put('closed'); const n2 = badge();
+    card.hass = H; return n1 > n0 && n2 === n0 || JSON.stringify([n0, n1, n2]);
+  }).then(r => { if (r !== true) console.log('      got', r); return r === true; }));
   check('rename sheets show each entity\'s name (not "false")', await p.evaluate(async () => {
     card.editMode = true; card._setTab('security'); await new Promise(r => setTimeout(r, 200));
     card.shadowRoot.querySelector('#security [data-act=rnsec]').click(); await new Promise(r => setTimeout(r, 200));
@@ -1151,6 +1157,34 @@ try {
       card.hass = h; await new Promise(r => setTimeout(r, 1300));
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('an update being installed shows a bar and its percentage (a moving bar without one)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // a Home Assistant repair is counted on the System tab from the start, without opening the System tab first
+      const h = card._hass._raw || card._hass;
+      card._setTab('home'); card.hass = h; card._repairs = null; card._repAt = 0; card._alertCount = null; card._rerender('tabs'); await new Promise(r => setTimeout(r, 500));
+      const n0 = card._alertCount ?? 0;
+      card.hass = { ...h, callWS: async m => m.type === 'repairs/list_issues' ? { issues: [{ issue_id: 'x_test', domain: 'demo', issue_domain: 'demo', translation_key: 'x_test', severity: 'warning', ignored: false }] } : h.callWS(m) };
+      card._repAt = 0; card._alertCount = null; card._rerender('tabs'); await new Promise(r => setTimeout(r, 500));
+      const out = { home: card._tab === 'home', count: card._alertCount === n0 + 1,
+        badge: Number(card.shadowRoot.querySelector('.tb[data-tab="system"] .bd')?.textContent || 0) === n0 + 1 };
+      card.hass = h; card._repairs = null; card._repAt = Date.now(); card._alertCount = null; card._rerender('tabs');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('the System tab counts repairs on load, before the System tab is opened', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // the dashboard left open on the Home tab: each tab's badge follows a live change within a second, no tab opened
+      const H = card._hass._raw || card._hass, E = card._model.E, out = {};
+      const set = async (id, state, attrs = id === 'sensor.x_live_battery' ? { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Live Battery' } : null) => { const h = card._hass._raw || card._hass; card.hass = { ...h, states: { ...h.states, [id]: { ...(h.states[id] || { entity_id: id, attributes: {} }), entity_id: id, state, last_changed: new Date().toISOString(), ...(attrs ? { attributes: attrs } : {}) } } }; await new Promise(r => setTimeout(r, 1300)); };
+      const bd = k => card.shadowRoot.querySelector(`.tb[data-tab="${k}"] .bd`)?.outerHTML ?? ''; // some badges are icons
+      card._setTab('home'); card.hass = H; await new Promise(r => setTimeout(r, 300));
+      const run = async (key, id, onSt, offSt) => { if (!id || !card.shadowRoot.querySelector(`.tb[data-tab="${key}"]`)) return; await set(id, offSt); const a = bd(key); await set(id, onSt); const b = bd(key); await set(id, offSt); const c = bd(key); out[key] = a !== b && a === c || [a, b, c]; };
+      await run('security', E.doors[0]?.id, E.doors[0]?.open || 'on', 'off');
+      await run('climate', E.acs[0]?.id, 'cool', 'off');
+      await run('energy', E.car.charging, 'on', 'off');
+      await run('water', E.water.tank, '10', '80');
+      await run('media', E.media.tv, 'playing', 'idle');
+      await run('system', 'sensor.x_live_battery', '4', '90'); // a battery going low
+      card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
+      return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
+    }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

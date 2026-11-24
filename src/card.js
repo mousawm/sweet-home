@@ -356,7 +356,8 @@ export class SweetHomeCard extends HTMLElement {
     const glanceEnts = all(E.alarm, E.doors.map(d => d.id), E.locks.map(l => l.id), roomEnts, acEnts, E.energy.grid, E.energy.solar,
       E.water.tank, E.car.charging, E.car.parking, E.cameras.map(c => [c.person, c.car]), E.media.tv, E.lab.cpu, E.lab.status);
     this._sections = [
-      { el: $('tabs'), deps: glanceEnts, render: () => this._rTabs() },
+      // + the gates / garage doors: the Security tab's counter counts them too
+      { el: $('tabs'), deps: all(glanceEnts, E.entrances.flatMap(g => [g.id, ...(g.sensors || []), g.sensor])), render: () => this._rTabs() },
       { el: $('glance'), deps: glanceEnts, render: () => this._rGlance() },
       { el: $('hdr'), deps: all(E.weather, E.persons, E.alarm, E.doors.map(d => d.id), roomEnts, E.energy.grid, E.energy.solar, E.face, E.car.parking, E.locks.map(l => l.id)), render: () => this._rHeader() },
       { el: $('security'), deps: all(E.alarm, E.locks.map(l => l.id), E.doors.map(d => d.id), E.entrances.flatMap(g => [g.id, ...(g.sensors || [])])), render: () => this._rSecurity() },
