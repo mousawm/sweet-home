@@ -184,12 +184,19 @@ main{scroll-margin-top:84px}
 .door{display:flex;align-items:center;gap:5px;padding:6px 10px 6px 7px;padding-inline:7px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:11.5px;color:var(--mu);cursor:pointer}
 .door ha-icon{--mdc-icon-size:16px;color:var(--green)}
 .door.open{color:var(--hi);background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.5)}.door.open ha-icon{color:var(--rose)}
+/* the list of openings (a sheet) */
+.dlog{display:flex;align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:13px}.dlog:last-child{border-bottom:0}
+.dlog-ic{width:28px;height:28px;flex:none;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}.dlog-ic ha-icon{--mdc-icon-size:16px}
+.dlog b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dlog .dlog-n{--mdc-icon-size:14px;color:var(--amber);flex:none}
+.dlog-t{margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}.dlog-d{min-width:78px;text-align:end;color:var(--mu);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dlog.open .dlog-ic{background:color-mix(in srgb,var(--rose) 18%,transparent);color:var(--rose)}.dlog.open .dlog-d{color:var(--rose);font-weight:600}
 /* Doors: 24-hour timeline (C) and the detailed list (B) */
 .dv{display:flex;flex-direction:column}
 .dhead{margin:12px 0 8px}
 .dmore{width:100%;margin-top:12px;padding:10px}.dv.exp .dmore{margin-top:6px}.dmore:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .dsum{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.dsum span{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu)}.dsum b{color:var(--hi);font-weight:600}
+.dsum>*{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mu)}.dsum b{color:var(--hi);font-weight:600}
+.dsum button{font:inherit;cursor:pointer;transition:border-color .2s,background .2s}.dsum button:hover{border-color:var(--teal)}.dsum button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .dsum .bad{color:var(--rose);border-color:rgba(251,113,133,.45);background:rgba(244,63,94,.12)}.dsum .bad b{color:var(--rose)}
 .dsum .warn{color:var(--amber);border-color:rgba(251,191,36,.4)}.dsum .warn b{color:var(--amber)}
 .dtls{display:flex;flex-direction:column;gap:8px}
@@ -197,7 +204,7 @@ main{scroll-margin-top:84px}
 .dtl{display:flex;align-items:center;gap:10px;position:relative;cursor:pointer}
 .dtl .dtrack{flex:1 1 auto;min-width:48px;cursor:pointer}
 .dtrack i.hit{box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 45%,transparent);filter:brightness(1.25)}
-.dtip{position:absolute;bottom:calc(100% + 5px);z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
+.dtip{position:absolute;top:-30px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
 @keyframes dtip{from{opacity:0;transform:translateY(3px)}}
 .dnm{display:flex;align-items:center;gap:6px;min-width:0;flex:0 1 auto;max-width:48%;font-size:12px;color:var(--hi)}.dnm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dnm ha-icon,.dic ha-icon{--mdc-icon-size:16px;color:var(--green);flex:none}
@@ -214,7 +221,7 @@ main{scroll-margin-top:84px}
 .dmid small,.dwhen small{font-size:11px;color:var(--mu)}
 .dbadge{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:6px;background:var(--rose);color:#fff;margin-inline-start:6px;vertical-align:1px}
 .dwhen{grid-area:when;text-align:end;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}.dwhen b{font-size:13px;font-weight:600;color:var(--hi)}.drow.open .dwhen b{color:var(--rose)}
-.drow .dtrack{grid-area:tr;height:6px;border:0;border-radius:3px}.drow .dtrack i{top:0;bottom:0}
+.drow{position:relative}.dstrip{grid-area:tr;padding-block:7px;margin-block:-7px;cursor:pointer}.drow .dtrack{height:6px;border:0;border-radius:3px}.drow .dtrack i{top:0;bottom:0}
 
 
 /* climate */

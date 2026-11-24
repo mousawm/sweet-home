@@ -127,6 +127,7 @@ export class SecurityPanels {
       const lastOpen = since || (evs.length ? evs[evs.length - 1].t : null);
       return { ...x, evs, since, lastOpen, lc, today: evs.filter(e => !e.cut && e.t >= +day0).length, n24: evs.filter(e => !e.cut).length };
     }).sort((a, b) => (b.o - a.o) || ((b.lastOpen || 0) - (a.lastOpen || 0)) || ((b.lc || 0) - (a.lc || 0)));
+    this._dD = D; // for the list of openings (_doorLog)
     const marks = d => d.evs.map(e => { const a = Math.max(e.t, from), b = e.end ?? now;
       return `<i class="${e.end == null ? 'now' : ''}" data-s="${e.t}" data-e="${e.end ?? ''}"${e.cut ? ' data-c="1"' : ''} title="${esc(this._dmText(e.t, e.end, e.cut))}" style="inset-inline-start:${((a - from) / 864e5 * 100).toFixed(2)}%;width:${Math.max(0, (b - a) / 864e5 * 100).toFixed(2)}%"></i>`; }).join('');
     const ago = (t, pre = '') => `<span data-ago="${new Date(t).toISOString()}" data-pre="${esc(pre)}" data-short="1">${pre ? `${esc(pre)} · ` : ''}${agoShort(new Date(t).toISOString(), lang)}</span>`;
@@ -139,7 +140,8 @@ export class SecurityPanels {
     if (!exp) { // C: one 24-hour strip per door
       const tot = D.reduce((s, d) => s + d.n24, 0), busy = D.reduce((b, d) => (d.n24 > (b?.n24 || 0) ? d : b), null), nOpen = D.filter(d => d.o).length;
       const night = D.reduce((s, d) => s + d.evs.filter(e => !e.cut && new Date(e.t).getHours() < 5).length, 0);
-      body = `<div class="dsum">${nOpen ? `<span class="bad"><b>${nOpen}</b> ${tr('open now')}</span>` : ''}<span><b>${tot}</b> ${tr(tot === 1 ? 'opening' : 'openings')}</span>${busy ? `<span>${tr('Busiest')}: <b>${esc(busy.name)}</b></span>` : ''}${night ? `<span class="warn">${tr('At night')}: <b>${night}</b></span>` : ''}</div>
+      // the counts open the list of openings: all of them, the busiest door's, or the ones at night
+      body = `<div class="dsum">${nOpen ? `<span class="bad"><b>${nOpen}</b> ${tr('open now')}</span>` : ''}<button data-act="dlog" data-f="all"><b>${tot}</b> ${tr(tot === 1 ? 'opening' : 'openings')}</button>${busy ? `<button data-act="dlog" data-f="door" data-door="${esc(busy.id)}">${tr('Busiest')}: <b>${esc(busy.name)}</b></button>` : ''}${night ? `<button class="warn" data-act="dlog" data-f="night">${tr('At night')}: <b>${night}</b></button>` : ''}</div>
         <div class="dtls">${D.map(d => `<div class="dtl ${cls(d)}" data-act="more" data-id="${d.id}" data-k="${d.id}"><div class="dnm">${icon(d)}<span>${esc(d.name)}</span></div><div class="dtrack" data-t="${d.id}" data-act="dmark">${marks(d)}</div><div class="dago">${d.na ? tr('Unavailable') : d.since ? ago(d.since, tr('Open')) : d.lastOpen ? ago(d.lastOpen) : d.lc ? ago(d.lc) : '—'}</div></div>`).join('')}</div>`;
     } else { // B: grouped rows with the time of the last opening
       const g = [['open', 'Open now', []], ['hour', 'Last hour', []], ['earlier', 'Earlier', []]];
@@ -147,21 +149,45 @@ export class SecurityPanels {
       const row = d => `<div class="drow ${cls(d)}" data-act="more" data-id="${d.id}" data-k="${d.id}"><div class="dic">${icon(d)}</div>
         <div class="dmid"><b>${esc(d.name)}${d.o ? `<i class="dbadge">${tr('Open')}</i>` : ''}</b><small class="dfade">${d.na ? tr('Unavailable') : d.today === 1 ? tr('1 opening today') : d.today ? tr('{0} openings today', d.today) : tr('No openings today')}</small></div>
         <div class="dwhen dfade">${d.since ? `<b>${ago(d.since, tr('Open'))}</b><small>${tr('since {0}', hm(d.since))}</small>` : d.lastOpen ? `<b>${hm(d.lastOpen)}</b><small>${ago(d.lastOpen)}</small>` : d.lc ? `<b>${hm(d.lc)}</b><small>${tr('last change')}</small>` : ''}</div>
-        <div class="dtrack" data-t="${d.id}">${marks(d)}</div></div>`;
+        <div class="dstrip" data-act="dmark"><div class="dtrack" data-t="${d.id}">${marks(d)}</div></div></div>`;
       body = g.filter(x => x[2].length).map(([k, l, list]) => `<div class="dgrp dfade">${tr(l)}</div>${list.map(row).join('')}`).join('');
     }
     return `<div class="dv ${exp ? 'exp' : ''}">${head}${body}${more}</div>`;
   }
   // what a door's opening says: "14:32 · 4 min", "14:32 · open now", "until 06:10" (open since before the 24 hours)
+  _dmDur(ms) { const m = Math.round(ms / 60e3); return m < 1 ? tr('{0} min', '<1') : m < 60 ? tr('{0} min', m) : `${tr('{0} h', Math.floor(m / 60))}${m % 60 ? ` ${tr('{0} min', m % 60)}` : ''}`; }
   _dmText(s, e, cut) {
     const lang = this._hass?.locale?.language, hm = t => new Date(t).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
-    const m = e ? Math.round((e - s) / 60e3) : 0, dur = m < 1 ? tr('{0} min', '<1') : m < 60 ? tr('{0} min', m) : `${tr('{0} h', Math.floor(m / 60))}${m % 60 ? ` ${tr('{0} min', m % 60)}` : ''}`;
     if (cut) return e ? tr('until {0}', hm(e)) : tr('open now');
-    return `${hm(s)} · ${e ? dur : tr('open now')}`;
+    return `${hm(s)} · ${e ? this._dmDur(e - s) : tr('open now')}`;
+  }
+  // the list of openings in the last 24 hours (newest first, by day): every door's, one door's, or the ones at night
+  _doorLog(f, door) {
+    const D = this._dD || [], lang = this._hass?.locale?.language, now = Date.now();
+    const hm = t => new Date(t).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+    let list = D.flatMap(d => d.evs.filter(e => !e.cut).map(e => ({ d, e })));
+    if (f === 'night') list = list.filter(x => new Date(x.e.t).getHours() < 5);
+    if (f === 'door') list = list.filter(x => x.d.id === door);
+    list.sort((a, b) => b.e.t - a.e.t);
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    const dayOf = t => (t >= +d0 ? tr('Today') : t >= +d0 - 864e5 ? tr('Yesterday') : new Date(t).toLocaleDateString(lang, { weekday: 'long' }));
+    const title = f === 'door' ? D.find(d => d.id === door)?.name || tr('Openings') : f === 'night' ? tr('At night') : tr('Openings');
+    const sub = `${list.length === 1 ? tr('1 opening') : tr('{0} openings', list.length)} · ${tr('last 24 h')}`;
+    let day = null;
+    const rows = list.map(({ d, e }) => {
+      const k = dayOf(e.t), hd = k !== day ? `<div class="dsec">${esc(k)}</div>` : ''; day = k;
+      const open = e.end == null, nightTag = new Date(e.t).getHours() < 5 && f !== 'night';
+      return `${hd}<div class="dlog ${open ? 'open' : ''}"><span class="dlog-ic">${ic(open ? d.icons[1] : d.icons[0])}</span><b>${esc(d.name)}</b>${nightTag ? ic('mdi:weather-night', 'dlog-n') : ''}<span class="dlog-t">${hm(e.t)}</span><span class="dlog-d">${open ? `${tr('open now')} · ${this._dmDur(now - e.t)}` : this._dmDur(e.end - e.t)}</span></div>`;
+    }).join('');
+    const sh = this.$('sheet'); if (!sh) return;
+    sh.innerHTML = `<div class="sheet dlogs" role="dialog" aria-label="${esc(title)}">
+      <div class="sh-h">${ic(f === 'night' ? 'mdi:weather-night' : 'mdi:door-open')}<div><b>${esc(title)}</b><span>${esc(sub)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
+      ${rows || `<div class="sk-empty">${tr('No openings in 24 h')}</div>`}</div>`;
+    sh.classList.add('open');
   }
   // a tap on a door's 24-hour bar: a bubble over the opening nearest the tap (or "No openings") for a few seconds
   _doorMark(trk, e) {
-    const row = trk.closest('.dtl'); if (!row) return;
+    const row = trk.closest('.dtl, .drow'); if (!row) return; trk = trk.querySelector('.dtrack') || trk;
     clearTimeout(this._dtipT); row.parentElement.querySelectorAll('.dtip').forEach(x => x.remove()); row.parentElement.querySelectorAll('.dtrack i.hit').forEach(x => x.classList.remove('hit'));
     const r = trk.getBoundingClientRect(), rr = row.getBoundingClientRect(), x = e?.clientX || r.right;
     let best = null, bd = Infinity;
@@ -173,6 +199,7 @@ export class SecurityPanels {
     else tip.textContent = tr('No openings in 24 h');
     row.appendChild(tip);
     tip.style.left = `${Math.max(0, Math.min(rr.width - tip.offsetWidth, cx - tip.offsetWidth / 2))}px`;
+    tip.style.top = `${r.top - rr.top - tip.offsetHeight - 6}px`;
     this._dtipT = setTimeout(() => { tip.remove(); best?.classList.remove('hit'); }, 3500);
   }
   // Show details / Show less: the timeline opens into the list. Each door's row slides from where it was to where it is now, and
@@ -216,6 +243,7 @@ export class SecurityPanels {
     ghost.setAttribute('aria-hidden', 'true'); ghost.classList.add('dghost');
     nb.style.position = 'relative'; nb.appendChild(ghost);
     ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' }).onfinish = () => ghost.remove();
+    setTimeout(() => ghost.remove(), 400); // in case the animation is held up (a slow or hidden page)
   }
 
   _rCams() {

@@ -365,8 +365,9 @@ try {
       await new Promise(r => setTimeout(r, 200)); el._setTab('security'); await new Promise(r => setTimeout(r, 400));
     }, view);
     const look = () => p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)];
-      return { tl: q('.dv:not(.exp) .dtl').length, rows: q('.dv.exp .drow').length, btn: q('.dv button.dmore').length, btnTxt: q('.dv button.dmore')[0]?.textContent.trim() || '', marks: q('.dtl .dtrack i').length, sum: q('.dsum')[0]?.textContent || '',
-        asked: (window.histAsks || []).length, grp: q('.dgrp').map(g => g.textContent), when: q('.drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
+      // (.dghost: the old view fading out for a moment after a switch; left out)
+      return { tl: q('.dv:not(.exp):not(.dghost) > .dtls > .dtl').length, rows: q('.dv.exp:not(.dghost) > .drow').length, btn: q('.dv:not(.dghost) > button.dmore').length, btnTxt: q('.dv:not(.dghost) > button.dmore')[0]?.textContent.trim() || '', marks: q('.dv:not(.dghost) > .dtls .dtrack i').length, sum: q('.dv:not(.dghost) > .dsum')[0]?.textContent || '',
+        asked: (window.histAsks || []).length, grp: q('.dv:not(.dghost) > .dgrp').map(g => g.textContent), when: q('.dv:not(.dghost) > .drow .dwhen small span[data-ago]').length, items: card._doorItems().length }; });
     await mk(null); let r = await look();
     check('Doors open as a 24-hour timeline drawn from the history, with Show details under it', r.items > 1 && r.tl === r.items && r.btn === 1 && r.btnTxt === `Show details · ${r.items} doors` && r.asked === 1 && r.marks === 2 * r.items && r.sum.includes(`${2 * r.items} openings`), JSON.stringify(r));
     check('…tapping a door\'s bar shows when the opening nearest the tap was and how long it lasted', await p.evaluate(async () => {
@@ -377,8 +378,25 @@ try {
       const tip = card.shadowRoot.querySelector('#security .dtip'), row = trk.closest('.dtl').getBoundingClientRect(), nm = trk.previousElementSibling.getBoundingClientRect(), ago = trk.nextElementSibling.getBoundingClientRect();
       return !!tip && /^\d{1,2}:\d\d( [AP]M)? · (1 min|open now)$/.test(tip.textContent) && !!trk.querySelector('i.hit') && more === 0 && b.left - nm.right < 14 && ago.left - b.right < 14 && row.width > 0;
     }));
+    check('…tapping the openings count lists every opening, newest first; At night lists the night ones', await p.evaluate(async () => {
+      const q = s => card.shadowRoot.querySelector(s), total = card._dD.reduce((n, d) => n + d.evs.filter(e => !e.cut).length, 0);
+      q('#security .dsum [data-f=all]').click(); await new Promise(r => setTimeout(r, 100));
+      const rows = [...card.shadowRoot.querySelectorAll('#sheet .dlog')], times = rows.map(r => r.querySelector('.dlog-t').textContent);
+      const ok1 = q('#sheet').classList.contains('open') && rows.length === total && q('#sheet .sh-h b').textContent === 'Openings' && /^\d+ openings · last 24 h$/.test(q('#sheet .sh-h span').textContent);
+      card._closeSheet(); const nb = q('#security .dsum [data-f=night]'), nNight = nb ? Number(nb.querySelector('b').textContent) : 0;
+      let ok2 = true; if (nb) { nb.click(); await new Promise(r => setTimeout(r, 100)); ok2 = card.shadowRoot.querySelectorAll('#sheet .dlog').length === nNight; card._closeSheet(); }
+      const bz = q('#security .dsum [data-f=door]'); bz.click(); await new Promise(r => setTimeout(r, 100));
+      const ok3 = [...card.shadowRoot.querySelectorAll('#sheet .dlog b')].every(b => b.textContent === bz.querySelector('b').textContent); card._closeSheet();
+      return ok1 && ok2 && ok3 && times.length > 1;
+    }));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
     check('…Show details turns it into the list: the last hour first, each row with the time of its last opening', r.rows === r.items && r.btnTxt === 'Show less' && r.tl === 0 && r.grp[0] === 'Last hour' && r.when === r.items, JSON.stringify(r));
+    check('…in the list, tapping a door\'s bar shows the same bubble', await p.evaluate(async () => {
+      const st = card.shadowRoot.querySelector('#security .drow .dstrip'), b = st.getBoundingClientRect();
+      st.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 2, clientY: b.top + b.height / 2 }));
+      await new Promise(r => setTimeout(r, 100)); const tip = card.shadowRoot.querySelector('#security .drow .dtip');
+      return !!tip && /·/.test(tip.textContent) && tip.getBoundingClientRect().bottom <= st.querySelector('.dtrack').getBoundingClientRect().top + 1;
+    }));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(600); r = await look();
     check('…and Show less turns it back', r.tl === r.items && r.rows === 0, JSON.stringify(r));
     await mk('list'); r = await look();

@@ -10,6 +10,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Security → Doors: tap *openings* for a list of every opening in the last 24 hours, newest first by day, with each door, the time and how long it stayed open; *Busiest* lists that door's openings and *At night* the ones between midnight and 5 am.
+- Security → Doors list (Show details): tap a door's bar to see the opening nearest your tap, as on the timeline.
 
 ## v0.6.57 — 2026-11-24
 
