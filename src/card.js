@@ -740,6 +740,10 @@ export class SweetHomeCard extends HTMLElement {
     const g = tr(hr < 5 ? tr("Good night") : hr < 12 ? tr("Good morning") : hr < 17 ? tr("Good afternoon") : tr("Good evening"));
     put('greet', this.name() ? tr('{0}, {1}', g, this.name()) : g);
     if (d.getSeconds() % 30 === 0) { this._alertCount = null; this._rerender('alerts', 'tabs'); }
+    else if (this._updBusy?.length && this._hass) { // an update installing: redraw when its progress changes (or it ends)
+      const sig = this._updBusy.map(id => { const a = this._hass.states[id]?.attributes || {}; return `${a.in_progress}|${a.update_percentage}`; }).join();
+      if (sig !== this._updSig) { this._updSig = sig; this._rerender('alerts', 'tabs'); }
+    }
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre} · ${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
   }
 

@@ -255,6 +255,12 @@ main{scroll-margin-top:84px}
 .jfi{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;justify-content:center}
 .jfi b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jfi span{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .jfi em{font-style:normal;font-size:11px;color:#c4b5fd;display:flex;align-items:center;gap:3px}.jfi em ha-icon{--mdc-icon-size:13px}
+.m2 .upbar{display:block;height:4px;margin-top:6px;border-radius:2px;background:rgba(var(--ink),.1);overflow:hidden}
+.m2 .upbar>i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--teal),var(--blue));transition:width .6s}
+.m2 .upbar.ind>i{animation:upind 1.4s ease-in-out infinite} /* no percentage: a moving bar */
+@keyframes upind{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+[dir=rtl] .m2 .upbar.ind>i{animation-direction:reverse}
+.wrow .uppct{font-size:13px;font-weight:700;color:var(--teal)}
 .jfbar{height:4px;border-radius:2px;background:rgba(var(--ink),.08);overflow:hidden;margin-top:4px}.jfbar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,#a78bfa,#60a5fa)}
 .mempty{display:flex;align-items:center;gap:8px;padding:12px;border-radius:14px;background:var(--panel2);border:1px dashed var(--line);font-size:12px;color:var(--mu)}.mempty ha-icon{--mdc-icon-size:18px}
 .mdl{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}

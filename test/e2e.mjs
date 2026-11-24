@@ -1131,6 +1131,18 @@ try {
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); await p.setViewportSize(vs);
     check('Arabic on a phone: the room panel is full width and centred, slider fill from the right', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // an update being installed: a bar and its percentage (HA's update_percentage); without one, a moving bar
+      const h = card._hass._raw || card._hass, base = { state: 'on', last_changed: new Date().toISOString(), attributes: { friendly_name: 'Home Assistant Core Update', title: 'Home Assistant Core', supported_features: 1, installed_version: '2026.11.1', latest_version: '2026.11.2' } };
+      const put = attrs => { card.hass = { ...h, states: { ...h.states, 'update.home_assistant_core_update': { ...base, entity_id: 'update.home_assistant_core_update', attributes: { ...base.attributes, ...attrs } } } }; };
+      card._setTab('system'); put({ in_progress: true, update_percentage: 42 }); card._rerender('alerts'); await new Promise(r => setTimeout(r, 300));
+      const row = () => card.shadowRoot.querySelector('[data-id="update.home_assistant_core_update"]');
+      const out = {}; out.pct = row()?.querySelector('.uppct')?.textContent.includes('42%') && row()?.querySelector('.upbar>i')?.style.width === '42%';
+      put({ in_progress: true, update_percentage: null }); card._rerender('alerts'); await new Promise(r => setTimeout(r, 300));
+      out.ind = !!row()?.querySelector('.upbar.ind') && !row()?.querySelector('.uppct');
+      card.hass = h; card._rerender('alerts'); card._setTab('home');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('an update being installed shows a bar and its percentage (a moving bar without one)', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }
