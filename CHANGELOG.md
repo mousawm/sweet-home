@@ -10,6 +10,10 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+
+## v0.6.56 — 2026-11-24
+
+### Added
 - Security tab: Doors now show the last 24 hours as a timeline, and Show details opens a list with when each door last opened and how often today. Choose timeline, list or both with the new Doors view option.
 
 ## v0.6.55 — 2026-11-24
