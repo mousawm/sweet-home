@@ -8,6 +8,12 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+
+### Added
+
+## v0.6.58 — 2026-11-24
+
+### Changed
 - Security → Doors: Show details no longer swaps to a separate list. The same rows open a second line (openings today, when the door last opened or since when it is open), turn into cards and show the Open now / Last hour / Earlier titles, with smooth CSS transitions; nothing is redrawn, so it no longer flickers or shows rows cut in half.
 
 ### Added
