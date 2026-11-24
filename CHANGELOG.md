@@ -11,6 +11,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.58 — 2026-11-24
+
+### Changed
+- Security → Doors: Show details no longer swaps to a separate list. The same rows open a second line (openings today, when the door last opened or since when it is open), turn into cards and show the Open now / Last hour / Earlier titles, with smooth CSS transitions; nothing is redrawn, so it no longer flickers or shows rows cut in half.
+
+### Added
+- Security → Doors: a *Timeline bars* option (`doors_timeline`, card editor: Panels → Security, shown with the timeline): `fill` (default, each bar runs from its door's name to its time) or `aligned` (every bar on one scale, with -24 h / -12 h / now under them).
+- Security → Doors: tap *openings* for a list of every opening in the last 24 hours, newest first by day, with each door, the time and how long it stayed open; *Busiest* lists that door's openings and *At night* the ones between midnight and 5 am.
+
 ## v0.6.57 — 2026-11-24
 
 ### Changed

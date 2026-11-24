@@ -239,8 +239,8 @@ const AR = {
   // Doors: timeline and list
   'last 24 h': 'آخر 24 ساعة', 'open now': 'مفتوح الآن', opening: 'فتح', openings: 'مرات فتح', Busiest: 'الأكثر استخدامًا',
   'At night': 'ليلًا', now: 'الآن', 'Open now': 'مفتوح الآن', 'Last hour': 'آخر ساعة', Earlier: 'سابقًا', 'Opened at {0}': 'فُتح الساعة {0}',
-  '1 opening today': 'فُتح مرة واحدة اليوم', '{0} openings today': 'فُتح {0} مرات اليوم', 'No openings today': 'لم يُفتح اليوم', 'since {0}': 'منذ {0}', 'last change': 'آخر تغيير', 'until {0}': 'حتى {0}', 'No openings in 24 h': 'لم يُفتح خلال 24 ساعة',
-  'Doors view': 'عرض الأبواب', 'Show details · {0} doors': 'عرض التفاصيل · {0} أبواب', 'Timeline, Show details opens the list': 'خط زمني، و«عرض التفاصيل» يفتح القائمة', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
+  '1 opening today': 'فُتح مرة واحدة اليوم', '{0} openings today': 'فُتح {0} مرات اليوم', 'No openings today': 'لم يُفتح اليوم', 'since {0}': 'منذ {0}', 'last change': 'آخر تغيير', 'until {0}': 'حتى {0}', Openings: 'مرات الفتح', '1 opening': 'مرة فتح واحدة', '{0} openings': '{0} مرات فتح', 'No openings in 24 h': 'لم يُفتح خلال 24 ساعة',
+  'Doors view': 'عرض الأبواب', 'Show details · {0} doors': 'عرض التفاصيل · {0} أبواب', 'Timeline, Show details opens more': 'خط زمني، و«عرض التفاصيل» يعرض المزيد', 'Timeline bars': 'أشرطة الخط الزمني', 'Fill each row': 'تملأ كل صف', 'Aligned, with hour labels (-24 h / -12 h / now)': 'متحاذية، مع تسميات الساعات (-24 س / -12 س / الآن)', 'last opened {0}': 'آخر فتح {0}', 'last change {0}': 'آخر تغيير {0}', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

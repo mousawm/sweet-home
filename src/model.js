@@ -940,7 +940,8 @@ export function buildModel(cfg = {}, hass) {
     entrances: entranceList,
     gate: sec.gate ? { name: sec.gate.name || 'Gate', relay: sec.gate.relay, sensor: sec.gate.sensor } : { name: 'Gate', relay: null, sensor: null },
     doors: doorList,
-    doorsView: ['both', 'timeline', 'list'].includes(sec.doors_view) ? sec.doors_view : 'both', // the Doors block: timeline that opens into the list, or one of them
+    doorsView: ['both', 'timeline', 'list'].includes(sec.doors_view) ? sec.doors_view : 'both',
+    doorsTimeline: sec.doors_timeline === 'aligned' ? 'aligned' : 'fill', // the bars: fill each row, or one scale with hour labels // the Doors block: timeline that opens into the list, or one of them
     acs,
     alerts: {
       unavailDomains: arr(AT.unavailable_domains || ['light', 'switch', 'lock', 'climate', 'cover', 'fan']),

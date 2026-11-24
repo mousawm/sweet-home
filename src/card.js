@@ -807,6 +807,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'more': this.more(id); break;
       case 'doorsview': this._doorsFlip(); break;
       case 'dmark': this._doorMark(t, e); break;
+      case 'dlog': this._doorLog(t.dataset.f, t.dataset.door); break;
       case 'mode': this._setMode(t.dataset.mode); break;
       case 'view': this._three?.view(t.dataset.view); break;
       case 'spin': { const on = this._three?.toggleSpin(); t.classList.toggle('on', !!on); break; }
