@@ -180,22 +180,42 @@ export class SecurityPanels {
   _doorsFlip() {
     const box = this.$('security')?.querySelector('.dv'); if (!box) return;
     const rect = sel => new Map([...box.querySelectorAll(sel)].map(el => [el.dataset.k || el.dataset.t, el.getBoundingClientRect()]));
-    const rows0 = rect('[data-k]'), tr0 = rect('[data-t]'), h0 = box.getBoundingClientRect().height;
-    this._doorsExp = !this._doorsExp; this._rerender('security');
+    const rows0 = rect('[data-k]'), tr0 = rect('[data-t]'), b0 = box.getBoundingClientRect(), m0 = box.querySelector('.dmore')?.getBoundingClientRect(), ghost = box.cloneNode(true);
+    // only the Doors block is redrawn (not the alarm, locks and gates above it), so the animation starts at once
+    this._doorsExp = !this._doorsExp;
+    const tmp = document.createElement('div'); tmp.innerHTML = this._rDoors(); const fresh = tmp.firstElementChild;
+    if (fresh) box.replaceWith(fresh); else this._rerender('security');
     const nb = this.$('security')?.querySelector('.dv'); if (!nb || !nb.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const h1 = nb.getBoundingClientRect().height, o = { duration: 460, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' };
-    nb.style.overflow = 'hidden'; nb.animate([{ height: `${h0}px` }, { height: `${h1}px` }], o).onfinish = () => { nb.style.overflow = ''; };
+    const b1 = nb.getBoundingClientRect(), ease = 'cubic-bezier(.22,1,.36,1)', o = { duration: 520, easing: ease, fill: 'backwards' };
+    // the block grows / shrinks to its new height; the content below follows
+    nb.style.overflow = 'hidden'; nb.animate([{ height: `${b0.height}px` }, { height: `${b1.height}px` }], { duration: 520, easing: ease }).onfinish = () => { nb.style.overflow = ''; };
+    // each door's row slides from where it was to where it is now; a row that gets taller (timeline → list) unfolds
+    // from the old row's height, and its 24-hour strip shrinks (or grows) into place
     let i = 0;
     nb.querySelectorAll('[data-k]').forEach(el => {
       const a = rows0.get(el.dataset.k), b = el.getBoundingClientRect(); if (!a) return;
-      const dy = a.top - b.top, delay = i++ * 22;
-      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { ...o, delay });
+      const dy = a.top - b.top, delay = i++ * 16, grow = b.height - a.height, r = getComputedStyle(el).borderRadius || '0px';
+      el.animate([{ transform: `translateY(${dy}px)`, ...(grow > 1 ? { clipPath: `inset(0 0 ${grow}px 0 round ${r})` } : {}) }, { transform: 'none', ...(grow > 1 ? { clipPath: `inset(0 0 0 0 round ${r})` } : {}) }], { ...o, delay });
       const t = el.querySelector('[data-t]'), ta = tr0.get(el.dataset.k); if (!t || !ta) return;
       const tb = t.getBoundingClientRect(); if (!tb.width || !tb.height) return;
       t.style.transformOrigin = '0 0';
       t.animate([{ transform: `translate(${ta.left - tb.left}px,${ta.top - tb.top - dy}px) scale(${ta.width / tb.width},${ta.height / tb.height})` }, { transform: 'none' }], { ...o, delay });
     });
-    nb.querySelectorAll('.dfade, .dsum, .dago').forEach((el, j) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, delay: 180 + j * 10, easing: 'ease-out', fill: 'backwards' }));
+    // what is new in this view fades in once the rows are on their way
+    nb.querySelectorAll('.dfade, .dsum, .dago').forEach((el, j) => el.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 140 + Math.min(j, 12) * 12, easing: 'ease-out', fill: 'backwards' }));
+    // the button rides on the bottom edge, and its arrow turns instead of flipping
+    const mb = nb.querySelector('.dmore'); if (mb && m0) mb.animate([{ transform: `translateY(${m0.top - mb.getBoundingClientRect().top}px)` }, { transform: 'none' }], o);
+    nb.querySelector('.dmore ha-icon')?.animate([{ transform: 'rotate(180deg)' }, { transform: 'none' }], { duration: 520, easing: ease });
+    // what only the old view had (the summary, the group titles, the list's row cards) stays on top for a moment and
+    // fades out, so nothing vanishes in a single frame; the rows' text, the heading and the button are left out, as
+    // the new view has them too (moving into place)
+    ghost.querySelectorAll('.dtl > *, .drow > *, .dhead, .dmore, .dtip').forEach(x => { x.style.visibility = 'hidden'; });
+    ghost.querySelectorAll('[data-act]').forEach(x => x.removeAttribute('data-act'));
+    ghost.querySelectorAll('[data-k],[data-t]').forEach(x => { delete x.dataset.k; delete x.dataset.t; });
+    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: `${b0.width}px`, margin: '0', pointerEvents: 'none', zIndex: '2' });
+    ghost.setAttribute('aria-hidden', 'true'); ghost.classList.add('dghost');
+    nb.style.position = 'relative'; nb.appendChild(ghost);
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' }).onfinish = () => ghost.remove();
   }
 
   _rCams() {

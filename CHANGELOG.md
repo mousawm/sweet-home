@@ -8,6 +8,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+- Security → Doors: smoother switch between the timeline and the list. Only the Doors block is redrawn (the alarm and lock tiles above it no longer redraw, so it starts at once); the list's rows unfold from the timeline rows; the summary, group titles and row cards fade out instead of vanishing; the Show details button rides on the bottom edge and its arrow turns.
 - Security → Doors timeline: each bar now starts right after its door's name and runs to the time on the right, with no empty gaps (the -24 h / -12 h / now labels are gone).
 - README: new screenshots (the Doors timeline and list, the animation between them, and the light look) and the newer features: Doors view, update progress, live tab counters, the light look.
 
