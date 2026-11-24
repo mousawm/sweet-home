@@ -102,13 +102,18 @@ export class SystemPanels {
         return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic('mdi:wifi-strength-1-alert')}${lab(st, nm(st).replace(/\s*(rssi|signal strength)$/i, ''))}<b>${bidi(`${Math.round(num(st))} dBm`)}</b>${rb ? (Date.now() - (this._rbAt?.[rb] || 0) < 20e3 ? `<button class="rbtn busy" disabled>${ic('mdi:loading', 'spin')}${tr("Rebooting…")}</button>` : `<button class="rbtn" data-act="reboot" data-id="${rb}">${ic('mdi:restart')}${tr("Reboot")}</button>`) : ''}${hide(st.entity_id)}</div>`;
       });
     // pending updates, as on HA's Settings page: update entities that are on, can be installed and are not skipped
+    const busyIds = []; // updates being installed: watched every second so their bar moves (_tick)
     const upd = all.filter(st => st.entity_id.startsWith('update.') && st.state === 'on' && (st.attributes.supported_features & 1)
       && st.attributes.skipped_version !== st.attributes.latest_version)
       .sort((a, b) => nm(a).localeCompare(nm(b))).map(st => {
         const a = st.attributes, name = tc(a.title || (a.friendly_name || st.entity_id).replace(/\s*update$/i, ''));
+        // installing: HA's update_percentage (2024.12+), or a number in in_progress (older); none: a moving bar
         const busy = a.in_progress !== false && a.in_progress != null;
-        const ver = busy ? `${tr('Updating')}${typeof a.in_progress === 'number' ? ` · ${a.in_progress}%` : '…'}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
-        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${esc(ver)}</small></span>${busy ? '' : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}${tr("Update")}</button>`}</div>`;
+        const pct = !busy ? null : typeof a.update_percentage === 'number' ? a.update_percentage : typeof a.in_progress === 'number' ? a.in_progress : null;
+        if (busy) busyIds.push(st.entity_id);
+        const ver = busy ? `${tr('Updating to {0}', a.latest_version || '?')}` : `${a.installed_version || '?'} → ${a.latest_version || '?'}`;
+        const bar = busy ? `<i class="upbar ${pct == null ? 'ind' : ''}"><i style="width:${pct == null ? 35 : Math.max(2, Math.min(100, pct))}%"></i></i>` : '';
+        return `<div class="mrow open wrow" data-act="more" data-id="${st.entity_id}">${ic(busy ? 'mdi:progress-download' : 'mdi:package-up')}<span class="m2">${esc(name)}<small>${bidi(esc(ver))}</small>${bar}</span>${busy ? (pct != null ? `<b class="uppct">${bidi(`${Math.round(pct)}%`)}</b>` : '') : `<button class="rbtn ubtn" data-act="install" data-id="${st.entity_id}">${ic('mdi:download')}${tr("Update")}</button>`}</div>`;
       });
     // HA Repairs: the same list as Settings → Repairs (ignored ones left out), loaded by _loadRepairs every 30 s;
     // "restart required" issues share one two-tap Restart Home Assistant button
@@ -121,6 +126,7 @@ export class SystemPanels {
       return `<div class="mrow ${i.severity === 'error' || i.severity === 'critical' ? 'open' : ''}" data-act="repairs">${ic(restart ? 'mdi:restart-alert' : 'mdi:wrench-outline')}<span class="m2">${esc(nm)}<small>${esc(what)}${i.domain && i.domain !== i.issue_domain ? ` · ${esc(tc(i.domain))}` : ''}</small></span></div>`;
     });
     if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>${tr('to apply the changes above')}</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
+    this._updBusy = busyIds;
     return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
   }
   async _loadRepairs() {

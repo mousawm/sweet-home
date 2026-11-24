@@ -11,6 +11,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Needs Attention → Updates: an update being installed shows a progress bar and its percentage (Home Assistant's update progress), "Updating to <version>", and a moving bar when no percentage is reported; it follows the progress live.
 
 ## v0.6.52 — 2026-11-22
 
