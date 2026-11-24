@@ -350,8 +350,19 @@ try {
   check('a gate with an open / closed sensor is listed with the doors, open while its sensor says open', await p.evaluate(async () => {
     const H = window.hassObj; card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: 'open' }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } };
     await new Promise(r => setTimeout(r, 250)); card._setTab('security'); await new Promise(r => setTimeout(r, 150));
-    const chip = [...card.shadowRoot.querySelectorAll('#security .door')].find(d => d.textContent.trim() === 'Gate'); card._setTab('home');
-    return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state';
+    const chips = [...card.shadowRoot.querySelectorAll('#security .door')], chip = chips.find(d => d.querySelector('.dt span')?.textContent.trim() === 'Gate'); card._setTab('home');
+    return !!chip && chip.classList.contains('open') && chip.dataset.id === 'sensor.gate_cam_gate_state' && chips[0] === chip;
+  }));
+  check('each door chip says how long it has been open or when it last changed, open doors first', await p.evaluate(async () => {
+    const H = window.hassObj, states = { ...H.states }; let k = 0;
+    for (const id of Object.keys(states)) if (/^(binary_sensor|sensor)\./.test(id)) states[id] = { ...states[id], last_changed: new Date(Date.now() - (++k * 7 + 3) * 60e3).toISOString() };
+    card.hass = { ...H, states }; await new Promise(r => setTimeout(r, 250)); card._setTab('security'); await new Promise(r => setTimeout(r, 150));
+    const chips = [...card.shadowRoot.querySelectorAll('#security .door')], st = id => states[id]; card._setTab('home'); card.hass = H; await new Promise(r => setTimeout(r, 250));
+    const timed = chips.filter(c => c.querySelector('small[data-ago]'));
+    const ok = timed.length > 0 && timed.every(c => { const s = c.querySelector('small'), o = c.classList.contains('open'); return s.dataset.ago === st(c.dataset.id)?.last_changed && s.textContent.startsWith(o ? 'Open · ' : 'Closed · '); });
+    const firstClosed = chips.findIndex(c => !c.classList.contains('open'));
+    const t = chips.slice(firstClosed).map(c => +new Date(st(c.dataset.id)?.last_changed || 0));
+    return ok && chips.slice(firstClosed).every(c => !c.classList.contains('open')) && t.every((x, i) => !i || x <= t[i - 1]);
   }));
   check('the Security tab\'s counter follows a gate opening and closing right away', await p.evaluate(async () => {
     const H = window.hassObj, put = async st => { card.hass = { ...H, states: { ...H.states, 'sensor.gate_cam_gate_state': { ...H.states['sensor.gate_cam_gate_state'], state: st }, 'binary_sensor.gate': { ...H.states['binary_sensor.gate'], state: 'off' } } }; await new Promise(r => setTimeout(r, 150)); };

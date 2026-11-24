@@ -1,7 +1,7 @@
 // Sweet Home — Security, the alarm keypad, cameras.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, esc, ic, pretty, ALARM, alarmInfo } from '../core.js';
+import { E, esc, ic, pretty, ALARM, alarmInfo, ago, agoShort } from '../core.js';
 
 export class SecurityPanels {
   _openKeypad(svc) {
@@ -66,14 +66,20 @@ export class SecurityPanels {
         <div class="lk-ic">${ic(st === 'open' || st === 'moving' ? g.icons[1] : g.icons[0])}</div>
         <b>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</b><span>${esc(tr(label))}</span></button>`;
     }).join('');
-    const doors = E.doors.map(d => {
+    // each door chip says how long it has been open, or when it last opened / closed (its sensor's last change; the
+    // card's clock keeps the time fresh); open doors first, then the most recent activity
+    const lang = this._hass?.locale?.language, dchip = (id, o, na, icon, name) => {
+      const when = this.s(id)?.last_changed, pre = o ? tr('Open') : tr('Closed'), recent = !o && when && Date.now() - new Date(when) < 15 * 60e3;
+      return { o, t: +new Date(when || 0) || 0, h: `<div class="door ${na ? 'na' : o ? 'open' : recent ? 'recent' : ''}" data-act="more" data-id="${id}"${when ? ` title="${esc(ago(when, lang))}"` : ''}>${ic(icon)}<div class="dt"><span>${esc(name)}</span>${when && !na ? `<small data-ago="${when}" data-pre="${pre}" data-short="1">${pre} · ${agoShort(when, lang)}</small>` : ''}</div></div>` };
+    };
+    const doors = [...E.doors.map(d => {
       const o = this.doorOpen(d); const bad = !this.ok(d.id);
-      return `<div class="door ${bad ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${d.id}">${ic(o ? 'mdi:door-open' : 'mdi:door-closed')}<span>${esc(d.name)}</span></div>`;
-    }).join('') + E.entrances.filter(g => this.s(g.id) && (g.sensors?.length || g.sensor)).filter(g => !(g.sensors || [g.sensor]).some(x => E.doors.some(d => d.id === x))).map(g => {
+      return dchip(d.id, o, bad, o ? 'mdi:door-open' : 'mdi:door-closed', d.name);
+    }), ...E.entrances.filter(g => this.s(g.id) && (g.sensors?.length || g.sensor)).filter(g => !(g.sensors || [g.sensor]).some(x => E.doors.some(d => d.id === x))).map(g => {
       // a gate / door with an open / closed sensor (a contact, or a camera's classification) is listed with the doors too
       const st = this.entState(g), src = g.sensors?.find(x => this.ok(x)) || g.sensors?.[0] || g.sensor, o = st === 'open' || st === 'moving';
-      return `<div class="door ${st === 'bad' ? 'na' : o ? 'open' : ''}" data-act="more" data-id="${src}">${ic(o ? g.icons?.[1] || 'mdi:door-open' : g.icons?.[0] || 'mdi:door-closed')}<span>${esc(g.cfgName || this.s(g.id).attributes.friendly_name || g.name)}</span></div>`;
-    }).join('');
+      return dchip(src, o, st === 'bad', o ? g.icons?.[1] || 'mdi:door-open' : g.icons?.[0] || 'mdi:door-closed', g.cfgName || this.s(g.id).attributes.friendly_name || g.name);
+    })].sort((a, b) => (b.o - a.o) || (b.t - a.t)).map(x => x.h).join('');
     return `<div class="ch">${ic('mdi:shield-home')}<h3>${tr("Security")}</h3>${E.alarm ? `<span class="pill" style="--c:${al[2]}">${al[0]}</span>` : ''}</div>
       ${!E.alarm ? '' : `<div class="alarm" style="--c:${al[2]}">
         <div class="shield ${st === 'triggered' ? 'blink' : ''}" data-act="more" data-id="${E.alarm}">${ic(al[1])}</div>

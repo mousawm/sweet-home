@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Security tab: each door shows how long it has been open, or when it last opened or closed ("Closed · 2 h"), with open doors first and then the most recent.
 
 ## v0.6.55 — 2026-11-24
 

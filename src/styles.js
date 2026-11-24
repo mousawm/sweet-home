@@ -184,6 +184,8 @@ main{scroll-margin-top:84px}
 .door{display:flex;align-items:center;gap:5px;padding:6px 10px 6px 7px;padding-inline:7px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:11.5px;color:var(--mu);cursor:pointer}
 .door ha-icon{--mdc-icon-size:16px;color:var(--green)}
 .door.open{color:var(--hi);background:rgba(244,63,94,.18);border-color:rgba(251,113,133,.5)}.door.open ha-icon{color:var(--rose)}
+.door .dt{display:flex;flex-direction:column;line-height:1.15;min-width:0}.door .dt span{color:var(--hi);font-weight:500}.door .dt small{font-size:10px;color:var(--mu);font-variant-numeric:tabular-nums;white-space:nowrap}
+.door:has(.dt small){border-radius:14px;padding-block:5px}.door.open .dt small{color:var(--rose);font-weight:600}.door.recent .dt small{color:var(--amber);font-weight:600}
 
 /* climate */
 .acs{display:flex;flex-direction:column;gap:8px}
