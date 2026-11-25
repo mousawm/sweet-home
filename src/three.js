@@ -6,7 +6,7 @@ import {
   BufferGeometry, CanvasTexture, CircleGeometry, Clock, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
   DoubleSide, EqualStencilFunc, ExtrudeGeometry, Float32BufferAttribute, GridHelper, Group, HemisphereLight, KeepStencilOp,
   LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial,
-  PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Points, PointsMaterial, Raycaster,
+  NotEqualStencilFunc, PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Points, PointsMaterial, Raycaster,
   RepeatWrapping, ReplaceStencilOp, RingGeometry, SRGBColorSpace, Scene, ShadowMaterial, Shape, ShapeGeometry,
   SphereGeometry, Vector2, Vector3, WebGLRenderer,
 } from 'three';
@@ -16,7 +16,7 @@ export const THREE_LIB = {
   BufferGeometry, CanvasTexture, CircleGeometry, Clock, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
   DoubleSide, EqualStencilFunc, ExtrudeGeometry, Float32BufferAttribute, GridHelper, Group, HemisphereLight, KeepStencilOp,
   LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial,
-  PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Points, PointsMaterial, Raycaster,
+  NotEqualStencilFunc, PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Points, PointsMaterial, Raycaster,
   RepeatWrapping, ReplaceStencilOp, RingGeometry, SRGBColorSpace, Scene, ShadowMaterial, Shape, ShapeGeometry,
   SphereGeometry, Vector2, Vector3, WebGLRenderer,
 };

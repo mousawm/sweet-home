@@ -178,7 +178,10 @@ export class HouseScene {
     const fc = document.createElement('canvas'); fc.width = fc.height = 256; const fg = fc.getContext('2d');
     const fade = fg.createRadialGradient(128, 128, 40, 128, 128, 128); fade.addColorStop(0, '#fff'); fade.addColorStop(0.75, '#fff'); fade.addColorStop(1, '#000');
     fg.fillStyle = fade; fg.fillRect(0, 0, 256, 256);
-    const grass = new T.Mesh(new T.PlaneGeometry(G, G), new T.MeshStandardMaterial({ map: lawn, alphaMap: new T.CanvasTexture(fc), transparent: true, depthWrite: false, roughness: 1 }));
+    // (its faded edge makes it transparent, so it is drawn after the house: it skips the stairwells' openings, marked in
+    // the stencil, or it would cover the stairs going down)
+    const grass = new T.Mesh(new T.PlaneGeometry(G, G), new T.MeshStandardMaterial({ map: lawn, alphaMap: new T.CanvasTexture(fc), transparent: true, depthWrite: false, roughness: 1,
+      stencilWrite: true, stencilRef: 1, stencilFunc: T.NotEqualStencilFunc, stencilFail: T.KeepStencilOp, stencilZFail: T.KeepStencilOp, stencilZPass: T.KeepStencilOp }));
     grass.rotation.x = -Math.PI / 2; grass.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); grass.receiveShadow = true; grass.renderOrder = -4; this.scene.add(grass);
     // the lot: brighter grass, a faint grid every metre
     const LW = PLAN_W + 2 * M, LD = PLAN_D + 2 * M, px = 32;
