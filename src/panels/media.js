@@ -219,40 +219,137 @@ export class MediaPanels {
     }
     return head('mdi:jellyfish', 'Jellyfin', '') + wait;
   }
-  // Wanted sheet: the Library "Wanted ›" tile → Sonarr's missing (monitored, aired, no file) episodes
-  // from HA's sonarr.get_wanted, grouped by show: poster, show, then each episode with its air date and summary.
+  // every loaded config entry of Sonarr / Radarr (one per server), and a service of each, with its response
+  async _arrEntries(d) {
+    const c = this._arrE || (this._arrE = {}); if (c[d]?.length) return c[d];
+    try { const r = await this._hass.callWS({ type: 'config_entries/get', domain: d }); c[d] = (r || []).filter(e => e.state === 'loaded').map(e => e.entry_id); } catch (e) { c[d] = []; }
+    return c[d];
+  }
+  async _arrAll(d, sv, data = {}) {
+    const ids = await this._arrEntries(d); if (!ids.length) return null;
+    const out = await Promise.all(ids.map(id => this._hass.callService(d, sv, { entry_id: id, ...data }, undefined, false, true).then(r => r?.response || null).catch(() => null)));
+    return out.some(Boolean) ? out.filter(Boolean) : null;
+  }
+  // the items of a service's response: { shows: { key: {…} } } / { movies: {…} } / { episodes: {…} }, whatever its key
+  _arrItems(res) {
+    const lists = r => { const k = ['episodes', 'movies', 'shows', 'queue', 'items'].find(x => r?.[x] && typeof r[x] === 'object'); return k ? [r[k]] : Object.values(r || {}).filter(v => v && typeof v === 'object'); };
+    return (res || []).flatMap(r => lists(r)
+      .flatMap(v => Array.isArray(v) ? v : Object.entries(v).map(([k, x]) => (x && typeof x === 'object' ? { _key: k, ...x } : { _key: k, progress: x }))));
+  }
+  // Radarr's wanted (missing) movies: monitored, out (released, or available as Radarr says) and with no file yet
+  _radarrWanted(movies) {
+    return Object.values(movies || {}).filter(m => m && m.monitored !== false && !m.has_file && (m.is_available ?? m.isAvailable ?? /^released$/i.test(String(m.status || ''))));
+  }
+  // the Wanted tile: Sonarr's wanted sensor and Radarr's missing movies (from radarr.get_movies), together
+  _wantedCount() {
+    const S = E.mserver, so = [S.sonarr.wanted, ...(S.sonarr.more || []).map(m => m.wanted)].filter(Boolean).map(id => this.n(id)).filter(x => x != null);
+    const tv = so.length ? so.reduce((a, b) => a + b, 0) : null;
+    const mvList = this._wanted?.mv || (this._mmeta && S.radarr.movies ? this._radarrWanted(this._mmeta.movies) : null);
+    const mv = mvList ? mvList.length : null;
+    return { tv, mv, all: tv == null && mv == null ? null : (tv || 0) + (mv || 0) };
+  }
+  // Wanted sheet: the Library "Wanted ›" tile → Shows (Sonarr's missing episodes, from sonarr.get_wanted, by show) and
+  // Movies (Radarr's missing movies, from radarr.get_movies); a tab only shows when it has something
   async _loadWanted() {
-    const n = this.v(E.mserver.sonarr.wanted);
-    this._wanted = { at: Date.now(), n, eps: this._wanted?.eps || null };
-    try {
-      const r = await this._hass.callWS({ type: 'config_entries/get', domain: 'sonarr' });
-      const entry = (r || []).find(e => e.state === 'loaded')?.entry_id;
-      const res = entry ? await this._hass.callService('sonarr', 'get_wanted', { entry_id: entry, max_items: 100 }, undefined, false, true) : null;
-      this._wanted = { at: Date.now(), n, eps: Object.values(res?.response?.episodes || {}) };
-    } catch (e) { this._wanted = { at: Date.now(), n, eps: [], err: true }; }
-    if (this._info === 'wanted') this._renderInfo();
+    if (this._wantedBusy) return; this._wantedBusy = true;
+    const S = E.mserver, n = String(this._wantedCount().tv);
+    this._wanted = { at: Date.now(), n, eps: this._wanted?.eps || null, mv: this._wanted?.mv || null };
+    const [tv, mv] = await Promise.all([
+      S.sonarr.wanted ? this._arrAll('sonarr', 'get_wanted', { max_items: 100 }) : Promise.resolve([]),
+      S.radarr.movies ? this._arrAll('radarr', 'get_movies') : Promise.resolve([]),
+    ]);
+    this._wanted = { at: Date.now(), n, eps: tv ? this._arrItems(tv) : [], mv: mv ? this._radarrWanted(Object.assign({}, ...mv.map(r => r.movies || {}))) : [], err: { tv: !tv && !!S.sonarr.wanted, mv: !mv && !!S.radarr.movies } };
+    this._wantedBusy = false;
+    if (this._info?.startsWith('wanted')) this._renderInfo();
+    this._rerender('mserver');
+  }
+  // the Shows / Movies tabs of the Wanted and Queue sheets: only the kinds that have something; none when only one does
+  _mTabs(sheet, counts, pick) {
+    const ks = ['tv', 'mv'].filter(k => counts[k] > 0);
+    const cur = ks.includes(this._mTab?.[sheet]) ? this._mTab[sheet] : ks.includes(pick) ? pick : ks[0] || 'tv';
+    const bar = ks.length > 1 ? `<div class="jfseas mtabs" role="tablist">${ks.map(k => `<button class="${k === cur ? 'on' : ''}" role="tab" aria-selected="${k === cur}" data-act="mtab" data-s="${sheet}" data-k="${k}">${ic(k === 'tv' ? 'mdi:television-classic' : 'mdi:movie-open')}${k === 'tv' ? tr('Shows') : tr('Movies')} <b>${counts[k]}</b></button>`).join('')}</div>` : '';
+    return { cur, bar, ks };
   }
   _wantedHTML(head) {
-    const W = this._wanted, lang = this._hass?.locale?.language || 'en';
+    const W = this._wanted, lang = this._hass?.locale?.language || 'en', pick = this._info.split(':')[1];
     const H = sub => head('mdi:magnify', tr("Wanted"), sub);
-    if (!W?.eps) return H('Loading from Sonarr…') + `<div class="wtg"><div class="wth"><div class="muppo jfimg skl"></div><div class="mupt">${skl('70%', 16)}${skl('45%', 11, 'margin-top:6px')}</div></div>${Array.from({ length: 2 }, () => `<div class="wte">${skl('60%', 12)}${skl('100%', 10, 'margin-top:8px')}${skl('85%', 10, 'margin-top:5px')}</div>`).join('')}</div>`;
-    if (!W.eps.length) return H(W.err ? tr("Couldn't reach Sonarr") : tr("Nothing missing")) + `<div class="mempty">${ic('mdi:check-circle-outline')}${W.err ? tr("Sonarr did not answer.") : tr("Every monitored episode that has aired is downloaded.")}</div>`;
+    const wait = `<div class="wtg"><div class="wth"><div class="muppo jfimg skl"></div><div class="mupt">${skl('70%', 16)}${skl('45%', 11, 'margin-top:6px')}</div></div>${Array.from({ length: 2 }, () => `<div class="wte">${skl('60%', 12)}${skl('100%', 10, 'margin-top:8px')}${skl('85%', 10, 'margin-top:5px')}</div>`).join('')}</div>`;
+    if (!W?.eps || !W?.mv) return H(tr('Loading…')) + wait;
     const groups = new Map();
     for (const e of W.eps) { const k = e.series_title || 'Unknown'; (groups.get(k) || groups.set(k, []).get(k)).push(e); }
+    const nTv = W.eps.length, nMv = W.mv.length;
+    if (!nTv && !nMv) {
+      const err = W.err?.tv || W.err?.mv;
+      return H(err ? tr("Couldn't reach Sonarr / Radarr") : tr("Nothing missing")) + `<div class="mempty">${ic('mdi:check-circle-outline')}${err ? tr("Sonarr / Radarr did not answer.") : tr("Everything monitored that is out is downloaded.")}</div>`;
+    }
+    const { cur, bar } = this._mTabs('wanted', { tv: nTv, mv: nMv }, pick);
     const day = d => { const t = new Date(d); return isNaN(t) ? '' : t.toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }); };
+    const sub = [nTv ? (nTv === 1 ? tr('1 episode') : tr('{0} episodes', nTv)) : '', nMv ? (nMv === 1 ? tr('1 movie') : tr('{0} movies', nMv)) : ''].filter(Boolean).join(' · ');
+    if (cur === 'mv') {
+      const body = W.mv.slice().sort((a, b) => (b.year || 0) - (a.year || 0) || String(a.title).localeCompare(String(b.title))).map(m => {
+        const po = m.images?.poster, rel = m.digital_release || m.physical_release || m.in_cinemas;
+        return `<div class="wtg wmv"><div class="wth">${m.images?.fanart ? `<div class="mupbg" style="background-image:url('${esc(this._img(m.images.fanart, 780))}')"></div>` : ''}
+          <div class="muppo jfimg">${ic('mdi:movie-open')}${po ? `<img src="${esc(this._img(po, 342))}" alt="" loading="lazy">` : ''}</div>
+          <div class="mupt"><b>${esc(m.title || '')}</b><span>${tr('Not downloaded yet')}</span><em>${esc([m.year, m.studio, rel ? day(rel) : '', m.runtime ? tr('{0} min', m.runtime) : ''].filter(Boolean).join(' · '))}</em></div></div>
+          ${m.overview ? `<div class="wte"><p>${esc(m.overview)}</p></div>` : ''}</div>`;
+      }).join('');
+      return H(sub) + bar + body + `<div class="swnote">${ic('mdi:information-outline')}${tr("Released, monitored movies Radarr hasn't downloaded yet. Radarr keeps searching for them automatically.")}</div>`;
+    }
     const body = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).map(([show, eps]) => {
       const f = eps[0], po = f.images?.poster;
       eps.sort((a, b) => a.season_number - b.season_number || a.episode_number - b.episode_number);
       return `<div class="wtg">
         <div class="wth">${f.images?.fanart ? `<div class="mupbg" style="background-image:url('${esc(this._img(f.images.fanart, 780))}')"></div>` : ''}
           <div class="muppo jfimg">${ic('mdi:television-classic')}${po ? `<img src="${esc(this._img(po, 342))}" alt="" loading="lazy">` : ''}</div>
-          <div class="mupt"><b>${esc(show)}</b><span>${eps.length} missing episode${eps.length > 1 ? 's' : ''}</span><em>${esc([f.network, f.series_year, f.series_status ? tc(f.series_status) : ''].filter(Boolean).join(' · '))}</em></div></div>
+          <div class="mupt"><b>${esc(show)}</b><span>${eps.length === 1 ? tr('1 missing episode') : tr('{0} missing episodes', eps.length)}</span><em>${esc([f.network, f.series_year, f.series_status ? tc(f.series_status) : ''].filter(Boolean).join(' · '))}</em></div></div>
         ${eps.map(e => `<div class="wte"><div class="wtei"><b>${esc(e.episode_identifier || '')}</b><span>${esc(e.title || 'TBA')}</span><em>${e.air_date ? tr('Aired {0}', esc(day(e.air_date_utc || e.air_date))) : ''}${e.runtime ? ` · ${bidi(tr('{0} min', e.runtime))}` : ''}${e.monitored === false ? ` · ${tr('not monitored')}` : ''}</em></div>
           ${e.overview ? `<p>${esc(e.overview)}</p>` : ''}</div>`).join('')}
       </div>`;
     }).join('');
-    return H(`${W.eps.length} missing episode${W.eps.length > 1 ? 's' : ''} · ${groups.size} show${groups.size > 1 ? 's' : ''}`)
-      + body + `<div class="swnote">${ic('mdi:information-outline')}${tr("Aired, monitored episodes Sonarr hasn't downloaded yet. Sonarr keeps searching for them automatically.")}</div>`;
+    return H(sub) + bar + body + `<div class="swnote">${ic('mdi:information-outline')}${tr("Aired, monitored episodes Sonarr hasn't downloaded yet. Sonarr keeps searching for them automatically.")}</div>`;
+  }
+  // Download queue sheet: the queue rows → what Sonarr (Shows) and Radarr (Movies) are downloading, from
+  // sonarr.get_queue / radarr.get_queue (each server); the queue sensors' own list when those aren't there
+  async _loadQueue() {
+    if (this._mqBusy) return; this._mqBusy = true;
+    const S = E.mserver, each = (o, k) => [o[k], ...(o.more || []).map(m => m[k])].filter(Boolean);
+    const fromSensor = o => each(o, 'queue').flatMap(id => Object.entries(this.s(id)?.attributes || {})
+      .filter(([k]) => !['unit_of_measurement', 'friendly_name', 'icon', 'state_class', 'device_class'].includes(k)).map(([k, v]) => ({ _key: k, progress: v })));
+    const [tv, mv] = await Promise.all([
+      S.sonarr.queue ? this._arrAll('sonarr', 'get_queue') : Promise.resolve(null),
+      S.radarr.queue ? this._arrAll('radarr', 'get_queue') : Promise.resolve(null),
+    ]);
+    this._mq = { at: Date.now(), tv: tv ? this._arrItems(tv) : fromSensor(S.sonarr), mv: mv ? this._arrItems(mv) : fromSensor(S.radarr), live: { tv: !!tv, mv: !!mv } };
+    this._mqBusy = false;
+    if (this._info?.startsWith('queue')) this._renderInfo();
+  }
+  _queueHTML(head) {
+    const S = E.mserver, Q = this._mq, pick = this._info.split(':')[1];
+    if (!Q || Date.now() - Q.at > 30e3) setTimeout(() => this._loadQueue());
+    const H = sub => head('mdi:download', tr('Download queue'), sub);
+    if (!Q) return H(tr('Loading…')) + Array.from({ length: 3 }, () => `<div class="mqi"><div class="muppo jfimg skl"></div><div>${skl('70%', 13)}${skl('45%', 10, 'margin-top:6px')}${skl('100%', 5, 'margin-top:10px')}</div></div>`).join('');
+    const sum = o => [o.queue, ...(o.more || []).map(m => m.queue)].filter(Boolean).map(id => this.n(id)).filter(x => x != null).reduce((a, b) => a + b, 0);
+    // a queue sensor counts more than its list shows (the list can be empty): the count stands for the tab
+    const nTv = Math.max(Q.tv.length, Q.live.tv ? 0 : sum(S.sonarr)), nMv = Math.max(Q.mv.length, Q.live.mv ? 0 : sum(S.radarr));
+    if (!nTv && !nMv) return H(tr('Nothing downloading')) + `<div class="mempty">${ic('mdi:check-circle-outline')}${tr('The Sonarr and Radarr queues are empty.')}</div>`;
+    const { cur, bar } = this._mTabs('queue', { tv: nTv, mv: nMv }, pick);
+    const list = cur === 'mv' ? Q.mv : Q.tv;
+    const pct = x => { const p = parseFloat(x.progress); if (!isNaN(p)) return clamp(p, 0, 100); const sz = +x.size, sl = +(x.size_left ?? x.sizeleft); return sz > 0 && !isNaN(sl) ? clamp((1 - sl / sz) * 100, 0, 100) : null; };
+    const left = v => { const m = /^(?:(\d+)\.)?(\d+):(\d+)(?::(\d+))?/.exec(String(v || '')); if (!m) return ''; const min = (+(m[1] || 0)) * 1440 + (+m[2]) * 60 + (+m[3]);
+      return min < 1 ? tr('{0} min left', '<1') : min < 60 ? tr('{0} min left', min) : tr('{0} left', `${tr('{0} h', Math.floor(min / 60))}${min % 60 ? ` ${tr('{0} min', min % 60)}` : ''}`); };
+    const gb = b => { b = +b; return !b ? '' : b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`; };
+    const ep = x => x.episode_identifier || (x.season_number != null && x.episode_number != null ? `S${String(x.season_number).padStart(2, '0')}E${String(x.episode_number).padStart(2, '0')}` : '');
+    const rows = list.map(x => ({ x, p: pct(x) })).sort((a, b) => (b.p ?? -1) - (a.p ?? -1)).map(({ x, p }) => {
+      const tv = cur === 'tv', po = x.images?.poster;
+      const title = tv ? (x.series_title || x.series?.title || x.title || x._key) : (x.title || x.movie?.title || x._key);
+      const sub = tv ? [ep(x), x.episode_title || x.episode?.title].filter(Boolean).join(' · ') : [x.year, x.quality?.name || x.quality].filter(v => v && typeof v !== 'object').join(' · ');
+      const st = String(x.tracked_download_state || x.status || '').toLowerCase(), warn = /warn|fail|error|stalled/.test(`${st} ${x.tracked_download_status || ''}`);
+      const info = [p != null ? `${p.toFixed(0)}%` : '', st ? tc(pretty(st)) : '', left(x.time_left || x.timeleft), x.size ? gb(x.size) : ''].filter(Boolean).join(' · ');
+      return `<div class="mqi ${warn ? 'warn' : ''}"><div class="muppo jfimg">${ic(tv ? 'mdi:television-classic' : 'mdi:movie-open')}${po ? `<img src="${esc(this._img(po, 154))}" alt="" loading="lazy">` : ''}</div>
+        <div><b>${esc(title || '')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}<div class="jfbar"><i style="width:${(p ?? 0).toFixed(1)}%"></i></div><em>${esc(info)}</em></div></div>`;
+    }).join('') || `<div class="mempty">${ic('mdi:information-outline')}${tr('{0} in the queue, but Home Assistant does not list them.', cur === 'mv' ? nMv : nTv)}</div>`;
+    const sub = [nTv ? (nTv === 1 ? tr('1 episode') : tr('{0} episodes', nTv)) : '', nMv ? (nMv === 1 ? tr('1 movie') : tr('{0} movies', nMv)) : ''].filter(Boolean).join(' · ');
+    return H(sub) + bar + rows;
   }
   _rMedia() {
     const M = E.media; const tv = this.s(M.tv);
@@ -385,14 +482,16 @@ export class MediaPanels {
     // several Sonarr / Radarr / qBittorrent instances (one per config entry): their numbers add up
     const each = (o, k) => [o[k], ...(o.more || []).map(m => m[k])].filter(Boolean);
     const sum = (o, k) => { const v = each(o, k).map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
-    const down = sum(Q, 'down') ?? 0, up = sum(Q, 'up') ?? 0, qst = this.v(Q.status), alt = this.on(Q.alt), err = sum(Q, 'errored') ?? 0;
+    const down = sum(Q, 'down') ?? 0, up = sum(Q, 'up') ?? 0, alt = this.on(Q.alt), err = sum(Q, 'errored') ?? 0;
     const qOK = each(Q, 'conn').some(id => this.v(id) === 'connected');
     const queue = [];
-    for (const qid of each(SO, 'queue')) for (const [k, v] of Object.entries(this.s(qid)?.attributes || {})) if (!['unit_of_measurement', 'friendly_name', 'icon', 'state_class'].includes(k)) {
-      const pct = parseFloat(v); queue.push(`<div class="mqr" data-act="more" data-id="${qid}">${ic('mdi:television-classic')}<span>${esc(k)}</span><b>${isNaN(pct) ? esc(String(v)) : pct.toFixed(0) + '%'}</b><div class="jfbar"><i style="width:${isNaN(pct) ? 0 : pct}%"></i></div></div>`);
+    for (const qid of each(SO, 'queue')) for (const [k, v] of Object.entries(this.s(qid)?.attributes || {})) if (!['unit_of_measurement', 'friendly_name', 'icon', 'state_class', 'device_class'].includes(k)) {
+      const pct = parseFloat(v); queue.push(`<div class="mqr" data-act="info" data-kind="queue:tv" data-id="${qid}">${ic('mdi:television-classic')}<span>${esc(k)}</span><b>${isNaN(pct) ? esc(String(v)) : pct.toFixed(0) + '%'}</b><div class="jfbar"><i style="width:${isNaN(pct) ? 0 : pct}%"></i></div></div>`);
     }
+    const sq = sum(SO, 'queue') ?? 0;
+    if (sq > 0 && !queue.length) queue.push(`<div class="mqr" data-act="info" data-kind="queue:tv" data-id="${SO.queue}">${ic('mdi:television-classic')}<span>${sq === 1 ? tr('1 episode in the Sonarr queue') : tr('{0} episodes in the Sonarr queue', sq)}</span><b>${ic('mdi:chevron-right')}</b></div>`);
     const rq = sum(RA, 'queue') ?? 0;
-    if (rq > 0) queue.push(`<div class="mqr" data-act="more" data-id="${RA.queue}">${ic('mdi:movie-open')}<span>${rq} movie${rq > 1 ? 's' : ''} in the Radarr queue</span><b></b></div>`);
+    if (rq > 0) queue.push(`<div class="mqr" data-act="info" data-kind="queue:mv" data-id="${RA.queue}">${ic('mdi:movie-open')}<span>${rq === 1 ? tr('1 movie in the Radarr queue') : tr('{0} movies in the Radarr queue', rq)}</span><b>${ic('mdi:chevron-right')}</b></div>`);
     // --- coming up
     const items = (this._mcal?.items || []).slice(0, 6);
     const day = t => { const d0 = new Date(); d0.setHours(0, 0, 0, 0); const d = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - d0) / 864e5);
@@ -419,7 +518,7 @@ export class MediaPanels {
     const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
     const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows')),
       (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies')),
-      SO.wanted && tile('wanted', SO.wanted, 'mdi:magnify', tr('Wanted'), (sum(SO, 'wanted') ?? 0) > 0 ? 'warn' : '', sum(SO, 'wanted'))].filter(Boolean);
+      (SO.wanted || RA.movies) && (() => { const w = this._wantedCount(); return tile('wanted', SO.wanted || RA.movies, 'mdi:magnify', tr('Wanted'), (w.all ?? 0) > 0 ? 'warn' : '', w.all); })()].filter(Boolean);
     const pill = sessions.length ? [tr('{0} watching', sessions.length), '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
       ${J.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null ? ` · ${clients === 1 ? tr('1 client') : tr('{0} clients', clients)}` : ''}</div>
@@ -432,7 +531,7 @@ export class MediaPanels {
       <div class="mdl">
         <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>${tr("Download")}</span></div>
         <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>${tr("Upload")}</span></div>
-        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(sum(Q, 'active') ?? '—')}<small>/ ${esc(sum(Q, 'all') ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
+        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(sum(Q, 'active') ?? '—')}<small>/ ${esc(sum(Q, 'all') ?? '—')}</small></b><span>${err ? tr('{0} errored', err) : tr('Active torrents')}</span></div>
         <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? tr("Slow") : tr("Full")}</b><span>${tr("Speed limit")}</span></button>
       </div>`}
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}

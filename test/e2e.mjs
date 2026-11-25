@@ -47,6 +47,19 @@ try {
   check('two floors and a floor switch', await p.evaluate(() => card._model.levels.length === 2 && card.shadowRoot.querySelectorAll('[data-act=level]').length === 2));
   await p.evaluate(() => card.shadowRoot.querySelector('[data-act=level][data-level="1"]').click());
   check('switching floors', await p.evaluate(() => card._level === 1 && card._three.level === 1));
+  // the dashboard is edited and saved: Home Assistant puts a new card in place of this one, which takes over its 3D
+  // view; a room left open must still show its panel (it showed as an empty bar over the view)
+  check('dashboard saved with a room open: the new card keeps the 3D view and the room panel has its content', await p.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), old = card, rid = 'living_room';
+    old._setTab('home'); old._select(rid); await wait(300);
+    const sc = old._three; old.editMode = true;
+    const el = document.createElement(old.localName); el.setConfig(JSON.parse(JSON.stringify(old._config)));
+    old.remove(); document.body.appendChild(el); el.hass = window.hassObj; window.card = el; await wait(900);
+    const R = el.shadowRoot, drs = R.querySelectorAll('#drawer'), dr = drs[0], sec = el._sections.find(x => x.el.id === 'drawer');
+    const ok = el._three === sc && drs.length === 1 && dr.classList.contains('open') && dr.textContent.trim().length > 0 && sec?.el === dr && el._sel === rid;
+    el._select(null); await wait(200);
+    return ok || JSON.stringify({ same: el._three === sc, n: drs.length, open: dr?.classList.contains('open'), txt: dr?.textContent.trim().length, sec: sec?.el === dr, sel: el._sel });
+  }));
   await p.evaluate(() => card._select('kitchen'));
   check('opening a room on another floor switches to it', await p.evaluate(() => card._level === 0));
   await p.evaluate(() => card._selectFurn(card._model.furniture.find(f => f.name === 'Fridge').idx));
@@ -815,10 +828,53 @@ try {
     const out = {};
     const all = await show({}); out.all = secs(all);
     const some = await show({ sonarr: false, qbittorrent: false, jellyfin: false }); out.some = secs(some);
-    out.noWanted = !/data-kind="wanted"/.test(some) && /Movies/.test(some) && !/data-kind="jflib/.test(some);
+    out.noWanted = /data-kind="wanted"/.test(some) && /Movies/.test(some) && !/data-kind="jflib/.test(some); // Wanted stays for Radarr's missing movies
     card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 500));
     return (out.all === 'Now Watching,Library,Coming Up,Downloads' && out.some === 'Library' && out.noWanted) || JSON.stringify(out);
-  }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching, Wanted and Downloads', r === true, r); }
+  }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching and Downloads (Wanted stays for Radarr)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+    // the queue rows open a Download queue sheet, the Wanted tile a Wanted sheet; each has Shows / Movies tabs, and a
+    // tab with nothing in it is left out
+    const h = card._hass._raw || card._hass, cfg0 = card._config, out = {}, R = card.shadowRoot;
+    const add = (id, pl, v = '1', attributes = {}) => { h.states[id] = { entity_id: id, state: v, attributes }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('sensor.sonarr_upcoming', 'sonarr'); add('sensor.sonarr_shows', 'sonarr', '40'); add('sensor.sonarr_wanted', 'sonarr', '2');
+    add('sensor.sonarr_queue', 'sonarr', '1', { 'Show A S01E02': '40.00%' }); add('sensor.radarr_movies', 'radarr', '12'); add('sensor.radarr_queue', 'radarr', '2');
+    const img = { poster: 'https://image.tmdb.org/t/p/original/x.jpg' };
+    let wantedMovies = { 'Old Film': { title: 'Old Film', year: 2001, has_file: false, monitored: true, status: 'released', images: img }, 'Owned': { title: 'Owned', has_file: true, status: 'released' }, 'Soon': { title: 'Soon', has_file: false, status: 'announced' } };
+    const svc = { 'sonarr.get_wanted': () => ({ episodes: { a: { series_title: 'Show A', episode_identifier: 'S01E01', title: 'Pilot', season_number: 1, episode_number: 1 }, b: { series_title: 'Show B', episode_identifier: 'S02E03', title: 'Three', season_number: 2, episode_number: 3 } } }),
+      'radarr.get_movies': () => ({ movies: wantedMovies }),
+      'sonarr.get_queue': () => ({ shows: { 'Show A S01E02': { title: 'Show A', episode_identifier: 'S01E02', episode_title: 'Second', progress: '40.00%', status: 'downloading', time_left: '00:12:00', size: 2e9 } } }),
+      'radarr.get_queue': () => ({ movies: { 'Film 1': { title: 'Film 1', year: 2024, progress: '75%', status: 'downloading', images: img }, 'Film 2': { title: 'Film 2', progress: '10%', status: 'paused' } } }) };
+    const calls = [];
+    const fake = { ...h, states: { ...h.states }, entities: { ...h.entities },
+      callWS: async m => m.type === 'config_entries/get' ? [{ entry_id: m.domain + '1', state: 'loaded' }] : h.callWS(m),
+      callService: async (d, sv) => { calls.push(`${d}.${sv}`); const f = svc[`${d}.${sv}`]; return f ? { response: f() } : {}; } };
+    card._arrE = null; card._wanted = null; card._mq = null; card._mmeta = null;
+    card.hass = fake; card._rebuild(); await new Promise(r => setTimeout(r, 900));
+    card._mcal = { at: Date.now(), items: [] };
+    const html = card._rMServer();
+    out.rows = /data-kind="queue:tv"/.test(html) && /data-kind="queue:mv"/.test(html) && /2 movies in the Radarr queue/.test(html);
+    const wait = () => new Promise(r => setTimeout(r, 200));
+    card._openInfo('queue:mv'); await wait(); await wait();
+    const tabs = () => [...R.querySelectorAll('#sheet .mtabs button')].map(b => b.dataset.k + (b.classList.contains('on') ? '*' : ''));
+    out.qTabs = tabs().join() === 'tv,mv*' && R.querySelectorAll('#sheet .mqi').length === 2 && /Film 1/.test(R.querySelector('#sheet .mqi b').textContent);
+    R.querySelector('#sheet .mtabs [data-k=tv]')?.click(); await wait();
+    out.qTv = R.querySelectorAll('#sheet .mqi').length === 1 && /S01E02 · Second/.test(R.querySelector('#sheet .mqi span').textContent) && /40% · Downloading · 12 min left · 2\.0 GB/.test(R.querySelector('#sheet .mqi em').textContent);
+    card._closeSheet();
+    card._openInfo('wanted'); await wait(); await wait();
+    out.wTabs = tabs().join() === 'tv*,mv' && R.querySelectorAll('#sheet .wtg').length === 2;
+    R.querySelector('#sheet .mtabs [data-k=mv]')?.click(); await wait();
+    out.wMv = R.querySelectorAll('#sheet .wtg').length === 1 && /Old Film/.test(R.querySelector('#sheet .wtg b').textContent);
+    card._closeSheet();
+    out.count = /<b>3<\/b><span>Wanted ›/.test(card._rMServer()); // 2 episodes + 1 movie
+    // nothing missing in Radarr: no Movies tab, no tab bar
+    wantedMovies = {}; card._wanted = null; card._openInfo('wanted'); await wait(); await wait();
+    out.noMvTab = !R.querySelector('#sheet .mtabs') && R.querySelectorAll('#sheet .wtg').length === 2;
+    card._closeSheet();
+    for (const id of ['sensor.sonarr_queue', 'sensor.radarr_queue']) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; card._rebuild(); card._wanted = null; card._mq = null; card._mmeta = null; card._arrE = null; await new Promise(r => setTimeout(r, 500));
+    return Object.values(out).every(Boolean) || JSON.stringify({ out, calls });
+  }); check('Media Server: queue rows open the Download queue, Wanted counts Sonarr + Radarr; Shows / Movies tabs, empty ones hidden', r === true, r); }
   { const r = await p.evaluate(async () => {
     // two Radarr servers and two qBittorrents (one config entry each), two Proxmox nodes
     const h = card._hass._raw || card._hass, cfg0 = card._config, out = {};

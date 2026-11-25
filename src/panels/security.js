@@ -189,7 +189,7 @@ export class SecurityPanels {
   // a tap on a door's 24-hour bar: a bubble over the opening nearest the tap (or "No openings") for a few seconds
   _doorMark(trk, e) {
     const row = trk.closest('.dtl'); if (!row) return;
-    clearTimeout(this._dtipT); row.parentElement.querySelectorAll('.dtip').forEach(x => x.remove()); row.parentElement.querySelectorAll('.dtrack i.hit').forEach(x => x.classList.remove('hit'));
+    clearTimeout(this._dtipT); row.parentElement.querySelectorAll('.dtip').forEach(x => x.remove()); row.parentElement.querySelectorAll('.dtrack i.hit').forEach(x => x.classList.remove('hit')); row.parentElement.querySelectorAll('.dtrack.sel').forEach(x => x.classList.remove('sel'));
     const r = trk.getBoundingClientRect(), rr = row.getBoundingClientRect(), x = e?.clientX || r.right;
     let best = null, bd = Infinity;
     for (const m of trk.querySelectorAll('i')) { const b = m.getBoundingClientRect(), d = x < b.left ? b.left - x : x > b.right ? x - b.right : 0; if (d < bd) { bd = d; best = m; } }
@@ -198,10 +198,14 @@ export class SecurityPanels {
     if (best) { const b = best.getBoundingClientRect(); cx = (b.left + b.right) / 2 - rr.left; best.classList.add('hit');
       tip.textContent = this._dmText(+best.dataset.s, best.dataset.e ? +best.dataset.e : null, !!best.dataset.c); }
     else tip.textContent = tr('No openings in 24 h');
-    row.appendChild(tip);
-    tip.style.left = `${Math.max(0, Math.min(rr.width - tip.offsetWidth, cx - tip.offsetWidth / 2))}px`;
-    tip.style.top = `${r.top - rr.top - tip.offsetHeight - 6}px`;
-    this._dtipT = setTimeout(() => { tip.remove(); best?.classList.remove('hit'); }, 3500);
+    row.appendChild(tip); trk.classList.add('sel');
+    // the bubble sits over the row above, so it points at the opening it is about and the tapped bar is outlined
+    // (else it reads as the upper door's); the pointer follows the opening when the bubble is held inside the row
+    const left = Math.max(0, Math.min(rr.width - tip.offsetWidth, cx - tip.offsetWidth / 2));
+    tip.style.left = `${left}px`;
+    tip.style.setProperty('--ax', `${Math.max(10, Math.min(tip.offsetWidth - 10, cx - left))}px`);
+    tip.style.top = `${r.top - rr.top - tip.offsetHeight - 7}px`;
+    this._dtipT = setTimeout(() => { tip.remove(); best?.classList.remove('hit'); trk.classList.remove('sel'); }, 3500);
   }
   // Show details / Show less: the same rows open (or close) their second line; CSS does the animation
   _doorsFlip() {

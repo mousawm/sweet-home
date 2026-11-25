@@ -238,6 +238,8 @@ main{scroll-margin-top:84px}
 @media (prefers-reduced-motion:reduce){.dv,.dv *{transition:none!important}}
 .dtip{position:absolute;top:-30px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
 @keyframes dtip{from{opacity:0;transform:translateY(3px)}}
+.dtip::after{content:'';position:absolute;left:var(--ax,50%);top:100%;margin-left:-5px;border:5px solid transparent;border-top-color:rgba(15,23,42,.94)}
+.dtrack.sel{border-color:var(--teal);box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 30%,transparent)}
 
 
 /* climate */
@@ -398,6 +400,14 @@ main{scroll-margin-top:84px}
 .wtei{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:baseline}.wtei b{font-size:12px;color:#fbbf24}.wtei span{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wtei em{grid-column:1/-1;font-style:normal;font-size:11px;color:var(--mu)}
 .wte p{margin:6px 0 0;font-size:12px;line-height:1.45;color:#cbd5e1}
+.wmv .wte{margin-top:-2px}
+.mtabs button{display:inline-flex;align-items:center;gap:6px}.mtabs ha-icon{--mdc-icon-size:15px}.mtabs b{font-weight:600;font-variant-numeric:tabular-nums;opacity:.75}
+.mqi{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;padding:8px 10px;margin-bottom:6px;border-radius:12px;background:var(--panel2);border:1px solid var(--line)}
+.mqi .muppo{width:44px;box-shadow:none}.mqi>div:last-child{min-width:0;display:flex;flex-direction:column}
+.mqi b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mqi span{font-size:11.5px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mqi .jfbar{margin-top:7px}.mqi em{font-style:normal;font-size:11px;color:var(--mu);margin-top:5px;font-variant-numeric:tabular-nums}
+.mqi.warn{border-color:rgba(251,191,36,.45)}.mqi.warn em{color:#fbbf24}
+.mqr b ha-icon{--mdc-icon-size:16px;color:var(--mu)}
 
 /* energy history loading state */
 .ehwrap{position:relative}
