@@ -40,6 +40,7 @@ export class HouseScene {
     const breathe = () => new Promise(res => setTimeout(res, 0));
     const steps = MODEL.gltf ? ['_lights', '_ground', '_buildRooms', '_buildGltf', '_buildDoors', '_buildACs', '_labels', '_input'] : ['_lights', '_ground', '_buildRooms', '_buildWalls', '_buildFurniture', '_buildDoors', '_buildACs', '_labels', '_input'];
     for (const step of steps) { await this[step](); await breathe(); }
+    this._stack();
     this.ro = new ResizeObserver(() => this._resize()); this.ro.observe(this.vp);
     this._resize();
     try { await this.renderer.compileAsync(this.scene, this.cam); } catch (e) { /* compiled on the first frame instead */ }
@@ -95,11 +96,26 @@ export class HouseScene {
     return g;
   }
   setLevel(l) {
-    this.level = l; for (const k in this.lv) this.lv[k].visible = Number(k) === l;
+    this.level = l; this._stack();
     this.hover = null; this.hoverF = null; this.renderer.shadowMap.needsUpdate = true; this._dirty = true;
   }
+  // The floors as they stand. The floor shown is always at height 0 (the camera, taps and Build mode work there).
+  // Dollhouse style, like a life-sim game: an upper floor stands a storey above the ground, on the floors below it
+  // (shown with their walls up to its floor), and the ground (lawn, street, building) is that far down. Classic style
+  // and the floors under the ground (a basement): only the floor shown.
+  get storey() { return Math.max(WALL_H, 2.4) + 0.3; } // a floor's height, its floor slab included
+  _stack() {
+    const l = this.level, ids = Object.keys(this.lv).map(Number), g0 = ids.includes(0) || !ids.length ? 0 : Math.min(...ids);
+    const stack = this.doll && l > g0, SH = this.storey;
+    for (const k of ids) {
+      const G = this.lv[k], below = stack && k < l && k >= g0;
+      G.visible = k === l || below; G.position.y = below ? -(l - k) * SH : 0;
+    }
+    if (this.groundG) this.groundG.position.y = stack ? -(l - g0) * SH : 0;
+    this._dirty = true;
+  }
   // a hit counts only when everything above it is shown (the other floors are hidden, not removed)
-  _shown(o) { for (let n = o; n; n = n.parent) if (!n.visible) return false; return true; }
+  _shown(o) { for (let n = o; n; n = n.parent) if (!n.visible || (n.userData?.level != null && n.userData.level !== this.level)) return false; return true; }
 
   _lights() {
     const T = this.T;
@@ -145,10 +161,14 @@ export class HouseScene {
   }
 
   _ground() {
-    const T = this.T;
-    if (MODEL.setting === 'apartment') return this._groundApt();
-    if (this.doll) return this._groundDoll();
-    this._groundClassic();
+    // everything on the ground goes in one group: with stacked floors it moves down under the floor shown
+    const n0 = this.scene.children.length;
+    if (MODEL.setting === 'apartment') this._groundApt();
+    else if (this.doll) this._groundDoll();
+    else this._groundClassic();
+    const G = this.groundG = new this.T.Group();
+    for (const o of this.scene.children.slice(n0)) G.add(o);
+    this.scene.add(G);
   }
   // the classic ground: a night-blue grid fading out, the base slab, a shadow catcher; `y`: how far below the floor
   // (an apartment's street), `slab`: with the house's base slab
@@ -374,7 +394,7 @@ export class HouseScene {
       const outline = new T.LineSegments(og, new T.LineBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0 }));
       grp.add(outline);
       // ceiling lamp + point light
-      const lamp = new T.Mesh(new T.CylinderGeometry(0.32, 0.32, 0.05, 32), new T.MeshStandardMaterial({ color: 0x334155, emissive: 0xffc27a, emissiveIntensity: 0 }));
+      const lamp = new T.Mesh(new T.CylinderGeometry(0.32, 0.32, 0.05, 32), new T.MeshStandardMaterial({ color: this.doll ? 0xf1ece4 : 0x334155, emissive: 0xffc27a, emissiveIntensity: 0 })); // dollhouse: a white shade, not a dark hole
       lamp.position.set(ccx, 2.25, ccz); grp.add(lamp);
       const halo = new T.Mesh(new T.CircleGeometry(0.9, 32), new T.MeshBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
       halo.rotation.x = -Math.PI / 2; halo.position.set(ccx, 2.22, ccz); grp.add(halo);
@@ -1495,7 +1515,8 @@ export class HouseScene {
       let moved = 0;
       for (const C of this.cuts) {
         const low = wm === 'down' || (wm === 'cut' && !top && C.outer && C.nx * ex + C.nz * ez > 0.2);
-        const goal = low ? Math.min(1, 0.3 / C.h) : 1, d = goal - C.k;
+        // a floor below the one shown (stacked floors): its walls go up to the floor above, like a real storey
+        const goal = C.l < this.level ? (this.storey - 0.1) / WALL_H : low ? Math.min(1, 0.3 / C.h) : 1, d = goal - C.k;
         if (Math.abs(d) < 0.001) continue;
         C.k = Math.abs(d) < 0.004 ? goal : C.k + d * Math.min(1, dt * 7); moved += Math.abs(d);
         C.g.scale.y = C.k; for (const p of C.doors) p.scale.y = C.k;

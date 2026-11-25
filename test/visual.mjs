@@ -101,13 +101,18 @@ try {
     const modes = [];
     for (let i = 0; i < 3; i++) { modes.push(await p.evaluate(() => [card._wallMode(), card._three.cuts.filter(c => c.k < 0.5).length, card._three.cuts.length])); await p.evaluate(() => card.shadowRoot.querySelector('#wallBtn').click()); await p.waitForTimeout(2500); }
     check('walls button: Cutaway lowers some walls, Down all of them, Up none', modes[0][0] === 'cut' && modes[0][1] > 0 && modes[0][1] < modes[0][2] && modes[1][0] === 'down' && modes[1][1] === modes[1][2] && modes[2][0] === 'up' && modes[2][1] === 0, JSON.stringify(modes));
+    // stacked floors: the first floor stands a storey up, on the ground floor (shown, walls up to it), the lawn below
+    await p.evaluate(() => card._setLevel(1)); await p.waitForTimeout(4500);
+    const st = await p.evaluate(() => { const S = card._three, G = S.lv; return { g0: G[0].visible, y0: G[0].position.y, y1: G[1].position.y, ground: S.groundG.position.y, walls: S.cuts.filter(c => c.l === 0).every(c => c.k > 1.4), k: Math.min(...S.cuts.filter(c => c.l === 0).map(c => c.k)), sh: S.storey }; });
+    check('stacked floors: the first floor stands on the ground floor (walls up to it), the lawn a storey down', st.g0 && st.y1 === 0 && Math.abs(st.y0 + st.sh) < 1e-6 && Math.abs(st.ground + st.sh) < 1e-6 && st.walls, JSON.stringify(st));
+    await p.evaluate(() => card._setLevel(0)); await p.waitForTimeout(500);
     check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
   await p.close();
 
   console.log('apartment');
   p = await open('?config=demo&style=dollhouse&setting=apartment&floor=3', { width: 1400, height: 1000 });
   { const vp = await rectOf(p, '#viewport'), pic = await pixels(p, vp);
-    const info = await p.evaluate(() => ({ h: card._three.aptH, below: card._three.scene.children.some(o => o.position.y < -8) }));
+    const info = await p.evaluate(() => ({ h: card._three.aptH, below: (() => { let low = false; card._three.groundG.traverse(o => { if (o.isMesh && o.getWorldPosition(new card._three.T.Vector3()).y < -8) low = true; }); return low; })() }));
     check('apartment: the flat stands on its building (3 storeys below it, the street at the bottom) and is drawn', info.h === 9 && info.below && pic.colours > 150, JSON.stringify({ info, pic }));
     check('no page errors (apartment)', !p.errors.length, p.errors.join(' | ')); }
   await p.close();

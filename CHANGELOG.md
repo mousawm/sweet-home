@@ -15,6 +15,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Build mode: a wall drawn right across a room splits it in two (the furniture goes with the part it stands in).
 - 3D view: a **walls** button switches between walls up, cutaway (the outer walls facing you lowered) and down (every wall low), remembered on each device.
 - 3D view: an **apartment** setting (`house.setting: apartment`, `apartment_floor`; card editor: Look → Home type): the flat stands on top of its building, with a window facade below it and the street at the bottom; balconies hang off the building.
+- Dollhouse style: an upper floor stands a storey up, on the floors below it (shown with their walls up to it), with the ground that far down, like in a life-sim game.
 - Rooms: `wall_color` sets a room's wallpaper (Dollhouse style).
 
 ## v0.6.62 — 2026-11-25
