@@ -76,8 +76,9 @@ open), grouped under *Open now*, *Last hour* and *Earlier*. **Show less** folds 
 
 The times come from Home Assistant's history (read every 5 minutes); a door that opens or closes shows at once. Choose
 what it shows with `doors_view` (card editor: Panels → Security → *Doors view*): `both` (default: the timeline, with
-Show details), `timeline` or `list`; and the bars with `doors_timeline` (*Timeline bars*): `fill` (default) or
-`aligned`.
+Show details), `timeline` or `list`; the bars with `doors_timeline` (*Timeline bars*): `fill` (default) or
+`aligned`; and how far back the timeline goes with `doors_hours` (*Timeline span*): `6`, `12`, `18` or `24` (default)
+hours. The counts and the list of openings follow the same span.
 
 ## Install
 
@@ -389,7 +390,7 @@ listed below).
 
 - **security**: `alarm`, `locks`, `entrances`, `doors`, `doors_view`, `doors_timeline`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance), `face` (a sensor with the last face recognised, shown as a badge on the Cameras card: the name, or *No face*. Without it, the cameras' own face sensors are used; Frigate's `sensor.<camera>_last_recognized_face` is found by itself)
   - `locks`: `entity_id` or `{entity, name, kind, icon}`. A lock shows a padlock (green locked, red unlocked, amber locking or jammed). To show what it locks instead, with a small padlock for the state, set `kind`: `door`, `sliding`, `gate`, `garage`, `window`, `safe`, `car`, `locker`, or an `icon`.
-  - `doors`: door sensors (`binary_sensor` with the door or garage door class; not given: all of them). `doors_view`: `both` (default), `timeline` or `list`; `doors_timeline`: `fill` (default) or `aligned`; see [Doors](#doors-the-last-24-hours).
+  - `doors`: door sensors (`binary_sensor` with the door or garage door class; not given: all of them). `doors_view`: `both` (default), `timeline` or `list`; `doors_timeline`: `fill` (default) or `aligned`; `doors_hours`: `6`, `12`, `18` or `24` (default); see [Doors](#doors-the-last-24-hours).
   - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open (without one it shows as closed). The sensor can be a door / contact sensor (on = open), a cover or lock, or a text sensor such as a camera's Frigate state classification (`open`, `closed`, `opening`…; words of your own with `open_states` / `closed_states`). `sensor_2` (or a list) is a backup used when the first gives no clear reading. In the card editor, Panels → Security shows two sensor pickers per gate, with suggestions: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
 - **climate**: `entities`
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:

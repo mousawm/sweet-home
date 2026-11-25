@@ -243,6 +243,7 @@ const AR = {
   'Doors view': 'عرض الأبواب', 'Show details · {0} doors': 'عرض التفاصيل · {0} أبواب', 'Timeline, Show details opens more': 'خط زمني، و«عرض التفاصيل» يعرض المزيد', 'Timeline bars': 'أشرطة الخط الزمني', 'Fill each row': 'تملأ كل صف', 'Aligned, with hour labels (-24 h / -12 h / now)': 'متحاذية، مع تسميات الساعات (-24 س / -12 س / الآن)', 'last opened {0}': 'آخر فتح {0}', 'last change {0}': 'آخر تغيير {0}', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
   // Media Server: download queue, wanted shows and movies
   'Active torrents': 'التورنت النشطة', '{0} errored': '{0} بها خطأ',
+  'last {0} h': 'آخر {0} ساعة', 'No openings in {0} h': 'لم يُفتح خلال {0} ساعة', 'Last {0} hours': 'آخر {0} ساعة', 'Timeline span': 'مدة الخط الزمني', 'Aligned, with hour labels': 'محاذاة، مع تسميات الساعات',
   'Download queue': 'قائمة التنزيل', 'Nothing downloading': 'لا يوجد تنزيل', 'The Sonarr and Radarr queues are empty.': 'قائمتا Sonarr وRadarr فارغتان.',
   '{0} left': 'متبقٍ {0}', '{0} in the queue, but Home Assistant does not list them.': '{0} في القائمة، لكن Home Assistant لا يعرض تفاصيلها.',
   '1 episode in the Sonarr queue': 'حلقة واحدة في قائمة Sonarr', '{0} episodes in the Sonarr queue': '{0} حلقات في قائمة Sonarr',
