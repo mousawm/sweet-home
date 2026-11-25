@@ -507,10 +507,11 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'wanted' ? tr("Wanted episodes") : tr("Phone")}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
-    if (kind === 'wanted' && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || String(this._wanted.n) !== String(this.v(E.mserver.sonarr.wanted)))) this._loadWanted();
+    if (kind.startsWith('wanted') && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || this._wanted.n !== String(this._wantedCount().tv))) this._loadWanted();
+    if (kind.startsWith('wanted') || kind.startsWith('queue')) this._mTab = {}; // each opening starts on the tab it was opened for
     if (kind.startsWith('jf') && this._jfc && Date.now() - (this._jfcAt || 0) > 10 * 60e3) this._jfc = null; // library cache: 10 min
     this._renderInfo();
   }
@@ -536,8 +537,10 @@ export class SweetHomeCard extends HTMLElement {
       }).join('');
     } else if (this._info === 'weather') {
       html = this._weatherHTML(head);
-    } else if (this._info === 'wanted') {
+    } else if (this._info.startsWith('wanted')) {
       html = this._wantedHTML(head);
+    } else if (this._info.startsWith('queue')) {
+      html = this._queueHTML(head);
     } else if (this._info === 'swap') {
       html = this._swapHTML(head);
     } else if (this._info.startsWith('mup:')) {
@@ -912,6 +915,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'jfreconnect': this._jfReconnect?.(); break;
       case 'jfcancel': this._jfCancel = true; break;
       case 'jfqc': this._jfQcDone = true; break;
+      case 'mtab': this._mTab = { ...(this._mTab || {}), [t.dataset.s]: t.dataset.k }; this._renderInfo(); { const sh = this.$('sheet')?.querySelector('.sheet'); if (sh) sh.scrollTop = 0; } break;
       case 'jfseason': this._jfSeason = { ...(this._jfSeason || {}), [t.dataset.show]: Number(t.dataset.i) }; this._renderInfo(); break;
       case 'ehp': this._eh = { ...this._eh, p: t.dataset.p, off: 0, bar: null }; this._rerender('ehist'); break;
       case 'ehnav': this._eh = { ...this._eh, off: Math.min(0, this._eh.off + Number(t.dataset.d)), bar: null }; this._rerender('ehist'); break;

@@ -241,6 +241,16 @@ const AR = {
   'At night': 'ليلًا', now: 'الآن', 'Open now': 'مفتوح الآن', 'Last hour': 'آخر ساعة', Earlier: 'سابقًا', 'Opened at {0}': 'فُتح الساعة {0}',
   '1 opening today': 'فُتح مرة واحدة اليوم', '{0} openings today': 'فُتح {0} مرات اليوم', 'No openings today': 'لم يُفتح اليوم', 'since {0}': 'منذ {0}', 'last change': 'آخر تغيير', 'until {0}': 'حتى {0}', Openings: 'مرات الفتح', '1 opening': 'مرة فتح واحدة', '{0} openings': '{0} مرات فتح', 'No openings in 24 h': 'لم يُفتح خلال 24 ساعة',
   'Doors view': 'عرض الأبواب', 'Show details · {0} doors': 'عرض التفاصيل · {0} أبواب', 'Timeline, Show details opens more': 'خط زمني، و«عرض التفاصيل» يعرض المزيد', 'Timeline bars': 'أشرطة الخط الزمني', 'Fill each row': 'تملأ كل صف', 'Aligned, with hour labels (-24 h / -12 h / now)': 'متحاذية، مع تسميات الساعات (-24 س / -12 س / الآن)', 'last opened {0}': 'آخر فتح {0}', 'last change {0}': 'آخر تغيير {0}', 'Timeline only (last 24 h)': 'خط زمني فقط (آخر 24 ساعة)', 'List only (last opened)': 'قائمة فقط (آخر فتح)',
+  // Media Server: download queue, wanted shows and movies
+  'Download queue': 'قائمة التنزيل', 'Nothing downloading': 'لا يوجد تنزيل', 'The Sonarr and Radarr queues are empty.': 'قائمتا Sonarr وRadarr فارغتان.',
+  '{0} left': 'متبقٍ {0}', '{0} in the queue, but Home Assistant does not list them.': '{0} في القائمة، لكن Home Assistant لا يعرض تفاصيلها.',
+  '1 episode in the Sonarr queue': 'حلقة واحدة في قائمة Sonarr', '{0} episodes in the Sonarr queue': '{0} حلقات في قائمة Sonarr',
+  '1 movie in the Radarr queue': 'فيلم واحد في قائمة Radarr', '{0} movies in the Radarr queue': '{0} أفلام في قائمة Radarr',
+  '1 episode': 'حلقة واحدة', '{0} episodes': '{0} حلقات', '1 movie': 'فيلم واحد', '{0} movies': '{0} أفلام',
+  '1 missing episode': 'حلقة واحدة ناقصة', '{0} missing episodes': '{0} حلقات ناقصة',
+  "Couldn't reach Sonarr / Radarr": 'تعذّر الوصول إلى Sonarr / Radarr', 'Sonarr / Radarr did not answer.': 'لم يستجب Sonarr / Radarr.',
+  'Everything monitored that is out is downloaded.': 'تم تنزيل كل ما هو مُراقَب وصدر بالفعل.',
+  "Released, monitored movies Radarr hasn't downloaded yet. Radarr keeps searching for them automatically.": 'أفلام مُراقَبة صدرت ولم ينزّلها Radarr بعد. يواصل Radarr البحث عنها تلقائيًا.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

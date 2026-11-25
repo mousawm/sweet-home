@@ -6,10 +6,13 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- Doors timeline: the bubble for a tapped opening now points at it and outlines its door's bar, so it no longer looks like it belongs to the door above.
 
 ### Changed
+- Media Server: the Wanted tile counts Radarr's missing movies as well as Sonarr's episodes; its sheet has Shows and Movies tabs, and a tab with nothing wanted is hidden.
 
 ### Added
+- Media Server: tapping a Sonarr or Radarr queue row opens a Download queue sheet listing each download (poster, progress, status, time left, size), with Shows and Movies tabs.
 
 ## v0.6.59 — 2026-11-25
 
