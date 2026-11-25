@@ -941,6 +941,7 @@ export function buildModel(cfg = {}, hass) {
     gate: sec.gate ? { name: sec.gate.name || 'Gate', relay: sec.gate.relay, sensor: sec.gate.sensor } : { name: 'Gate', relay: null, sensor: null },
     doors: doorList,
     doorsView: ['both', 'timeline', 'list'].includes(sec.doors_view) ? sec.doors_view : 'both',
+    doorsHours: [6, 12, 18, 24].includes(Number(sec.doors_hours)) ? Number(sec.doors_hours) : 24, // how far back the timeline goes
     doorsTimeline: sec.doors_timeline === 'aligned' ? 'aligned' : 'fill', // the bars: fill each row, or one scale with hour labels // the Doors block: timeline that opens into the list, or one of them
     acs,
     alerts: {

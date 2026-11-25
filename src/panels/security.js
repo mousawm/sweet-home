@@ -114,12 +114,15 @@ export class SecurityPanels {
   }
   _rDoors() {
     const items = this._doorItems(); if (!items.length) return '';
-    const now = Date.now(), from = now - 864e5, lang = this._hass?.locale?.language, mode = E.doorsView || 'both';
+    // the timeline's window: the last 6, 12, 18 or 24 hours (`doors_hours`); history is always read for 24 h
+    const H = E.doorsHours || 24, span = H * 36e5, now = Date.now(), from = now - span, lang = this._hass?.locale?.language, mode = E.doorsView || 'both';
     if (!this._dh || now - this._dh.at > 5 * 60e3) setTimeout(() => this._loadDoorHist(items));
     const day0 = new Date(); day0.setHours(0, 0, 0, 0);
     const hm = t => new Date(t).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
     const D = items.map(x => {
-      const lc = Date.parse(this.s(x.id)?.last_changed || '') || 0, evs = (this._dh?.ev[x.id] || []).map(e => ({ ...e }));
+      const lc = Date.parse(this.s(x.id)?.last_changed || '') || 0;
+      // the openings in the window: one already open when it began is cut at its start (as at the start of the 24 h)
+      const evs = (this._dh?.ev[x.id] || []).filter(e => e.end == null || e.end > from).map(e => (e.t < from ? { ...e, t: from, cut: true } : { ...e }));
       const last = evs[evs.length - 1];
       if (x.o && !x.na && (!last || last.end != null) && lc) evs.push({ t: Math.max(lc, from), end: null, cut: lc < from }); // opened since the history was read
       else if (!x.o && last && last.end == null) last.end = Math.max(lc, last.t); // closed since
@@ -129,7 +132,7 @@ export class SecurityPanels {
     }).sort((a, b) => (b.o - a.o) || ((b.lastOpen || 0) - (a.lastOpen || 0)) || ((b.lc || 0) - (a.lc || 0)));
     this._dD = D; // for the list of openings (_doorLog)
     const marks = d => d.evs.map(e => { const a = Math.max(e.t, from), b = e.end ?? now;
-      return `<i class="${e.end == null ? 'now' : ''}" data-s="${e.t}" data-e="${e.end ?? ''}"${e.cut ? ' data-c="1"' : ''} title="${esc(this._dmText(e.t, e.end, e.cut))}" style="inset-inline-start:${((a - from) / 864e5 * 100).toFixed(2)}%;width:${Math.max(0, (b - a) / 864e5 * 100).toFixed(2)}%"></i>`; }).join('');
+      return `<i class="${e.end == null ? 'now' : ''}" data-s="${e.t}" data-e="${e.end ?? ''}"${e.cut ? ' data-c="1"' : ''} title="${esc(this._dmText(e.t, e.end, e.cut))}" style="inset-inline-start:${((a - from) / span * 100).toFixed(2)}%;width:${Math.max(0, (b - a) / span * 100).toFixed(2)}%"></i>`; }).join('');
     const ago = (t, pre = '') => `<span data-ago="${new Date(t).toISOString()}" data-pre="${esc(pre)}" data-short="1">${pre ? `${esc(pre)} · ` : ''}${agoShort(new Date(t).toISOString(), lang)}</span>`;
     const icon = d => ic(d.o ? d.icons[1] : d.icons[0]), cls = d => d.na ? 'na' : d.o ? 'open' : '';
     // one set of rows for both views: Show details opens a second line in each row (today's openings, when it last
@@ -151,9 +154,9 @@ export class SecurityPanels {
         <div class="dago">${d.na ? tr('Unavailable') : d.since ? ago(d.since, tr('Open')) : d.lastOpen ? ago(d.lastOpen) : d.lc ? ago(d.lc) : '—'}</div>
         <div class="dext"><div><span>${esc(left)}</span><span>${esc(right)}</span></div></div></div>`;
     }).join('');
-    const axis = aligned ? `<div class="daxis"><span></span><div><span>-24 h</span><span>-12 h</span><span>${tr('now')}</span></div><span></span></div>` : '';
+    const axis = aligned ? `<div class="daxis"><span></span><div><span>${esc(tr('{0} h', `-${H}`))}</span><span>${esc(tr('{0} h', `-${H / 2}`))}</span><span>${tr('now')}</span></div><span></span></div>` : '';
     const more = mode === 'both' ? `<button class="vmmore dmore" data-act="doorsview" aria-expanded="${det}"><span>${det ? tr('Show less') : tr('Show details · {0} doors', D.length)}</span>${ic('mdi:chevron-down')}</button>` : '';
-    return `<div class="dv ${det ? 'det' : ''} ${aligned ? 'aligned' : 'fill'}"><div class="dsec dhead"><span>${tr('Doors')} · ${tr('last 24 h')}</span></div>${sum}<div class="dtls">${rows}${axis}</div>${more}</div>`;
+    return `<div class="dv ${det ? 'det' : ''} ${aligned ? 'aligned' : 'fill'}"><div class="dsec dhead"><span>${tr('Doors')} · ${tr('last {0} h', H)}</span></div>${sum}<div class="dtls">${rows}${axis}</div>${more}</div>`;
   }
   // what a door's opening says: "14:32 · 4 min", "14:32 · open now", "until 06:10" (open since before the 24 hours)
   _dmDur(ms) { const m = Math.round(ms / 60e3); return m < 1 ? tr('{0} min', '<1') : m < 60 ? tr('{0} min', m) : `${tr('{0} h', Math.floor(m / 60))}${m % 60 ? ` ${tr('{0} min', m % 60)}` : ''}`; }
@@ -173,7 +176,7 @@ export class SecurityPanels {
     const d0 = new Date(); d0.setHours(0, 0, 0, 0);
     const dayOf = t => (t >= +d0 ? tr('Today') : t >= +d0 - 864e5 ? tr('Yesterday') : new Date(t).toLocaleDateString(lang, { weekday: 'long' }));
     const title = f === 'door' ? D.find(d => d.id === door)?.name || tr('Openings') : f === 'night' ? tr('At night') : tr('Openings');
-    const sub = `${list.length === 1 ? tr('1 opening') : tr('{0} openings', list.length)} · ${tr('last 24 h')}`;
+    const sub = `${list.length === 1 ? tr('1 opening') : tr('{0} openings', list.length)} · ${tr('last {0} h', E.doorsHours || 24)}`;
     let day = null;
     const rows = list.map(({ d, e }) => {
       const k = dayOf(e.t), hd = k !== day ? `<div class="dsec">${esc(k)}</div>` : ''; day = k;
@@ -183,7 +186,7 @@ export class SecurityPanels {
     const sh = this.$('sheet'); if (!sh) return;
     sh.innerHTML = `<div class="sheet dlogs" role="dialog" aria-label="${esc(title)}">
       <div class="sh-h">${ic(f === 'night' ? 'mdi:weather-night' : 'mdi:door-open')}<div><b>${esc(title)}</b><span>${esc(sub)}</span></div><button class="ibtn" data-act="sheetclose" aria-label="Close">${ic('mdi:close')}</button></div>
-      ${rows || `<div class="sk-empty">${tr('No openings in 24 h')}</div>`}</div>`;
+      ${rows || `<div class="sk-empty">${tr('No openings in {0} h', E.doorsHours || 24)}</div>`}</div>`;
     sh.classList.add('open');
   }
   // a tap on a door's 24-hour bar: the opening nearest the tap is lit and a line opens under that door's own bar
@@ -200,7 +203,7 @@ export class SecurityPanels {
     let ax = x;
     if (best) { const b = best.getBoundingClientRect(); ax = (b.left + b.right) / 2; best.classList.add('hit');
       tip.textContent = this._dmText(+best.dataset.s, best.dataset.e ? +best.dataset.e : null, !!best.dataset.c); }
-    else tip.textContent = tr('No openings in 24 h');
+    else tip.textContent = tr('No openings in {0} h', E.doorsHours || 24);
     row.insertBefore(wrap, row.querySelector('.dext')); trk.classList.add('sel'); // under the bar, above the details line
     const wr = wrap.getBoundingClientRect(), cx = ax - wr.left;
     const left = Math.max(0, Math.min(wr.width - tip.offsetWidth, cx - tip.offsetWidth / 2));

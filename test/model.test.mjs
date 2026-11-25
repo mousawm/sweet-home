@@ -363,6 +363,10 @@ test('"Found from" switches: Jellyfin / Sonarr / Radarr / qBittorrent / Forecast
   assert.equal(M({ jellyfin: false }).hasMS, true, 'Sonarr still on: the card stays');
 });
 
+test('doors_hours: the timeline span is 6, 12, 18 or 24 hours (24 by default, or for anything else)', () => {
+  const H = sec => buildModel({ panels: { security: sec } }, hass).E.doorsHours;
+  assert.deepEqual([H({}), H({ doors_hours: 6 }), H({ doors_hours: '12' }), H({ doors_hours: 18 }), H({ doors_hours: 7 }), H({ doors_hours: 'x' })], [24, 6, 12, 18, 24, 24]);
+});
 test('several instances: Sonarr / Radarr / qBittorrent per config entry, every Proxmox node', () => {
   const h = JSON.parse(JSON.stringify(hass));
   const add = (id, p, entry, state = '1') => { h.states[id] = st(state); h.entities[id] = { platform: p, config_entry_id: entry }; };

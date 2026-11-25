@@ -421,6 +421,14 @@ try {
     check('…and Show less closes it again', !r.det && r.tl === r.items && !r.ext && !r.grp.length && r.btnTxt.startsWith('Show details'), JSON.stringify(r));
     await mk('both', 'aligned'); r = await look();
     check('doors_timeline: aligned puts every bar on one scale, with the hour labels', r.lefts === 1 && r.axis === 1 && r.tl === r.items, JSON.stringify(r));
+    { // doors_hours: 6 → the window is the last 6 hours: the opening 3 h ago is in it (now halfway along), and every count follows
+      await mk('both', null); await p.evaluate(() => { const c = card._config; card.setConfig({ ...c, panels: { ...c.panels, security: { ...c.panels.security, doors_hours: 6 } } }); });
+      await p.waitForTimeout(600);
+      const r6 = await p.evaluate(() => { const q = s => [...card.shadowRoot.querySelectorAll('#security ' + s)];
+        const i = q('.dtl .dtrack i')[0], pos = parseFloat(i?.style.insetInlineStart);
+        return { head: q('.dhead')[0]?.textContent.trim(), pos, marks: q('.dtl .dtrack i').length, items: card._doorItems().length }; });
+      check('doors_hours: 6 shows the last 6 hours (header, bars placed on that scale)', r6.head === 'Doors · last 6 h' && Math.abs(r6.pos - 50) < 2 && r6.marks === 2 * r6.items, JSON.stringify(r6));
+    }
     await mk('list'); r = await look();
     check('doors_view: list shows the details, with no button', r.det && r.ext === r.items && r.btn === 0, JSON.stringify(r));
     await mk('timeline'); r = await look();

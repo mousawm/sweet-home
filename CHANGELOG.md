@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Doors: a *Timeline span* option (`doors_hours`) shows the last 6, 12, 18 or 24 hours on the timeline; the counts and the list of openings follow it.
 
 ## v0.6.61 — 2026-11-25
 
