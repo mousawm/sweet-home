@@ -276,6 +276,8 @@ const AR = {
   Save: 'حفظ', 'Saving…': 'جارٍ الحفظ…', 'House saved': 'تم حفظ المنزل', 'Changes discarded': 'تم تجاهل التغييرات',
   'These stairs come with the room: change them in the card editor': 'هذا الدرج جزء من الغرفة: عدّله من محرر البطاقة',
   'Could not find this card on the dashboard to save it. Open the card editor and build there.': 'تعذّر العثور على هذه البطاقة في لوحة التحكم لحفظها. افتح محرر البطاقة وابنِ من هناك.',
+  'Room split in two': 'تم تقسيم الغرفة إلى غرفتين', '{0} rooms split': 'تم تقسيم {0} غرف',
+  'Walls up': 'الجدران مرفوعة', 'Walls cut away in front': 'الجدران الأمامية منخفضة', 'Walls down': 'الجدران منخفضة',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

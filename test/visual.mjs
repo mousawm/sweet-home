@@ -96,6 +96,11 @@ try {
     await p.evaluate(() => card._three.view('top')); await p.waitForTimeout(4000);
     const top = await p.evaluate(() => card._three.cuts.every(c => c.k > 0.97));
     check('dollhouse: from above every wall stands', top);
+    // the walls button: Cutaway (the default here) → Down (every wall low) → Up (every wall stands)
+    await p.evaluate(() => { try { localStorage.removeItem('sweet-home-walls'); } catch (e) { /* none */ } card._walls = undefined; card._three.view('3d'); }); await p.waitForTimeout(2500);
+    const modes = [];
+    for (let i = 0; i < 3; i++) { modes.push(await p.evaluate(() => [card._wallMode(), card._three.cuts.filter(c => c.k < 0.5).length, card._three.cuts.length])); await p.evaluate(() => card.shadowRoot.querySelector('#wallBtn').click()); await p.waitForTimeout(2500); }
+    check('walls button: Cutaway lowers some walls, Down all of them, Up none', modes[0][0] === 'cut' && modes[0][1] > 0 && modes[0][1] < modes[0][2] && modes[1][0] === 'down' && modes[1][1] === modes[1][2] && modes[2][0] === 'up' && modes[2][1] === 0, JSON.stringify(modes));
     check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
   await p.close();
 

@@ -1,7 +1,7 @@
 // Sweet Home — Build mode (the card side): the toolbar over the 3D view, and every build step written into the card's
 // config (with undo). The scene side (grid, ghosts, pointer) is src/build.js.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
-import { arr, enclosedAreas, extraWalls, onEdge, roomOutline, autoFurnitureConfig, FURN_TYPES, furnEntities } from '../model.js';
+import { arr, enclosedAreas, splitRoom, uncovered, extraWalls, inPoly, roomOutline, autoFurnitureConfig, FURN_TYPES, furnEntities } from '../model.js';
 import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
 import { t as tr } from '../i18n.js';
 import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
@@ -10,6 +10,7 @@ const TOOLS = [['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall
   ['paint', 'Paint', 'mdi:format-paint'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['delete', 'Knock down', 'mdi:hammer']];
 const PAPERS = ['#f0dcc4', '#eccaa3', '#f5dc96', '#c6dbb2', '#b5e0d6', '#b9cdee', '#e6d5ec', '#f2c4d2', '#eee5d4', '#d8d6cf', '#ffffff', '#9bb0c9'];
 const FLOORS = [['wood', 'Wood', '#b08a62'], ['tile', 'Tiles', '#eef2f6'], ['marble', 'Marble', '#e8dfcf'], ['carpet', 'Carpet', '#9097a1'], ['stone', 'Stone', '#b8b1a5'], ['asphalt', 'Asphalt', '#3a3f47']];
+const WALL_MODES = { up: ['mdi:wall', 'Walls up'], cut: ['mdi:box-cutter', 'Walls cut away in front'], down: ['mdi:arrow-collapse-down', 'Walls down'] };
 const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4] };
 // the entities a piece is most likely to show
 const DOMAINS = { lamp: ['light'], fan: ['fan', 'switch'], tv: ['media_player'], ac: ['climate'], vacuum: ['vacuum'], blinds: ['cover'], charger: ['switch', 'sensor'], washer: ['switch', 'sensor'],
@@ -39,6 +40,23 @@ export class BuildTools {
     this.$('viewport')?.classList.toggle('building', on); this.$('buildBtn')?.classList.toggle('on', on);
     this._bScene(); this._bRender(); this._noRoomsMsg();
     if (on) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
+  }
+  // Walls: Up (every wall stands), Cutaway (the outer walls facing you are lowered) or Down (every wall low), like
+  // a life-sim game. Remembered on this device; by default Cutaway in the Dollhouse style, Up in the classic one.
+  _wallMode() {
+    if (this._walls === undefined) { try { this._walls = localStorage.getItem('sweet-home-walls'); } catch (e) { this._walls = null; } }
+    return ['up', 'cut', 'down'].includes(this._walls) ? this._walls : MODEL.style === 'dollhouse' ? 'cut' : 'up';
+  }
+  _wallBtn() {
+    const m = this._wallMode(), [icon, name] = WALL_MODES[m];
+    return `<button class="ibtn ${m !== 'up' ? 'on' : ''}" data-act="walls" id="wallBtn" title="${tr(name)}" aria-label="${tr(name)}">${ic(icon)}</button>`;
+  }
+  _wallCycle() {
+    const m = this._walls = { up: 'cut', cut: 'down', down: 'up' }[this._wallMode()];
+    try { localStorage.setItem('sweet-home-walls', m); } catch (e) { /* storage blocked: for this visit */ }
+    this.$('wallBtn')?.replaceWith(Object.assign(document.createElement('template'), { innerHTML: this._wallBtn() }).content.firstChild);
+    this._toast(tr(WALL_MODES[m][1]));
+    if (this._three) { this._three._dirty = true; this._three.lastInput = performance.now(); }
   }
   _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
   // changes not saved yet (with the card editor open, each step already went through it)
@@ -204,8 +222,9 @@ export class BuildTools {
     });
     if (op === 'wall') return this._bEdit(H => {
       (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])] }));
-      const made = this._bCloseRooms(H, a.level || 0);
-      if (made) this._toast(made > 1 ? tr('{0} new rooms', made) : tr('New room'));
+      const { made, split } = this._bWallRooms(H, a.level || 0);
+      if (split) this._toast(split > 1 ? tr('{0} rooms split', split) : tr('Room split in two'));
+      else if (made) this._toast(made > 1 ? tr('{0} new rooms', made) : tr('New room'));
     });
     if (op === 'door' || op === 'window') return this._bEdit(H => {
       const [x1, z1, x2, z2] = a.seg;
@@ -240,29 +259,53 @@ export class BuildTools {
       }
     });
   }
-  // walls first: the areas that walls on this floor now close in become rooms, and the separate walls that are now a
-  // new room's edge are dropped (the room draws its own walls there). Returns how many rooms were made.
-  _bCloseRooms(H, level) {
+  // walls first: the areas that walls on this floor now close in become rooms, and a room a wall now runs across
+  // becomes two (or more). A separate wall keeps only the parts no new room edge covers (rooms draw their own walls).
+  // Returns { made, split }: how many rooms were made, and how many were split.
+  _bWallRooms(H, level) {
     const lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
-    const rooms = arr(H.rooms).filter(r => lvOf(r) === level), outlines = [];
-    for (const r of rooms) {
-      const poly = roomOutline(r);
-      if (poly) outlines.push(poly.map(p => [p[0], p[1]]));
-      else for (const [a, b, c, d] of arr(r.rects)) outlines.push([[a, b], [c, b], [c, d], [a, d]]);
-    }
-    const segs = [];
-    for (const p of outlines) p.forEach(([x, z], i) => { const [x2, z2] = p[(i + 1) % p.length]; segs.push([x, z, x2, z2]); });
-    const mine = arr(H.extra_walls).map((w, i) => ({ w, i, s: extraWalls([w]) })).filter(o => o.s.length && lvOf(o.w) === level && !(o.w.bow) && !['fence', 'glass'].includes(o.w.type));
-    for (const o of mine) for (const s of o.s) segs.push(s.slice(0, 4));
+    const shape = r => { const poly = roomOutline(r); return poly ? [poly.map(p => [p[0], p[1]])] : arr(r.rects).map(([a, b, c, d]) => [[a, b], [c, b], [c, d], [a, d]]); };
+    const here = arr(H.rooms).map((r, i) => ({ r, i })).filter(o => lvOf(o.r) === level);
+    const outlines = here.flatMap(o => shape(o.r));
+    // the walls that make rooms: plain straight walls on this floor (not fences, glass, low walls or bent ones)
+    const mine = arr(H.extra_walls).map((w, i) => ({ w, i, s: extraWalls([w]) }))
+      .filter(o => o.s.length && lvOf(o.w) === level && (Array.isArray(o.w) || (!o.w.bow && !['fence', 'glass', 'half', 'low'].includes(o.w.type))));
+    const wallSegs = mine.flatMap(o => o.s.map(s => s.slice(0, 4)));
+    const changed = []; // outlines of the rooms made or changed now
+    // 1. closed areas outside the rooms: new rooms
+    const segs = [...outlines.flatMap(p => p.map(([x, z], i) => [x, z, ...p[(i + 1) % p.length]])), ...wallSegs];
     const found = enclosedAreas(segs, outlines);
-    if (!found.length) return 0;
     for (const pts of found) {
       const all = H.rooms ||= [], rc = { name: `${tr('Room')} ${all.length + 1}`, points: pts.map(([x, z]) => [r2(x), r2(z)]), furniture: [] };
-      if (level) rc.level = level; all.push(rc); this._bNew = all.length - 1;
+      if (level) rc.level = level; all.push(rc); this._bNew = all.length - 1; changed.push(pts);
     }
-    // separate walls lying on a new room's edge are now that room's walls
-    const drop = new Set(mine.filter(o => o.s.every(s => found.some(p => onEdge(s[0], s[1], p) && onEdge(s[2], s[3], p) && onEdge((s[0] + s[2]) / 2, (s[1] + s[3]) / 2, p)))).map(o => o.i));
-    if (drop.size) { H.extra_walls = H.extra_walls.filter((w, i) => !drop.has(i)); if (!H.extra_walls.length) delete H.extra_walls; }
-    return found.length;
+    // 2. rooms a wall now runs right across: split, the biggest part keeps the room (its name, area, devices…)
+    let split = 0;
+    for (const { r, i } of here) {
+      const parts = splitRoom(shape(r), wallSegs); if (!parts.length) continue;
+      split++; changed.push(...parts);
+      const pts = p => p.map(([x, z]) => [r2(x), r2(z)]);
+      for (const k of ['rects', 'rect', 'floor_rects', 'floorRects', 'anchor']) delete r[k];
+      r.points = pts(parts[0]);
+      const at = f => (f.from && f.to ? [(f.from[0] + f.to[0]) / 2, (f.from[1] + f.to[1]) / 2] : [Number(f.x), Number(f.z)]);
+      const all = H.rooms;
+      for (const part of parts.slice(1)) {
+        const rc = { name: `${tr('Room')} ${all.length + 1}`, points: pts(part), furniture: [] };
+        for (const k of ['level', 'floor', 'wall_color', 'outdoor']) if (r[k] != null) rc[k] = r[k];
+        // the pieces standing in this part go with it
+        if (Array.isArray(r.furniture)) r.furniture = r.furniture.filter(f => { const [x, z] = at(f); if (inPoly(x, z, part)) { rc.furniture.push(f); return false; } return true; });
+        all.push(rc); this._bNew = all.length - 1;
+      }
+    }
+    if (!changed.length) return { made: 0, split: 0 };
+    // 3. separate walls where the new rooms now have their own walls keep only what sticks out
+    const keep = [];
+    arr(H.extra_walls).forEach((w, i) => {
+      const o = mine.find(m => m.i === i); if (!o) { keep.push(w); return; }
+      const seg = Array.isArray(w) ? w.slice(0, 4) : [...w.from, ...w.to], rest = uncovered(seg, changed);
+      for (const [x1, z1, x2, z2] of rest) keep.push(Array.isArray(w) ? [x1, z1, x2, z2, ...w.slice(4)] : { ...w, from: [x1, z1], to: [x2, z2] });
+    });
+    if (keep.length) H.extra_walls = keep; else delete H.extra_walls;
+    return { made: found.length, split };
   }
 }

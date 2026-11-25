@@ -492,16 +492,17 @@ export class HouseScene {
       const outer = !o && (!inside(mx + nx, mz + nz, lvl ?? 0) || !inside(mx - nx, mz - nz, lvl ?? 0));
       const t = o ? 0.1 : outer ? 0.22 : 0.12, over = o?.bent ? t * 0.6 : t;
       into = null; wallMat = plainWall;
-      if (doll && !['glass', 'fence', 'rail'].includes(type)) {
+      if (!['glass', 'fence', 'rail'].includes(type)) {
         // BoxGeometry faces: +x, -x, top, bottom, +z, -z; the +z face looks towards (nx, nz)
         const l = lvl ?? 0, rp = roomAt(mx + nx, mz + nz, l), rn = roomAt(mx - nx, mz - nz, l);
-        wallMat = [edgeMat, edgeMat, edgeMat, edgeMat, sideMat(rp), sideMat(rn)];
-        // a wall with the outside on one side faces away from the house: cut down while you look at it from that side
-        const outP = !rp || rp.outdoor, outN = !rn || rn.outdoor;
-        if (outP !== outN && type !== 'half') {
+        if (doll) wallMat = [edgeMat, edgeMat, edgeMat, edgeMat, sideMat(rp), sideMat(rn)];
+        // every full wall can be lowered (Walls: Up / Cutaway / Down). An outer wall (the outside on one side) faces
+        // away from the house: Cutaway lowers it while you look at it from that side.
+        if (type !== 'half') {
+          const outP = !rp || rp.outdoor, outN = !rn || rn.outdoor, outer = outP !== outN;
           into = new T.Group(); this._at().add(into);
-          const s = outP ? 1 : -1, [ax, az] = this.w(x1, z1), [bx, bz] = this.w(x2, z2);
-          this.cuts.push({ g: into, nx: s * nx / 0.3, nz: s * nz / 0.3, h: o?.h ? Math.min(WALL_H, o.h) : WALL_H, k: 1, a: [ax, az], b: [bx, bz], l, doors: [] });
+          const s = outer && !outP ? -1 : 1, [ax, az] = this.w(x1, z1), [bx, bz] = this.w(x2, z2);
+          this.cuts.push({ g: into, outer, nx: s * nx / 0.3, nz: s * nz / 0.3, h: o?.h ? Math.min(WALL_H, o.h) : WALL_H, k: 1, a: [ax, az], b: [bx, bz], l, doors: [] });
         }
       }
       if (type === 'half') { // a low wall (kitchen bar, stair rail): `height`, else about two thirds of the wall
@@ -1399,13 +1400,15 @@ export class HouseScene {
       this.sun.color.setRGB(0.65 + 0.35 * day, 0.72 + 0.26 * day, 1.0 - 0.12 * day);
       this.renderer.toneMappingExposure = 0.95 + 0.15 * day;
     }
-    // dollhouse cutaway: the outer walls on the side the camera looks from sink to a low stub (with their doors),
-    // the far walls stay up; from above (floor plan) every wall stands
+    // walls (`card._wallMode()`): Up, every wall stands; Cutaway, the outer walls on the side the camera looks from sink
+    // to a low stub (with their doors) and the far walls stay up, every wall standing from above (floor plan);
+    // Down, every wall is a low stub
     if (this.cuts.length) {
-      const ex = Math.sin(o.theta), ez = Math.cos(o.theta), up = this.vmode === 'top' || o.phi < 0.3;
+      const ex = Math.sin(o.theta), ez = Math.cos(o.theta), top = this.vmode === 'top' || o.phi < 0.3, wm = this.card._wallMode?.() || 'up';
       let moved = 0;
       for (const C of this.cuts) {
-        const goal = !up && C.nx * ex + C.nz * ez > 0.2 ? Math.min(1, 0.3 / C.h) : 1, d = goal - C.k;
+        const low = wm === 'down' || (wm === 'cut' && !top && C.outer && C.nx * ex + C.nz * ez > 0.2);
+        const goal = low ? Math.min(1, 0.3 / C.h) : 1, d = goal - C.k;
         if (Math.abs(d) < 0.001) continue;
         C.k = Math.abs(d) < 0.004 ? goal : C.k + d * Math.min(1, dt * 7); moved += Math.abs(d);
         C.g.scale.y = C.k; for (const p of C.doors) p.scale.y = C.k;

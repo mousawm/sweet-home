@@ -1,6 +1,6 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
-import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig, enclosedAreas } from '../src/model.js';
+import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig, enclosedAreas, splitRoom, uncovered } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
 
@@ -382,6 +382,17 @@ test('build mode: walls that close an area make a room (walls first)', () => {
   assert.deepEqual(enclosedAreas([...sq(0, 0, 4, 3), [4, 0, 7, 0], [7, 0, 7, 3], [7, 3, 4, 3]], [[[0, 0], [4, 0], [4, 3], [0, 3]]]), [[[4, 0], [7, 0], [7, 3], [4, 3]]], 'closed against a room: only the new part');
   assert.equal(enclosedAreas([[-1, 0, 5, 0], [0, -1, 0, 4], [4, -1, 4, 4], [-1, 3, 5, 3]]).length, 1, 'walls that cross: cut where they cross');
   assert.deepEqual(enclosedAreas(sq(-2, -2, 10, 9), [[[0, 0], [4, 0], [4, 3], [0, 3]]]), [], 'a fence round the house is not a room');
+});
+test('build mode: a wall across a room splits it; walls keep only what rooms do not cover', () => {
+  const R = [[[0, 0], [6, 0], [6, 4], [0, 4]]], L = [[[0, 0], [4, 0], [4, 3], [0, 3]], [[4, 0], [6, 0], [6, 6], [4, 6]]];
+  assert.deepEqual(splitRoom(R, [[3, 0, 3, 4]]), [[[0, 0], [3, 0], [3, 4], [0, 4]], [[3, 0], [6, 0], [6, 4], [3, 4]]], 'a wall across: two rooms');
+  assert.equal(splitRoom(R, [[3, -2, 3, 6]]).length, 2, 'a wall sticking out on both sides still splits it');
+  assert.deepEqual(splitRoom(R, [[3, 0, 3, 2]]), [], 'half way across: no split');
+  assert.equal(splitRoom(R, [[2, 0, 2, 4], [4, 0, 4, 4]]).length, 3, 'two walls: three rooms');
+  assert.deepEqual(splitRoom(L, []), [], 'an L made of two rectangles is one room');
+  assert.deepEqual(splitRoom(L, [[4, 3, 6, 3]]), [[[0, 0], [6, 0], [6, 3], [0, 3]], [[4, 3], [6, 3], [6, 6], [4, 6]]], 'a wall across an L: its two parts');
+  assert.deepEqual(uncovered([3, -2, 3, 6], [[[0, 0], [3, 0], [3, 4], [0, 4]]]), [[3, -2, 3, 0], [3, 4, 3, 6]], 'the parts outside the room stay');
+  assert.deepEqual(uncovered([0, 0, 3, 0], [[[0, 0], [3, 0], [3, 4], [0, 4]]]), [], 'a wall on a room edge goes');
 });
 test('doors_hours: the timeline span is 6, 12, 18 or 24 hours (24 by default, or for anything else)', () => {
   const H = sec => buildModel({ panels: { security: sec } }, hass).E.doorsHours;

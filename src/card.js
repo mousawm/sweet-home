@@ -295,6 +295,7 @@ export class SweetHomeCard extends HTMLElement {
               <button class="ibtn" data-act="view" data-view="top" data-lp="view" title="${tr('Top view')} · ${tr('long press: the default on this device')}">${ic('mdi:floor-plan')}</button>
               <button class="ibtn" data-act="view" data-view="reset" data-lp="view" title="${tr('3D view')} · ${tr('long press: the default on this device')}">${ic('mdi:rotate-3d-variant')}</button>
               <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
+              ${MODEL.gltf ? '' : this._wallBtn()}
               ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._building ? 'on' : ''}" data-act="build" id="buildBtn" title="${tr('Build')}" aria-label="${tr('Build')}">${ic('mdi:hammer-wrench')}</button>` : ''}
               ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
@@ -841,6 +842,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'hintx': this._hintDone(); break;
       case 'level': this._setLevel(Number(t.dataset.level)); break;
       case 'build': if (this._editing || this._building) this._bToggle(); break;
+      case 'walls': this._wallCycle(); break;
       case 'b': this._bAct(t); break;
       case 'arrange': {
         if (!this._editing && !this._arrange) break;

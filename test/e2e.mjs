@@ -1213,6 +1213,7 @@ try {
   p = await open('?config=demo&edit=1', { width: 1280, height: 900 });
   { const r = await p.evaluate(async () => {
     const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), out = {}, H = () => card._config.house;
+    const polyA = p => Math.abs(p.reduce((a, [x, z], i) => { const [x2, z2] = p[(i + 1) % p.length]; return a + x * z2 - x2 * z; }, 0) / 2);
     const ready = async () => { await wait(150); for (let i = 0; i < 100 && !(card._three?.builder && card._three._key === card._houseJSON); i++) await wait(100); await wait(100); };
     // a dashboard holding this card: build steps stay on the card, and one save writes it when Build mode closes
     card.setConfig({ type: 'custom:sweet-home-card', ...card._config }); await wait(900);
@@ -1250,6 +1251,10 @@ try {
     out.keyTool = card._bTool === 'wall' && card._three.builder.tool === 'wall';
     R.querySelector('[data-b=grid]').click(); await wait(50);
     out.grid = card._bGrid === 0.25 && card._three.builder.grid.geometry.attributes.position.count > 400; // a line every 25 cm
+    // a wall right across a room splits it in two; the wall keeps only the bits outside the rooms
+    const nS = H().rooms.length, ri = H().rooms.findIndex(r => JSON.stringify(r.rects) === '[[20,0,24,3]]');
+    await card._bOp('wall', { from: [22, -1], to: [22, 3.5], level: 0 }); await ready();
+    out.split = H().rooms.length === nS + 1 && polyA(H().rooms[ri].points) === 6 && polyA(H().rooms.at(-1).points) === 6 && JSON.stringify(H().extra_walls.filter(w => w.from[0] === 22).map(w => [w.from, w.to])) === '[[[22,-1],[22,0]],[[22,3],[22,3.5]]]' || JSON.stringify([H().rooms[ri].points, H().rooms.at(-1).points, H().extra_walls.filter(w => w.from[0] === 22)]);
     // Done: one save, of the house as built, into the card's place on the dashboard
     const built = card._cfgJSON;
     R.querySelector('[data-b=done]').click(); for (let i = 0; i < 30 && card._building; i++) await wait(50);

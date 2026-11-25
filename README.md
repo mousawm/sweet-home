@@ -192,6 +192,13 @@ type: custom:sweet-home-card
 
 It is built to fill the screen, so put it in a view with the **Panel** layout (view settings → View type → Panel).
 
+### Walls: up, cutaway or down
+
+The **walls** button on the 3D view switches between three views, like in a life-sim game: **up** (every wall
+stands), **cutaway** (the outer walls on your side are lowered as you turn the view, so you see into the rooms) and
+**down** (every wall is a low stub). Each device remembers its choice; by default it is cutaway in the Dollhouse style
+and up in the classic one.
+
 ### Build mode: build right in the 3D view
 
 While the dashboard is in edit mode, admins get a **hammer** button on the 3D view. It opens Build mode, a life-sim
@@ -205,6 +212,9 @@ style builder: a grid appears on the ground and a toolbar over the view.
 | **Paint** | Pick a wallpaper colour or a floor (wood, tiles, marble, carpet, stone, asphalt), then tap a room. Wallpaper shows in the Dollhouse style. |
 | **Furniture** | Pick a piece from the catalogue and tap the floor to place it. Drag a piece to move it; tap it to turn it, link it to an entity (a lamp to its light, a TV to its media player…) or remove it. Pieces a room got automatically can be changed too: the room's set becomes its own. |
 | **Knock down** | Tap a piece, a door, a wall you drew or a room (tap a room twice) to remove it. |
+
+A **wall drawn right across a room** splits it in two: the bigger part keeps the room (its name, area and devices),
+the other part becomes a new room, and the furniture goes with the part it stands in.
 
 **Turn left / right** rotate the view (with a mouse, the right button drags the view too; on a touch screen, two
 fingers). The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back.
