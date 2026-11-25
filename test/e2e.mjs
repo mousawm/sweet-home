@@ -589,14 +589,16 @@ try {
   check('no page errors (card)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
-  // a home with no rooms yet: say what to do; a panel switched off is hidden
+  // a home with no rooms yet: say what to do; a panel switched off is hidden. Another card on the page keeps running
+  // (it switches the shared model to its own house), as on a dashboard with two cards
   p = await open('?config=demo');
-  check('no rooms yet: the 3D view says how to add them, no tap-a-room tip', await p.evaluate(async () => {
-    const T = customElements.get('t-card'), el = new T(); el.setConfig({ house: { rooms: [] }, panels: { security: false } }); card.remove(); document.body.appendChild(el); window.card = el;
+  { const r = await p.evaluate(async () => {
+    const T = customElements.get('t-card'), el = new T(), other = new T(); other.setConfig(JSON.parse(JSON.stringify(card._config))); other.hass = window.hassObj; const iv = setInterval(() => other._renderLegend?.(), 5); setTimeout(() => clearInterval(iv), 1500);
+    el.setConfig({ house: { rooms: [] }, panels: { security: false } }); card.remove(); document.body.appendChild(el); window.card = el;
     el.hass = { ...window.hassObj, areas: {}, floors: {} }; await new Promise(r => setTimeout(r, 900));
     const L = el.shadowRoot.getElementById('loading');
-    return L.classList.contains('noroom') && L.textContent.includes('No rooms yet') && !el.shadowRoot.getElementById('hint').classList.contains('show');
-  }));
+    const ok = L.classList.contains('noroom') && L.textContent.includes('No rooms yet') && !el.shadowRoot.getElementById('hint').classList.contains('show'); return ok || JSON.stringify({ cls: L.className, txt: L.textContent.slice(0, 80), hint: el.shadowRoot.getElementById('hint').className, three: !!el._three, shared: !!el._three?.card });
+  }); check('no rooms yet: the 3D view says how to add them, no tap-a-room tip', r === true, r); }
   check('a panel switched off is hidden (Security off: no Security tab, cameras too)', await p.evaluate(() => ![...card.shadowRoot.querySelectorAll('#tabs [data-tab]')].some(t => t.dataset.tab === 'security')));
   check('no page errors (empty home)', !p.errors.length, p.errors.join(' | '));
   await p.close();

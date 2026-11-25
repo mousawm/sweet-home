@@ -13,6 +13,9 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ## v0.6.59 — 2026-11-25
 
+### Fixed
+- A house with no rooms yet sometimes showed an empty 3D view instead of the *No rooms yet* guide when another Sweet Home card on the same dashboard was busy while it started.
+
 ### Changed
 - Security: checked again that every entity name, attribute and state the card writes into its HTML is escaped, including the Water pump tiles, the Energy card's consumers and the Jellyfin sheets' subtitle (escaped since v0.6.42). The automated check (every friendly_name and state set to HTML markup) now also covers the Doors details view and the lists of openings.
 
