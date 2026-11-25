@@ -12,11 +12,6 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Added
 - Doors: a *Timeline span* option (`doors_hours`) shows the last 6, 12, 18 or 24 hours on the timeline; the counts and the list of openings follow it.
 
-## v0.6.61 — 2026-11-25
-
-### Fixed
-- Doors timeline: the time of a tapped opening now opens on a line under that door's own bar instead of a bubble over the door above, so it can't be read as another door's.
-
 ## v0.6.60 — 2026-11-25
 
 ### Fixed
