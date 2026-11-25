@@ -38,7 +38,7 @@ export class HouseScene {
   async _build() {
     const T = this.T;
     const breathe = () => new Promise(res => setTimeout(res, 0));
-    const steps = MODEL.gltf ? ['_lights', '_ground', '_buildRooms', '_buildGltf', '_buildDoors', '_buildACs', '_labels', '_input'] : ['_lights', '_ground', '_buildRooms', '_buildWalls', '_buildFurniture', '_buildDoors', '_buildACs', '_labels', '_input'];
+    const steps = MODEL.gltf ? ['_lights', '_ground', '_buildRooms', '_buildGltf', '_buildDoors', '_buildACs', '_labels', '_input'] : ['_lights', '_ground', '_buildRooms', '_buildWalls', '_buildRoofs', '_buildFurniture', '_buildDoors', '_buildACs', '_labels', '_input'];
     for (const step of steps) { await this[step](); await breathe(); }
     this._stack();
     this.ro = new ResizeObserver(() => this._resize()); this.ro.observe(this.vp);
@@ -110,7 +110,9 @@ export class HouseScene {
     for (const k of ids) {
       const G = this.lv[k], below = stack && k < l && k >= g0;
       G.visible = k === l || below; G.position.y = below ? -(l - k) * SH : 0;
+      if (this.roofs?.[k]) this.roofs[k].visible = below; // a floor below has its roof on
     }
+    this.renderer.shadowMap.needsUpdate = true;
     if (this.groundG) this.groundG.position.y = stack ? -(l - g0) * SH : 0;
     this._dirty = true;
   }
@@ -642,6 +644,32 @@ export class HouseScene {
     }
   }
 
+  // Dollhouse, stacked floors: a flat roof on each room of a floor, shown while that floor stands below the one you
+  // look at (where the floor above doesn't cover it, you see the roof, not into the room). Outdoor rooms and rooms with
+  // stairs (the way up must stay open) have none.
+  _buildRoofs() {
+    if (!this.doll) return;
+    const T = this.T, top = this.storey - 0.1, th = 0.2;
+    // drawn after the stairwells' openings (render order) and not where they are (stencil): the way down stays open
+    const hole = { stencilWrite: true, stencilRef: 1, stencilFunc: T.NotEqualStencilFunc, stencilFail: T.KeepStencilOp, stencilZFail: T.KeepStencilOp, stencilZPass: T.KeepStencilOp };
+    const map = this._tex('stone'), mat = new T.MeshStandardMaterial({ map, color: 0xd3cdc2, roughness: 0.95, ...hole });
+    map.repeat.set(0.5, 0.5);
+    const edge = new T.MeshStandardMaterial({ color: 0x8f8679, roughness: 0.8, ...hole });
+    this.roofs = {};
+    for (const r of ROOMS) {
+      if (r.outdoor || r.stairs || FURN.some(f => f.type === 'stairs' && f.room === r.id)) continue;
+      this._cl = r.level;
+      const g = (this.roofs[r.level] ||= (() => { const G = new T.Group(); G.visible = false; this._at().add(G); return G; })());
+      if (r.poly) {
+        const sh = new T.Shape(r.poly.map(([x, z]) => { const [a, b] = this.w(x, z); return new T.Vector2(a, -b); }));
+        const m = new T.Mesh(new T.ExtrudeGeometry(sh, { depth: th, bevelEnabled: false }), mat);
+        m.rotation.x = -Math.PI / 2; m.position.y = top - th; m.castShadow = true; m.receiveShadow = true; m.renderOrder = 3; g.add(m);
+      } else for (const [x1, z1, x2, z2] of r.rects) {
+        const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2), m = new T.Mesh(new T.BoxGeometry(x2 - x1 + 0.1, th, z2 - z1 + 0.1), [edge, edge, mat, edge, edge, edge]);
+        m.position.set(cx, top - th / 2, cz); m.castShadow = true; m.receiveShadow = true; m.renderOrder = 3; g.add(m);
+      }
+    }
+  }
   _buildFurniture() {
     const T = this.T;
     const mats = {};

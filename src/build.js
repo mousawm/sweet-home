@@ -163,12 +163,22 @@ export class Builder {
   // ---------- pointer ----------
   _listen() {
     const el = this.S.cv, card = this.S.card;
-    let down = null;
+    let down = null; this.multi = false;
+    // a second finger on the screen means the view is being turned or zoomed: whatever the first finger started
+    // drawing is dropped (counted with touch events: a second finger's pointer can come late or not at all)
+    const stop = () => { if (down || this.op) { down = null; this.op = null; this._clear(); card._bInfo(''); this.S._dirty = true; } };
+    const ts = e => { this.touches = e.touches.length; if (e.touches.length > 1) { this.multi = true; stop(); } };
+    const te = e => { this.touches = e.touches.length; if (!e.touches.length) this.multi = false; };
     const pd = e => {
-      if (!e.isPrimary || e.button !== 0) { if (this.op) { this.op = null; this._clear(); } return; } // a second finger / the right button: the camera
+      if (e.isPrimary) this.multi = false; // a first finger: a new gesture (whatever the last one left behind)
+      if (this.multi) return; // still part of a two-finger gesture
+      if (!e.isPrimary || e.button !== 0) { stop(); return; } // a second finger / the right button: the camera
       const p = this._plan(e); if (!p) return;
       if (this.tool === 'furniture' && !this.S.card._bPiece && this._hit(e).fi != null) return; // a piece: moved by the arrange drag
-      e.stopImmediatePropagation(); try { el.setPointerCapture(e.pointerId); } catch (err) { /* gone */ }
+      // a finger also goes to the camera, so that if a second one comes, the two turn and zoom the view (moves and
+      // the lift are kept from it while this finger draws); the mouse stays with the tool
+      if (e.pointerType !== 'touch') e.stopImmediatePropagation();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* gone */ }
       down = { x: e.clientX, y: e.clientY };
       if (this.tool === 'room' || this.tool === 'wall') this.op = { a: [this.snap(p[0]), this.snap(p[1])] };
       this.S.lastInput = performance.now(); this._preview(p, e);
@@ -207,6 +217,11 @@ export class Builder {
     const leave = () => { if (!down) { this._clear(); this.cur.visible = false; this.S._dirty = true; } };
     el.addEventListener('pointerdown', pd, true); el.addEventListener('pointermove', pm, true); el.addEventListener('pointerup', pu, true);
     el.addEventListener('pointercancel', pu, true); el.addEventListener('pointerleave', leave);
-    this.off = () => { el.removeEventListener('pointerdown', pd, true); el.removeEventListener('pointermove', pm, true); el.removeEventListener('pointerup', pu, true); el.removeEventListener('pointercancel', pu, true); el.removeEventListener('pointerleave', leave); };
+    const tOpt = { passive: true, capture: true };
+    el.addEventListener('touchstart', ts, tOpt); el.addEventListener('touchmove', ts, tOpt); el.addEventListener('touchend', te, tOpt); el.addEventListener('touchcancel', te, tOpt);
+    this.off = () => {
+      el.removeEventListener('pointerdown', pd, true); el.removeEventListener('pointermove', pm, true); el.removeEventListener('pointerup', pu, true); el.removeEventListener('pointercancel', pu, true); el.removeEventListener('pointerleave', leave);
+      el.removeEventListener('touchstart', ts, tOpt); el.removeEventListener('touchmove', ts, tOpt); el.removeEventListener('touchend', te, tOpt); el.removeEventListener('touchcancel', te, tOpt);
+    };
   }
 }

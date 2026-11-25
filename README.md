@@ -216,8 +216,8 @@ style builder: a grid appears on the ground and a toolbar over the view.
 A **wall drawn right across a room** splits it in two: the bigger part keeps the room (its name, area and devices),
 the other part becomes a new room, and the furniture goes with the part it stands in.
 
-**Turn left / right** rotate the view (with a mouse, the right button drags the view too; on a touch screen, two
-fingers). The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back.
+**Turn left / right** rotate the view (with a mouse, the right button drags the view too). On a phone or tablet, one
+finger draws and two fingers turn, zoom and move the view; Undo, Cancel and Save sit at the bottom left. The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back.
 
 While you build, the changes stay on the card. **Save** writes them into the dashboard once, when you are done
 (leaving edit mode saves too); **Cancel** throws them away. With the card editor open, each step goes through the
@@ -287,7 +287,7 @@ that device. It is kept by that browser only and wins over `default_view` / `def
 | `areas` | With automatic rooms: only these area ids |
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
-| `style` | `dollhouse`: a sunny lot (lawn, pavement, build grid, shrubs) with the house on a stone foundation, wallpaper in each room (picked from its name, or the room's `wall_color`), siding outside, and the outer walls on the side you look from cut down to a low stub as you turn the view. Upper floors stand on the floors below them: on the first floor you see the ground floor under it (its walls up to your floor) and the garden a storey down. Default `classic` (night blue). |
+| `style` | `dollhouse`: a sunny lot (lawn, pavement, build grid, shrubs) with the house on a stone foundation, wallpaper in each room (picked from its name, or the room's `wall_color`), siding outside, and the outer walls on the side you look from cut down to a low stub as you turn the view. Upper floors stand on the floors below them: on the first floor you see the ground floor under it (its walls up to your floor, a flat roof on the rooms your floor doesn't cover) and the garden a storey down. Default `classic` (night blue). |
 | `setting` | `apartment`: your home is a flat in a building. It stands on top of the building's block (a facade of windows, 3 m per floor below it), with the pavement, a road and street trees at the bottom instead of a garden; outdoor rooms (balconies) hang off the building on a concrete slab. Default `house`. (Card editor: Look → Home type.) |
 | `apartment_floor` | With `setting: apartment`: the floor the flat is on, 0 for the ground floor (default 2) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |

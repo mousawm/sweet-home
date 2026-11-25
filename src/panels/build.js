@@ -122,13 +122,15 @@ export class BuildTools {
     const naming = nr ? `<div class="brow bname">${ic('mdi:tag-outline')}<input data-bname value="${esc(nr.name || '')}" placeholder="${tr('Room name')}" aria-label="${tr('Room name')}">
         <select data-barea aria-label="${tr('Home Assistant area')}"><option value="">${tr('No area')}</option>${areas.map(a => `<option value="${esc(a.area_id)}" ${nr.area === a.area_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
         ${b('named', '', tr('OK'), 'mdi:check', true)}</div>` : '';
-    el.innerHTML = `<div class="brow">${tools}<span class="bsp"></span>
-        ${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}
-        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}
-        ${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
+    // top: the tools (and the view's turn / grid buttons), then the new room's name, then the tool's options;
+    // bottom left: undo, cancel and save / done
+    el.innerHTML = `<div class="brow btools">${tools}<span class="bsp"></span>
+        <span class="bturn">${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}</span>
+        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}</div>
+      ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>
+      <div class="brow bact">${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
         ${this._bDirty() ? b('cancel', '', tr('Cancel'), 'mdi:close', false) : ''}
-        ${b('done', '', this._bSaving ? tr('Saving…') : this._bDirty() ? tr('Save') : tr('Done'), this._bDirty() ? 'mdi:content-save' : 'mdi:check', true, this._bSaving ? 'disabled' : '')}</div>
-      ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>`;
+        ${b('done', '', this._bSaving ? tr('Saving…') : this._bDirty() ? tr('Save') : tr('Done'), this._bDirty() ? 'mdi:content-save' : 'mdi:check', true, this._bSaving ? 'disabled' : '')}</div>`;
   }
 
   _bAct(t) {

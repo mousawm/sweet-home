@@ -509,7 +509,9 @@ main{scroll-margin-top:84px}
 [dir=rtl]{font-family:'Noto Kufi Arabic','SF Arabic','Noto Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
 .rback{display:none} /* only on phones (below) */
 /* Build mode: the toolbar over the 3D view (tools, their options, undo / done) */
-.buildbar{position:absolute;left:10px;right:10px;top:10px;z-index:3;display:none;flex-direction:column;gap:6px;pointer-events:none}
+.buildbar{position:absolute;inset:10px;z-index:3;display:none;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none}
+.bact{margin-top:auto;align-self:flex-start;flex-wrap:nowrap}
+.bturn{display:contents}
 .buildbar.open{display:flex}
 .brow{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px;border-radius:14px;background:rgba(var(--s1),.82);border:1px solid rgba(var(--ink),.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.35);color:var(--tx);font-size:12px}
 .bopts{max-height:30vh;overflow:auto}
@@ -538,7 +540,12 @@ main{scroll-margin-top:84px}
 .bsnap{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .2s}
 .bsnap.out{opacity:0}
 .viewport.snapping .loading,.viewport.snapping .labels{visibility:hidden}
-@media (max-width:700px){.bb span{display:none}.bb{padding:7px}}
+@media (max-width:700px){.bb span{display:none}.bb{padding:7px}.bb.on span,.bact .bb span{display:inline}
+  .btools,.bopts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.btools::-webkit-scrollbar,.bopts::-webkit-scrollbar{display:none}
+  .btools .bb,.bopts .bb,.bsw,.bcat{flex:none}.bsw{flex-wrap:nowrap}.bh{flex:1 1 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bopts:has(.bcat,.bsw,.bb,.bsel) .bh{display:none}}
+/* touch screens: buttons and swatches big enough for a finger (about 40 px) */
+@media (pointer:coarse){.bturn{display:none}.bb{min-width:40px;min-height:40px;justify-content:center}.sw{width:34px;height:34px}.sw.fl{height:34px}.brow input,.brow select{min-height:40px}}
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(var(--s1),.72);border:1px solid rgba(var(--ink),.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}
 .lvls button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--mu);min-height:36px}
 .lvls button.on{background:rgba(45,212,191,.2);color:var(--teal)}.lvls ha-icon{--mdc-icon-size:16px}

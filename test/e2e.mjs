@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json' };
@@ -1275,6 +1275,32 @@ try {
   }); check('build mode: rooms, walls that close a room, doors, paint, furniture (placed, linked, removed, automatic ones moved), undo and keys; saved once on Done, nothing on Cancel', r === true, r); }
   check('no page errors (build mode)', !p.errors.length, p.errors.join(' | '));
   await p.close();
+
+  console.log('build mode on a phone');
+  { const ctx = await browser.newContext({ ...devices['iPhone 13'] }), pg = await ctx.newPage(); pg.errors = []; pg.on('pageerror', e => pg.errors.push(e.message));
+    await pg.goto(base + '?config=demo&edit=1'); await pg.waitForFunction(() => window.ready); await pg.waitForFunction(() => window.card._three, null, { timeout: 15000 });
+    await pg.evaluate(() => { card._hintDone?.(); card.shadowRoot.querySelector('#buildBtn').click(); card.shadowRoot.querySelector('[data-b=tool][data-v=wall]').click(); card.shadowRoot.querySelector('#viewport').scrollIntoView({ block: 'end' }); });
+    await pg.waitForTimeout(300);
+    const cdp = await ctx.newCDPSession(pg), touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], i) => ({ x, y, id: i })) });
+    const scr = (x, z) => pg.evaluate(([x, z]) => { const S = card._three, T = S.T, [wx, wz] = S.builder.w(x, z); const v = new T.Vector3(wx, 0, wz).project(S.cam), b = S.cv.getBoundingClientRect(); return [b.left + (v.x + 1) / 2 * b.width, b.top + (1 - v.y) / 2 * b.height]; }, [x, z]);
+    const walls = () => pg.evaluate(() => (card._config.house.extra_walls || []).length);
+    const settle = async () => { await pg.waitForTimeout(300); await pg.waitForFunction(() => card._three?.builder && card._three._key === card._houseJSON, null, { timeout: 15000 }); await pg.waitForTimeout(200); };
+    const w0 = await walls(), A = await scr(9, 11), B = await scr(13, 11);
+    await touch('touchStart', [A]); for (let i = 1; i <= 8; i++) await touch('touchMove', [[A[0] + (B[0] - A[0]) * i / 8, A[1]]]); await touch('touchEnd', []); await settle();
+    const one = (await walls()) === w0 + 1;
+    // two fingers: the view turns, nothing is drawn (even when the second finger's pointer comes late)
+    const view = () => pg.evaluate(() => { const g = card._three.goal; return [g.theta, g.radius, g.target.x, g.target.z]; }), th0 = await view(), c = await scr(6, 6);
+    await touch('touchStart', [[c[0] - 50, c[1]], [c[0] + 50, c[1]]]); for (let i = 1; i <= 8; i++) await touch('touchMove', [[c[0] - 50 + i * 8, c[1]], [c[0] + 50 + i * 8, c[1]]]); await touch('touchEnd', []); await pg.waitForTimeout(400);
+    const two = (await walls()) === w0 + 1, turned = (await view()).some((v, i) => Math.abs(v - th0[i]) > 0.01); // turned, zoomed or panned
+    // and the next one-finger tap works again: a door on the new wall
+    await pg.evaluate(() => card.shadowRoot.querySelector('[data-b=tool][data-v=door]').click());
+    const d0 = await pg.evaluate(() => (card._config.house.doors || []).length); const D = await scr(11, 11);
+    await touch('touchStart', [D]); await touch('touchEnd', []); await settle();
+    const door = (await pg.evaluate(() => (card._config.house.doors || []).length)) === d0 + 1;
+    const ui = await pg.evaluate(() => { const bar = card.shadowRoot.querySelector('#buildbar'), btns = [...bar.querySelectorAll('.bb')].map(e => e.getBoundingClientRect()).filter(b => b.width); return { min: Math.min(...btns.map(b => Math.min(b.width, b.height))), wide: document.documentElement.scrollWidth > innerWidth + 1 }; });
+    check('build mode on a phone: one finger draws, two fingers move the view and draw nothing, taps work after; buttons ≥ 40 px', one && two && turned && door && ui.min >= 40 && !ui.wide, JSON.stringify({ one, two, turned, door, ui }));
+    check('no page errors (build mode on a phone)', !pg.errors.length, pg.errors.join(' | '));
+    await ctx.close(); }
 
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });

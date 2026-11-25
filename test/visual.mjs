@@ -103,9 +103,10 @@ try {
     check('walls button: Cutaway lowers some walls, Down all of them, Up none', modes[0][0] === 'cut' && modes[0][1] > 0 && modes[0][1] < modes[0][2] && modes[1][0] === 'down' && modes[1][1] === modes[1][2] && modes[2][0] === 'up' && modes[2][1] === 0, JSON.stringify(modes));
     // stacked floors: the first floor stands a storey up, on the ground floor (shown, walls up to it), the lawn below
     await p.evaluate(() => card._setLevel(1)); await p.waitForTimeout(4500);
-    const st = await p.evaluate(() => { const S = card._three, G = S.lv; return { g0: G[0].visible, y0: G[0].position.y, y1: G[1].position.y, ground: S.groundG.position.y, walls: S.cuts.filter(c => c.l === 0).every(c => c.k > 1.4), k: Math.min(...S.cuts.filter(c => c.l === 0).map(c => c.k)), sh: S.storey }; });
-    check('stacked floors: the first floor stands on the ground floor (walls up to it), the lawn a storey down', st.g0 && st.y1 === 0 && Math.abs(st.y0 + st.sh) < 1e-6 && Math.abs(st.ground + st.sh) < 1e-6 && st.walls, JSON.stringify(st));
+    const st = await p.evaluate(() => { const S = card._three, G = S.lv; return { roofs: !!S.roofs?.[0]?.visible && S.roofs[0].children.length > 0 && !S.roofs[1]?.visible, g0: G[0].visible, y0: G[0].position.y, y1: G[1].position.y, ground: S.groundG.position.y, walls: S.cuts.filter(c => c.l === 0).every(c => c.k > 1.4), k: Math.min(...S.cuts.filter(c => c.l === 0).map(c => c.k)), sh: S.storey }; });
+    check('stacked floors: the first floor stands on the ground floor (walls up to it), the lawn a storey down, roofs on the ground floor rooms', st.roofs && st.g0 && st.y1 === 0 && Math.abs(st.y0 + st.sh) < 1e-6 && Math.abs(st.ground + st.sh) < 1e-6 && st.walls, JSON.stringify(st));
     await p.evaluate(() => card._setLevel(0)); await p.waitForTimeout(500);
+    check('stacked floors: back on the ground floor, its roofs are off', await p.evaluate(() => !card._three.roofs[0].visible && card._three.lv[1].visible === false));
     check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
   await p.close();
 
