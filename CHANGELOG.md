@@ -10,6 +10,10 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+
+## v0.6.62 — 2026-11-25
+
+### Added
 - Floor plan: a **Fence** kind for separate walls (posts, rails and boards), and a **Gate** in Doors & windows that cuts the fence and swings open with its sensor or cover.
 - Floor plan: type the exact width (m) of a door, gate, window or open passage.
 - Doors: a *Timeline span* option (`doors_hours`) shows the last 6, 12, 18 or 24 hours on the timeline; the counts and the list of openings follow it.
