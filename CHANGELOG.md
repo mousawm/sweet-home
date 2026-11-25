@@ -6,6 +6,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+
+### Changed
+
+### Added
+
+## v0.6.60 — 2026-11-25
+
+### Fixed
 - After editing and saving the dashboard with a room open, the room panel no longer shows as an empty bar over the 3D view.
 - Media Server: the torrents tile is labelled "Active torrents" instead of qBittorrent's raw status ("Up Down").
 - Doors timeline: the bubble for a tapped opening now points at it and outlines its door's bar, so it no longer looks like it belongs to the door above.
