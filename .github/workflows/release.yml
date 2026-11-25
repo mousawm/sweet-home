@@ -3,7 +3,7 @@ name: Release
 # dist/sweet-home-editor.js attached: HACS installs every file of the release)
 # only when main is pushed with a version that has no release yet. Pushes without a version bump do nothing,
 # so fixes collect under "Unreleased" in CHANGELOG.md until a release is cut (see CLAUDE.md).
-# The release notes are that version's section of CHANGELOG.md.
+# The release notes are that version's section of CHANGELOG.md. A version with a suffix (-beta.1) is a prerelease.
 on:
   push:
     branches: [main]
@@ -35,8 +35,12 @@ jobs:
             /^## / { if (found) exit; if (index($0, "## " tag " ") == 1 || $0 == "## " tag) { found = 1; next } }
             found && !/^### *$/ { print }
           ' CHANGELOG.md > notes.md
+          # a version with a suffix (0.7.0-beta.1, 1.2.3-rc.1) is a prerelease: HACS offers it only to those who turn on
+          # "Show beta versions", and it does not become the latest release
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease --latest=false" ;; esac
           if [ -s notes.md ] && grep -q '[^[:space:]]' notes.md; then
-            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md $PRE
           else
-            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes $PRE
           fi
