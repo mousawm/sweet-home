@@ -637,6 +637,15 @@ try {
   await p.evaluate(() => { editor._mode = 'doors'; editor._render(); });
   await drag([1, 5], [2, 5]);
   check('drawing a door', await p.evaluate(() => JSON.stringify(editor._config.house.doors.at(-1)) === '{"from":[1,5],"to":[2,5]}'));
+  check('a door\'s width typed in metres moves its far end (the hinge stays)', await p.evaluate(() => {
+    const i = editor.querySelector('[data-dw]'); if (!i) return false; i.value = '1.4'; i.dispatchEvent(new Event('change'));
+    return JSON.stringify(editor._config.house.doors.at(-1)) === '{"from":[1,5],"to":[2.4,5]}';
+  }));
+  await p.evaluate(() => { editor._dtool = 'gate'; editor._render(); });
+  await drag([1.5, 1], [2.5, 1]);
+  check('the Gate tool adds a gate, shown as a Gate with a height', await p.evaluate(() => { const d = editor._config.house.doors.at(-1);
+    return d.gate === true && /Gate/.test(editor.querySelector('.sh-ditem b')?.textContent || '') && !!editor.querySelector('[data-dw]'); }));
+  await p.evaluate(() => { editor._config.house.doors.pop(); editor._config.house.doors.at(-1).to = [2, 5]; editor._emit(); editor._dtool = 'door'; editor._dsel = null; editor._render(); });
   await drag([8.3, 8.9], [9.3, 8.9]);
   check('dragging a lock badge', await p.evaluate(() => editor._config.house.lock_badges[0].x === 9.3));
   await p.evaluate(() => { editor._sel = 2; editor._mode = 'furniture'; editor._fsel = null; editor._render(); });

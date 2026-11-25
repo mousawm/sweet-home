@@ -388,6 +388,7 @@ export class HouseScene {
     };
     // an outer wall has no room on one of its sides: it is drawn thicker
     const inside = (x, z, l) => ROOMS.some(r => r.level === l && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x > a && x < c && z > b && z < d)));
+    const fenceMat = new T.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.85 }), boardMat = new T.MeshStandardMaterial({ color: 0x9a7552, roughness: 0.9 });
     const glassWall = new T.MeshPhysicalMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.08, depthWrite: false });
     for (const [x1, z1, x2, z2, type, lvl, o] of WALLS) {
       this._cl = lvl ?? 0;
@@ -400,6 +401,13 @@ export class HouseScene {
       } else if (type === 'glass') { // a glass partition: a thin frame at the floor and the top, glass between
         const h = Math.min(WALL_H, o?.h ?? WALL_H);
         add(frameMat, x1, z1, x2, z2, 0, 0.06, 0.07, false, over); add(glassWall, x1, z1, x2, z2, 0.06, h - 0.1, 0.03, false, over); add(frameMat, x1, z1, x2, z2, h - 0.04, 0.04, 0.07, false, over);
+      } else if (type === 'fence') { // a garden fence: posts, two rails and upright boards with gaps (`height`, else 1.2 m)
+        const h = Math.min(WALL_H, o?.h ?? 1.2), len = Math.hypot(x2 - x1, z2 - z1), ux = (x2 - x1) / len, uz = (z2 - z1) / len;
+        const at = (s, w) => [x1 + ux * s - ux * w / 2, z1 + uz * s - uz * w / 2, x1 + ux * s + ux * w / 2, z1 + uz * s + uz * w / 2];
+        add(fenceMat, ...at(0, 0.09), 0, h + 0.05, 0.09); add(fenceMat, ...at(len, 0.09), 0, h + 0.05, 0.09); // the posts
+        add(fenceMat, x1, z1, x2, z2, h * 0.22, 0.06, 0.05, false, 0); add(fenceMat, x1, z1, x2, z2, h * 0.78, 0.06, 0.05, false, 0); // the rails
+        const n = Math.max(1, Math.round(len / 0.16)); // the boards, about 10 cm wide with a 6 cm gap
+        for (let i = 0; i < n; i++) add(boardMat, ...at((i + 0.5) * len / n, 0.1), 0.04, h - 0.04, 0.025, false, 0);
       } else if (type === 'rail') {
         add(wallMat, x1, z1, x2, z2, 0, 0.18, 0.18);
         add(glassMat, x1, z1, x2, z2, 0.18, 0.72, 0.03, false);
@@ -910,11 +918,16 @@ export class HouseScene {
       if (d.axis === 'a') { // on a slanted wall: a base turned along the wall, the leaf swings inside it
         const base = new T.Group(); base.position.copy(pivot.position); base.rotation.y = -Math.atan2(d.vz, d.vx); pivot.position.set(0, 0, 0); base.add(pivot); this._at().add(base);
         const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
+        if (d.gate) { pivot.add(this._gateLeaf(d, mat)); this.doors.push({ d, pivot, mat, a: 0, ang: -1.35 * d.side }); continue; }
         const dh = Math.max(0.5, WALL_H - 0.08), panel = new T.Mesh(new T.BoxGeometry(d.w - 0.04, dh, 0.06), mat); panel.castShadow = true;
         panel.position.set(d.w / 2, dh / 2, 0); pivot.add(panel);
         this.doors.push({ d, pivot, mat, a: 0, ang: -1.35 * d.side }); continue;
       }
       const mat = new T.MeshStandardMaterial({ color: d.main ? 0x5b3a1e : 0x6b4423, roughness: 0.5, emissive: 0xff3355, emissiveIntensity: 0 });
+      if (d.gate) { // a gate: its leaf turned along x / z, swinging on the same hinge as a door
+        const g = this._gateLeaf(d, mat); if (d.axis === 'z') g.rotation.y = -Math.PI / 2 * d.dir; else if (d.dir < 0) g.rotation.y = Math.PI;
+        pivot.add(g); this._at().add(pivot); this.doors.push({ d, pivot, mat, a: 0, ang: -1.35 * d.side }); continue;
+      }
       const dh = Math.max(0.5, WALL_H - 0.08);
       const geo = d.axis === 'z' ? new T.BoxGeometry(0.06, dh, d.w - 0.04) : new T.BoxGeometry(d.w - 0.04, dh, 0.06);
       const panel = new T.Mesh(geo, mat); panel.castShadow = true;
@@ -935,6 +948,16 @@ export class HouseScene {
       return { b, m, t: 0, el, x: bx, z: bz };
     });
     // (the floor glow under the badge was removed on request, v1.12.26: the badge alone shows the state)
+  }
+
+  // a gate's leaf, from its hinge (0) along +x to its width: a frame of two rails and two stiles, with bars between
+  _gateLeaf(d, mat) {
+    const T = this.T, g = new T.Group(), w = d.w - 0.04, h = Math.min(WALL_H - 0.08, d.gh ?? 1.25);
+    const bar = (x, y, bw, bh, bd = 0.05) => { const m = new T.Mesh(new T.BoxGeometry(bw, bh, bd), mat); m.position.set(x, y, 0); m.castShadow = true; g.add(m); };
+    bar(w / 2, 0.12, w, 0.06); bar(w / 2, h - 0.03, w, 0.06); bar(0.03, h / 2, 0.06, h); bar(w - 0.03, h / 2, 0.06, h);
+    const n = Math.max(2, Math.round(w / 0.13));
+    for (let i = 1; i < n; i++) bar(i * w / n, h / 2 + 0.04, 0.025, h - 0.14, 0.025);
+    return g;
   }
 
   _buildACs() {
@@ -1152,7 +1175,7 @@ export class HouseScene {
     // phones on chargers: 0 = plug off, 1 = plug on (idle), 2 = charging
     for (const P of this.chargers || []) P.t = !P.plug || c.v(P.plug) !== 'on' ? 0 : !P.power || !c.s(P.power) ? 2 : (c.n(P.power) ?? 0) > P.min ? 2 : 1; // no power reading: plug on = charging
     this.lockT = (this.badges || []).map(B => B.t).join(); this.phoneT = (this.chargers || []).map(P => P.t).join();
-    for (const D of this.doors) D.openT = c.v(D.d.id) === 'on' ? 1 : 0;
+    for (const D of this.doors) D.openT = ['on', 'open', 'opening'].includes(c.v(D.d.id)) ? 1 : 0; // a contact sensor, or a gate's cover
     for (const A of this.acs) {
       const st = c.s(A.ent); A.onT = A.ent && c.climOn(A.ent) ? 1 : 0;
       const am = acMode(st), col = am === 'heat' ? 0xfb923c : am === 'dry' ? 0xfde68a : am === 'fan_only' ? 0xe0e7ff : am === 'auto' || am === 'heat_cool' ? 0x6ee7b7 : 0x93c5fd;
