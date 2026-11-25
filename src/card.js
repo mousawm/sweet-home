@@ -1107,9 +1107,17 @@ export class SweetHomeCard extends HTMLElement {
     sc.resume?.(); sc.sync(); sc._dirty = true;
     try { sc.renderer.render(sc.scene, sc.cam); } catch (e) { /* next frame */ }
     sc._wake?.();
+    this._noRoomsMsg();
     // the house itself changed: a new 3D view once the changes pause, seen from the same place
     if (sc._key !== this._houseJSON) { clearTimeout(this._rbT); this._rbT = setTimeout(() => { if (this.isConnected && this._three === sc) this._rebuild(false); }, 600); }
     return true;
+  }
+  // no rooms yet: say how to get them instead of an empty 3D view (a new view, or one handed over by the card this one replaces)
+  _noRoomsMsg() {
+    const L = this.$('loading'); if (!L) return;
+    if (MODEL.gltf || ROOMS.length) { if (L.classList.contains('noroom')) { L.classList.remove('noroom'); L.classList.add('gone'); } return; }
+    L.classList.remove('gone'); L.classList.add('noroom'); this.$('hint')?.classList.add('gone');
+    L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
   }
   async _init3d() {
     await new Promise(r => setTimeout(r, 0)); // the card this one replaces is removed just after: its 3D view may be handed over
@@ -1126,10 +1134,7 @@ export class SweetHomeCard extends HTMLElement {
     if (V && this._focus) scene._goFocus(true); // zoomed on one room: framed again after the house changed
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
-    if (!MODEL.gltf && !ROOMS.length) { // no rooms yet: say how to get them instead of an empty 3D view
-      const L = this.$('loading'); L.classList.remove('gone'); L.classList.add('noroom'); this.$('hint')?.classList.add('gone');
-      L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
-    }
+    this._noRoomsMsg();
     this._renderLegend();
     if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the view mode (Lights / Climate / Presence) stays as it was
     this._three.sync();
