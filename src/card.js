@@ -17,6 +17,7 @@ import { SystemPanels } from './panels/system.js';
 import { WaterPanels } from './panels/water.js';
 import { RenameTools } from './panels/rename.js';
 import { HomePanels } from './panels/home.js';
+import { BuildTools } from './panels/build.js';
 import './strategy.js';
 
 // The card editor is its own file (sweet-home-editor.js, next to this one): only someone editing the card downloads it.
@@ -51,6 +52,8 @@ export class SweetHomeCard extends HTMLElement {
   // changes stop for a moment, not for each of them; and when the house itself (rooms, walls, furniture…) didn't
   // change, the 3D view is kept as it is and only the panels are redrawn.
   setConfig(config) {
+    // Build mode with steps not saved yet: Home Assistant handing back the stored config (the card redrawn) keeps them
+    if (this._building && this._bDirty?.() && JSON.stringify(cleanConfig(config)) === this._bOrig) return;
     const prev = this._cfgJSON, prevHouse = this._houseJSON;
     this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
     // what the 3D view is built from: the house without the entity names given per room (names don't change the 3D view)
@@ -61,7 +64,7 @@ export class SweetHomeCard extends HTMLElement {
     if (!this._built || prev === this._cfgJSON) return;
     this._softNext = (this._softNext ?? true) && prevHouse === this._houseJSON; // soft only if no change in the batch touched the house
     clearTimeout(this._rbT);
-    this._rbT = setTimeout(() => { const soft = this._softNext; this._softNext = null; this._rebuild(soft); }, this._softNext ? 250 : 600);
+    this._rbT = setTimeout(() => { const soft = this._softNext; this._softNext = null; this._rebuild(soft); }, this._softNext ? 250 : this._building ? 60 : 600); // Build mode: at once
   }
   getCardSize() { return 20; }
   // Renaming devices and moving furniture are for editing the dashboard: their buttons show only while it is in edit
@@ -85,6 +88,7 @@ export class SweetHomeCard extends HTMLElement {
     this._editing = e; this.toggleAttribute('editing', e);
     if (!e) { // left edit mode: stop moving furniture and renaming
       if (this._arrange) { this._arrange = false; if (this._three) this._three.arrange = false; this.$?.('arrBtn')?.classList.remove('on'); }
+      if (this._building) this._bToggle(false);
       if (this._naming) { this._naming = null; this._pendNames = null; }
       if (this._info?.startsWith('rename:')) this._closeSheet();
     }
@@ -100,6 +104,9 @@ export class SweetHomeCard extends HTMLElement {
     else {
       // the house changed: a new 3D view, seen from where the old one was (angle, zoom, floor, view mode)
       if (T3) this._view = { orbit: { ...T3.orbit, target: T3.orbit.target.clone() }, goal: { ...T3.goal, target: T3.goal.target.clone() }, vmode: T3.vmode, mode: T3.mode };
+      // Build mode: the picture as it is (with the new wall still drawn as a ghost) stays on screen until the new house is ready
+      this._bSnap = null;
+      if (T3 && this._building) try { T3.renderer.render(T3.scene, T3.cam); this._bSnap = T3.cv.toDataURL('image/jpeg', 0.85); } catch (e) { /* no picture: the usual loading */ }
       try { T3?.pause(); T3?.renderer?.dispose(); T3?.ro?.disconnect(); T3?.io?.disconnect(); } catch (e) { /* gone */ }
     }
     if (this._sel) this._reselect = this._sel; // the open room stays open
@@ -288,6 +295,8 @@ export class SweetHomeCard extends HTMLElement {
               <button class="ibtn" data-act="view" data-view="top" data-lp="view" title="${tr('Top view')} · ${tr('long press: the default on this device')}">${ic('mdi:floor-plan')}</button>
               <button class="ibtn" data-act="view" data-view="reset" data-lp="view" title="${tr('3D view')} · ${tr('long press: the default on this device')}">${ic('mdi:rotate-3d-variant')}</button>
               <button class="ibtn" data-act="spin" id="spinBtn" title="${tr('Auto-rotate')}">${ic('mdi:autorenew')}</button>
+              ${MODEL.gltf ? '' : this._wallBtn()}
+              ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._building ? 'on' : ''}" data-act="build" id="buildBtn" title="${tr('Build')}" aria-label="${tr('Build')}">${ic('mdi:hammer-wrench')}</button>` : ''}
               ${this._hass?.user?.is_admin && !MODEL.gltf ? `<button class="ibtn edit-only ${this._arrange ? 'on' : ''}" data-act="arrange" id="arrBtn" title="${tr('Move furniture')}" aria-label="${tr('Move furniture')}">${ic('mdi:cursor-move')}</button>` : ''}
             </div>
           </div>
@@ -296,6 +305,7 @@ export class SweetHomeCard extends HTMLElement {
             <div class="labels" id="labels"></div>
             <div class="legend" id="legend"></div>
             <div class="hint" id="hint" role="note"></div>
+            <div class="buildbar" id="buildbar"></div>
             <div class="lvls" id="lvls" role="tablist" aria-label="${tr('Floors')}"></div>
             <div class="loading" id="loading"><div class="spinner"></div><span>${tr('Building your home…')}</span></div>
             ${!this._solo && this._config?.room_backdrop !== false ? '<div class="rback" id="rback" data-act="roomclose"></div>' : ''}
@@ -347,7 +357,7 @@ export class SweetHomeCard extends HTMLElement {
     // a name field being typed in is left alone when the popup redraws
     this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
     this.shadowRoot.addEventListener('focusout', e => { if (e.target.matches?.('[data-rename]') && this._dragging === e.target) this._dragging = null; });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (this._building && e.target.closest?.('#buildbar')) { this._bChange(e.target); return; } if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
     }
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);
@@ -415,6 +425,11 @@ export class SweetHomeCard extends HTMLElement {
     this._defsJSON = defsNow;
     this._hintShow();
     this._renderLevels();
+    if (this._building) {
+      const vp = this.$('viewport'); vp?.classList.add('building'); this._bRender(); this._bScene();
+      if (this._bSnap && vp && !this._three) { const im = document.createElement('img'); im.className = 'bsnap'; im.alt = ''; im.src = this._bSnap; vp.querySelector('#labels')?.before(im); vp.classList.add('snapping'); }
+      this._bSnap = null;
+    }
     if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
     this._reselect = null;
   }
@@ -826,8 +841,12 @@ export class SweetHomeCard extends HTMLElement {
       case 'dfold': { const k = t.dataset.k; (this._dOpen ||= new Set()).has(k) ? this._dOpen.delete(k) : this._dOpen.add(k); this._rerender('drawer'); break; }
       case 'hintx': this._hintDone(); break;
       case 'level': this._setLevel(Number(t.dataset.level)); break;
+      case 'build': if (this._editing || this._building) this._bToggle(); break;
+      case 'walls': this._wallCycle(); break;
+      case 'b': this._bAct(t); break;
       case 'arrange': {
         if (!this._editing && !this._arrange) break;
+        if (this._building) this._bToggle(false);
         const on = this._arrange = !this._arrange; if (this._three) this._three.arrange = on; t.classList.toggle('on', on);
         if (on) { this._select(null); this._toast(tr('Drag furniture to move it. Tap the button again when done.')); }
         break;
@@ -1037,6 +1056,10 @@ export class SweetHomeCard extends HTMLElement {
   // A piece dragged in the 3D view (arrange mode): moved in the config. While the card editor is open, the move goes
   // through it (with undo); otherwise it is saved straight into this dashboard (storage dashboards, admins).
   async _arrangeMove(f, dx, dz, undo) {
+    if (this._building) { // Build mode: a step like the others (undo, saved with the house when Build mode closes)
+      if (!(await this._bEdit(H => { const p = this._bPieceRef(H, f?.idx); if (!p) return false; movePiece(p, dx, dz); }))) { undo(); this._toast(tr('These stairs come with the room: change them in the card editor'), true); }
+      return;
+    }
     const src = f?.src;
     if (!src) { undo(); this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); return; }
     const cfg = JSON.parse(JSON.stringify(this._config || {}));
@@ -1047,12 +1070,12 @@ export class SweetHomeCard extends HTMLElement {
     if (await this._applyConfig(cfg)) { this.haptic(viaEditor ? 'light' : 'success'); if (!viaEditor) this._toast(tr('Moved')); } else undo();
   }
   // saves a new config for this card into the dashboard it is on (the card must be found there exactly once)
-  async _saveCardConfig(cfg) {
+  async _saveCardConfig(cfg, origJSON = null) { // origJSON: the card's config as the dashboard has it (default: the current one)
     const seg = location.pathname.split('/')[1] || 'lovelace', url_path = seg === 'lovelace' ? null : seg;
     try {
       const dash = await this._hass.callWS({ type: 'lovelace/config', url_path });
       if (dash?.strategy) { this._toast(tr('Take control of this dashboard first (⋮ → Edit dashboard)'), true); return false; }
-      const mine = JSON.stringify(this._config); let hits = 0;
+      const mine = origJSON ?? JSON.stringify(this._config); let hits = 0;
       const walk = o => {
         if (Array.isArray(o)) return o.map(walk);
         if (o && typeof o === 'object') {
@@ -1062,7 +1085,7 @@ export class SweetHomeCard extends HTMLElement {
         return o;
       };
       const next = walk(dash);
-      if (hits !== 1) { this._toast(tr('Open the card editor to move furniture on this dashboard'), true); return false; }
+      if (hits !== 1) { this._toast(origJSON ? tr('Could not find this card on the dashboard to save it. Open the card editor and build there.') : tr('Open the card editor to move furniture on this dashboard'), true); return false; }
       await this._hass.callWS({ type: 'lovelace/config/save', url_path, config: next });
       this.setConfig(cfg); return true;
     } catch (e) { this._toast(e?.message || tr('Could not save the dashboard'), true); return false; }
@@ -1129,7 +1152,7 @@ export class SweetHomeCard extends HTMLElement {
   // no rooms yet: say how to get them instead of an empty 3D view (a new view, or one handed over by the card this one replaces)
   _noRoomsMsg() {
     const L = this.$('loading'); if (!L) return;
-    if (MODEL.gltf || ROOMS.length) { if (L.classList.contains('noroom')) { L.classList.remove('noroom'); L.classList.add('gone'); } return; }
+    if (MODEL.gltf || ROOMS.length || this._building) { if (L.classList.contains('noroom')) { L.classList.remove('noroom'); L.classList.add('gone'); } return; }
     L.classList.remove('gone'); L.classList.add('noroom'); this.$('hint')?.classList.add('gone');
     L.innerHTML = `${ic('mdi:floor-plan')}<b>${tr('No rooms yet')}</b><span>${tr('Add areas in Home Assistant (Settings → Areas) and put your devices in them: each area becomes a room. Or draw your rooms yourself: edit the dashboard, then edit this card → Rooms.')}</span>`;
   }
@@ -1148,6 +1171,8 @@ export class SweetHomeCard extends HTMLElement {
     if (V && this._focus) scene._goFocus(true); // zoomed on one room: framed again after the house changed
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
+    this._bScene();
+    { const vp = this.$('viewport'), im = vp?.querySelector('.bsnap'); if (im) { vp.classList.remove('snapping'); im.classList.add('out'); setTimeout(() => im.remove(), 250); } }
     this._noRoomsMsg();
     this._renderLegend();
     if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the view mode (Lights / Climate / Presence) stays as it was
@@ -1156,7 +1181,7 @@ export class SweetHomeCard extends HTMLElement {
 }
 
 // the panels and tools, kept in src/panels/: their methods become the card's own
-for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels])
+for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels, BuildTools])
   for (const k of Object.getOwnPropertyNames(P.prototype)) if (k !== 'constructor') Object.defineProperty(SweetHomeCard.prototype, k, Object.getOwnPropertyDescriptor(P.prototype, k));
 
 // every method of the card and the scene works on its own instance's model (several cards / the editor preview)

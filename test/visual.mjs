@@ -87,6 +87,37 @@ try {
   check('no page errors (light look)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('dollhouse style');
+  p = await open('?config=demo&style=dollhouse', { width: 1400, height: 1000 });
+  { const vp = await rectOf(p, '#viewport'), pic = await pixels(p, vp);
+    check('dollhouse: a bright, green lot is drawn', pic.lum > 90 && pic.g > pic.b && pic.colours > 150, JSON.stringify(pic));
+    const cuts = await p.evaluate(() => { const C = card._three.cuts; return { n: C.length, low: C.filter(c => c.k < 0.5).length, up: C.filter(c => c.k > 0.99).length }; });
+    check('dollhouse: outer walls facing the camera are cut down, the far ones stand', cuts.n > 2 && cuts.low > 0 && cuts.up > 0, JSON.stringify(cuts));
+    await p.evaluate(() => card._three.view('top')); await p.waitForTimeout(4000);
+    const top = await p.evaluate(() => card._three.cuts.every(c => c.k > 0.97));
+    check('dollhouse: from above every wall stands', top);
+    // the walls button: Cutaway (the default here) → Down (every wall low) → Up (every wall stands)
+    await p.evaluate(() => { try { localStorage.removeItem('sweet-home-walls'); } catch (e) { /* none */ } card._walls = undefined; card._three.view('3d'); }); await p.waitForTimeout(2500);
+    const modes = [];
+    for (let i = 0; i < 3; i++) { modes.push(await p.evaluate(() => [card._wallMode(), card._three.cuts.filter(c => c.k < 0.5).length, card._three.cuts.length])); await p.evaluate(() => card.shadowRoot.querySelector('#wallBtn').click()); await p.waitForTimeout(2500); }
+    check('walls button: Cutaway lowers some walls, Down all of them, Up none', modes[0][0] === 'cut' && modes[0][1] > 0 && modes[0][1] < modes[0][2] && modes[1][0] === 'down' && modes[1][1] === modes[1][2] && modes[2][0] === 'up' && modes[2][1] === 0, JSON.stringify(modes));
+    // stacked floors: the first floor stands a storey up, on the ground floor (shown, walls up to it), the lawn below
+    await p.evaluate(() => card._setLevel(1)); await p.waitForTimeout(4500);
+    const st = await p.evaluate(() => { const S = card._three, G = S.lv; return { roofs: !!S.roofs?.[0]?.visible && S.roofs[0].children.length > 0 && !S.roofs[1]?.visible, g0: G[0].visible, y0: G[0].position.y, y1: G[1].position.y, ground: S.groundG.position.y, walls: S.cuts.filter(c => c.l === 0).every(c => c.k > 1.4), k: Math.min(...S.cuts.filter(c => c.l === 0).map(c => c.k)), sh: S.storey }; });
+    check('stacked floors: the first floor stands on the ground floor (walls up to it), the lawn a storey down, roofs on the ground floor rooms', st.roofs && st.g0 && st.y1 === 0 && Math.abs(st.y0 + st.sh) < 1e-6 && Math.abs(st.ground + st.sh) < 1e-6 && st.walls, JSON.stringify(st));
+    await p.evaluate(() => card._setLevel(0)); await p.waitForTimeout(500);
+    check('stacked floors: back on the ground floor, its roofs are off', await p.evaluate(() => !card._three.roofs[0].visible && card._three.lv[1].visible === false));
+    check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
+  await p.close();
+
+  console.log('apartment');
+  p = await open('?config=demo&style=dollhouse&setting=apartment&floor=3', { width: 1400, height: 1000 });
+  { const vp = await rectOf(p, '#viewport'), pic = await pixels(p, vp);
+    const info = await p.evaluate(() => ({ h: card._three.aptH, below: (() => { let low = false; card._three.groundG.traverse(o => { if (o.isMesh && o.getWorldPosition(new card._three.T.Vector3()).y < -8) low = true; }); return low; })() }));
+    check('apartment: the flat stands on its building (3 storeys below it, the street at the bottom) and is drawn', info.h === 9 && info.below && pic.colours > 150, JSON.stringify({ info, pic }));
+    check('no page errors (apartment)', !p.errors.length, p.errors.join(' | ')); }
+  await p.close();
+
   console.log('Sweet Home 3D: theme');
   for (const [name, dark, card, text] of [['light theme', false, [255, 255, 255], [33, 33, 33]], ['dark theme', true, [28, 28, 28], [225, 225, 225]]]) {
     p = await open('?config=demo&card=3d');

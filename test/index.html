@@ -105,6 +105,8 @@ if (q === 'real') { // local only: a states dump + a config that are both git-ig
   const list = await (await fetch('states.json')).json(); for (const k in states) delete states[k]; for (const s of list) states[s.entity_id] = s;
   for (const k in entities) delete entities[k]; for (const k in areas) delete areas[k]; cfg = await (await fetch('myconfig.json')).json();
 }
+if (new URLSearchParams(location.search).get('style')) cfg = { ...cfg, house: { ...(cfg.house || {}), style: new URLSearchParams(location.search).get('style') } }; // ?style=dollhouse
+if (new URLSearchParams(location.search).get('setting')) cfg = { ...cfg, house: { ...(cfg.house || {}), setting: new URLSearchParams(location.search).get('setting'), apartment_floor: Number(new URLSearchParams(location.search).get('floor') ?? 2) } }; // ?setting=apartment&floor=2
 const el = new TC(); el.setConfig(cfg);
 window.card = el; window.hassObj = hass;
 if (new URLSearchParams(location.search).get('editor')) {

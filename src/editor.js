@@ -9,6 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
+import { N, r2, DIRS, FRONTED, ROUND, NEW_PIECE, PALETTE, footprint, fpBox, inBox, sizePiece, turnPiece } from './pieces.js';
 import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
@@ -67,18 +68,6 @@ const USEFUL = id => {
   const d = id.split('.')[0];
   return ['light', 'switch', 'fan', 'cover', 'climate', 'lock', 'media_player', 'script', 'scene', 'vacuum', 'valve', 'humidifier', 'input_boolean', 'button', 'camera'].includes(d) || d === 'sensor' || d === 'binary_sensor';
 };
-// furniture: defaults for a new piece, the colour key, and the fields of its form
-const NEW_PIECE = {
-  bed: { width: 1.4, length: 2, head: 'n' }, sofa: { w: 2, d: 0.9, back: 'n' }, table: { w: 1.2, d: 0.8 }, chair: { face: 'n' },
-  tv: { w: 1.4, h: 0.8, y: 0.6, facing: 's' }, lamp: { h: 1.5 }, fan: { radius: 0.6 }, marker: { y: 0.9 }, plant: { size: 0.8 },
-  rug: { w: 2, d: 1.4 }, toilet: { w: 0.4, d: 0.65, facing: 's' }, sink: { w: 0.8, d: 0.5, h: 0.85, facing: 's' }, shower: { w: 0.9, d: 0.9, facing: 's' },
-  bathtub: { w: 1.7, d: 0.75, facing: 's' }, washer: { w: 0.6, d: 0.6, h: 0.85, facing: 's' }, towel: { w: 0.5, d: 0.08, y: 0.4, facing: 's' }, ac: { facing: 's', style: 'wall' }, charger: { y: 0.75 }, nightstand: { w: 0.5, d: 0.4, h: 0.55, facing: 's' }, box: { w: 0.8, d: 0.5, h: 0.9 }, block: { w: 2, d: 0.6, h: 0.9 }, vacuum: {},
-  car: { facing: 'n', color: '#2563eb' }, tree: { size: 1 }, sprinkler: { radius: 2 },
-  hedge: { _span: [1, 0.2], h: 0.9 }, pool: { _span: [1.5, 1] },
-  // pieces given by corners: [half width, half depth] around the tap
-  stairs: { _span: [1, 0.5], axis: 'x', steps: 8 }, blinds: { _span: [0.6, 0] },
-};
-const PALETTE = ['bed', 'sofa', 'table', 'chair', 'tv', 'ac', 'lamp', 'fan', 'blinds', 'vacuum', 'marker', 'plant', 'rug', 'nightstand', 'charger', 'toilet', 'sink', 'shower', 'bathtub', 'towel', 'washer', 'box', 'block', 'stairs', 'car', 'tree', 'hedge', 'pool', 'sprinkler'];
 const COLOR_KEY = { table: 'top', bed: 'duvet', lamp: 'shade', fan: 'blade', blinds: 'shade' };
 // pieces made of several parts: a colour for each of the other parts too, with the colour the 3D view uses by default
 const PART_COLORS = {
@@ -86,9 +75,6 @@ const PART_COLORS = {
   bed: [['frame', 'Frame', '#7c5a3c'], ['headboard', 'Headboard', '#e8dcc8'], ['pillow', 'Pillows', '#ffffff']],
   table: [['leg', 'Legs', '#b7a684']], sink: [['top', 'Countertop', '#f8fafc']], nightstand: [['top', 'Top', '#7c5a3c'], ['handle', 'Handles', '#d4b483']], chair: [['seat', 'Seat', '#334155']],
 };
-const DIRS = ['n', 'e', 's', 'w'];
-// pieces with a front (`facing`) and a size given as w (x) × d (z): a quarter turn swaps the two
-const FRONTED = ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'towel'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
 // option lists are translated when a form is drawn
 const trOpts = schema => schema.map(x => (x.schema ? { ...x, schema: trOpts(x.schema) } : x.selector?.select ? { ...x, selector: { select: { ...x.selector.select, options: x.selector.select.options.map(o => ({ ...o, label: t(o.label) })) } } } : x));
@@ -116,81 +102,12 @@ const PIECE_LABELS = { plug: 'Phone charger plug (the phone shows while it charg
 
 const clone = o => JSON.parse(JSON.stringify(o || {}));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const r2 = v => Math.round(v * 100) / 100;
-const N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
 const COLORS = ['#2dd4bf', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#34d399', '#fb923c', '#f87171', '#38bdf8', '#c084fc'];
 const hex2rgb = h => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); if (!m) return undefined; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const rgb2hex = a => (Array.isArray(a) ? '#' + a.map(x => Math.round(x).toString(16).padStart(2, '0')).join('') : undefined);
 const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* blocked */ } } };
 const entityId = e => (typeof e === 'string' ? e : e?.entity || e?.id);
 
-/* ---------------- furniture geometry on the plan (config coordinates, metres) ---------------- */
-function footprint(f) {
-  const t = String(f.type || 'box').toLowerCase();
-  if (f.from && f.to) {
-    const r = [Math.min(f.from[0], f.to[0]), Math.min(f.from[1], f.to[1]), Math.max(f.from[0], f.to[0]), Math.max(f.from[1], f.to[1])];
-    if (r[2] - r[0] < 0.1) { r[0] -= 0.06; r[2] += 0.06; } if (r[3] - r[1] < 0.1) { r[1] -= 0.06; r[3] += 0.06; } // a blind: a line along a wall
-    return { rect: r };
-  }
-  const x = N(f.x, 0), z = N(f.z, 0);
-  const circ = r => ({ circle: [x, z, r] });
-  if (t === 'lamp') return circ(0.2 * N(f.size, 1));
-  if (t === 'fan') return circ(N(f.radius, 0.6));
-  if (t === 'marker') return circ(0.14);
-  if (t === 'vacuum') return { rect: { s: [x - 0.2, z - 0.1, x + 0.2, z + 0.42], n: [x - 0.2, z - 0.42, x + 0.2, z + 0.1], e: [x - 0.1, z - 0.2, x + 0.42, z + 0.2], w: [x - 0.42, z - 0.2, x + 0.1, z + 0.2] }[f.facing || 's'] || [x - 0.2, z - 0.1, x + 0.2, z + 0.42] }; // dock + robot in front of it
-  if (t === 'ac') { // the unit's size by style, the long side along the wall it blows away from
-    const st = f.style || 'wall', ew = ['e', 'w'].includes(f.facing || 's'); const [a, b] = st === 'cassette' ? [0.6, 0.6] : st === 'floor' ? [0.45, 0.3] : [0.9, 0.22];
-    const [w, d] = ew ? [b, a] : [a, b]; return { rect: [x - w / 2, z - d / 2, x + w / 2, z + d / 2] };
-  }
-  if (t === 'tree') return circ(0.8 * N(f.size, 1));
-  if (t === 'sprinkler') return circ(0.15);
-  if (t === 'car') { const L = N(f.length, 4.3), W = N(f.width, 1.8), ew = ['e', 'w'].includes(f.facing); return { rect: ew ? [x - L / 2, z - W / 2, x + L / 2, z + W / 2] : [x - W / 2, z - L / 2, x + W / 2, z + L / 2] }; }
-  if (t === 'plant') return circ(0.4 * N(f.size, 1));
-  if (t === 'cylinder' || t === 'ball') return circ(N(f.radius, 0.2));
-  let w, d;
-  if (t === 'bed') { const across = N(f.width, 1.4), along = N(f.length, 2); [w, d] = ['e', 'w'].includes(f.head) ? [along, across] : [across, along]; }
-  else if (t === 'chair') { w = d = 0.46; }
-  else if (t === 'tv') { const s = N(f.w, 1.6); [w, d] = ['e', 'w'].includes(f.facing) ? [0.1, s] : [s, 0.1]; }
-  else if (t === 'charger') { w = 0.1; d = 0.17; }
-  else { const D = { table: [1.2, 0.8], rug: [2, 1.5], sofa: [2, 0.9], nightstand: [0.5, 0.4], toilet: [0.4, 0.65], sink: [0.8, 0.5], shower: [0.9, 0.9], bathtub: [1.7, 0.75], washer: [0.6, 0.6], towel: [0.5, 0.08] }[t] || [t === 'box' ? 0.5 : 1, t === 'box' ? 0.5 : 1]; w = N(f.w, D[0]); d = N(f.d, D[1]); }
-  return { rect: [x - w / 2, z - d / 2, x + w / 2, z + d / 2] };
-}
-const fpBox = fp => fp.rect || [fp.circle[0] - fp.circle[2], fp.circle[1] - fp.circle[2], fp.circle[0] + fp.circle[2], fp.circle[1] + fp.circle[2]];
-const inBox = ([x, z], [a, b, c, d], pad = 0) => x >= a - pad && x <= c + pad && z >= b - pad && z <= d + pad;
-// resize a piece to the rectangle x1,z1 – x2,z2 (or, for round pieces, to the distance from its centre)
-function sizePiece(f, x1, z1, x2, z2) {
-  const t = String(f.type || 'box'); const w = r2(Math.abs(x2 - x1)), d = r2(Math.abs(z2 - z1)), cx = r2((x1 + x2) / 2), cz = r2((z1 + z2) / 2);
-  if (w < 0.1 || d < 0.1) return;
-  if (t === 'blinds' && f.from && f.to) { // a blind stays a line: only its length changes
-    if (Math.abs(f.to[0] - f.from[0]) >= Math.abs(f.to[1] - f.from[1])) { f.from = [r2(Math.min(x1, x2)), f.from[1]]; f.to = [r2(Math.max(x1, x2)), f.from[1]]; }
-    else { f.from = [f.from[0], r2(Math.min(z1, z2))]; f.to = [f.from[0], r2(Math.max(z1, z2))]; }
-    return;
-  }
-  if (f.from && f.to) { f.from = [r2(Math.min(x1, x2)), r2(Math.min(z1, z2))]; f.to = [r2(Math.max(x1, x2)), r2(Math.max(z1, z2))]; return; }
-  if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'chair', 'charger', 'vacuum', 'tree', 'sprinkler', 'ac'].includes(t)) return;
-  if (t === 'car') { const ew = ['e', 'w'].includes(f.facing); f.x = cx; f.z = cz; f.length = ew ? w : d; f.width = ew ? d : w; return; } // fixed size (or set in the form)
-  f.x = cx; f.z = cz;
-  if (t === 'bed') { const ew = ['e', 'w'].includes(f.head); f.width = ew ? d : w; f.length = ew ? w : d; }
-  else if (t === 'tv') f.w = ['e', 'w'].includes(f.facing) ? d : w;
-  else { f.w = w; f.d = d; }
-}
-// turn a piece a quarter to the right
-// round pieces look the same whichever way they face: there is nothing to turn
-const ROUND = ['lamp', 'fan', 'marker', 'plant', 'tree', 'sprinkler', 'cylinder', 'ball'];
-// a quarter turn clockwise: the side a piece faces moves on (n → e → s → w), its footprint swaps width and depth
-function turnPiece(f) {
-  const t = String(f.type || 'box').toLowerCase(); if (ROUND.includes(t)) return false;
-  const next = (v, d = 'n') => DIRS[(DIRS.indexOf(v || d) + 1) % 4];
-  for (const k of ['head', 'back', 'face', 'facing']) if (k in f || (k === 'head' && t === 'bed') || (k === 'back' && t === 'sofa') || (k === 'face' && t === 'chair') || (k === 'facing' && ['tv', 'car', 'vacuum', 'nightstand', 'ac', ...FRONTED].includes(t))) f[k] = next(f[k], t === 'vacuum' ? 's' : 'n');
-  if (t === 'stairs') f.axis = (f.axis || 'x') === 'x' ? 'z' : 'x'; // the flight climbs the other way too
-  if (f.from && f.to) {
-    const [a, b, c, d] = footprint(f).rect, cx = (a + c) / 2, cz = (b + d) / 2, hw = (c - a) / 2, hd = (d - b) / 2;
-    f.from = [r2(cx - hd), r2(cz - hw)]; f.to = [r2(cx + hd), r2(cz + hw)];
-  } else if (['box', 'nightstand', ...FRONTED, 'table', 'rug', 'block', 'sofa', 'stairs', 'counter', 'hedge', 'pool'].includes(t)) {
-    const [a, b, c, d] = footprint(f).rect; f.w = r2(d - b); f.d = r2(c - a); // its size as drawn, also when it was the default size
-  }
-  return true;
-}
 const segDist = ([px, pz], [x1, z1, x2, z2]) => {
   const dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz; let t = L ? ((px - x1) * dx + (pz - z1) * dz) / L : 0; t = Math.max(0, Math.min(1, t));
   return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
@@ -1814,7 +1731,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
+    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, style: H.style === 'dollhouse' ? 'dollhouse' : 'classic', setting: H.setting === 'apartment' ? 'apartment' : 'house', apartment_floor: H.apartment_floor ?? 2, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -1829,7 +1746,9 @@ class SweetHomeCardEditor extends HTMLElement {
         { name: 'room', selector: { select: { mode: 'dropdown', options: [{ value: '', label: t('Whole house') }, ...this._rooms.map((r, i) => ({ value: String(r.area || r.name || ''), label: this._roomName(r, i) })).filter(o => o.value)] } } }]
         : [{ name: 'appearance', selector: { select: { mode: 'dropdown', options: [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Follow Home Assistant (light or dark theme)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
-      ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
+      ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'style', selector: { select: { mode: 'dropdown', options: [['classic', 'Classic (night blue)'], ['dollhouse', 'Dollhouse (sunny lot, wallpapered rooms, near walls cut down)']].map(([value, label]) => ({ value, label: t(label) })) } } },
+          { name: 'setting', selector: { select: { mode: 'dropdown', options: [['house', 'A house (on its own lot)'], ['apartment', 'An apartment (a flat in a building, the street below)']].map(([value, label]) => ({ value, label: t(label) })) } } },
+          ...(data.setting === 'apartment' ? [{ name: 'apartment_floor', selector: { number: { min: 0, max: 40, step: 1, mode: 'box' } } }] : []), { name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
       ...(this.solo ? [] : [{ name: 'room_backdrop', selector: { boolean: {} } }]),
       { name: 'smart_icons', selector: { boolean: {} } },
@@ -1843,6 +1762,9 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.type === 'gltf') { H.type = 'gltf'; if (v.url) H.url = v.url; else delete H.url; } else { delete H.type; delete H.url; }
       if (v.wall_height != null && v.wall_height !== 1.35) H.wall_height = v.wall_height; else delete H.wall_height;
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
+      if (v.type !== 'gltf' && v.style === 'dollhouse') H.style = 'dollhouse'; else delete H.style;
+      if (v.type !== 'gltf' && v.setting === 'apartment') { H.setting = 'apartment'; const f = Math.round(Number(v.apartment_floor)); if (v.apartment_floor != null && v.apartment_floor !== '' && f >= 0 && f !== 2) H.apartment_floor = f; else delete H.apartment_floor; }
+      else { delete H.setting; delete H.apartment_floor; }
       if (!this.solo) { if (v.room_backdrop === false) C.room_backdrop = false; else delete C.room_backdrop; } // off = no blur behind a room on phones; a tap switches rooms
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
       if (v.smart_icons === false) C.smart_icons = false; else delete C.smart_icons; // off = the icons set in Home Assistant
@@ -1854,7 +1776,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { appearance: 'Appearance', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', style: 'House style', setting: 'Home type', apartment_floor: 'The floor the apartment is on (0 = ground floor)', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }
