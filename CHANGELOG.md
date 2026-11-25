@@ -14,6 +14,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - **Build mode** in the 3D view (edit mode, admins: the hammer button): a life-sim style builder with a grid. Draw rooms and walls (walls that close an area become a room), tap walls to add doors and windows, paint wallpaper and floors, place furniture from a catalogue (automatic pieces too), then move, turn, link it to an entity or knock it down, with undo and keyboard shortcuts. The changes stay on the card while you build and are saved into the dashboard once, with Save (or Cancel to throw them away); the view stays on screen while the house is rebuilt after each step.
 - Build mode: a wall drawn right across a room splits it in two (the furniture goes with the part it stands in).
 - 3D view: a **walls** button switches between walls up, cutaway (the outer walls facing you lowered) and down (every wall low), remembered on each device.
+- 3D view: an **apartment** setting (`house.setting: apartment`, `apartment_floor`; card editor: Look → Home type): the flat stands on top of its building, with a window facade below it and the street at the bottom; balconies hang off the building.
 - Rooms: `wall_color` sets a room's wallpaper (Dollhouse style).
 
 ## v0.6.62 — 2026-11-25

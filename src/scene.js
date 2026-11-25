@@ -146,7 +146,14 @@ export class HouseScene {
 
   _ground() {
     const T = this.T;
+    if (MODEL.setting === 'apartment') return this._groundApt();
     if (this.doll) return this._groundDoll();
+    this._groundClassic();
+  }
+  // the classic ground: a night-blue grid fading out, the base slab, a shadow catcher; `y`: how far below the floor
+  // (an apartment's street), `slab`: with the house's base slab
+  _groundClassic(y = 0, slab = true) {
+    const T = this.T;
     const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
     const grd = g.createRadialGradient(256, 256, 30, 256, 256, 256);
     grd.addColorStop(0, 'rgba(60,90,150,0.55)'); grd.addColorStop(0.6, 'rgba(30,45,90,0.25)'); grd.addColorStop(1, 'rgba(10,15,30,0)');
@@ -157,14 +164,16 @@ export class HouseScene {
     g.globalCompositeOperation = 'destination-out'; g.fillStyle = mask; g.fillRect(0, 0, 512, 512);
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
     const m = new T.Mesh(new T.PlaneGeometry(Math.max(64, SPAN * 4), Math.max(64, SPAN * 4)), new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.y = -0.25; m.renderOrder = -3; this.scene.add(m);
+    m.rotation.x = -Math.PI / 2; m.position.y = -0.25 + y; m.renderOrder = -3; this.scene.add(m);
     // base slab: drawn first and without depth, so a stairwell going down below the floor shows through it
-    const slab = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.6, 0.5, PLAN_D + 0.6), new T.MeshStandardMaterial({ color: 0x1b2337, roughness: 0.9, depthWrite: false }));
-    slab.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); slab.receiveShadow = true; slab.renderOrder = -2; this.scene.add(slab);
+    if (slab) {
+      const sl = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.6, 0.5, PLAN_D + 0.6), new T.MeshStandardMaterial({ color: 0x1b2337, roughness: 0.9, depthWrite: false }));
+      sl.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); sl.receiveShadow = true; sl.renderOrder = -2; this.scene.add(sl);
+    }
     // shadow catcher
     const sc = new T.Mesh(new T.PlaneGeometry(PLAN_W + 24, PLAN_D + 24), new T.ShadowMaterial({ opacity: 0.35 }));
     sc.material.depthWrite = false; sc.renderOrder = -1;
-    sc.rotation.x = -Math.PI / 2; sc.position.y = -0.02; sc.receiveShadow = true; this.scene.add(sc);
+    sc.rotation.x = -Math.PI / 2; sc.position.y = -0.02 + y; sc.receiveShadow = true; this.scene.add(sc);
   }
 
   // dollhouse ground: a wide lawn that fades out at the edges, the lot (a lighter lawn with a faint 1 m build grid)
@@ -212,6 +221,81 @@ export class HouseScene {
     // the foundation the house stands on: drawn first and without depth, so a stairwell going down shows through it
     const slab = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.5, 0.5, PLAN_D + 0.5), new T.MeshStandardMaterial({ color: 0xc8bba6, roughness: 0.95, depthWrite: false }));
     slab.position.set(cx0, -0.27, cz0); slab.receiveShadow = true; slab.renderOrder = -2; this.scene.add(slab);
+  }
+  // An apartment: the flat stands on top of its building. The building is a block under the flat's rooms (balconies,
+  // outdoor rooms outside that block, stick out), one 3 m storey per floor below, with a facade of windows; at its foot
+  // a pavement and a street. In the classic look the block is dark and the street is the night-blue grid.
+  _groundApt() {
+    const T = this.T, doll = this.doll, ST = 3, H = this.aptH = MODEL.aptFloor * ST;
+    // the block: around the indoor rooms of every floor
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const r of ROOMS) if (!r.outdoor) for (const [a, b, c, d] of r.rects) { x0 = Math.min(x0, a); z0 = Math.min(z0, b); x1 = Math.max(x1, c); z1 = Math.max(z1, d); }
+    if (!isFinite(x0)) { x0 = 0; z0 = 0; x1 = PLAN_W; z1 = PLAN_D; }
+    x0 -= 0.12; z0 -= 0.12; x1 += 0.12; z1 += 0.12;
+    const W = x1 - x0, D = z1 - z0, [cx, cz] = this.w((x0 + x1) / 2, (z0 + z1) / 2);
+    // the slab the flat stands on (drawn first, without depth, so a stairwell going down shows through it)
+    const slab = new T.Mesh(new T.BoxGeometry(W + 0.1, 0.32, D + 0.1), new T.MeshStandardMaterial({ color: doll ? 0xd9d2c5 : 0x1b2337, roughness: 0.9, depthWrite: false }));
+    slab.position.set(cx, -0.18, cz); slab.receiveShadow = true; slab.renderOrder = -2; this.scene.add(slab);
+    // balconies (outdoor rooms) out of the block: a concrete slab under each, so they hang off the building
+    const bal = new T.MeshStandardMaterial({ color: doll ? 0xcfc8ba : 0x222b42, roughness: 0.9 });
+    for (const r of ROOMS) if (r.outdoor) for (const [a, b, c, d] of r.rects) {
+      if (a >= x0 && c <= x1 && b >= z0 && d <= z1) continue; // inside the block's outline: it has a floor under it
+      const m = new T.Mesh(new T.BoxGeometry(c - a + 0.1, 0.3, d - b + 0.1), bal), [mx, mz] = this.w((a + c) / 2, (b + d) / 2);
+      m.position.set(mx, -0.2, mz); m.castShadow = true; m.receiveShadow = true; this.scene.add(m);
+    }
+    if (H > 0) {
+      // the facade: plaster with a row of windows for each storey, a band at each floor
+      const fac = (len, kind) => {
+        const c = document.createElement('canvas'), px = 48; c.width = Math.max(64, Math.min(2048, Math.round(len * px))); c.height = Math.max(64, Math.min(2048, Math.round(H * px))); const g = c.getContext('2d');
+        const sx = c.width / len, sy = c.height / H;
+        g.fillStyle = doll ? (kind ? '#e9dcc6' : '#e2d3bb') : '#151c2e'; g.fillRect(0, 0, c.width, c.height);
+        for (let f = 0; f < MODEL.aptFloor; f++) {
+          const top = f * ST * sy;
+          g.fillStyle = doll ? 'rgba(0,0,0,.08)' : 'rgba(140,170,255,.12)'; g.fillRect(0, top, c.width, 0.18 * sy); // the floor band
+          const n = Math.max(1, Math.floor(len / 2.2)), gap = len / n;
+          for (let i = 0; i < n; i++) {
+            const wx = (i * gap + gap / 2 - 0.65) * sx, wy = top + 0.9 * sy, ww = 1.3 * sx, wh = 1.45 * sy;
+            g.fillStyle = doll ? '#f7f2e8' : 'rgba(140,170,255,.25)'; g.fillRect(wx - 0.08 * sx, wy - 0.08 * sy, ww + 0.16 * sx, wh + 0.2 * sy); // frame
+            const gl = g.createLinearGradient(0, wy, 0, wy + wh);
+            if (doll) { gl.addColorStop(0, '#9cc7e8'); gl.addColorStop(1, '#5d86a8'); } else { const lit = Math.random() < 0.35; gl.addColorStop(0, lit ? 'rgba(255,190,110,.55)' : 'rgba(60,90,150,.5)'); gl.addColorStop(1, lit ? 'rgba(255,170,90,.35)' : 'rgba(30,45,90,.5)'); }
+            g.fillStyle = gl; g.fillRect(wx, wy, ww, wh);
+            g.fillStyle = doll ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.08)'; g.fillRect(wx + ww / 2 - 0.02 * sx, wy, 0.04 * sx, wh); // the frame's middle bar
+          }
+        }
+        const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4;
+        return new T.MeshStandardMaterial({ map: t, roughness: 0.9 });
+      };
+      const fx = fac(W, 0), fz = fac(D, 1), top = new T.MeshStandardMaterial({ color: doll ? 0xd9d2c5 : 0x1b2337 });
+      const block = new T.Mesh(new T.BoxGeometry(W, H, D), [fz, fz, top, top, fx, fx]); // faces: +x, -x, top, bottom, +z, -z
+      block.position.set(cx, -0.34 - H / 2, cz); block.castShadow = true; block.receiveShadow = true; this.scene.add(block);
+    }
+    const y = -0.34 - H; // the street level
+    if (!doll) return this._groundClassic(y + 0.25, false); // classic: the night-blue grid at the foot of the building
+    // the street: a pavement round the building, a road along its front with a dashed line, a big ground fading away
+    const G = Math.max(120, SPAN * 8 + H * 4), fc = document.createElement('canvas'); fc.width = fc.height = 256; const fg = fc.getContext('2d');
+    const fade = fg.createRadialGradient(128, 128, 40, 128, 128, 128); fade.addColorStop(0, '#fff'); fade.addColorStop(0.7, '#fff'); fade.addColorStop(1, '#000'); fg.fillStyle = fade; fg.fillRect(0, 0, 256, 256);
+    const gc = document.createElement('canvas'); gc.width = gc.height = 256; const gg = gc.getContext('2d'); gg.fillStyle = '#cfcac0'; gg.fillRect(0, 0, 256, 256);
+    gg.strokeStyle = 'rgba(0,0,0,.12)'; gg.lineWidth = 2; for (let i = 0; i <= 256; i += 64) { gg.beginPath(); gg.moveTo(i, 0); gg.lineTo(i, 256); gg.stroke(); gg.beginPath(); gg.moveTo(0, i); gg.lineTo(256, i); gg.stroke(); }
+    const pv = new T.CanvasTexture(gc); pv.wrapS = pv.wrapT = T.RepeatWrapping; pv.colorSpace = T.SRGBColorSpace; pv.repeat.set(G / 2, G / 2);
+    const ground = new T.Mesh(new T.PlaneGeometry(G, G), new T.MeshStandardMaterial({ map: pv, alphaMap: new T.CanvasTexture(fc), transparent: true, depthWrite: false, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(cx, y, cz); ground.receiveShadow = true; ground.renderOrder = -4; this.scene.add(ground);
+    const RW = 7, rz = cz + D / 2 + 3 + RW / 2; // the road, in front (+z), past a 3 m pavement
+    const rc = document.createElement('canvas'); rc.width = 512; rc.height = 64; const rg = rc.getContext('2d'); rg.fillStyle = '#4a4f57'; rg.fillRect(0, 0, 512, 64);
+    for (let i = 0; i < 4000; i++) { const v = 60 + Math.random() * 40 | 0; rg.fillStyle = `rgba(${v},${v + 2},${v + 6},.5)`; rg.fillRect(Math.random() * 512, Math.random() * 64, 1.5, 1.5); }
+    rg.fillStyle = '#f1f1ea'; for (let x = 0; x < 512; x += 64) rg.fillRect(x + 8, 30, 36, 4); rg.fillRect(0, 2, 512, 2); rg.fillRect(0, 60, 512, 2);
+    const rt = new T.CanvasTexture(rc); rt.wrapS = T.RepeatWrapping; rt.colorSpace = T.SRGBColorSpace; rt.repeat.set(G / 16, 1);
+    const road = new T.Mesh(new T.PlaneGeometry(G, RW), new T.MeshStandardMaterial({ map: rt, roughness: 0.95 }));
+    road.rotation.x = -Math.PI / 2; road.position.set(cx, y + 0.01, rz); road.receiveShadow = true; this.scene.add(road);
+    const kerb = new T.MeshStandardMaterial({ color: 0xb4ada0, roughness: 0.9 });
+    for (const s of [-1, 1]) { const k = new T.Mesh(new T.BoxGeometry(G, 0.12, 0.2), kerb); k.position.set(cx, y + 0.06, rz + s * (RW / 2 + 0.1)); this.scene.add(k); }
+    // street trees along the pavement, a lawn strip round the building
+    const lawn = new T.Mesh(new T.BoxGeometry(W + 1.6, 0.05, D + 1.6), new T.MeshStandardMaterial({ color: 0x7fb85a, roughness: 1 }));
+    lawn.position.set(cx, y + 0.025, cz); lawn.receiveShadow = true; this.scene.add(lawn);
+    const trunk = new T.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.9 }), leaf = new T.MeshStandardMaterial({ color: 0x4f8a3a, roughness: 0.9 });
+    for (let x = -W / 2 - 4; x <= W / 2 + 4; x += 6) {
+      const t = new T.Mesh(new T.CylinderGeometry(0.12, 0.16, 2.2, 10), trunk); t.position.set(cx + x, y + 1.1, rz - RW / 2 - 1.3); t.castShadow = true; this.scene.add(t);
+      const c = new T.Mesh(new T.SphereGeometry(1.1, 16, 12), leaf); c.position.set(cx + x, y + 2.8, rz - RW / 2 - 1.3); c.castShadow = true; this.scene.add(c);
+    }
   }
   // dollhouse wallpaper: a soft stripe with a darker skirting board at the bottom and a light cornice at the top
   // (white, so one texture serves every room colour); siding outside: horizontal boards over a stone plinth

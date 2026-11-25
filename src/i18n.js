@@ -278,6 +278,8 @@ const AR = {
   'Could not find this card on the dashboard to save it. Open the card editor and build there.': 'تعذّر العثور على هذه البطاقة في لوحة التحكم لحفظها. افتح محرر البطاقة وابنِ من هناك.',
   'Room split in two': 'تم تقسيم الغرفة إلى غرفتين', '{0} rooms split': 'تم تقسيم {0} غرف',
   'Walls up': 'الجدران مرفوعة', 'Walls cut away in front': 'الجدران الأمامية منخفضة', 'Walls down': 'الجدران منخفضة',
+  'Home type': 'نوع المسكن', 'A house (on its own lot)': 'منزل (على أرض مستقلة)', 'An apartment (a flat in a building, the street below)': 'شقة (في مبنى، والشارع في الأسفل)',
+  'The floor the apartment is on (0 = ground floor)': 'الطابق الذي تقع فيه الشقة (0 = الطابق الأرضي)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

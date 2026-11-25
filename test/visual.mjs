@@ -104,6 +104,14 @@ try {
     check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
   await p.close();
 
+  console.log('apartment');
+  p = await open('?config=demo&style=dollhouse&setting=apartment&floor=3', { width: 1400, height: 1000 });
+  { const vp = await rectOf(p, '#viewport'), pic = await pixels(p, vp);
+    const info = await p.evaluate(() => ({ h: card._three.aptH, below: card._three.scene.children.some(o => o.position.y < -8) }));
+    check('apartment: the flat stands on its building (3 storeys below it, the street at the bottom) and is drawn', info.h === 9 && info.below && pic.colours > 150, JSON.stringify({ info, pic }));
+    check('no page errors (apartment)', !p.errors.length, p.errors.join(' | ')); }
+  await p.close();
+
   console.log('Sweet Home 3D: theme');
   for (const [name, dark, card, text] of [['light theme', false, [255, 255, 255], [33, 33, 33]], ['dark theme', true, [28, 28, 28], [225, 225, 225]]]) {
     p = await open('?config=demo&card=3d');

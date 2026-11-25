@@ -374,6 +374,11 @@ test('house style: dollhouse when asked, classic otherwise; a room keeps its wal
   assert.equal(buildModel({ house: { style: 'x' } }, hass).style, 'classic');
   assert.equal(buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], wall_color: '#ffcc00' }] } }, hass).rooms[0].wallColor, '#ffcc00');
 });
+test('apartment: a flat on floor apartment_floor (2 by default, whole floors from 0), a house otherwise', () => {
+  const M = h => buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]] }], ...h } }, hass);
+  assert.deepEqual([M({}).setting, M({ setting: 'apartment' }).setting, M({ setting: 'flat' }).setting], ['house', 'apartment', 'house']);
+  assert.deepEqual([M({ setting: 'apartment' }).aptFloor, M({ setting: 'apartment', apartment_floor: 5 }).aptFloor, M({ setting: 'apartment', apartment_floor: -1 }).aptFloor, M({ setting: 'apartment', apartment_floor: 0 }).aptFloor], [2, 5, 0, 0]);
+});
 test('build mode: walls that close an area make a room (walls first)', () => {
   const sq = (x, z, w, d) => [[x, z, x + w, z], [x + w, z, x + w, z + d], [x + w, z + d, x, z + d], [x, z + d, x, z]];
   assert.deepEqual(enclosedAreas(sq(0, 0, 4, 3)), [[[0, 0], [4, 0], [4, 3], [0, 3]]], 'four walls: one room');

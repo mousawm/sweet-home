@@ -1019,6 +1019,9 @@ export function buildModel(cfg = {}, hass) {
     plan: { W, D, CX: W / 2, CZ: D / 2, ox, oz }, // ox, oz: where the plan's 0, 0 is in the config's coordinates
     wallH: num(house.wall_height, 1.35),
     style: house.style === 'dollhouse' ? 'dollhouse' : 'classic', // dollhouse: a bright lot, wallpapered rooms, walls facing you cut down
+    // apartment: the home is a flat on floor `apartment_floor` (0 = the ground floor; default 2) of a building: it stands
+    // on the building's block (a storey of 3 m per floor below it), with the street at the bottom instead of a garden
+    setting: house.setting === 'apartment' ? 'apartment' : 'house', aptFloor: Math.max(0, Math.min(40, Math.round(num(house.apartment_floor, 2)))),
     title: cfg.title || 'My Home', auto, has, hasMS,
     gltf: house.type === 'gltf' ? { url: house.url, scale: num(house.scale, 1), rotation: num(house.rotation, 0), offset: house.offset || [0, 0, 0], rooms: house.mesh_rooms || {} } : null,
     tabsOrder: arr(cfg.tabs),
