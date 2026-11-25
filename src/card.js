@@ -327,7 +327,7 @@ export class SweetHomeCard extends HTMLElement {
     }
     for (const [el, first] of cmods) { if (first) this.shadowRoot.prepend(el); else this.shadowRoot.appendChild(el); }
     const K3 = this._keep3d; // the same house: the old 3D view (canvas, labels, camera) is moved into the new page as it is
-    if (K3) { this.$('viewport').replaceWith(K3.vp); const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; } }
+    if (K3) this._moveViewport(this.shadowRoot.getElementById('viewport'), K3.vp);
     const $ = id => this.shadowRoot.getElementById(id);
     this.$ = $;
     this._swipeClose($('drawer'));
@@ -1094,14 +1094,24 @@ export class SweetHomeCard extends HTMLElement {
     else el.innerHTML = `<span class="dot amber"></span> ${tr('lights on')} <span class="dot gray"></span> ${tr('off')}`;
   }
 
+  // put the old 3D view (canvas, labels, camera) in place of the new page's one, but keep the new page's room panel:
+  // the panel is a section of this page (drawn into, with its swipe to close), so the old one, left empty, would show
+  // as a blank bar over the view (after the dashboard was edited and saved)
+  _moveViewport(vp, old) {
+    if (!vp || !old || vp === old) return;
+    const nd = vp.querySelector('#drawer'), od = old.querySelector('#drawer');
+    vp.replaceWith(old);
+    if (od && nd) od.replaceWith(nd); else if (nd) old.appendChild(nd); else od?.remove();
+    if (nd) { nd.className = 'drawer'; nd.innerHTML = ''; nd.style.transform = ''; nd.style.opacity = ''; nd.style.transition = ''; }
+  }
+
   /* ---------- sections ---------- */
   // take the 3D view handed over by the card this one replaces (the editor's preview): see SHARED
   _adoptShared() {
     const S = SHARED, vp = this.$('viewport'); if (!S || !vp || !this.shadowRoot.contains(vp)) return false;
     if (S.owner?.constructor !== this.constructor) return false; // the full card and Sweet Home 3D keep their room popup in different places
     clearTimeout(S.timer); setShared(null);
-    if (S.vp !== vp) vp.replaceWith(S.vp);
-    const dr = this.$('drawer'); if (dr) { dr.className = 'drawer'; dr.innerHTML = ''; }
+    this._moveViewport(vp, S.vp);
     const sc = this._three = S.scene; sc.card = this;
     const L = MODEL.levels || [{ level: 0 }];
     if (S.level != null && L.some(l => l.level === S.level) && S.level !== this._level) this._setLevel(S.level);

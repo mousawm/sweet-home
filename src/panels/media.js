@@ -482,7 +482,7 @@ export class MediaPanels {
     // several Sonarr / Radarr / qBittorrent instances (one per config entry): their numbers add up
     const each = (o, k) => [o[k], ...(o.more || []).map(m => m[k])].filter(Boolean);
     const sum = (o, k) => { const v = each(o, k).map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
-    const down = sum(Q, 'down') ?? 0, up = sum(Q, 'up') ?? 0, qst = this.v(Q.status), alt = this.on(Q.alt), err = sum(Q, 'errored') ?? 0;
+    const down = sum(Q, 'down') ?? 0, up = sum(Q, 'up') ?? 0, alt = this.on(Q.alt), err = sum(Q, 'errored') ?? 0;
     const qOK = each(Q, 'conn').some(id => this.v(id) === 'connected');
     const queue = [];
     for (const qid of each(SO, 'queue')) for (const [k, v] of Object.entries(this.s(qid)?.attributes || {})) if (!['unit_of_measurement', 'friendly_name', 'icon', 'state_class', 'device_class'].includes(k)) {
@@ -531,7 +531,7 @@ export class MediaPanels {
       <div class="mdl">
         <div data-act="more" data-id="${Q.down}" class="${down > 0.05 ? 'act' : ''}">${ic('mdi:arrow-down-bold')}<b>${down.toFixed(1)}<small>MB/s</small></b><span>${tr("Download")}</span></div>
         <div data-act="more" data-id="${Q.up}" class="${up > 0.05 ? 'act up' : ''}">${ic('mdi:arrow-up-bold')}<b>${up.toFixed(1)}<small>MB/s</small></b><span>${tr("Upload")}</span></div>
-        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(sum(Q, 'active') ?? '—')}<small>/ ${esc(sum(Q, 'all') ?? '—')}</small></b><span>${err ? `${err} errored` : esc(tc(pretty(qst || 'Torrents')))}</span></div>
+        <div data-act="more" data-id="${Q.active}" data-id2="${Q.all}">${ic(err ? 'mdi:alert-circle' : 'mdi:magnet')}<b>${esc(sum(Q, 'active') ?? '—')}<small>/ ${esc(sum(Q, 'all') ?? '—')}</small></b><span>${err ? tr('{0} errored', err) : tr('Active torrents')}</span></div>
         <button class="${alt ? 'on' : ''}" data-act="toggle" data-id="${Q.alt}">${ic(alt ? 'mdi:speedometer-slow' : 'mdi:speedometer')}<b>${alt ? tr("Slow") : tr("Full")}</b><span>${tr("Speed limit")}</span></button>
       </div>`}
       ${queue.length ? `<div class="mq">${queue.join('')}</div>` : ''}

@@ -47,6 +47,19 @@ try {
   check('two floors and a floor switch', await p.evaluate(() => card._model.levels.length === 2 && card.shadowRoot.querySelectorAll('[data-act=level]').length === 2));
   await p.evaluate(() => card.shadowRoot.querySelector('[data-act=level][data-level="1"]').click());
   check('switching floors', await p.evaluate(() => card._level === 1 && card._three.level === 1));
+  // the dashboard is edited and saved: Home Assistant puts a new card in place of this one, which takes over its 3D
+  // view; a room left open must still show its panel (it showed as an empty bar over the view)
+  check('dashboard saved with a room open: the new card keeps the 3D view and the room panel has its content', await p.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), old = card, rid = 'living_room';
+    old._setTab('home'); old._select(rid); await wait(300);
+    const sc = old._three; old.editMode = true;
+    const el = document.createElement(old.localName); el.setConfig(JSON.parse(JSON.stringify(old._config)));
+    old.remove(); document.body.appendChild(el); el.hass = window.hassObj; window.card = el; await wait(900);
+    const R = el.shadowRoot, drs = R.querySelectorAll('#drawer'), dr = drs[0], sec = el._sections.find(x => x.el.id === 'drawer');
+    const ok = el._three === sc && drs.length === 1 && dr.classList.contains('open') && dr.textContent.trim().length > 0 && sec?.el === dr && el._sel === rid;
+    el._select(null); await wait(200);
+    return ok || JSON.stringify({ same: el._three === sc, n: drs.length, open: dr?.classList.contains('open'), txt: dr?.textContent.trim().length, sec: sec?.el === dr, sel: el._sel });
+  }));
   await p.evaluate(() => card._select('kitchen'));
   check('opening a room on another floor switches to it', await p.evaluate(() => card._level === 0));
   await p.evaluate(() => card._selectFurn(card._model.furniture.find(f => f.name === 'Fridge').idx));
