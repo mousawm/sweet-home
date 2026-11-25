@@ -11,6 +11,11 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.59 — 2026-11-25
+
+### Changed
+- Security: checked again that every entity name, attribute and state the card writes into its HTML is escaped, including the Water pump tiles, the Energy card's consumers and the Jellyfin sheets' subtitle (escaped since v0.6.42). The automated check (every friendly_name and state set to HTML markup) now also covers the Doors details view and the lists of openings.
+
 ## v0.6.58 — 2026-11-24
 
 ### Changed

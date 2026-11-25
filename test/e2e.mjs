@@ -395,7 +395,7 @@ try {
     const first = await p.evaluateHandle(() => card.shadowRoot.querySelector('#security .dtl'));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(700); r = await look();
     check('…Show details opens a second line in the same rows (nothing redrawn), with the Last hour title', r.det && r.tl === r.items && r.ext === r.items && r.grp[0] === 'Last hour' && r.btnTxt === 'Show less'
-      && await p.evaluate(f => f.isConnected && f === card.shadowRoot.querySelector('#security .dtl') && /openings today/.test(f.querySelector('.dext').textContent) && /last opened/.test(f.querySelector('.dext').textContent), first), JSON.stringify(r));
+      && await p.evaluate(f => f.isConnected && f === card.shadowRoot.querySelector('#security .dtl') && /openings? today/.test(f.querySelector('.dext').textContent) && /last opened/.test(f.querySelector('.dext').textContent), first), JSON.stringify(r));
     check('…a bar there still shows the bubble', await p.evaluate(async () => {
       const t = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = t.getBoundingClientRect();
       t.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 2, clientY: b.top + 4 }));
@@ -456,10 +456,17 @@ try {
       }
       // a TV that lists Jellyfin (its name is in the Jellyfin sheets' subtitle) and a power-drawing device on the Energy card
       h.states['media_player.xss_tv'] = { entity_id: 'media_player.xss_tv', state: 'on', attributes: { friendly_name: X + 'TV', source_list: ['Jellyfin'] } };
+      // door history: an opening per door 3 h ago, so the Doors rows and the lists of openings have entries
+      const ago = m => (Date.now() - m * 60e3) / 1000;
+      h.callWS = async m => m.type === 'history/history_during_period' ? Object.fromEntries(m.entity_ids.map(id => [id, [{ s: 'off', lu: ago(1440) }, { s: 'on', lu: ago(180) }, { s: 'off', lu: ago(179) }]])) : window.hassObj.callWS(m);
       const c2 = JSON.parse(JSON.stringify(cfg)); c2.panels = { ...(c2.panels || {}), energy: { ...(c2.panels?.energy || {}), consumers: [{ entity: 'sensor.ev_power' }] } };
       card.hass = h; card.setConfig(c2); card.hass = h; await wait(600); // the config is read again: names it keeps (pumps, devices) come from these states
       for (const t of ['home', 'security', 'climate', 'energy', 'water', 'media', 'system']) { card._setTab(t); await wait(200); scan(`${mode} · ${t} tab`); }
       for (const k of ['lights', 'temps', 'weather', 'power', 'jflib:movies', 'jflib:shows']) { card._openInfo(k); await wait(250); scan(`${mode} · ${k} sheet`); card._closeSheet(); }
+      // Security → Doors: the details view and the lists of openings (all, one door's, at night) carry door names
+      card._setTab('security'); await card._loadDoorHist(card._doorItems()); await wait(300); card._doorsFlip(); await wait(400); scan(`${mode} · doors details`); card._doorsFlip(); await wait(400);
+      for (const [f, door] of [['all'], ['night'], ['door', card._dD?.[0]?.id]]) { card._doorLog(f, door); await wait(150); scan(`${mode} · doors ${f} list`); card._closeSheet(); }
+      if (!card._dD?.some(d => d.evs.length)) found.push(`${mode} · doors: no openings to list`);
       for (const room of Object.keys(card._three.rooms)) { card._select(room); await wait(120); scan(`${mode} · ${room} room`); }
       card._select(null);
     }
