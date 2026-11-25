@@ -11,6 +11,11 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.61 — 2026-11-25
+
+### Fixed
+- Doors timeline: the time of a tapped opening now opens on a line under that door's own bar instead of a bubble over the door above, so it can't be read as another door's.
+
 ## v0.6.60 — 2026-11-25
 
 ### Fixed
