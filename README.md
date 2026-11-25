@@ -146,8 +146,9 @@ The dashboard is generated for you until you take control of it:
         - **Rotate**: **Turn** (a quarter), **15°** either way, or type any angle. A room drawn with rectangles gets free
           corners first. In the room-by-room guide, **Turn** turns the ready-made shape before it is added.
         - **Separate walls**: drag on the plan to draw a wall that stands on its own, in any direction. Use it for a
-          partition, a kitchen half wall, a glass screen or a curved garden wall. Tap one to set its kind, height and
-          bend, or drag it to move it. Doors and openings cut separate walls too.
+          partition, a kitchen half wall, a glass screen, a garden fence or a curved garden wall. Tap one to set its kind
+          (wall, half wall, glass or fence), height and bend, or drag it to move it. Doors, gates and openings cut
+          separate walls too.
       - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
         what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity on this
         dashboard (Home Assistant is not changed). Set how each light is drawn (ceiling
@@ -162,8 +163,10 @@ The dashboard is generated for you until you take control of it:
         legs; a chair's frame and seat. A piece moved or placed within 35 cm of a wall goes flat against it. Resizing
         changes only the side you drag; the other keeps its exact size.
       - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
-        (pick its contact sensor to make it swing open in 3D), a window or an open passage. Tap to add a lock badge.
-        Drag any of them to move it. On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
+        (pick its contact sensor to make it swing open in 3D), a window, an open passage or a **gate** (a gate leaf
+        with bars, about fence height: drag it along a fence or an outer wall; pick its sensor or cover to make it swing
+        open). Tap to add a lock badge. Drag any of them to move it; tap one to type its exact **width** in metres (a door
+        or gate keeps its hinge end, a window or passage keeps its middle). On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
 
       **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
       so you can line them up. Areas on a Home Assistant floor are added to that floor.
@@ -250,10 +253,10 @@ that device. It is kept by that browser only and wins over `default_view` / `def
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
-| `extra_walls` | Walls that stand on their own, on top of the room walls: `from: [x, z]`, `to: [x, z]`, `type` (`wall`, `half` or `glass`), `height` (m), `bow` (bends the wall into an arc: how many metres its middle moves to one side, negative for the other side), `level`. A plain `[x1, z1, x2, z2]` works too. Doors and openings cut them. |
+| `extra_walls` | Walls that stand on their own, on top of the room walls: `from: [x, z]`, `to: [x, z]`, `type` (`wall`, `half`, `glass` or `fence`; a fence is 1.2 m high unless `height` says otherwise), `height` (m), `bow` (bends the wall into an arc: how many metres its middle moves to one side, negative for the other side), `level`. A plain `[x1, z1, x2, z2]` works too. Doors and openings cut them. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
 | `windows` | Window segments on the automatic outer walls (`[x1, z1, x2, z2, level]`) |
-| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`. A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
+| `doors` | Doors: `from: [x, z]`, `to: [x, z]`, `entity` (contact sensor: the door swings open while it is open; without one the door stays shut), `side` (1 / −1: which way it swings), `main`, `level`, `gate: true` (a gate leaf instead of a door; `height`, default 1.25 m; `entity` can be a cover too). A door cuts its own gap in the wall; one placed up to 0.4 m off a wall is moved onto it. |
 | `door_info` | Names and timeout sensors for doors in the room popup (`entity`, `name`, `timeout`) |
 | `lock_badges` | Small 3D badges for locks: `lock`, `x`, `z`, `y`, `axis`, `level`, `name` (shown above the badge; default the lock's name), `label: false` (no name). Tap the name for the lock's details; while the dashboard is edited, its pencil renames the badge (this dashboard only). |
 | `furniture` | Furniture anywhere in the house (the same pieces as in rooms) |

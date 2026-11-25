@@ -435,7 +435,7 @@ export function cutNear(walls, gaps, tol = 0.35) {
   return out;
 }
 
-// separate walls (`extra_walls`): {from, to, type: wall | half | glass, height, bow, level} or [x1, z1, x2, z2]; a bent
+// separate walls (`extra_walls`): {from, to, type: wall | half | glass | fence, height, bow, level} or [x1, z1, x2, z2]; a bent
 // one is cut into short straight pieces. → [x1, z1, x2, z2, type, level, {h}] with type w / half / glass
 export function extraWalls(list) {
   const out = [];
@@ -443,7 +443,7 @@ export function extraWalls(list) {
     const o = Array.isArray(w) ? { from: [w[0], w[1]], to: [w[2], w[3]], level: w[4] } : (w || {});
     const a = o.from, b = o.to; if (!a || !b || [a[0], a[1], b[0], b[1]].some(v => v == null || isNaN(Number(v)))) continue;
     const A = a.map(Number), B = b.map(Number), L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < 0.05) continue;
-    const type = { half: 'half', glass: 'glass', low: 'half' }[o.type] || 'w', bow = num(o.bow, 0);
+    const type = { half: 'half', glass: 'glass', low: 'half', fence: 'fence' }[o.type] || 'w', bow = num(o.bow, 0);
     const pts = [A, ...(bow ? bendEdge(A, B, bow, [(B[1] - A[1]) / L, -(B[0] - A[0]) / L]) : []), B];
     for (let i = 0; i + 1 < pts.length; i++) out.push([rnd4(pts[i][0]), rnd4(pts[i][1]), rnd4(pts[i + 1][0]), rnd4(pts[i + 1][1]), type, o.level, { h: o.height != null ? num(o.height, null) : null, bent: !!bow }]);
   }
@@ -619,7 +619,8 @@ export function buildModel(cfg = {}, hass) {
       [x, z] = onLine(l, t0); vx = l.dx * s; vz = l.dz * s;
     }
     if (Math.abs(vz) < 1e-6) { axis = 'x'; dir = vx >= 0 ? 1 : -1; } else if (Math.abs(vx) < 1e-6) { axis = 'z'; dir = vz >= 0 ? 1 : -1; } else axis = 'a';
-    return { id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level,
+    // gate: a gate leaf (rails and bars, about fence height) instead of a full-height door
+    return { id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level, gate: !!d.gate, gh: d.gate ? num(d.height, null) : null,
       seg: [x, z, rnd4(x + vx * w), rnd4(z + vz * w)] };
   }).filter(Boolean);
 

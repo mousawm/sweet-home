@@ -33,7 +33,7 @@ function shapePoints(kind, x0, z0, w, d) {
 }
 // the box a room takes (outline or rectangles)
 const roomBox = r => { const { poly, rects } = shapeOf(r), xs = [], zs = []; for (const [x, z] of poly || []) { xs.push(x); zs.push(z); } for (const q of rects) { xs.push(q[0], q[2]); zs.push(q[1], q[3]); } return xs.length ? [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)] : null; };
-const WALL_TYPES = [['wall', 'Wall'], ['half', 'Half wall'], ['glass', 'Glass']];
+const WALL_TYPES = [['wall', 'Wall'], ['half', 'Half wall'], ['glass', 'Glass'], ['fence', 'Fence']];
 
 const STEPS = [['rooms', 'Rooms', 'mdi:floor-plan'], ['panels', 'Panels', 'mdi:view-dashboard-outline'], ['look', 'Look', 'mdi:palette-outline']];
 const MODES = [['shape', 'Shape', 'mdi:vector-square'], ['entities', 'Entities', 'mdi:devices'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['doors', 'Doors & windows', 'mdi:door']];
@@ -436,7 +436,7 @@ class SweetHomeCardEditor extends HTMLElement {
         : t('Drag on an empty part of the grid to draw {0} (one square = {1} m). Drag again to add another rectangle (L-shapes). Drag a rectangle to move it, its corner dots to resize it. Tap another room to switch.', rn, this._grid),
       entities: t("What {0} shows in its popup. Devices in its Home Assistant area are found on their own; remove what you don't want or add anything else.", rn),
       furniture: this._place ? t('Tap the plan where it goes: {0}.', t(FURN_TYPES[this._place][0])) : t('Pick a piece below, then tap the plan to place it. Drag a piece to move it and its corner dot to resize it. Link it to an entity so it can be tapped in the 3D view.'),
-      doors: t({ door: 'Drag along a wall to add a door. Pick its contact sensor to make it swing open in 3D.', window: 'Drag along an outer wall to add a window.', opening: 'Drag along a wall between two rooms to open it (no wall, no doorway).', badge: 'Tap where a small lock badge should float.' }[this._dtool]),
+      doors: t({ door: 'Drag along a wall to add a door. Pick its contact sensor to make it swing open in 3D.', gate: 'Drag along a fence or an outer wall to add a gate. Pick its sensor to make it swing open in 3D.', window: 'Drag along an outer wall to add a window.', opening: 'Drag along a wall between two rooms to open it (no wall, no doorway).', badge: 'Tap where a small lock badge should float.' }[this._dtool]),
     }[this._mode];
     const svg = body.querySelector('.sh-plan');
     if (svg) { svg.setAttribute('tabindex', '0'); svg.setAttribute('aria-label', 'Floor plan'); this._bounds(); this._drawPlan(svg); this._planInput(svg); }
@@ -659,7 +659,7 @@ class SweetHomeCardEditor extends HTMLElement {
     ew.forEach((w, i) => {
       if (!this._onLv(Array.isArray(w) ? w : w || {})) return;
       const pieces = extraWalls([w]), ty = pieces[0]?.[4], on = this._mode === 'shape' && this._stool === 'wall' && this._wsel === i;
-      for (const [x1, z1, x2, z2] of pieces) h += `<line x1="${X(x1)}" y1="${Z(z1)}" x2="${X(x2)}" y2="${Z(z2)}" stroke="${on ? 'var(--primary-color)' : ty === 'glass' ? '#7dd3fc' : 'var(--primary-text-color)'}" stroke-opacity="${on ? 1 : 0.75}" stroke-width="${on ? 8 : ty === 'half' ? 4 : 6}" ${ty === 'half' ? 'stroke-dasharray="7 5"' : ''} stroke-linecap="round" pointer-events="none"/>`;
+      for (const [x1, z1, x2, z2] of pieces) h += `<line x1="${X(x1)}" y1="${Z(z1)}" x2="${X(x2)}" y2="${Z(z2)}" stroke="${on ? 'var(--primary-color)' : ty === 'glass' ? '#7dd3fc' : ty === 'fence' ? '#a16207' : 'var(--primary-text-color)'}" stroke-opacity="${on ? 1 : 0.75}" stroke-width="${on ? 8 : ty === 'half' || ty === 'fence' ? 4 : 6}" ${ty === 'half' ? 'stroke-dasharray="7 5"' : ty === 'fence' ? 'stroke-dasharray="2 4"' : ''} stroke-linecap="round" pointer-events="none"/>`;
     });
     for (const [x1, z1, x2, z2, t] of wl) h += `<line x1="${X(x1)}" y1="${Z(z1)}" x2="${X(x2)}" y2="${Z(z2)}" stroke="${t === 'win' ? '#38bdf8' : 'var(--primary-text-color)'}" stroke-opacity="${t === 'win' ? 0.9 : 0.55}" stroke-width="${t === 'win' ? 5 : 4}" ${t === 'rail' ? 'stroke-dasharray="6 6"' : ''} stroke-linecap="round" pointer-events="none"/>`;
     // furniture
@@ -691,9 +691,10 @@ class SweetHomeCardEditor extends HTMLElement {
     if (Array.isArray(H.windows)) H.windows.forEach((w, i) => { if (dOn('window', i) && this._onLv(w)) h += `<line x1="${X(w[0])}" y1="${Z(w[1])}" x2="${X(w[2])}" y2="${Z(w[3])}" stroke="#38bdf8" stroke-width="10" stroke-opacity=".5" stroke-linecap="round"/>`; });
     arr(H.doors).forEach((d, i) => {
       if (!d.from || !d.to || !this._onLv(d)) return; const on = dOn('door', i);
-      h += `<line x1="${X(d.from[0])}" y1="${Z(d.from[1])}" x2="${X(d.to[0])}" y2="${Z(d.to[1])}" stroke="#fb923c" stroke-width="${on ? 9 : 6}" stroke-linecap="round" ${d.entity ? '' : 'stroke-dasharray="10 4"'}/>`;
+      const dc = d.gate ? '#ca8a04' : '#fb923c'; // a gate: amber
+      h += `<line x1="${X(d.from[0])}" y1="${Z(d.from[1])}" x2="${X(d.to[0])}" y2="${Z(d.to[1])}" stroke="${dc}" stroke-width="${on ? 9 : 6}" stroke-linecap="round" ${d.entity ? '' : 'stroke-dasharray="10 4"'}/>`;
       const L = Math.hypot(d.to[0] - d.from[0], d.to[1] - d.from[1]) * S, sw = (d.side ?? 1) > 0 ? 1 : 0;
-      h += `<path d="M ${X(d.to[0])} ${Z(d.to[1])} A ${L} ${L} 0 0 ${sw} ${X(d.from[0]) + (Z(d.to[1]) - Z(d.from[1])) * (sw ? -1 : 1)} ${Z(d.from[1]) + (X(d.to[0]) - X(d.from[0])) * (sw ? 1 : -1)}" fill="none" stroke="#fb923c" stroke-opacity=".5" stroke-dasharray="4 4" pointer-events="none"/>`;
+      h += `<path d="M ${X(d.to[0])} ${Z(d.to[1])} A ${L} ${L} 0 0 ${sw} ${X(d.from[0]) + (Z(d.to[1]) - Z(d.from[1])) * (sw ? -1 : 1)} ${Z(d.from[1]) + (X(d.to[0]) - X(d.from[0])) * (sw ? 1 : -1)}" fill="none" stroke="${dc}" stroke-opacity=".5" stroke-dasharray="4 4" pointer-events="none"/>`;
     });
     arr(H.lock_badges).forEach((b, i) => { if (this._onLv(b)) h += `<circle cx="${X(N(b.x, 0))}" cy="${Z(N(b.z, 0))}" r="${dOn('badge', i) ? 10 : 7}" fill="#34d399" stroke="var(--card-background-color)" stroke-width="2"/>`; });
     // room names
@@ -893,7 +894,7 @@ class SweetHomeCardEditor extends HTMLElement {
         end: (moved, m) => {
           if (!moved) { this._dsel = null; return false; }
           const s = bent ? seg(m) : this._snapSeg(seg(m)); if (Math.hypot(s[2] - s[0], s[3] - s[1]) < 0.4) return false;
-          if (this._dtool === 'door') { const d = { from: [s[0], s[1]], to: [s[2], s[3]] }; this._setLv(d, this._lvl); (H.doors ||= []).push(d); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
+          if (this._dtool === 'door' || this._dtool === 'gate') { const d = { from: [s[0], s[1]], to: [s[2], s[3]], ...(this._dtool === 'gate' ? { gate: true } : {}) }; this._setLv(d, this._lvl); (H.doors ||= []).push(d); this._dsel = { k: 'door', i: H.doors.length - 1 }; }
           else if (this._dtool === 'window') { if (!Array.isArray(H.windows)) H.windows = []; this._setLv(s, this._lvl); H.windows.push(s); this._dsel = { k: 'window', i: H.windows.length - 1 }; }
           else { this._setLv(s, this._lvl); (H.openings ||= []).push(s); this._dsel = { k: 'opening', i: H.openings.length - 1 }; }
           return true;
@@ -1169,6 +1170,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const n = arr(H.extra_walls).filter(x => this._onLv(Array.isArray(x) ? x : x || {})).length;
     const d = document.createElement('div'); d.className = 'sh-ed';
     d.innerHTML = `<div class="sh-hint">${t('Drag on the plan to draw a wall that stands on its own: a partition, a kitchen half wall, a glass screen, a curved garden wall. Tap a wall to change it, drag it or its ends to move it. Doors and openings cut it too.')}</div>
+      <div class="sh-hint">${t('For a garden fence, pick Fence under Kind; add its gate in the Doors & windows step (Gate).')}</div>
       <div class="sh-hint">${t('{0} separate wall(s) on this floor', n)}</div>
       ${o ? `<div class="sh-ent"><span class="nm">${t('Kind')}</span><select data-wt>${WALL_TYPES.map(([v, l]) => `<option value="${v}" ${(o.type || 'wall') === v ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></div>
       <div class="sh-ent"><span class="nm">${t('Height (m, empty: automatic)')}</span><input data-wh type="number" min="0.2" max="3" step="0.05" value="${o.height ?? ''}"></div>
@@ -1567,7 +1569,7 @@ class SweetHomeCardEditor extends HTMLElement {
 
   /* ---------------- Doors & windows mode ---------------- */
   _mDoors(box) {
-    const H = this._H, tools = [['door', 'Door', 'mdi:door-open'], ['window', 'Window', 'mdi:window-closed-variant'], ['opening', 'Open passage', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
+    const H = this._H, tools = [['door', 'Door', 'mdi:door-open'], ['window', 'Window', 'mdi:window-closed-variant'], ['opening', 'Open passage', 'mdi:arrow-expand-horizontal'], ['gate', 'Gate', 'mdi:gate'], ['badge', 'Lock badge', 'mdi:lock']];
     box.innerHTML = `<div class="sh-ed"><div class="sh-modes">${tools.map(([k, n, i]) => `<button data-tool="${k}" class="${this._dtool === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>
       ${Array.isArray(H.windows) ? `<div class="sh-row"><span class="sh-hint" style="flex:1">Automatic windows are off because you placed your own (${H.windows.length}).</span><button data-autowin>${t('Back to automatic windows')}</button></div>` : `<div class="sh-hint">${t('Windows are placed on long outer walls automatically. Add one to place them yourself.')}</div>`}
       <div class="sh-hint">${t('Rooms are closed by walls: add a door or an opening wherever you can walk between them. Drag a door, window, opening or badge to move it.')}</div>
@@ -1576,19 +1578,22 @@ class SweetHomeCardEditor extends HTMLElement {
     box.querySelector('[data-autowin]')?.addEventListener('click', () => { delete H.windows; this._dsel = null; this._emit(); this._render(); });
     const it = this._dsel, slot = box.querySelector('.sh-ditem'); if (!it) return;
     const head = document.createElement('div'); head.className = 'sh-row';
-    head.innerHTML = `<b style="flex:1">${t({ door: 'Door', window: 'Window', opening: 'Open passage', badge: 'Lock badge' }[it.k])}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
+    head.innerHTML = `<b style="flex:1">${t(it.k === 'door' && H.doors[it.i]?.gate ? 'Gate' : { door: 'Door', window: 'Window', opening: 'Open passage', badge: 'Lock badge' }[it.k])}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
     slot.appendChild(head);
     head.querySelector('[data-deld]').addEventListener('click', () => { this._delDoorItem(); this._emit(); this._render(); });
+    if (it.k !== 'badge') slot.appendChild(this._widthRow(it));
     if (it.k === 'door') {
       const d = H.doors[it.i];
       slot.appendChild(this._form([
-        { name: 'entity', selector: { entity: { domain: 'binary_sensor' } } },
+        { name: 'entity', selector: { entity: { domain: d.gate ? ['binary_sensor', 'cover'] : 'binary_sensor' } } },
+        ...(d.gate ? [{ name: 'height', selector: { number: { min: 0.5, max: 3, step: 0.05, mode: 'box', unit_of_measurement: 'm' } } }] : []),
         { name: 'side', selector: sel([['1', 'Swings one way'], ['-1', 'Swings the other way']].map(([v, n]) => [v, t(n)])) },
         { name: 'main', selector: { boolean: {} } },
-      ], { entity: d.entity || '', side: String(d.side ?? 1), main: !!d.main }, v => {
-        if (v.entity) d.entity = v.entity; else delete d.entity; if (v.side === '-1') d.side = -1; else delete d.side; if (v.main) d.main = true; else delete d.main;
+      ], { entity: d.entity || '', side: String(d.side ?? 1), main: !!d.main, ...(d.gate ? { height: d.height ?? 1.25 } : {}) }, v => {
+        if (v.entity) d.entity = v.entity; else delete d.entity;
+        if (d.gate) { if (v.height != null && v.height !== '' && Number(v.height) !== 1.25) d.height = Number(v.height); else delete d.height; } if (v.side === '-1') d.side = -1; else delete d.side; if (v.main) d.main = true; else delete d.main;
         this._emit(); const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg);
-      }, { entity: 'Contact sensor (optional: the door opens in 3D while it is open)', main: 'Main entrance' }));
+      }, d.gate ? { entity: 'Sensor or cover (optional: the gate opens in 3D while it is open)', height: 'Gate height', main: 'Main entrance' } : { entity: 'Contact sensor (optional: the door opens in 3D while it is open)', main: 'Main entrance' }));
     } else if (it.k === 'badge') {
       const b = H.lock_badges[it.i];
       slot.appendChild(this._form([{ name: 'lock', selector: { entity: { domain: 'lock' } } }, { name: 'name', selector: { text: {} } }, { name: 'label', selector: { boolean: {} } }],
@@ -1599,6 +1604,24 @@ class SweetHomeCardEditor extends HTMLElement {
           this._emit(typing);
         }, { lock: 'Lock', name: 'Name shown in 3D (empty: the lock’s name)', label: 'Show the name above the badge' }));
     }
+  }
+  // the width of a door, gate, window or open passage, typed in metres: a door / gate keeps its hinge (from) and moves
+  // its other end; a window or passage keeps its middle
+  _widthRow(it) {
+    const H = this._H, key = { door: 'doors', window: 'windows', opening: 'openings' }[it.k], o = arr(H[key])[it.i];
+    const seg = it.k === 'door' ? (o?.from && o?.to ? [...o.from, ...o.to] : null) : o;
+    const row = document.createElement('div'); row.className = 'sh-ent';
+    if (!seg) return row;
+    const L = Math.hypot(seg[2] - seg[0], seg[3] - seg[1]);
+    row.innerHTML = `<span class="nm">${t('Width (m)')}</span><input data-dw type="number" min="0.3" max="12" step="0.05" value="${r2(L)}">`;
+    row.querySelector('[data-dw]').addEventListener('change', e => {
+      const W = Number(e.target.value); if (!(W >= 0.3 && W <= 12) || !L) { e.target.value = r2(L); return; }
+      const ux = (seg[2] - seg[0]) / L, uz = (seg[3] - seg[1]) / L;
+      if (it.k === 'door') o.to = [r2(o.from[0] + ux * W), r2(o.from[1] + uz * W)];
+      else { const mx = (seg[0] + seg[2]) / 2, mz = (seg[1] + seg[3]) / 2; o[0] = r2(mx - ux * W / 2); o[1] = r2(mz - uz * W / 2); o[2] = r2(mx + ux * W / 2); o[3] = r2(mz + uz * W / 2); }
+      this._emit(); this._render();
+    });
+    return row;
   }
   _delDoorItem() {
     const H = this._H, it = this._dsel; if (!it) return;

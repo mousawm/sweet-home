@@ -363,6 +363,12 @@ test('"Found from" switches: Jellyfin / Sonarr / Radarr / qBittorrent / Forecast
   assert.equal(M({ jellyfin: false }).hasMS, true, 'Sonarr still on: the card stays');
 });
 
+test('fence and gate: a fence separate wall keeps its kind (and its height); a gate is a door with its own height', () => {
+  assert.deepEqual(extraWalls([{ from: [0, 0], to: [4, 0], type: 'fence', height: 1.5 }]).map(w => [w[4], w[6].h]), [['fence', 1.5]]);
+  const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]] }], extra_walls: [{ from: [0, 6], to: [6, 6], type: 'fence' }], doors: [{ from: [2, 6], to: [3.2, 6], gate: true, height: 1.4 }, { from: [1, 4], to: [2, 4] }] } }, hass);
+  assert.deepEqual(m.doors.map(d => [d.gate, d.gh]), [[true, 1.4], [false, null]]);
+  assert.equal(m.walls.filter(w => w[4] === 'fence').length, 2, 'the gate cuts the fence in two');
+});
 test('doors_hours: the timeline span is 6, 12, 18 or 24 hours (24 by default, or for anything else)', () => {
   const H = sec => buildModel({ panels: { security: sec } }, hass).E.doorsHours;
   assert.deepEqual([H({}), H({ doors_hours: 6 }), H({ doors_hours: '12' }), H({ doors_hours: 18 }), H({ doors_hours: 7 }), H({ doors_hours: 'x' })], [24, 6, 12, 18, 24, 24]);

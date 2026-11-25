@@ -244,6 +244,10 @@ const AR = {
   // Media Server: download queue, wanted shows and movies
   'Active torrents': 'التورنت النشطة', '{0} errored': '{0} بها خطأ',
   'last {0} h': 'آخر {0} ساعة', 'No openings in {0} h': 'لم يُفتح خلال {0} ساعة', 'Last {0} hours': 'آخر {0} ساعة', 'Timeline span': 'مدة الخط الزمني', 'Aligned, with hour labels': 'محاذاة، مع تسميات الساعات',
+  Fence: 'سياج', Gate: 'بوابة', 'Width (m)': 'العرض (م)', 'Gate height': 'ارتفاع البوابة',
+  'Sensor or cover (optional: the gate opens in 3D while it is open)': 'مستشعر أو ستارة (اختياري: تُفتح البوابة في العرض ثلاثي الأبعاد ما دامت مفتوحة)',
+  'Drag along a fence or an outer wall to add a gate. Pick its sensor to make it swing open in 3D.': 'اسحب على طول سياج أو جدار خارجي لإضافة بوابة. اختر مستشعرها لتُفتح في العرض ثلاثي الأبعاد.',
+  'For a garden fence, pick Fence under Kind; add its gate in the Doors & windows step (Gate).': 'لسياج الحديقة، اختر «سياج» في النوع، ثم أضف بوابته في خطوة الأبواب والنوافذ (بوابة).',
   'Download queue': 'قائمة التنزيل', 'Nothing downloading': 'لا يوجد تنزيل', 'The Sonarr and Radarr queues are empty.': 'قائمتا Sonarr وRadarr فارغتان.',
   '{0} left': 'متبقٍ {0}', '{0} in the queue, but Home Assistant does not list them.': '{0} في القائمة، لكن Home Assistant لا يعرض تفاصيلها.',
   '1 episode in the Sonarr queue': 'حلقة واحدة في قائمة Sonarr', '{0} episodes in the Sonarr queue': '{0} حلقات في قائمة Sonarr',
