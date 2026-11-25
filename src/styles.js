@@ -535,6 +535,9 @@ main{scroll-margin-top:84px}
 .viewport.building .labels{pointer-events:none}
 .viewport.building .labels *{pointer-events:none!important;opacity:.75}
 .viewport.building canvas{cursor:crosshair}
+.bsnap{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .2s}
+.bsnap.out{opacity:0}
+.viewport.snapping .loading,.viewport.snapping .labels{visibility:hidden}
 @media (max-width:700px){.bb span{display:none}.bb{padding:7px}}
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(var(--s1),.72);border:1px solid rgba(var(--ink),.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}
 .lvls button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--mu);min-height:36px}

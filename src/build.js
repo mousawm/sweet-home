@@ -17,17 +17,21 @@ export class Builder {
     this.g = new T.Group(); this.g.renderOrder = 5; S.scene.add(this.g);
     this.mat = new T.MeshBasicMaterial({ color: GHOST, transparent: true, opacity: 0.45, depthWrite: false });
     this.lineMat = new T.MeshBasicMaterial({ color: GHOST, transparent: true, opacity: 0.9, depthWrite: false });
-    // the build grid: every 50 cm, around the house with room to grow
-    const M = 6, size = Math.ceil(Math.max(PLAN_W, PLAN_D) + 2 * M);
-    const grid = this.grid = new T.GridHelper(size, size * 2, 0xffffff, 0xffffff);
-    grid.material.transparent = true; grid.material.opacity = 0.28; grid.material.depthWrite = false;
-    const [gx, gz] = this.w(Math.round((PLAN_W / 2 + this.ox) / 0.5) * 0.5, Math.round((PLAN_D / 2 + this.oz) / 0.5) * 0.5);
-    grid.position.set(gx, 0.012, gz); this.g.add(grid);
+    this.setGrid();
     // the cursor: a ring on the grid point under the pointer
     this.cur = new T.Mesh(new T.RingGeometry(0.09, 0.14, 24), this.lineMat); this.cur.rotation.x = -Math.PI / 2; this.cur.position.y = 0.03; this.cur.visible = false; this.g.add(this.cur);
     this.ghost = new T.Group(); this.g.add(this.ghost);
     this.tool = S.card._bTool || 'room';
     this._listen();
+  }
+  // the build grid: a line every grid step (50 cm, 25 cm or 1 m), around the house with room to grow
+  setGrid() {
+    const T = this.T, st = this.step, size = 2 * Math.ceil((Math.max(PLAN_W, PLAN_D) + 12) / 2); // even: lines fall on whole steps
+    if (this.grid) { this.g.remove(this.grid); this.grid.geometry.dispose(); this.grid.material.dispose(); }
+    const grid = this.grid = new T.GridHelper(size, Math.round(size / st), 0xffffff, 0xffffff);
+    grid.material.transparent = true; grid.material.opacity = st < 0.5 ? 0.18 : 0.28; grid.material.depthWrite = false;
+    const [gx, gz] = this.w(Math.round((PLAN_W / 2 + this.ox) / st) * st, Math.round((PLAN_D / 2 + this.oz) / st) * st);
+    grid.position.set(gx, 0.012, gz); this.g.add(grid); this.S._dirty = true;
   }
   dispose() { this.off?.(); this.S.scene.remove(this.g); this.S._dirty = true; }
   setTool(t) { this.tool = t; this.op = null; this._clear(); this.S._dirty = true; }
@@ -104,6 +108,7 @@ export class Builder {
 
   // the preview for the pointer at plan point p (and the drag that started at a)
   _preview(p, e) {
+    if (this.hold) return; // a step was just sent: its ghost stays until the house is built again
     this._clear(); this._paint(false);
     const tool = this.tool, sp = [this.snap(p[0]), this.snap(p[1])], [wx, wz] = this.w(...sp);
     this.cur.visible = ['room', 'wall'].includes(tool); this.cur.position.set(wx, 0.03, wz);
@@ -178,7 +183,7 @@ export class Builder {
       if (!down || !e.isPrimary) return; e.stopImmediatePropagation();
       const p = this._plan(e), op = this.op; down = null; this.op = null; card._bInfo('');
       if (!p) { this._clear(); return; }
-      const sp = [this.snap(p[0]), this.snap(p[1])], lv = this.S.level, h = this._hit(e);
+      const sp = [this.snap(p[0]), this.snap(p[1])], lv = this.S.level, h = this._hit(e), n0 = card._bUndo?.length || 0;
       if (this.tool === 'room' && op) {
         const x1 = Math.min(op.a[0], sp[0]), z1 = Math.min(op.a[1], sp[1]), x2 = Math.max(op.a[0], sp[0]), z2 = Math.max(op.a[1], sp[1]);
         if (x2 - x1 >= this.step && z2 - z1 >= this.step) card._bOp('room', { rect: [x1, z1, x2, z2], level: lv });
@@ -194,7 +199,10 @@ export class Builder {
         if (card._bPiece) card._bOp('piece', { type: card._bPiece, x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), room: this.roomAt(p[0], p[1])?.id || null, level: lv });
         else card._bSelect(null);
       } else if (this.tool === 'delete') { const what = this._target(p, h); if (what) card._bOp('delete', what); }
-      this._clear(); this.S._dirty = true;
+      // a step that changes the house: its ghost stays (in the picture kept while the house is built again) until then
+      if ((card._bUndo?.length || 0) > n0 && ['room', 'wall', 'door', 'window'].includes(this.tool)) { this.hold = true; setTimeout(() => { this.hold = false; this._clear(); this.S._dirty = true; }, 1500); }
+      else this._clear();
+      this.S._dirty = true;
     };
     const leave = () => { if (!down) { this._clear(); this.cur.visible = false; this.S._dirty = true; } };
     el.addEventListener('pointerdown', pd, true); el.addEventListener('pointermove', pm, true); el.addEventListener('pointerup', pu, true);

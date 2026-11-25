@@ -1213,14 +1213,18 @@ try {
   p = await open('?config=demo&edit=1', { width: 1280, height: 900 });
   { const r = await p.evaluate(async () => {
     const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), out = {}, H = () => card._config.house;
-    const ready = async () => { await wait(800); for (let i = 0; i < 100 && !(card._three?.builder && card._three._key === card._houseJSON); i++) await wait(100); await wait(100); };
-    card._applyConfig = async cfg => { card.setConfig(cfg); return true; };
+    const ready = async () => { await wait(150); for (let i = 0; i < 100 && !(card._three?.builder && card._three._key === card._houseJSON); i++) await wait(100); await wait(100); };
+    // a dashboard holding this card: build steps stay on the card, and one save writes it when Build mode closes
+    card.setConfig({ type: 'custom:sweet-home-card', ...card._config }); await wait(900);
+    let dash = { views: [{ cards: [JSON.parse(card._cfgJSON)] }] }, saves = 0;
+    const ws0 = window.hassObj.callWS; window.hassObj.callWS = card._hass.callWS = async m => m.type === 'lovelace/config' ? JSON.parse(JSON.stringify(dash)) : m.type === 'lovelace/config/save' ? (saves++, dash = m.config, null) : ws0(m);
     out.button = !!R.querySelector('#buildBtn');
     R.querySelector('#buildBtn').click(); await wait(100);
     out.on = !!card._three.builder && R.querySelector('#buildbar').classList.contains('open') && R.querySelector('#viewport').classList.contains('building');
     const n0 = H().rooms.length;
     await card._bOp('room', { rect: [20, 0, 24, 3], level: 0 }); await ready();
     out.room = H().rooms.length === n0 + 1 && JSON.stringify(H().rooms.at(-1).rects) === '[[20,0,24,3]]' && !!R.querySelector('[data-bname]') && !!card._three.builder;
+    out.local = saves === 0 && R.querySelector('[data-b=done]').textContent.includes('Save') && !!R.querySelector('[data-b=cancel]');
     // walls first: four walls closing an area make a room, and the walls become that room's own
     for (const [a, b] of [[[20, 4], [23, 4]], [[23, 4], [23, 6.5]], [[23, 6.5], [20, 6.5]], [[20, 6.5], [20, 4]]]) { await card._bOp('wall', { from: a, to: b, level: 0 }); await ready(); }
     out.walls = H().rooms.length === n0 + 2 && JSON.stringify(H().rooms.at(-1).points) === '[[20,4],[23,4],[23,6.5],[20,6.5]]' && !(H().extra_walls || []).some(w => w.from?.[0] >= 20);
@@ -1232,17 +1236,38 @@ try {
     out.paint = H().rooms.at(-1).wall_color === '#b9cdee' && H().rooms.at(-1).floor === 'carpet';
     await card._bOp('piece', { type: 'lamp', x: 21.5, z: 5, room: id, level: 0 }); await ready();
     out.piece = JSON.stringify(H().rooms.at(-1).furniture) === '[{"type":"lamp","x":21.5,"z":5,"h":1.5}]';
-    const fi = card._three.fpieces?.find(P => P.f.room === id)?.idx ?? Object.keys(card._three.fmov).map(Number).at(-1);
+    const fi = Object.keys(card._three.fmov).map(Number).at(-1);
     card._bTool = 'furniture'; card._bSelect(fi); R.querySelector('[data-blink]').value = 'light.kitchen'; R.querySelector('[data-blink]').dispatchEvent(new Event('change', { bubbles: true })); await ready();
     out.link = JSON.stringify(H().rooms.at(-1).furniture[0].entities) === '["light.kitchen"]';
     const before = JSON.stringify(H()); await card._bOp('delete', { k: 'piece', fi: card._bSel ?? fi }); await ready();
     out.del = !H().rooms.at(-1).furniture.length;
     R.querySelector('[data-b=undo]').click(); await ready();
     out.undo = JSON.stringify(H()) === before;
-    R.querySelector('[data-b=done]').click(); await wait(100);
-    out.off = !card._three.builder && !R.querySelector('#buildbar').classList.contains('open');
+    // keys: Ctrl+Z undoes, 2 picks the Wall tool
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); await ready();
+    out.keyUndo = H().rooms.at(-1).furniture[0]?.entities == null && H().rooms.at(-1).furniture.length === 1;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' })); await wait(50);
+    out.keyTool = card._bTool === 'wall' && card._three.builder.tool === 'wall';
+    R.querySelector('[data-b=grid]').click(); await wait(50);
+    out.grid = card._bGrid === 0.25 && card._three.builder.grid.geometry.attributes.position.count > 400; // a line every 25 cm
+    // Done: one save, of the house as built, into the card's place on the dashboard
+    const built = card._cfgJSON;
+    R.querySelector('[data-b=done]').click(); for (let i = 0; i < 30 && card._building; i++) await wait(50);
+    out.saved = saves === 1 && JSON.stringify(dash.views[0].cards[0]) === built && !card._building && !card._three.builder;
+    // Cancel: the steps are thrown away, nothing is saved
+    R.querySelector('#buildBtn').click(); await wait(100);
+    await card._bOp('room', { rect: [30, 0, 33, 3], level: 0 }); await ready();
+    R.querySelector('[data-b=cancel]').click(); await ready(); await wait(300);
+    out.cancel = saves === 1 && card._cfgJSON === built && !card._building;
+    // the house's automatic furniture (from its areas) can be moved: the room's set becomes its own
+    const c2 = JSON.parse(built); delete c2.house.rooms[0].furniture; c2.house.auto_furniture = true; card.setConfig(c2); await wait(900); await ready();
+    R.querySelector('#buildBtn').click(); await wait(100);
+    const autoFi = [...Array(300).keys()].find(i => card._bCanEdit(i) && card._bPieceRef(JSON.parse(card._cfgJSON).house, i)); // a piece of the first room's automatic set
+    card._arrangeMove({ idx: autoFi }, 0.5, 0, () => {}); await ready();
+    out.auto = Array.isArray(H().rooms[0].furniture) && H().rooms[0].furniture.length > 0;
+    card._bToggle(false, false); await ready();
     return Object.values(out).every(Boolean) || JSON.stringify(out);
-  }); check('build mode: rooms, walls that close a room, doors, paint, furniture (placed, linked, removed) and undo, written into the config', r === true, r); }
+  }); check('build mode: rooms, walls that close a room, doors, paint, furniture (placed, linked, removed, automatic ones moved), undo and keys; saved once on Done, nothing on Cancel', r === true, r); }
   check('no page errors (build mode)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 

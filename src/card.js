@@ -52,6 +52,8 @@ export class SweetHomeCard extends HTMLElement {
   // changes stop for a moment, not for each of them; and when the house itself (rooms, walls, furniture…) didn't
   // change, the 3D view is kept as it is and only the panels are redrawn.
   setConfig(config) {
+    // Build mode with steps not saved yet: Home Assistant handing back the stored config (the card redrawn) keeps them
+    if (this._building && this._bDirty?.() && JSON.stringify(cleanConfig(config)) === this._bOrig) return;
     const prev = this._cfgJSON, prevHouse = this._houseJSON;
     this._config = cleanConfig(config); this._cfgJSON = JSON.stringify(this._config); // what can't be used is left out
     // what the 3D view is built from: the house without the entity names given per room (names don't change the 3D view)
@@ -62,7 +64,7 @@ export class SweetHomeCard extends HTMLElement {
     if (!this._built || prev === this._cfgJSON) return;
     this._softNext = (this._softNext ?? true) && prevHouse === this._houseJSON; // soft only if no change in the batch touched the house
     clearTimeout(this._rbT);
-    this._rbT = setTimeout(() => { const soft = this._softNext; this._softNext = null; this._rebuild(soft); }, this._softNext ? 250 : 600);
+    this._rbT = setTimeout(() => { const soft = this._softNext; this._softNext = null; this._rebuild(soft); }, this._softNext ? 250 : this._building ? 60 : 600); // Build mode: at once
   }
   getCardSize() { return 20; }
   // Renaming devices and moving furniture are for editing the dashboard: their buttons show only while it is in edit
@@ -102,6 +104,9 @@ export class SweetHomeCard extends HTMLElement {
     else {
       // the house changed: a new 3D view, seen from where the old one was (angle, zoom, floor, view mode)
       if (T3) this._view = { orbit: { ...T3.orbit, target: T3.orbit.target.clone() }, goal: { ...T3.goal, target: T3.goal.target.clone() }, vmode: T3.vmode, mode: T3.mode };
+      // Build mode: the picture as it is (with the new wall still drawn as a ghost) stays on screen until the new house is ready
+      this._bSnap = null;
+      if (T3 && this._building) try { T3.renderer.render(T3.scene, T3.cam); this._bSnap = T3.cv.toDataURL('image/jpeg', 0.85); } catch (e) { /* no picture: the usual loading */ }
       try { T3?.pause(); T3?.renderer?.dispose(); T3?.ro?.disconnect(); T3?.io?.disconnect(); } catch (e) { /* gone */ }
     }
     if (this._sel) this._reselect = this._sel; // the open room stays open
@@ -419,7 +424,11 @@ export class SweetHomeCard extends HTMLElement {
     this._defsJSON = defsNow;
     this._hintShow();
     this._renderLevels();
-    if (this._building) { this.$('viewport')?.classList.add('building'); this._bRender(); this._bScene(); }
+    if (this._building) {
+      const vp = this.$('viewport'); vp?.classList.add('building'); this._bRender(); this._bScene();
+      if (this._bSnap && vp && !this._three) { const im = document.createElement('img'); im.className = 'bsnap'; im.alt = ''; im.src = this._bSnap; vp.querySelector('#labels')?.before(im); vp.classList.add('snapping'); }
+      this._bSnap = null;
+    }
     if (this._reselect && ROOM[this._reselect]) { const id = this._reselect; setTimeout(() => this._select(id), 0); }
     this._reselect = null;
   }
@@ -1045,6 +1054,10 @@ export class SweetHomeCard extends HTMLElement {
   // A piece dragged in the 3D view (arrange mode): moved in the config. While the card editor is open, the move goes
   // through it (with undo); otherwise it is saved straight into this dashboard (storage dashboards, admins).
   async _arrangeMove(f, dx, dz, undo) {
+    if (this._building) { // Build mode: a step like the others (undo, saved with the house when Build mode closes)
+      if (!(await this._bEdit(H => { const p = this._bPieceRef(H, f?.idx); if (!p) return false; movePiece(p, dx, dz); }))) { undo(); this._toast(tr('These stairs come with the room: change them in the card editor'), true); }
+      return;
+    }
     const src = f?.src;
     if (!src) { undo(); this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); return; }
     const cfg = JSON.parse(JSON.stringify(this._config || {}));
@@ -1052,16 +1065,15 @@ export class SweetHomeCard extends HTMLElement {
     if (!piece) { undo(); this._toast(tr("Could not find this piece in the configuration"), true); return; }
     movePiece(piece, dx, dz);
     const viaEditor = window.__sweetHomeEditor?.isConnected;
-    if (this._building) (this._bUndo ||= []).push(JSON.stringify(this._config || {}));
     if (await this._applyConfig(cfg)) { this.haptic(viaEditor ? 'light' : 'success'); if (!viaEditor) this._toast(tr('Moved')); } else undo();
   }
   // saves a new config for this card into the dashboard it is on (the card must be found there exactly once)
-  async _saveCardConfig(cfg) {
+  async _saveCardConfig(cfg, origJSON = null) { // origJSON: the card's config as the dashboard has it (default: the current one)
     const seg = location.pathname.split('/')[1] || 'lovelace', url_path = seg === 'lovelace' ? null : seg;
     try {
       const dash = await this._hass.callWS({ type: 'lovelace/config', url_path });
       if (dash?.strategy) { this._toast(tr('Take control of this dashboard first (⋮ → Edit dashboard)'), true); return false; }
-      const mine = JSON.stringify(this._config); let hits = 0;
+      const mine = origJSON ?? JSON.stringify(this._config); let hits = 0;
       const walk = o => {
         if (Array.isArray(o)) return o.map(walk);
         if (o && typeof o === 'object') {
@@ -1071,7 +1083,7 @@ export class SweetHomeCard extends HTMLElement {
         return o;
       };
       const next = walk(dash);
-      if (hits !== 1) { this._toast(tr('Open the card editor to move furniture on this dashboard'), true); return false; }
+      if (hits !== 1) { this._toast(origJSON ? tr('Could not find this card on the dashboard to save it. Open the card editor and build there.') : tr('Open the card editor to move furniture on this dashboard'), true); return false; }
       await this._hass.callWS({ type: 'lovelace/config/save', url_path, config: next });
       this.setConfig(cfg); return true;
     } catch (e) { this._toast(e?.message || tr('Could not save the dashboard'), true); return false; }
@@ -1158,6 +1170,7 @@ export class SweetHomeCard extends HTMLElement {
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
     this._bScene();
+    { const vp = this.$('viewport'), im = vp?.querySelector('.bsnap'); if (im) { vp.classList.remove('snapping'); im.classList.add('out'); setTimeout(() => im.remove(), 250); } }
     this._noRoomsMsg();
     this._renderLegend();
     if (this._mode && this._mode !== 'lights') this._setMode(this._mode); // the view mode (Lights / Climate / Presence) stays as it was

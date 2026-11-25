@@ -203,14 +203,19 @@ style builder: a grid appears on the ground and a toolbar over the view.
 | **Wall** | Drag to draw a wall, straight or at 45°. When walls close in an area (on their own or against rooms you already have), it becomes a new room. |
 | **Door** / **Window** | Tap a wall to put a door in it (a gate in a fence), or a window in an outer wall. Pick the width in the bar. |
 | **Paint** | Pick a wallpaper colour or a floor (wood, tiles, marble, carpet, stone, asphalt), then tap a room. Wallpaper shows in the Dollhouse style. |
-| **Furniture** | Pick a piece from the catalogue and tap the floor to place it. Drag a piece to move it; tap it to turn it, link it to an entity (a lamp to its light, a TV to its media player…) or remove it. |
+| **Furniture** | Pick a piece from the catalogue and tap the floor to place it. Drag a piece to move it; tap it to turn it, link it to an entity (a lamp to its light, a TV to its media player…) or remove it. Pieces a room got automatically can be changed too: the room's set becomes its own. |
 | **Knock down** | Tap a piece, a door, a wall you drew or a room (tap a room twice) to remove it. |
 
 **Turn left / right** rotate the view (with a mouse, the right button drags the view too; on a touch screen, two
-fingers). The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back, **Done** closes Build mode.
-Every step is written into the card's configuration (through the card editor while it is open, else straight into the
-dashboard), as plain `rooms`, `extra_walls`, `doors`, `windows` and `furniture` entries. If the house was built from
-your areas, its rooms become your own the first time you build.
+fingers). The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back.
+
+While you build, the changes stay on the card. **Save** writes them into the dashboard once, when you are done
+(leaving edit mode saves too); **Cancel** throws them away. With the card editor open, each step goes through the
+editor instead (with its own undo). Everything is written as plain `rooms`, `extra_walls`, `doors`, `windows` and
+`furniture` entries. If the house was built from your areas, its rooms become your own the first time you build.
+
+Keys: **1–7** pick a tool, **Ctrl+Z** undoes, **R** turns the selected piece, **Delete** removes it, **Esc** stops a
+drawing, then lets go of the piece, then closes Build mode.
 
 ### Only the 3D view: Sweet Home 3D
 

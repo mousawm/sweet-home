@@ -11,7 +11,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 - 3D view: a **Dollhouse** house style (`house.style: dollhouse`, card editor: Look → House style): a sunny lot with lawn, pavement and a build grid, wallpaper in every room (or the room's `wall_color`), siding outside, and the outer walls facing you cut down as you turn the view.
-- **Build mode** in the 3D view (edit mode, admins: the hammer button): a life-sim style builder with a grid. Draw rooms and walls (walls that close an area become a room), tap walls to add doors and windows, paint wallpaper and floors, place furniture from a catalogue, then move, turn, link it to an entity or knock it down, with undo. Every step is saved into the card's config.
+- **Build mode** in the 3D view (edit mode, admins: the hammer button): a life-sim style builder with a grid. Draw rooms and walls (walls that close an area become a room), tap walls to add doors and windows, paint wallpaper and floors, place furniture from a catalogue (automatic pieces too), then move, turn, link it to an entity or knock it down, with undo and keyboard shortcuts. The changes stay on the card while you build and are saved into the dashboard once, with Save (or Cancel to throw them away); the view stays on screen while the house is rebuilt after each step.
 - Rooms: `wall_color` sets a room's wallpaper (Dollhouse style).
 
 ## v0.6.62 — 2026-11-25

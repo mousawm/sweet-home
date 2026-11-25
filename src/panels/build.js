@@ -1,7 +1,7 @@
 // Sweet Home — Build mode (the card side): the toolbar over the 3D view, and every build step written into the card's
 // config (with undo). The scene side (grid, ghosts, pointer) is src/build.js.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
-import { arr, enclosedAreas, extraWalls, onEdge, roomOutline, FURN_TYPES, furnEntities } from '../model.js';
+import { arr, enclosedAreas, extraWalls, onEdge, roomOutline, autoFurnitureConfig, FURN_TYPES, furnEntities } from '../model.js';
 import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
 import { t as tr } from '../i18n.js';
 import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
@@ -18,14 +18,49 @@ const DOMAINS = { lamp: ['light'], fan: ['fan', 'switch'], tv: ['media_player'],
 export class BuildTools {
   _bT(s, ...a) { return tr(s, ...a); }
   _bCan() { return !!this._hass?.user?.is_admin && !MODEL.gltf; }
-  _bToggle(on = !this._building) {
+  // Build mode on, or off. Build steps change only this card while you build; the dashboard is saved once, when
+  // Build mode closes (Done, or leaving edit mode). `save: false` (Cancel) puts the house back as it was.
+  async _bToggle(on = !this._building, save = true) {
     if (on && !this._bCan()) return;
-    this._building = on; this._bSel = null;
+    if (!on && this._building && this._bDirty()) {
+      if (save) {
+        if (!this._viaEditor()) { this._bSaving = true; this._bRender(); const ok = await this._saveCardConfig(this._config, this._bOrig); this._bSaving = false; if (!ok) { this._bRender(); return; } }
+        this._toast(tr('House saved'));
+      } else {
+        const orig = JSON.parse(this._bOrig); this._bOrig = this._cfgJSON; // not dirty while it goes back
+        if (this._viaEditor()) window.__sweetHomeEditor.applyExternal(orig); else this.setConfig(orig);
+        this._toast(tr('Changes discarded'));
+      }
+    }
+    this._building = on; this._bSel = null; this._bNew = null;
     if (on && this._arrange) { this._arrange = false; this.$('arrBtn')?.classList.remove('on'); }
-    if (on) { this._select(null); this._bTool ||= 'room'; this._bUndo ||= []; }
+    if (on) { this._select(null); this._bTool ||= 'room'; this._bUndo = []; this._bOrig = this._cfgJSON; }
+    this._bKeys(on);
     this.$('viewport')?.classList.toggle('building', on); this.$('buildBtn')?.classList.toggle('on', on);
     this._bScene(); this._bRender(); this._noRoomsMsg();
     if (on) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
+  }
+  _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
+  // changes not saved yet (with the card editor open, each step already went through it)
+  _bDirty() { return !!this._building && !this._viaEditor() && this._bOrig != null && this._cfgJSON !== this._bOrig; }
+  // keyboard while building: Esc (stop / done), Ctrl+Z (undo), R (turn the piece), Delete (remove it), 1–7 (tools)
+  _bKeys(on) {
+    if (this._bKeyFn) { window.removeEventListener('keydown', this._bKeyFn); window.removeEventListener('beforeunload', this._bLeave); this._bKeyFn = null; }
+    if (!on) return;
+    this._bLeave = e => { if (this._bDirty()) { e.preventDefault(); e.returnValue = ''; } }; // unsaved build steps: the browser asks first
+    this._bKeyFn = e => {
+      if (!this._building || !this.isConnected) return;
+      const path = e.composedPath?.() || [];
+      if (path.some(n => n?.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName) || n?.isContentEditable)) return; // typing a name
+      const k = e.key, B = this._three?.builder;
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && k.toLowerCase() === 'z') { e.preventDefault(); this._bAct({ dataset: { b: 'undo' } }); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (k === 'Escape') { e.preventDefault(); if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else this._bToggle(false); }
+      else if ((k === 'r' || k === 'R') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'turn' } }); }
+      else if ((k === 'Delete' || k === 'Backspace') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'delpiece' } }); }
+      else if (/^[1-7]$/.test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
+    };
+    window.addEventListener('keydown', this._bKeyFn); window.addEventListener('beforeunload', this._bLeave);
   }
   // the 3D view follows: the builder (grid, tools) on or off, and pieces can be dragged with the Furniture tool
   _bScene() {
@@ -72,7 +107,9 @@ export class BuildTools {
     el.innerHTML = `<div class="brow">${tools}<span class="bsp"></span>
         ${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}
         ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}
-        ${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}${b('done', '', tr('Done'), 'mdi:check', true)}</div>
+        ${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
+        ${this._bDirty() ? b('cancel', '', tr('Cancel'), 'mdi:close', false) : ''}
+        ${b('done', '', this._bSaving ? tr('Saving…') : this._bDirty() ? tr('Save') : tr('Done'), this._bDirty() ? 'mdi:content-save' : 'mdi:check', true, this._bSaving ? 'disabled' : '')}</div>
       ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>`;
   }
 
@@ -83,10 +120,11 @@ export class BuildTools {
       case 'width': this._bW[this._bTool] = Number(v); break;
       case 'brush': this._bBrush = { k: t.dataset.k, v }; break;
       case 'piece': this._bPiece = this._bPiece === v ? null : v; break;
-      case 'grid': this._bGrid = (this._bGrid || 0.5) === 0.5 ? 0.25 : (this._bGrid || 0.5) === 0.25 ? 1 : 0.5; break;
+      case 'grid': this._bGrid = (this._bGrid || 0.5) === 0.5 ? 0.25 : (this._bGrid || 0.5) === 0.25 ? 1 : 0.5; this._three?.builder?.setGrid(); break;
       case 'turnv': if (this._three) { this._three.goal.theta += Number(v) * Math.PI / 4; this._three.lastInput = performance.now(); } return;
-      case 'undo': { const prev = this._bUndo?.pop(); if (prev) { this._bSel = null; this._bNew = null; this._applyConfig(JSON.parse(prev)); } break; }
-      case 'done': this._bNew = null; this._bToggle(false); return;
+      case 'undo': { const prev = this._bUndo?.pop(); if (prev) { this._bSel = null; this._bNew = null; this._bApply(JSON.parse(prev)); } break; }
+      case 'done': if (!this._bSaving) this._bToggle(false); return;
+      case 'cancel': this._bToggle(false, false); return;
       case 'turn': this._bPieceEdit(f => turnPiece(f)); return;
       case 'delpiece': this._bOp('delete', { k: 'piece', fi: this._bSel }); this._bSel = null; break;
       case 'unsel': this._bSel = null; break;
@@ -107,11 +145,28 @@ export class BuildTools {
     if (area || name) this._bNew = null;
     this._bRender();
   }
-  _bSelect(fi) { this._bSel = fi != null && FURN[fi]?.src ? fi : null; if (fi != null && !FURN[fi]?.src) this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); this._bRender(); }
+  _bSelect(fi) {
+    const ok = fi != null && this._bCanEdit(fi);
+    this._bSel = ok ? fi : null; if (fi != null && !ok) this._toast(tr('These stairs come with the room: change them in the card editor'), true);
+    this._bRender();
+  }
+  // a piece Build mode can change: one of your own, or one of a room's automatic set (it becomes the room's own first)
+  _bCanEdit(fi) { const P = FURN[fi]; return !!P && (!!P.src || (!!P.room && !!ROOM[P.room] && !('byFloors' in P))); }
+  // the config object of piece `fi` in house H. A room's automatic set is copied into the room's own furniture first,
+  // so its pieces can be moved, turned, linked and removed (the house built from the areas becomes your own too).
+  _bPieceRef(H, fi) {
+    const P = FURN[fi]; if (!P) return null;
+    if (P.src) return P.src.house != null ? H.furniture?.[P.src.house] : H.rooms?.[P.src.room]?.furniture?.[P.src.i];
+    const r = P.room && ROOM[P.room]; if (!r || 'byFloors' in P) return null;
+    const rc = H.rooms?.[r.ci ?? ROOMS.indexOf(r)]; if (!rc) return null;
+    const autos = FURN.filter(f => f.room === r.id && !f.src && !('byFloors' in f)), k = autos.indexOf(P);
+    if (!Array.isArray(rc.furniture)) rc.furniture = autoFurnitureConfig({ ...rc, media: rc.media ?? r.media ?? undefined }, r.name);
+    return rc.furniture[k] || null;
+  }
   // the selected piece, changed in the config
   _bPieceEdit(fn) {
-    const P = FURN[this._bSel]; if (!P?.src) return;
-    this._bEdit(H => { const f = P.src.house != null ? H.furniture?.[P.src.house] : H.rooms?.[P.src.room]?.furniture?.[P.src.i]; if (f) fn(f); });
+    const fi = this._bSel; if (fi == null) return;
+    this._bEdit(H => { const f = this._bPieceRef(H, fi); if (!f) return false; fn(f); });
   }
 
   // a change to the house: the config is copied, changed by `fn(house, cfg)` and applied (through the open card editor,
@@ -119,17 +174,25 @@ export class BuildTools {
   // on it keeps its rooms.
   async _bEdit(fn) {
     const before = JSON.stringify(this._config || {}), cfg = JSON.parse(before), H = cfg.house ||= {};
+    this._bOwnHouse(H);
+    if (fn(H, cfg) === false) return false;
+    return this._bCommit(cfg, before);
+  }
+  // a new config while building: undo remembers the one before; it changes this card only (or goes through the open
+  // card editor); the dashboard is saved when Build mode closes
+  _bCommit(cfg, before = JSON.stringify(this._config || {})) {
+    (this._bUndo ||= []).push(before); if (this._bUndo.length > 50) this._bUndo.shift();
+    this._bApply(cfg); this._bRender();
+    return true;
+  }
+  _bApply(cfg) { if (this._viaEditor()) window.__sweetHomeEditor.applyExternal(cfg); else this.setConfig(cfg); }
+  // the house built from the Home Assistant areas becomes your own first, so building on it keeps its rooms
+  _bOwnHouse(H) {
     if (!arr(H.rooms).length && ROOMS.length && MODEL.auto) {
       const { ox = 0, oz = 0 } = MODEL.plan;
       H.rooms = ROOMS.map(r => ({ ...(r.area ? { area: r.area } : { name: r.name }), rects: r.rects.map(([a, b, c, d]) => [r2(a + ox), r2(b + oz), r2(c + ox), r2(d + oz)]), ...(r.level ? { level: r.level } : {}) }));
       if (H.auto_furniture == null) H.auto_furniture = true;
     }
-    if (fn(H, cfg) === false) return false;
-    (this._bUndo ||= []).push(before); if (this._bUndo.length > 50) this._bUndo.shift();
-    const ok = await this._applyConfig(cfg);
-    if (!ok) this._bUndo.pop();
-    this._bRender();
-    return ok;
   }
 
   // one build step from the 3D view (in the config's own coordinates)
@@ -166,8 +229,8 @@ export class BuildTools {
     });
     if (op === 'delete') return this._bEdit(H => {
       if (a.k === 'piece') {
-        const src = FURN[a.fi]?.src; if (!src) return false;
-        if (src.house != null) H.furniture?.splice(src.house, 1); else H.rooms?.[src.room]?.furniture?.splice(src.i, 1);
+        const f = this._bPieceRef(H, a.fi); if (!f) return false;
+        for (const list of [H.furniture, ...arr(H.rooms).map(r => r.furniture)]) { const i = Array.isArray(list) ? list.indexOf(f) : -1; if (i >= 0) { list.splice(i, 1); break; } }
       } else if (a.k === 'door') H.doors?.splice(a.i, 1);
       else if (a.k === 'wall') { H.extra_walls?.splice(a.i, 1); if (!H.extra_walls?.length) delete H.extra_walls; }
       else if (a.k === 'room') {

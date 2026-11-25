@@ -273,6 +273,9 @@ const AR = {
   'Room name': 'اسم الغرفة', 'Home Assistant area': 'منطقة Home Assistant', 'No area': 'بدون منطقة', '{0} new rooms': '{0} غرف جديدة',
   'Point at a wall': 'وجّه المؤشر إلى جدار', 'Windows go in outer walls': 'النوافذ تُضاف في الجدران الخارجية فقط',
   'House style': 'نمط المنزل', 'Classic (night blue)': 'كلاسيكي (أزرق ليلي)', 'Dollhouse (sunny lot, wallpapered rooms, near walls cut down)': 'بيت الدمى (حديقة مشمسة، غرف بورق جدران، والجدران القريبة منخفضة)',
+  Save: 'حفظ', 'Saving…': 'جارٍ الحفظ…', 'House saved': 'تم حفظ المنزل', 'Changes discarded': 'تم تجاهل التغييرات',
+  'These stairs come with the room: change them in the card editor': 'هذا الدرج جزء من الغرفة: عدّله من محرر البطاقة',
+  'Could not find this card on the dashboard to save it. Open the card editor and build there.': 'تعذّر العثور على هذه البطاقة في لوحة التحكم لحفظها. افتح محرر البطاقة وابنِ من هناك.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';
