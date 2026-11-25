@@ -390,10 +390,9 @@ try {
       let more = 0; const h = () => more++; card.addEventListener('hass-more-info', h);
       const trk = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = trk.getBoundingClientRect();
       trk.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 1, clientY: b.top + 4 }));
-      await new Promise(r => setTimeout(r, 350)); card.removeEventListener('hass-more-info', h);
+      await new Promise(r => setTimeout(r, 100)); card.removeEventListener('hass-more-info', h);
       const tip = card.shadowRoot.querySelector('#security .dtip'), row = trk.closest('.dtl').getBoundingClientRect(), nm = trk.previousElementSibling.getBoundingClientRect(), ago = trk.nextElementSibling.getBoundingClientRect();
-      const tb = tip?.getBoundingClientRect(), nr = trk.closest('.dtl').nextElementSibling?.getBoundingClientRect();
-      return !!tip && tb.top >= b.bottom && (!nr || nr.top >= tb.bottom) && /^\d{1,2}:\d\d( [AP]M)? · (1 min|open now)$/.test(tip.textContent) && !!trk.querySelector('i.hit') && more === 0 && b.left - nm.right < 14 && ago.left - b.right < 14 && row.width > 0;
+      return !!tip && /^\d{1,2}:\d\d( [AP]M)? · (1 min|open now)$/.test(tip.textContent) && !!trk.querySelector('i.hit') && more === 0 && b.left - nm.right < 14 && ago.left - b.right < 14 && row.width > 0;
     }));
     check('…tapping the openings count lists every opening, newest first; At night lists the night ones', await p.evaluate(async () => {
       const q = s => card.shadowRoot.querySelector(s), total = card._dD.reduce((n, d) => n + d.evs.filter(e => !e.cut).length, 0);
@@ -413,9 +412,8 @@ try {
     check('…a bar there still shows the bubble', await p.evaluate(async () => {
       const t = card.shadowRoot.querySelector('#security .dtl .dtrack'), b = t.getBoundingClientRect();
       t.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: b.right - 2, clientY: b.top + 4 }));
-      await new Promise(r => setTimeout(r, 350)); const tip = card.shadowRoot.querySelector('#security .dtip');
-      const tr = tip?.getBoundingClientRect(), nx = t.closest('.dtl').nextElementSibling?.getBoundingClientRect();
-      return !!tip && /·/.test(tip.textContent) && tr.top >= b.bottom && (!nx || nx.top >= tr.bottom); // under its own bar, above the next door
+      await new Promise(r => setTimeout(r, 100)); const tip = card.shadowRoot.querySelector('#security .dtip');
+      return !!tip && /·/.test(tip.textContent) && tip.getBoundingClientRect().bottom <= b.top + 1;
     }));
     await p.evaluate(() => card.shadowRoot.querySelector('#security [data-act=doorsview]').click()); await p.waitForTimeout(700); r = await look();
     check('…and Show less closes it again', !r.det && r.tl === r.items && !r.ext && !r.grp.length && r.btnTxt.startsWith('Show details'), JSON.stringify(r));

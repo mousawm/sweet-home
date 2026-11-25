@@ -236,11 +236,9 @@ main{scroll-margin-top:84px}
 .daxis{font-size:9.5px;color:var(--mu);margin-top:2px;display:grid;column-gap:10px}.daxis div{display:flex;justify-content:space-between}
 .dv.fill .daxis{display:none}
 @media (prefers-reduced-motion:reduce){.dv,.dv *{transition:none!important}}
-.dtipw{grid-column:1/-1;position:relative;height:24px;margin-top:7px;pointer-events:none;animation:dtipw .2s ease-out;transition:height .2s ease,margin .2s ease,opacity .2s ease}
-.dtipw.out{height:0;margin-top:0;opacity:0}
-@keyframes dtipw{from{height:0;margin-top:0;opacity:0}}
-.dtip{position:absolute;top:0;z-index:3;padding:4px 9px;border-radius:8px;background:#0f766e;color:#fff;font-size:11px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25)}
-.dtip::after{content:'';position:absolute;left:var(--ax,50%);bottom:100%;margin-left:-5px;border:5px solid transparent;border-bottom-color:#0f766e}
+.dtip{position:absolute;top:-30px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(15,23,42,.94);color:#fff;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:dtip .18s ease-out}
+@keyframes dtip{from{opacity:0;transform:translateY(3px)}}
+.dtip::after{content:'';position:absolute;left:var(--ax,50%);top:100%;margin-left:-5px;border:5px solid transparent;border-top-color:rgba(15,23,42,.94)}
 .dtrack.sel{border-color:var(--teal);box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 30%,transparent)}
 
 
