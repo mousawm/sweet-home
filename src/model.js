@@ -525,7 +525,7 @@ export function buildModel(cfg = {}, hass) {
     const r = {
       id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs ?? null,
       rects, poly: poly || undefined, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
-      outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
+      outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined, wallColor: rc.wall_color ?? undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
       climate: pick('climate') || null, fan: pick('fan') || null, count: rc.count || null,
@@ -595,7 +595,7 @@ export function buildModel(cfg = {}, hass) {
     .map(q => lineOf(q[0], q[1], q[2], q[3])).filter(Boolean);
 
   /* ---------- doors: a leaf that swings open with its contact sensor (or stays shut without one) ---------- */
-  const doors = arr(house.doors).map(d => {
+  const doors = arr(house.doors).map((d, ci) => {
     const from = d.from || [d.x, d.z], to = d.to;
     if (from[0] == null || from[1] == null) return null;
     let axis = d.axis || 'x', dir = d.dir ?? 1, w = num(d.width ?? d.w, 0.9);
@@ -620,7 +620,7 @@ export function buildModel(cfg = {}, hass) {
     }
     if (Math.abs(vz) < 1e-6) { axis = 'x'; dir = vx >= 0 ? 1 : -1; } else if (Math.abs(vx) < 1e-6) { axis = 'z'; dir = vz >= 0 ? 1 : -1; } else axis = 'a';
     // gate: a gate leaf (rails and bars, about fence height) instead of a full-height door
-    return { id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level, gate: !!d.gate, gh: d.gate ? num(d.height, null) : null,
+    return { ci, id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level, gate: !!d.gate, gh: d.gate ? num(d.height, null) : null,
       seg: [x, z, rnd4(x + vx * w), rnd4(z + vz * w)] };
   }).filter(Boolean);
 
@@ -1016,8 +1016,9 @@ export function buildModel(cfg = {}, hass) {
 
   return {
     E, rooms, walls, doors, doorInfo, furniture, badges, levels,
-    plan: { W, D, CX: W / 2, CZ: D / 2 },
+    plan: { W, D, CX: W / 2, CZ: D / 2, ox, oz }, // ox, oz: where the plan's 0, 0 is in the config's coordinates
     wallH: num(house.wall_height, 1.35),
+    style: house.style === 'dollhouse' ? 'dollhouse' : 'classic', // dollhouse: a bright lot, wallpapered rooms, walls facing you cut down
     title: cfg.title || 'My Home', auto, has, hasMS,
     gltf: house.type === 'gltf' ? { url: house.url, scale: num(house.scale, 1), rotation: num(house.rotation, 0), offset: house.offset || [0, 0, 0], rooms: house.mesh_rooms || {} } : null,
     tabsOrder: arr(cfg.tabs),
@@ -1031,4 +1032,66 @@ export function movePiece(f, dx, dz) {
   const r2 = v => Math.round(v * 100) / 100, N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
   if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
   else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
+}
+
+/* ---------- Build mode: walls first, rooms found ---------- */
+// The areas closed in by walls (like a life-sim build mode): `segs` are wall lines [x1, z1, x2, z2] (separate walls and
+// the edges of the rooms there already are), `rooms` the outlines of those rooms ([[x, z]…]). Walls are cut where they
+// cross or touch, and every closed area that is not already a room (nor holds one) comes back as an outline, corner by
+// corner. Areas under 0.5 m² are left out.
+export function enclosedAreas(segs, rooms = []) {
+  const E = 1e-6, k = v => Math.round(v * 100) / 100, key = (x, z) => `${k(x)},${k(z)}`;
+  const S = segs.map(s => s.map(Number)).filter(s => Math.hypot(s[2] - s[0], s[3] - s[1]) > 0.05);
+  // the points where each wall is cut: its ends, and where another wall crosses or touches it
+  const cuts = S.map(() => [0, 1]);
+  for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) {
+    const [ax, az, bx, bz] = S[i], [cx, cz, dx, dz] = S[j], rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx;
+    const along = (px, pz, [x1, z1, x2, z2]) => { const vx = x2 - x1, vz = z2 - z1, L2 = vx * vx + vz * vz, t = ((px - x1) * vx + (pz - z1) * vz) / L2; return Math.hypot(x1 + vx * t - px, z1 + vz * t - pz) < 0.02 && t > -E && t < 1 + E ? t : null; };
+    if (Math.abs(den) > E) {
+      const t = ((cx - ax) * sz - (cz - az) * sx) / den, u = ((cx - ax) * rz - (cz - az) * rx) / den;
+      if (t > -E && t < 1 + E && u > -E && u < 1 + E) { cuts[i].push(t); cuts[j].push(u); }
+    } else { // in line: each one's ends cut the other
+      for (const [p, q, a] of [[[cx, cz], S[i], i], [[dx, dz], S[i], i], [[ax, az], S[j], j], [[bx, bz], S[j], j]]) { const t = along(p[0], p[1], q); if (t != null) cuts[a].push(t); }
+    }
+  }
+  const P = {}, adj = {};
+  const node = (x, z) => { const id = key(x, z); P[id] ||= [k(x), k(z)]; adj[id] ||= new Set(); return id; };
+  S.forEach(([x1, z1, x2, z2], i) => {
+    const ts = [...new Set(cuts[i].map(t => Math.min(1, Math.max(0, t))).map(t => Math.round(t * 1e5) / 1e5))].sort((a, b) => a - b);
+    for (let n = 0; n + 1 < ts.length; n++) {
+      const a = node(x1 + (x2 - x1) * ts[n], z1 + (z2 - z1) * ts[n]), b = node(x1 + (x2 - x1) * ts[n + 1], z1 + (z2 - z1) * ts[n + 1]);
+      if (a !== b) { adj[a].add(b); adj[b].add(a); }
+    }
+  });
+  // loose ends can't close anything: drop them, again and again
+  for (let again = true; again;) { again = false; for (const id in adj) if (adj[id].size === 1) { for (const o of adj[id]) adj[o].delete(id); adj[id].clear(); again = true; } }
+  // walk every face: at each corner, take the sharpest turn to the right
+  const ang = (a, b) => Math.atan2(P[b][1] - P[a][1], P[b][0] - P[a][0]), seen = new Set(), out = [];
+  for (const a in adj) for (const b of adj[a]) {
+    if (seen.has(a + '>' + b)) continue;
+    const face = []; let u = a, v = b, guard = 0;
+    while (!seen.has(u + '>' + v) && guard++ < 10000) {
+      seen.add(u + '>' + v); face.push(P[u]);
+      const back = ang(v, u); let best = null, bestD = Infinity;
+      for (const w of adj[v]) { if (w === u && adj[v].size > 1) continue; let d = back - ang(v, w); while (d <= E) d += 2 * Math.PI; if (d < bestD) { bestD = d; best = w; } }
+      u = v; v = best;
+    }
+    if (face.length < 3 || polyArea(face) < 0.5) continue; // the outside of a group of walls goes round the other way
+    // corners in a straight line are not corners
+    const pts = face.filter((p, i) => { const a2 = face[(i + face.length - 1) % face.length], c = face[(i + 1) % face.length]; return Math.abs((p[0] - a2[0]) * (c[1] - p[1]) - (p[1] - a2[1]) * (c[0] - p[0])) > 1e-4; });
+    if (pts.length < 3) continue;
+    // a point inside it: the middle, or else the middle of a corner's two neighbours
+    let inside = null; const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    if (inPoly(cx, cz, pts)) inside = [cx, cz];
+    else for (let i = 0; i < pts.length && !inside; i++) { const a2 = pts[i], c = pts[(i + 2) % pts.length], m = [(a2[0] + c[0]) / 2, (a2[1] + c[1]) / 2]; if (inPoly(m[0], m[1], pts)) inside = m; }
+    if (!inside) continue;
+    if (rooms.some(r => inPoly(inside[0], inside[1], r))) continue; // already a room
+    if (rooms.some(r => r.some(([x, z]) => inPoly(x, z, pts) && !onEdge(x, z, pts)))) continue; // it would hold a room
+    out.push(pts);
+  }
+  return out;
+}
+// is x, z on the outline's edge (within 2 cm)?
+export function onEdge(x, z, poly) {
+  return poly.some(([x1, z1], i) => { const [x2, z2] = poly[(i + 1) % poly.length], vx = x2 - x1, vz = z2 - z1, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - x1) * vx + (z - z1) * vz) / L2)); return Math.hypot(x1 + vx * t - x, z1 + vz * t - z) < 0.02; });
 }

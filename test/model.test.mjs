@@ -1,6 +1,6 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
-import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
+import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig, enclosedAreas } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
 
@@ -368,6 +368,20 @@ test('fence and gate: a fence separate wall keeps its kind (and its height); a g
   const m = buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]] }], extra_walls: [{ from: [0, 6], to: [6, 6], type: 'fence' }], doors: [{ from: [2, 6], to: [3.2, 6], gate: true, height: 1.4 }, { from: [1, 4], to: [2, 4] }] } }, hass);
   assert.deepEqual(m.doors.map(d => [d.gate, d.gh]), [[true, 1.4], [false, null]]);
   assert.equal(m.walls.filter(w => w[4] === 'fence').length, 2, 'the gate cuts the fence in two');
+});
+test('house style: dollhouse when asked, classic otherwise; a room keeps its wall_color', () => {
+  assert.equal(buildModel({ house: { style: 'dollhouse', rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], wall_color: '#ffcc00' }] } }, hass).style, 'dollhouse');
+  assert.equal(buildModel({ house: { style: 'x' } }, hass).style, 'classic');
+  assert.equal(buildModel({ house: { rooms: [{ name: 'A', rects: [[0, 0, 4, 4]], wall_color: '#ffcc00' }] } }, hass).rooms[0].wallColor, '#ffcc00');
+});
+test('build mode: walls that close an area make a room (walls first)', () => {
+  const sq = (x, z, w, d) => [[x, z, x + w, z], [x + w, z, x + w, z + d], [x + w, z + d, x, z + d], [x, z + d, x, z]];
+  assert.deepEqual(enclosedAreas(sq(0, 0, 4, 3)), [[[0, 0], [4, 0], [4, 3], [0, 3]]], 'four walls: one room');
+  assert.equal(enclosedAreas([...sq(0, 0, 4, 3), [2, 0, 2, 3]]).length, 2, 'a wall across it: two rooms');
+  assert.deepEqual(enclosedAreas([[0, 0, 4, 0], [4, 0, 4, 3], [0, 0, 0, 3]]), [], 'open on one side: no room');
+  assert.deepEqual(enclosedAreas([...sq(0, 0, 4, 3), [4, 0, 7, 0], [7, 0, 7, 3], [7, 3, 4, 3]], [[[0, 0], [4, 0], [4, 3], [0, 3]]]), [[[4, 0], [7, 0], [7, 3], [4, 3]]], 'closed against a room: only the new part');
+  assert.equal(enclosedAreas([[-1, 0, 5, 0], [0, -1, 0, 4], [4, -1, 4, 4], [-1, 3, 5, 3]]).length, 1, 'walls that cross: cut where they cross');
+  assert.deepEqual(enclosedAreas(sq(-2, -2, 10, 9), [[[0, 0], [4, 0], [4, 3], [0, 3]]]), [], 'a fence round the house is not a room');
 });
 test('doors_hours: the timeline span is 6, 12, 18 or 24 hours (24 by default, or for anything else)', () => {
   const H = sec => buildModel({ panels: { security: sec } }, hass).E.doorsHours;

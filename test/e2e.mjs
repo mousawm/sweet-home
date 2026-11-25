@@ -1209,6 +1209,43 @@ try {
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('build mode');
+  p = await open('?config=demo&edit=1', { width: 1280, height: 900 });
+  { const r = await p.evaluate(async () => {
+    const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), out = {}, H = () => card._config.house;
+    const ready = async () => { await wait(800); for (let i = 0; i < 100 && !(card._three?.builder && card._three._key === card._houseJSON); i++) await wait(100); await wait(100); };
+    card._applyConfig = async cfg => { card.setConfig(cfg); return true; };
+    out.button = !!R.querySelector('#buildBtn');
+    R.querySelector('#buildBtn').click(); await wait(100);
+    out.on = !!card._three.builder && R.querySelector('#buildbar').classList.contains('open') && R.querySelector('#viewport').classList.contains('building');
+    const n0 = H().rooms.length;
+    await card._bOp('room', { rect: [20, 0, 24, 3], level: 0 }); await ready();
+    out.room = H().rooms.length === n0 + 1 && JSON.stringify(H().rooms.at(-1).rects) === '[[20,0,24,3]]' && !!R.querySelector('[data-bname]') && !!card._three.builder;
+    // walls first: four walls closing an area make a room, and the walls become that room's own
+    for (const [a, b] of [[[20, 4], [23, 4]], [[23, 4], [23, 6.5]], [[23, 6.5], [20, 6.5]], [[20, 6.5], [20, 4]]]) { await card._bOp('wall', { from: a, to: b, level: 0 }); await ready(); }
+    out.walls = H().rooms.length === n0 + 2 && JSON.stringify(H().rooms.at(-1).points) === '[[20,4],[23,4],[23,6.5],[20,6.5]]' && !(H().extra_walls || []).some(w => w.from?.[0] >= 20);
+    await card._bOp('door', { seg: [21, 4, 21.9, 4], level: 0 }); await ready();
+    out.door = JSON.stringify(H().doors.at(-1)) === '{"from":[21,4],"to":[21.9,4]}';
+    const id = Object.values(card._three.rooms).at(-1).r.id;
+    card._bBrush = { k: 'wall', v: '#b9cdee' }; await card._bOp('paint', { room: id }); await ready();
+    card._bBrush = { k: 'floor', v: 'carpet' }; await card._bOp('paint', { room: id }); await ready();
+    out.paint = H().rooms.at(-1).wall_color === '#b9cdee' && H().rooms.at(-1).floor === 'carpet';
+    await card._bOp('piece', { type: 'lamp', x: 21.5, z: 5, room: id, level: 0 }); await ready();
+    out.piece = JSON.stringify(H().rooms.at(-1).furniture) === '[{"type":"lamp","x":21.5,"z":5,"h":1.5}]';
+    const fi = card._three.fpieces?.find(P => P.f.room === id)?.idx ?? Object.keys(card._three.fmov).map(Number).at(-1);
+    card._bTool = 'furniture'; card._bSelect(fi); R.querySelector('[data-blink]').value = 'light.kitchen'; R.querySelector('[data-blink]').dispatchEvent(new Event('change', { bubbles: true })); await ready();
+    out.link = JSON.stringify(H().rooms.at(-1).furniture[0].entities) === '["light.kitchen"]';
+    const before = JSON.stringify(H()); await card._bOp('delete', { k: 'piece', fi: card._bSel ?? fi }); await ready();
+    out.del = !H().rooms.at(-1).furniture.length;
+    R.querySelector('[data-b=undo]').click(); await ready();
+    out.undo = JSON.stringify(H()) === before;
+    R.querySelector('[data-b=done]').click(); await wait(100);
+    out.off = !card._three.builder && !R.querySelector('#buildbar').classList.contains('open');
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('build mode: rooms, walls that close a room, doors, paint, furniture (placed, linked, removed) and undo, written into the config', r === true, r); }
+  check('no page errors (build mode)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
   check('right-to-left layout and Arabic text', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'rtl' && card.shadowRoot.querySelector('#tabs').textContent.includes('الرئيسية')));

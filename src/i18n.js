@@ -257,6 +257,22 @@ const AR = {
   "Couldn't reach Sonarr / Radarr": 'تعذّر الوصول إلى Sonarr / Radarr', 'Sonarr / Radarr did not answer.': 'لم يستجب Sonarr / Radarr.',
   'Everything monitored that is out is downloaded.': 'تم تنزيل كل ما هو مُراقَب وصدر بالفعل.',
   "Released, monitored movies Radarr hasn't downloaded yet. Radarr keeps searching for them automatically.": 'أفلام مُراقَبة صدرت ولم ينزّلها Radarr بعد. يواصل Radarr البحث عنها تلقائيًا.',
+  // Build mode (3D view) and the Dollhouse look
+  Build: 'البناء', Paint: 'الطلاء', 'Knock down': 'هدم', Remove: 'إزالة', Wallpaper: 'ورق الجدران', 'Turn left': 'تدوير لليسار', 'Turn right': 'تدوير لليمين',
+  'Build mode: draw on the grid. Two fingers or the right mouse button turn the view.': 'وضع البناء: ارسم على الشبكة. استخدم إصبعين أو زر الفأرة الأيمن لتدوير العرض.',
+  'Drag on the grid to draw a room: its walls go up around it.': 'اسحب على الشبكة لرسم غرفة، وستُبنى جدرانها حولها تلقائيًا.',
+  'Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.': 'اسحب لرسم جدار (مستقيم أو بزاوية 45°). الجدران التي تُغلق مساحة تصبح غرفة جديدة.',
+  'Tap a wall to put a door in it (a gate in a fence).': 'اضغط على جدار لإضافة باب فيه (أو بوابة في السياج).',
+  'Tap an outer wall to put a window in it.': 'اضغط على جدار خارجي لإضافة نافذة فيه.',
+  'Pick a wallpaper or a floor, then tap a room.': 'اختر ورق جدران أو أرضية، ثم اضغط على الغرفة.',
+  'Dollhouse look (shows wallpaper)': 'مظهر بيت الدمى (يُظهر ورق الجدران)',
+  'Tap the floor to place it. Drag a piece to move it, tap it to turn or link it.': 'اضغط على الأرضية لوضعها. اسحب القطعة لتحريكها، واضغط عليها لتدويرها أو ربطها.',
+  'Pick a piece, then tap the floor. Drag a piece to move it, tap it to turn or link it.': 'اختر قطعة، ثم اضغط على الأرضية. اسحب القطعة لتحريكها، واضغط عليها لتدويرها أو ربطها.',
+  'Tap a piece, a door, a wall you drew or a room to remove it.': 'اضغط على قطعة أثاث أو باب أو جدار رسمته أو غرفة لإزالتها.',
+  'Tap {0} again to remove it': 'اضغط على {0} مرة أخرى لإزالتها', 'Link to an entity': 'ربط بكيان', 'No entity {0}': 'لا يوجد كيان {0}',
+  'Room name': 'اسم الغرفة', 'Home Assistant area': 'منطقة Home Assistant', 'No area': 'بدون منطقة', '{0} new rooms': '{0} غرف جديدة',
+  'Point at a wall': 'وجّه المؤشر إلى جدار', 'Windows go in outer walls': 'النوافذ تُضاف في الجدران الخارجية فقط',
+  'House style': 'نمط المنزل', 'Classic (night blue)': 'كلاسيكي (أزرق ليلي)', 'Dollhouse (sunny lot, wallpapered rooms, near walls cut down)': 'بيت الدمى (حديقة مشمسة، غرف بورق جدران، والجدران القريبة منخفضة)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

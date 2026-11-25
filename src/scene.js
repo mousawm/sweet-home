@@ -2,6 +2,7 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { toColor, lineOf, inPoly, polyArea } from './model.js';
 import { t as tr } from './i18n.js';
+import { Builder } from './build.js';
 import { MODEL, E, ROOMS, ROOM, WALLS, DOORS, FURN, BADGES, CX, CZ, PLAN_W, PLAN_D, WALL_H, SPAN, tc, esc, ic, clamp, BAD, tempRGB, rgb, COARSE, plugCharger, plugIcon, domIcon, furnName, furnIcon, acMode, acIcon } from './core.js';
 
 export class HouseScene {
@@ -21,6 +22,9 @@ export class HouseScene {
     this.mode = 'lights'; this.sel = null; this.hover = null;
     this.rooms = {}; this.pick = []; this.doors = []; this.acs = []; this.stairDots = [];
     this.lv = {}; this.level = card._level ?? 0; this._cl = 0; // one group per floor; only the shown floor is visible
+    // `house.style: dollhouse`: a sunny lot of grass around the house, wallpaper in every room, siding outside, and the
+    // walls on the side you look from cut down so you see into the rooms (a life-sim / dollhouse view)
+    this.doll = MODEL.style === 'dollhouse'; this.cuts = []; this.vp.classList.toggle('doll', this.doll);
     // default camera: angled 3D view on a PC (mouse), top-down floor plan on phones / tablets (touch)
     this.vmode = card._defView ? card._defView() : 'top'; // Look → default view (per device type, or this device's own)
     this.orbit = { theta: 0, phi: 0.08, radius: 27, target: new T.Vector3(0, 0, 0) };
@@ -75,6 +79,11 @@ export class HouseScene {
   set _dirty(v) { this.__dirty = v; if (v) this._wake?.(); }
   get lastInput() { return this.__lastInput || 0; }
   set lastInput(v) { this.__lastInput = v; this._wake?.(); }
+  // Build mode (src/build.js): the grid and the build tools on, or off
+  setBuild(on) {
+    if (!on) { this.builder?.dispose(); this.builder = null; return; }
+    if (!this.builder && this.lbls) { this.builder = new Builder(this); this._dirty = true; }
+  }
   pause() { this.running = false; }
   resume() { this.running = true; this._wake?.(); }
 
@@ -94,7 +103,7 @@ export class HouseScene {
 
   _lights() {
     const T = this.T;
-    this.hemi = new T.HemisphereLight(0xbfd4ff, 0x1a1f2e, 0.9); this.scene.add(this.hemi);
+    this.hemi = this.doll ? new T.HemisphereLight(0xdcefff, 0x6f8f4a, 1.2) : new T.HemisphereLight(0xbfd4ff, 0x1a1f2e, 0.9); this.scene.add(this.hemi);
     const d = this.sun = new T.DirectionalLight(0xffffff, 2.2);
     const S = SPAN * 0.72 + 3; // sun and its shadow box follow the size of the house
     d.position.set(-S, S * 1.55, -S * 0.7); d.castShadow = true;
@@ -137,6 +146,7 @@ export class HouseScene {
 
   _ground() {
     const T = this.T;
+    if (this.doll) return this._groundDoll();
     const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
     const grd = g.createRadialGradient(256, 256, 30, 256, 256, 256);
     grd.addColorStop(0, 'rgba(60,90,150,0.55)'); grd.addColorStop(0.6, 'rgba(30,45,90,0.25)'); grd.addColorStop(1, 'rgba(10,15,30,0)');
@@ -155,6 +165,78 @@ export class HouseScene {
     const sc = new T.Mesh(new T.PlaneGeometry(PLAN_W + 24, PLAN_D + 24), new T.ShadowMaterial({ opacity: 0.35 }));
     sc.material.depthWrite = false; sc.renderOrder = -1;
     sc.rotation.x = -Math.PI / 2; sc.position.y = -0.02; sc.receiveShadow = true; this.scene.add(sc);
+  }
+
+  // dollhouse ground: a wide lawn that fades out at the edges, the lot (a lighter lawn with a faint 1 m build grid)
+  // framed by a pavement, the house on a stone foundation, and round shrubs at the lot's corners
+  _groundDoll() {
+    const T = this.T, G = Math.max(90, SPAN * 7), M = 3; // M: lot margin around the house (m)
+    const lc = document.createElement('canvas'); lc.width = lc.height = 256; const lg = lc.getContext('2d');
+    lg.fillStyle = '#6e9b48'; lg.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 6000; i++) { lg.fillStyle = `rgba(${70 + Math.random() * 60 | 0},${120 + Math.random() * 50 | 0},${40 + Math.random() * 30 | 0},.45)`; lg.fillRect(Math.random() * 256, Math.random() * 256, 1.2, 2 + Math.random() * 3); }
+    const lawn = new T.CanvasTexture(lc); lawn.wrapS = lawn.wrapT = T.RepeatWrapping; lawn.colorSpace = T.SRGBColorSpace; lawn.anisotropy = 4; lawn.repeat.set(G / 3, G / 3);
+    const fc = document.createElement('canvas'); fc.width = fc.height = 256; const fg = fc.getContext('2d');
+    const fade = fg.createRadialGradient(128, 128, 40, 128, 128, 128); fade.addColorStop(0, '#fff'); fade.addColorStop(0.75, '#fff'); fade.addColorStop(1, '#000');
+    fg.fillStyle = fade; fg.fillRect(0, 0, 256, 256);
+    const grass = new T.Mesh(new T.PlaneGeometry(G, G), new T.MeshStandardMaterial({ map: lawn, alphaMap: new T.CanvasTexture(fc), transparent: true, depthWrite: false, roughness: 1 }));
+    grass.rotation.x = -Math.PI / 2; grass.position.set(PLAN_W / 2 - CX, -0.27, PLAN_D / 2 - CZ); grass.receiveShadow = true; grass.renderOrder = -4; this.scene.add(grass);
+    // the lot: brighter grass, a faint grid every metre
+    const LW = PLAN_W + 2 * M, LD = PLAN_D + 2 * M, px = 32;
+    const c = document.createElement('canvas'); c.width = Math.min(2048, Math.ceil(LW * px)); c.height = Math.min(2048, Math.ceil(LD * px)); const g = c.getContext('2d');
+    const sx = c.width / LW, sz = c.height / LD;
+    g.fillStyle = '#8cbf5c'; g.fillRect(0, 0, c.width, c.height);
+    for (let i = 0; i < c.width * c.height / 18; i++) { g.fillStyle = `rgba(${100 + Math.random() * 60 | 0},${160 + Math.random() * 50 | 0},${60 + Math.random() * 40 | 0},.4)`; g.fillRect(Math.random() * c.width, Math.random() * c.height, 1.2, 2 + Math.random() * 3); }
+    g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1.5;
+    for (let x = 0; x <= LW; x++) { g.beginPath(); g.moveTo(x * sx, 0); g.lineTo(x * sx, c.height); g.stroke(); }
+    for (let z = 0; z <= LD; z++) { g.beginPath(); g.moveTo(0, z * sz); g.lineTo(c.width, z * sz); g.stroke(); }
+    const lt = new T.CanvasTexture(c); lt.colorSpace = T.SRGBColorSpace; lt.anisotropy = 4;
+    const lot = new T.Mesh(new T.PlaneGeometry(LW, LD), new T.MeshStandardMaterial({ map: lt, roughness: 1, depthWrite: false }));
+    lot.rotation.x = -Math.PI / 2; lot.position.set(PLAN_W / 2 - CX, -0.26, PLAN_D / 2 - CZ); lot.receiveShadow = true; lot.renderOrder = -3; this.scene.add(lot);
+    // the pavement around the lot
+    const pave = new T.MeshStandardMaterial({ color: 0xd9d4ca, roughness: 0.9 }), kerb = new T.MeshStandardMaterial({ color: 0xb9b2a5, roughness: 0.9 });
+    const cx0 = PLAN_W / 2 - CX, cz0 = PLAN_D / 2 - CZ, P = 0.9;
+    for (const [w, d, x, z] of [[LW + 2 * P, P, 0, -(LD + P) / 2], [LW + 2 * P, P, 0, (LD + P) / 2], [P, LD, -(LW + P) / 2, 0], [P, LD, (LW + P) / 2, 0]]) {
+      const m = new T.Mesh(new T.BoxGeometry(w, 0.06, d), pave); m.position.set(cx0 + x, -0.24, cz0 + z); m.receiveShadow = true; this.scene.add(m);
+      const k = new T.Mesh(new T.BoxGeometry(w > d ? w : 0.08, 0.09, w > d ? 0.08 : d), kerb);
+      k.position.set(cx0 + x + (w > d ? 0 : Math.sign(x) * (P / 2 - 0.04)), -0.23, cz0 + z + (w > d ? Math.sign(z) * (P / 2 - 0.04) : 0)); this.scene.add(k);
+    }
+    // round shrubs in the lot's corners
+    const leaf = new T.MeshStandardMaterial({ color: 0x4f8a3a, roughness: 0.9 }), leaf2 = new T.MeshStandardMaterial({ color: 0x67a046, roughness: 0.9 });
+    for (const [sx2, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (const [dx, dz, r, m] of [[0, 0, 0.5, leaf], [0.55 * -sx2, 0.1, 0.36, leaf2], [0.1, 0.55 * -sz2, 0.32, leaf2]]) {
+      const b = new T.Mesh(new T.SphereGeometry(r, 18, 12), m); b.scale.y = 0.8;
+      b.position.set(cx0 + sx2 * (LW / 2 - 0.8) + dx, -0.26 + r * 0.7, cz0 + sz2 * (LD / 2 - 0.8) + dz); b.castShadow = true; b.receiveShadow = true; this.scene.add(b);
+    }
+    // the foundation the house stands on: drawn first and without depth, so a stairwell going down shows through it
+    const slab = new T.Mesh(new T.BoxGeometry(PLAN_W + 0.5, 0.5, PLAN_D + 0.5), new T.MeshStandardMaterial({ color: 0xc8bba6, roughness: 0.95, depthWrite: false }));
+    slab.position.set(cx0, -0.27, cz0); slab.receiveShadow = true; slab.renderOrder = -2; this.scene.add(slab);
+  }
+  // dollhouse wallpaper: a soft stripe with a darker skirting board at the bottom and a light cornice at the top
+  // (white, so one texture serves every room colour); siding outside: horizontal boards over a stone plinth
+  _wallTex(kind) {
+    const T = this.T, k = this._wallT || (this._wallT = {}); if (k[kind]) return k[kind];
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256; const g = c.getContext('2d');
+    if (kind === 'paper') {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 256);
+      for (let x = 0; x < 128; x += 32) { g.fillStyle = 'rgba(0,0,0,.035)'; g.fillRect(x, 0, 14, 256); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(x + 14, 0, 2, 256); }
+      g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(0, 0, 128, 8); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(0, 8, 128, 2); // cornice
+      g.fillStyle = '#8a7a66'; g.fillRect(0, 232, 128, 24); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(0, 232, 128, 3); // skirting
+    } else {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 256);
+      for (let y = 0; y < 220; y += 18) { g.fillStyle = 'rgba(0,0,0,.10)'; g.fillRect(0, y + 15, 128, 3); g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(0, y, 128, 2); }
+      g.fillStyle = '#9b9283'; g.fillRect(0, 220, 128, 36); g.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < 128; x += 32) g.fillRect(x, 220, 2, 36);
+    }
+    const t = new T.CanvasTexture(c); t.wrapS = T.RepeatWrapping; t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; return (k[kind] = t);
+  }
+  // the wallpaper colour of a room: `wall_color`, else one picked from its name
+  _paperOf(r) {
+    if (r.wallColor != null) return toColor(r.wallColor, 0xeee6d8);
+    const n = String(r.name || r.id).toLowerCase();
+    const P = [[/kid|child|nursery|girl|boy/, 0xf2c4d2], [/bed|guest/, 0xb9cdee], [/kitchen|pantry/, 0xf5dc96], [/bath|toilet|wc|shower|powder/, 0xb5e0d6],
+      [/living|lounge|family|salon|sitting/, 0xeccaa3], [/dining/, 0xe3bfa2], [/office|study|library|work/, 0xc6dbb2], [/laundry|utility|storage|closet/, 0xdde6ee],
+      [/garage|workshop/, 0xd8d6cf], [/hall|corridor|entry|entrance|landing|stair|foyer/, 0xeee5d4]];
+    for (const [re, c] of P) if (re.test(n)) return c;
+    const pal = [0xf0dcc4, 0xd6e4c8, 0xcddcf0, 0xf6e7b4, 0xe6d5ec, 0xcde9e3]; let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return pal[h % pal.length];
   }
 
   _buildRooms() {
@@ -374,18 +456,32 @@ export class HouseScene {
   }
 
   _buildWalls() {
-    const T = this.T;
-    const wallMat = new T.MeshStandardMaterial({ color: 0xf3eee6, roughness: 0.85 });
-    const capMat = new T.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+    const T = this.T, doll = this.doll;
+    const plainWall = new T.MeshStandardMaterial({ color: 0xf3eee6, roughness: 0.85 }); let wallMat = plainWall;
+    const capMat = new T.MeshStandardMaterial({ color: doll ? 0x6f6458 : 0x1e293b, roughness: 0.6 });
     const glassMat = new T.MeshPhysicalMaterial({ color: 0x9ad7ff, transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.1, emissive: 0x1d4ed8, emissiveIntensity: 0.15 });
     const frameMat = new T.MeshStandardMaterial({ color: 0x5b6472, roughness: 0.5, metalness: 0.4 });
     // a wall piece in any direction (slanted and bent walls too: a bent one is many short pieces that overlap a little)
+    let into = null; // dollhouse: the group of the wall being built (cut down as one piece)
     const add = (mat, x1, z1, x2, z2, y0, h, thick, cast = true, over = thick) => {
       const len = Math.hypot(x2 - x1, z2 - z1);
-      const m = new T.Mesh(new T.BoxGeometry(len + over, h, thick), mat);
+      const geo = new T.BoxGeometry(len + over, h, thick);
+      if (Array.isArray(mat)) { // wallpaper / siding faces: the pattern repeats every 0.5 m along the wall
+        const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (len + over) / 0.5);
+      }
+      const m = new T.Mesh(geo, mat);
       const [cx, cz] = this.w((x1 + x2) / 2, (z1 + z2) / 2);
-      m.position.set(cx, y0 + h / 2, cz); m.rotation.y = -Math.atan2(z2 - z1, x2 - x1); m.castShadow = cast; m.receiveShadow = true; this._at().add(m); return m;
+      m.position.set(cx, y0 + h / 2, cz); m.rotation.y = -Math.atan2(z2 - z1, x2 - x1); m.castShadow = cast; m.receiveShadow = true; (into || this._at()).add(m); return m;
     };
+    // dollhouse: which room is on each side of a wall (outdoor rooms count as outside), and the wall's materials:
+    // the room's wallpaper on its side, siding on the outside, the cap colour on the ends and the top
+    const roomAt = (x, z, l) => ROOMS.find(r => r.level === l && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x > a && x < c && z > b && z < d)));
+    const paper = {}, sideMat = r => {
+      const key = r && !r.outdoor ? 'p' + this._paperOf(r) : 'out';
+      return (paper[key] ||= key === 'out' ? new T.MeshStandardMaterial({ map: this._wallTex('siding'), color: 0xe9dcc2, roughness: 0.9 })
+        : new T.MeshStandardMaterial({ map: this._wallTex('paper'), color: this._paperOf(r), roughness: 0.85 }));
+    };
+    const edgeMat = new T.MeshStandardMaterial({ color: 0xece5d9, roughness: 0.85 });
     // an outer wall has no room on one of its sides: it is drawn thicker
     const inside = (x, z, l) => ROOMS.some(r => r.level === l && (r.poly ? inPoly(x, z, r.poly) : r.rects.some(([a, b, c, d]) => x > a && x < c && z > b && z < d)));
     const fenceMat = new T.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.85 }), boardMat = new T.MeshStandardMaterial({ color: 0x9a7552, roughness: 0.9 });
@@ -395,6 +491,19 @@ export class HouseScene {
       const len = Math.hypot(x2 - x1, z2 - z1) || 1, nx = -(z2 - z1) / len * 0.3, nz = (x2 - x1) / len * 0.3, mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
       const outer = !o && (!inside(mx + nx, mz + nz, lvl ?? 0) || !inside(mx - nx, mz - nz, lvl ?? 0));
       const t = o ? 0.1 : outer ? 0.22 : 0.12, over = o?.bent ? t * 0.6 : t;
+      into = null; wallMat = plainWall;
+      if (doll && !['glass', 'fence', 'rail'].includes(type)) {
+        // BoxGeometry faces: +x, -x, top, bottom, +z, -z; the +z face looks towards (nx, nz)
+        const l = lvl ?? 0, rp = roomAt(mx + nx, mz + nz, l), rn = roomAt(mx - nx, mz - nz, l);
+        wallMat = [edgeMat, edgeMat, edgeMat, edgeMat, sideMat(rp), sideMat(rn)];
+        // a wall with the outside on one side faces away from the house: cut down while you look at it from that side
+        const outP = !rp || rp.outdoor, outN = !rn || rn.outdoor;
+        if (outP !== outN && type !== 'half') {
+          into = new T.Group(); this._at().add(into);
+          const s = outP ? 1 : -1, [ax, az] = this.w(x1, z1), [bx, bz] = this.w(x2, z2);
+          this.cuts.push({ g: into, nx: s * nx / 0.3, nz: s * nz / 0.3, h: o?.h ? Math.min(WALL_H, o.h) : WALL_H, k: 1, a: [ax, az], b: [bx, bz], l, doors: [] });
+        }
+      }
       if (type === 'half') { // a low wall (kitchen bar, stair rail): `height`, else about two thirds of the wall
         const h = Math.min(WALL_H, o?.h ?? Math.max(0.5, WALL_H * 0.62));
         add(wallMat, x1, z1, x2, z2, 0, h, t, true, over); add(capMat, x1, z1, x2, z2, h, 0.04, t + 0.01, false, over);
@@ -938,6 +1047,16 @@ export class HouseScene {
       const ang = -1.35 * d.side;
       this.doors.push({ d, pivot, mat, a: 0, ang });
     }
+    // dollhouse: a door in a wall that gets cut down is cut down with it
+    for (const D of this.doors) {
+      const [px, pz] = this.w(D.d.x, D.d.z), l = D.d.level ?? 0;
+      const C = this.cuts.find(C => {
+        if (C.l !== l) return false;
+        const [ax, az] = C.a, [bx, bz] = C.b, vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz || 1, u = clamp(((px - ax) * vx + (pz - az) * vz) / L2, 0, 1);
+        return Math.hypot(ax + vx * u - px, az + vz * u - pz) < 0.15;
+      });
+      if (C && !D.d.gate) C.doors.push(D.pivot.parent?.isGroup && D.d.axis === 'a' ? D.pivot.parent : D.pivot);
+    }
     // smart-lock badges (house.lock_badges): green while locked, pulsing red while unlocked
     this.badges = BADGES.map(b => {
       const m = new this.T.Mesh(b.axis === 'x' ? new this.T.BoxGeometry(0.13, 0.22, 0.05) : new this.T.BoxGeometry(0.05, 0.22, 0.13), new this.T.MeshStandardMaterial({ color: 0x111827, roughness: 0.3, metalness: 0.5, emissive: 0x34d399, emissiveIntensity: 0 }));
@@ -1017,7 +1136,7 @@ export class HouseScene {
     };
     let mv = null;
     el.addEventListener('pointerdown', e => {
-      if (!this.arrange || !e.isPrimary) return;
+      if (!this.arrange || !e.isPrimary || (this.builder && this.card._bPiece)) return; // Build mode with a piece picked: the tap places it
       const fi = fiAt(e.clientX, e.clientY), p0 = fi != null && floorPt(e.clientX, e.clientY); if (fi == null || !p0) return;
       const objs = this.fmov[fi] || [];
       mv = { fi, p0, objs, orig: objs.map(o => o.position.clone()), dx: 0, dz: 0 };
@@ -1033,7 +1152,7 @@ export class HouseScene {
     }, true);
     const mvEnd = e => {
       if (!mv) return; e.stopImmediatePropagation(); const m = mv; mv = null; el.style.cursor = '';
-      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) return;
+      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) { if (this.builder) this.card._bSelect(m.fi); return; } // Build mode: a tap picks the piece
       const undo = () => { m.objs.forEach((o, i) => o.position.copy(m.orig[i])); this.renderer.shadowMap.needsUpdate = true; this._dirty = true; };
       this.card._arrangeMove(FURN[m.fi], Math.round(m.dx * 100) / 100, Math.round(m.dz * 100) / 100, undo);
     };
@@ -1268,10 +1387,31 @@ export class HouseScene {
     this.cam.lookAt(o.target);
 
     const day = this.day ?? 0.6;
-    this.hemi.intensity = 1.05 + 0.5 * day;
-    this.sun.intensity = 1.1 + 1.6 * day;
-    this.sun.color.setRGB(0.65 + 0.35 * day, 0.72 + 0.26 * day, 1.0 - 0.12 * day);
-    this.renderer.toneMappingExposure = 0.95 + 0.15 * day;
+    if (this.doll) { // sunny by day (a warm sun, a blue sky over green grass), moonlit blue at night
+      this.hemi.intensity = 0.55 + 0.9 * day;
+      this.hemi.color.setRGB(0.55 + 0.32 * day, 0.62 + 0.3 * day, 0.85 + 0.15 * day);
+      this.sun.intensity = 0.5 + 2.6 * day;
+      this.sun.color.setRGB(0.6 + 0.4 * day, 0.68 + 0.27 * day, 0.95 - 0.12 * day);
+      this.renderer.toneMappingExposure = 0.9 + 0.15 * day;
+    } else {
+      this.hemi.intensity = 1.05 + 0.5 * day;
+      this.sun.intensity = 1.1 + 1.6 * day;
+      this.sun.color.setRGB(0.65 + 0.35 * day, 0.72 + 0.26 * day, 1.0 - 0.12 * day);
+      this.renderer.toneMappingExposure = 0.95 + 0.15 * day;
+    }
+    // dollhouse cutaway: the outer walls on the side the camera looks from sink to a low stub (with their doors),
+    // the far walls stay up; from above (floor plan) every wall stands
+    if (this.cuts.length) {
+      const ex = Math.sin(o.theta), ez = Math.cos(o.theta), up = this.vmode === 'top' || o.phi < 0.3;
+      let moved = 0;
+      for (const C of this.cuts) {
+        const goal = !up && C.nx * ex + C.nz * ez > 0.2 ? Math.min(1, 0.3 / C.h) : 1, d = goal - C.k;
+        if (Math.abs(d) < 0.001) continue;
+        C.k = Math.abs(d) < 0.004 ? goal : C.k + d * Math.min(1, dt * 7); moved += Math.abs(d);
+        C.g.scale.y = C.k; for (const p of C.doors) p.scale.y = C.k;
+      }
+      if (moved) { mv += moved; this.renderer.shadowMap.needsUpdate = true; }
+    }
 
     const warm = new T.Color(0xffb86b);
     for (const id in this.rooms) {

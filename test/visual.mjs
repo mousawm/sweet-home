@@ -87,6 +87,18 @@ try {
   check('no page errors (light look)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
+  console.log('dollhouse style');
+  p = await open('?config=demo&style=dollhouse', { width: 1400, height: 1000 });
+  { const vp = await rectOf(p, '#viewport'), pic = await pixels(p, vp);
+    check('dollhouse: a bright, green lot is drawn', pic.lum > 90 && pic.g > pic.b && pic.colours > 150, JSON.stringify(pic));
+    const cuts = await p.evaluate(() => { const C = card._three.cuts; return { n: C.length, low: C.filter(c => c.k < 0.5).length, up: C.filter(c => c.k > 0.99).length }; });
+    check('dollhouse: outer walls facing the camera are cut down, the far ones stand', cuts.n > 2 && cuts.low > 0 && cuts.up > 0, JSON.stringify(cuts));
+    await p.evaluate(() => card._three.view('top')); await p.waitForTimeout(4000);
+    const top = await p.evaluate(() => card._three.cuts.every(c => c.k > 0.97));
+    check('dollhouse: from above every wall stands', top);
+    check('no page errors (dollhouse)', !p.errors.length, p.errors.join(' | ')); }
+  await p.close();
+
   console.log('Sweet Home 3D: theme');
   for (const [name, dark, card, text] of [['light theme', false, [255, 255, 255], [33, 33, 33]], ['dark theme', true, [28, 28, 28], [225, 225, 225]]]) {
     p = await open('?config=demo&card=3d');

@@ -1,0 +1,205 @@
+// Sweet Home — Build mode (the card side): the toolbar over the 3D view, and every build step written into the card's
+// config (with undo). The scene side (grid, ghosts, pointer) is src/build.js.
+// Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
+import { arr, enclosedAreas, extraWalls, onEdge, roomOutline, FURN_TYPES, furnEntities } from '../model.js';
+import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
+import { t as tr } from '../i18n.js';
+import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
+
+const TOOLS = [['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall'], ['door', 'Door', 'mdi:door'], ['window', 'Window', 'mdi:window-closed-variant'],
+  ['paint', 'Paint', 'mdi:format-paint'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['delete', 'Knock down', 'mdi:hammer']];
+const PAPERS = ['#f0dcc4', '#eccaa3', '#f5dc96', '#c6dbb2', '#b5e0d6', '#b9cdee', '#e6d5ec', '#f2c4d2', '#eee5d4', '#d8d6cf', '#ffffff', '#9bb0c9'];
+const FLOORS = [['wood', 'Wood', '#b08a62'], ['tile', 'Tiles', '#eef2f6'], ['marble', 'Marble', '#e8dfcf'], ['carpet', 'Carpet', '#9097a1'], ['stone', 'Stone', '#b8b1a5'], ['asphalt', 'Asphalt', '#3a3f47']];
+const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4] };
+// the entities a piece is most likely to show
+const DOMAINS = { lamp: ['light'], fan: ['fan', 'switch'], tv: ['media_player'], ac: ['climate'], vacuum: ['vacuum'], blinds: ['cover'], charger: ['switch', 'sensor'], washer: ['switch', 'sensor'],
+  sprinkler: ['switch', 'valve'], car: ['device_tracker', 'binary_sensor', 'sensor'], marker: ['light', 'switch', 'sensor', 'binary_sensor', 'lock', 'camera', 'climate', 'cover'] };
+
+export class BuildTools {
+  _bT(s, ...a) { return tr(s, ...a); }
+  _bCan() { return !!this._hass?.user?.is_admin && !MODEL.gltf; }
+  _bToggle(on = !this._building) {
+    if (on && !this._bCan()) return;
+    this._building = on; this._bSel = null;
+    if (on && this._arrange) { this._arrange = false; this.$('arrBtn')?.classList.remove('on'); }
+    if (on) { this._select(null); this._bTool ||= 'room'; this._bUndo ||= []; }
+    this.$('viewport')?.classList.toggle('building', on); this.$('buildBtn')?.classList.toggle('on', on);
+    this._bScene(); this._bRender(); this._noRoomsMsg();
+    if (on) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
+  }
+  // the 3D view follows: the builder (grid, tools) on or off, and pieces can be dragged with the Furniture tool
+  _bScene() {
+    const S = this._three; if (!S) return;
+    S.setBuild?.(!!this._building);
+    S.arrange = !!this._arrange || (!!this._building && this._bTool === 'furniture');
+  }
+  _bInfo(s) { const el = this.$('bInfo'); if (el) el.textContent = s; }
+  _bWidth(tool) { return (this._bW ||= { door: 0.9, window: 1.2 })[tool]; }
+
+  _bRender() {
+    const el = this.$('buildbar'); if (!el) return;
+    if (!this._building) { el.innerHTML = ''; el.classList.remove('open'); return; }
+    el.classList.add('open');
+    const tool = this._bTool, b = (act, v, label, icon, on, extra = '') => `<button class="bb ${on ? 'on' : ''}" data-act="b" data-b="${act}" data-v="${esc(v)}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${icon ? ic(icon) : ''}<span>${esc(label)}</span></button>`;
+    const tools = TOOLS.map(([k, n, i]) => b('tool', k, tr(n), i, tool === k)).join('');
+    let opts = '';
+    if (tool === 'room') opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>`;
+    else if (tool === 'wall') opts = `<span class="bh">${tr('Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.')}</span>`;
+    else if (tool === 'door' || tool === 'window') opts = `<span class="bh">${tr(tool === 'door' ? 'Tap a wall to put a door in it (a gate in a fence).' : 'Tap an outer wall to put a window in it.')}</span>${WIDTHS[tool].map(w => b('width', w, `${w} m`, '', this._bWidth(tool) === w)).join('')}`;
+    else if (tool === 'paint') {
+      const br = this._bBrush ||= { k: 'wall', v: PAPERS[0] };
+      opts = `<span class="bh">${tr('Pick a wallpaper or a floor, then tap a room.')}</span>
+        <span class="bsw">${PAPERS.map(c => `<button class="sw ${br.k === 'wall' && br.v === c ? 'on' : ''}" data-act="b" data-b="brush" data-k="wall" data-v="${c}" style="background:${c}" title="${tr('Wallpaper')} ${c}" aria-label="${tr('Wallpaper')} ${c}"></button>`).join('')}</span>
+        <span class="bsw">${FLOORS.map(([k, n, c]) => `<button class="sw fl ${br.k === 'floor' && br.v === k ? 'on' : ''}" data-act="b" data-b="brush" data-k="floor" data-v="${k}" style="background:${c}" title="${tr(n)}" aria-label="${tr(n)}"><span>${tr(n)}</span></button>`).join('')}</span>
+        ${MODEL.style !== 'dollhouse' ? b('style', 'dollhouse', tr('Dollhouse look (shows wallpaper)'), 'mdi:home-heart', false) : ''}`;
+    } else if (tool === 'furniture') {
+      const P = this._bSel != null ? FURN[this._bSel] : null;
+      if (P) {
+        const t = String(P.type), ents = furnEntities(P), doms = DOMAINS[t] || ['light', 'switch', 'sensor', 'binary_sensor', 'media_player', 'climate', 'cover', 'fan'];
+        const list = Object.keys(this._hass?.states || {}).filter(id => doms.includes(id.split('.')[0])).sort();
+        opts = `<b class="bsel">${ic(FURN_TYPES[t]?.[1] || 'mdi:shape-outline')} ${esc(P.name || tr(FURN_TYPES[t]?.[0] || t))}</b>
+          ${b('turn', '', tr('Turn'), 'mdi:rotate-right', false)}
+          <label class="blink">${ic('mdi:link-variant')}<input data-blink list="bEnts" value="${esc(ents[0] || '')}" placeholder="${tr('Link to an entity')}" aria-label="${tr('Link to an entity')}"><datalist id="bEnts">${list.map(id => `<option value="${id}">${esc(this._hass.states[id].attributes.friendly_name || id)}</option>`).join('')}</datalist></label>
+          ${b('delpiece', '', tr('Remove'), 'mdi:delete-outline', false)}${b('unsel', '', tr('Done'), 'mdi:check', false)}`;
+      } else opts = `<span class="bh">${tr(this._bPiece ? 'Tap the floor to place it. Drag a piece to move it, tap it to turn or link it.' : 'Pick a piece, then tap the floor. Drag a piece to move it, tap it to turn or link it.')}</span>
+        <span class="bcat">${PALETTE.map(k => b('piece', k, tr(FURN_TYPES[k]?.[0] || k), FURN_TYPES[k]?.[1] || 'mdi:shape-outline', this._bPiece === k)).join('')}</span>`;
+    } else if (tool === 'delete') opts = `<span class="bh">${tr('Tap a piece, a door, a wall you drew or a room to remove it.')}</span>`;
+    const nr = this._bNew != null && this._config?.house?.rooms?.[this._bNew];
+    const areas = Object.values(this._hass?.areas || {}).sort((a, c) => String(a.name).localeCompare(c.name));
+    const naming = nr ? `<div class="brow bname">${ic('mdi:tag-outline')}<input data-bname value="${esc(nr.name || '')}" placeholder="${tr('Room name')}" aria-label="${tr('Room name')}">
+        <select data-barea aria-label="${tr('Home Assistant area')}"><option value="">${tr('No area')}</option>${areas.map(a => `<option value="${esc(a.area_id)}" ${nr.area === a.area_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+        ${b('named', '', tr('OK'), 'mdi:check', true)}</div>` : '';
+    el.innerHTML = `<div class="brow">${tools}<span class="bsp"></span>
+        ${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}
+        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}
+        ${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}${b('done', '', tr('Done'), 'mdi:check', true)}</div>
+      ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>`;
+  }
+
+  _bAct(t) {
+    const v = t.dataset.v;
+    switch (t.dataset.b) {
+      case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
+      case 'width': this._bW[this._bTool] = Number(v); break;
+      case 'brush': this._bBrush = { k: t.dataset.k, v }; break;
+      case 'piece': this._bPiece = this._bPiece === v ? null : v; break;
+      case 'grid': this._bGrid = (this._bGrid || 0.5) === 0.5 ? 0.25 : (this._bGrid || 0.5) === 0.25 ? 1 : 0.5; break;
+      case 'turnv': if (this._three) { this._three.goal.theta += Number(v) * Math.PI / 4; this._three.lastInput = performance.now(); } return;
+      case 'undo': { const prev = this._bUndo?.pop(); if (prev) { this._bSel = null; this._bNew = null; this._applyConfig(JSON.parse(prev)); } break; }
+      case 'done': this._bNew = null; this._bToggle(false); return;
+      case 'turn': this._bPieceEdit(f => turnPiece(f)); return;
+      case 'delpiece': this._bOp('delete', { k: 'piece', fi: this._bSel }); this._bSel = null; break;
+      case 'unsel': this._bSel = null; break;
+      case 'style': this._bEdit(H => { H.style = 'dollhouse'; }); break;
+      case 'named': this._bName(); return;
+    }
+    this._bRender();
+  }
+  _bChange(el) {
+    if (el.matches('[data-blink]')) { const id = el.value.trim(); if (id && !this._hass?.states[id]) { this._toast(tr('No entity {0}', id), true); return; } this._bPieceEdit(f => { delete f.entity; if (id) f.entities = [id]; else delete f.entities; }); return true; }
+    if (el.matches('[data-bname], [data-barea]')) { if (el.matches('[data-barea]')) this._bName(); return true; }
+    return false;
+  }
+  _bName() {
+    const name = this.$('buildbar')?.querySelector('[data-bname]')?.value.trim(), area = this.$('buildbar')?.querySelector('[data-barea]')?.value, i = this._bNew;
+    if (i == null) return;
+    this._bEdit(H => { const r = H.rooms?.[i]; if (!r) return; if (name) r.name = name; if (area) r.area = area; else delete r.area; });
+    if (area || name) this._bNew = null;
+    this._bRender();
+  }
+  _bSelect(fi) { this._bSel = fi != null && FURN[fi]?.src ? fi : null; if (fi != null && !FURN[fi]?.src) this._toast(tr('This piece is automatic: change its room in the card editor (Furniture) to move it'), true); this._bRender(); }
+  // the selected piece, changed in the config
+  _bPieceEdit(fn) {
+    const P = FURN[this._bSel]; if (!P?.src) return;
+    this._bEdit(H => { const f = P.src.house != null ? H.furniture?.[P.src.house] : H.rooms?.[P.src.room]?.furniture?.[P.src.i]; if (f) fn(f); });
+  }
+
+  // a change to the house: the config is copied, changed by `fn(house, cfg)` and applied (through the open card editor,
+  // else saved into the dashboard). The house built from the Home Assistant areas becomes your own first, so building
+  // on it keeps its rooms.
+  async _bEdit(fn) {
+    const before = JSON.stringify(this._config || {}), cfg = JSON.parse(before), H = cfg.house ||= {};
+    if (!arr(H.rooms).length && ROOMS.length && MODEL.auto) {
+      const { ox = 0, oz = 0 } = MODEL.plan;
+      H.rooms = ROOMS.map(r => ({ ...(r.area ? { area: r.area } : { name: r.name }), rects: r.rects.map(([a, b, c, d]) => [r2(a + ox), r2(b + oz), r2(c + ox), r2(d + oz)]), ...(r.level ? { level: r.level } : {}) }));
+      if (H.auto_furniture == null) H.auto_furniture = true;
+    }
+    if (fn(H, cfg) === false) return false;
+    (this._bUndo ||= []).push(before); if (this._bUndo.length > 50) this._bUndo.shift();
+    const ok = await this._applyConfig(cfg);
+    if (!ok) this._bUndo.pop();
+    this._bRender();
+    return ok;
+  }
+
+  // one build step from the 3D view (in the config's own coordinates)
+  _bOp(op, a) {
+    const X = r2, Z = r2, lv = o => (a.level ? { ...o, level: a.level } : o);
+    if (op === 'room') return this._bEdit(H => {
+      const rooms = H.rooms ||= [], [x1, z1, x2, z2] = a.rect;
+      rooms.push(lv({ name: `${tr('Room')} ${rooms.length + 1}`, rects: [[X(x1), Z(z1), X(x2), Z(z2)]], furniture: [] })); this._bNew = rooms.length - 1; // a new room starts empty
+    });
+    if (op === 'wall') return this._bEdit(H => {
+      (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])] }));
+      const made = this._bCloseRooms(H, a.level || 0);
+      if (made) this._toast(made > 1 ? tr('{0} new rooms', made) : tr('New room'));
+    });
+    if (op === 'door' || op === 'window') return this._bEdit(H => {
+      const [x1, z1, x2, z2] = a.seg;
+      if (op === 'door') (H.doors ||= []).push(lv({ from: [X(x1), Z(z1)], to: [X(x2), Z(z2)], ...(a.gate ? { gate: true } : {}) }));
+      else { if (!Array.isArray(H.windows)) H.windows = []; H.windows.push([X(x1), Z(z1), X(x2), Z(z2), ...(a.level ? [a.level] : [])]); }
+    });
+    if (op === 'paint') {
+      const r = ROOM[a.room], br = this._bBrush || {};
+      if (!r) return;
+      return this._bEdit(H => {
+        const rc = H.rooms?.[r.ci ?? ROOMS.indexOf(r)]; if (!rc) return false;
+        if (br.k === 'floor') rc.floor = br.v; else rc.wall_color = br.v;
+      });
+    }
+    if (op === 'piece') return this._bEdit(H => {
+      const o = JSON.parse(JSON.stringify(NEW_PIECE[a.type] || {})), span = o._span; delete o._span;
+      const x = X(a.x), z = Z(a.z), f = span ? { type: a.type, from: [r2(x - span[0]), r2(z - span[1])], to: [r2(x + span[0]), r2(z + span[1])], ...o } : { type: a.type, x, z, ...o };
+      const r = a.room && ROOM[a.room], rc = r && H.rooms?.[r.ci ?? ROOMS.indexOf(r)];
+      if (rc) { if (!Array.isArray(rc.furniture)) rc.furniture = []; rc.furniture.push(f); }
+      else (H.furniture ||= []).push(lv(f));
+    });
+    if (op === 'delete') return this._bEdit(H => {
+      if (a.k === 'piece') {
+        const src = FURN[a.fi]?.src; if (!src) return false;
+        if (src.house != null) H.furniture?.splice(src.house, 1); else H.rooms?.[src.room]?.furniture?.splice(src.i, 1);
+      } else if (a.k === 'door') H.doors?.splice(a.i, 1);
+      else if (a.k === 'wall') { H.extra_walls?.splice(a.i, 1); if (!H.extra_walls?.length) delete H.extra_walls; }
+      else if (a.k === 'room') {
+        const r = ROOM[a.id]; if (!r) return false;
+        if (this._bArm !== a.id) { this._bArm = a.id; setTimeout(() => { if (this._bArm === a.id) this._bArm = null; }, 2500); this._toast(tr('Tap {0} again to remove it', r.name)); return false; }
+        this._bArm = null; H.rooms?.splice(r.ci ?? ROOMS.indexOf(r), 1);
+      }
+    });
+  }
+  // walls first: the areas that walls on this floor now close in become rooms, and the separate walls that are now a
+  // new room's edge are dropped (the room draws its own walls there). Returns how many rooms were made.
+  _bCloseRooms(H, level) {
+    const lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
+    const rooms = arr(H.rooms).filter(r => lvOf(r) === level), outlines = [];
+    for (const r of rooms) {
+      const poly = roomOutline(r);
+      if (poly) outlines.push(poly.map(p => [p[0], p[1]]));
+      else for (const [a, b, c, d] of arr(r.rects)) outlines.push([[a, b], [c, b], [c, d], [a, d]]);
+    }
+    const segs = [];
+    for (const p of outlines) p.forEach(([x, z], i) => { const [x2, z2] = p[(i + 1) % p.length]; segs.push([x, z, x2, z2]); });
+    const mine = arr(H.extra_walls).map((w, i) => ({ w, i, s: extraWalls([w]) })).filter(o => o.s.length && lvOf(o.w) === level && !(o.w.bow) && !['fence', 'glass'].includes(o.w.type));
+    for (const o of mine) for (const s of o.s) segs.push(s.slice(0, 4));
+    const found = enclosedAreas(segs, outlines);
+    if (!found.length) return 0;
+    for (const pts of found) {
+      const all = H.rooms ||= [], rc = { name: `${tr('Room')} ${all.length + 1}`, points: pts.map(([x, z]) => [r2(x), r2(z)]), furniture: [] };
+      if (level) rc.level = level; all.push(rc); this._bNew = all.length - 1;
+    }
+    // separate walls lying on a new room's edge are now that room's walls
+    const drop = new Set(mine.filter(o => o.s.every(s => found.some(p => onEdge(s[0], s[1], p) && onEdge(s[2], s[3], p) && onEdge((s[0] + s[2]) / 2, (s[1] + s[3]) / 2, p)))).map(o => o.i));
+    if (drop.size) { H.extra_walls = H.extra_walls.filter((w, i) => !drop.has(i)); if (!H.extra_walls.length) delete H.extra_walls; }
+    return found.length;
+  }
+}
