@@ -8,6 +8,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+
+### Added
+
+## v0.6.63-beta.2 — 2026-11-26
+
+_Prerelease (beta): the whole house is now built in 3D (Build mode), in the card editor too._
+
+### Changed
 - Card editor: the **Rooms** step is now the 3D builder (Build mode in a Sweet Home 3D view) instead of the 2D floor plan. Everything the floor plan did is done in 3D: Select a room, piece, door, window, passage, badge or wall for all its settings (the same forms), drag dots to reshape rooms, resize pieces and move wall ends.
 
 ### Added
