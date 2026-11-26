@@ -2,22 +2,16 @@
 // config (with undo). The scene side (grid, ghosts, pointer) is src/build.js.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { arr, enclosedAreas, splitRoom, uncovered, extraWalls, inPoly, roomOutline, autoFurnitureConfig, FURN_TYPES, furnEntities } from '../model.js';
-import { NEW_PIECE, PALETTE, r2, turnPiece, toWall, sizePiece } from '../pieces.js';
-import { applyShape } from '../build.js';
-import { movePiece } from '../model.js';
+import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
 import { t as tr } from '../i18n.js';
 import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
 
-const TOOLS = [['select', 'Select', 'mdi:cursor-default-click-outline'], ['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall'], ['door', 'Door', 'mdi:door'], ['window', 'Window', 'mdi:window-closed-variant'],
+const TOOLS = [['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall'], ['door', 'Door', 'mdi:door'], ['window', 'Window', 'mdi:window-closed-variant'],
   ['paint', 'Paint', 'mdi:format-paint'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['delete', 'Knock down', 'mdi:hammer']];
 const PAPERS = ['#f0dcc4', '#eccaa3', '#f5dc96', '#c6dbb2', '#b5e0d6', '#b9cdee', '#e6d5ec', '#f2c4d2', '#eee5d4', '#d8d6cf', '#ffffff', '#9bb0c9'];
 const FLOORS = [['wood', 'Wood', '#b08a62'], ['tile', 'Tiles', '#eef2f6'], ['marble', 'Marble', '#e8dfcf'], ['carpet', 'Carpet', '#9097a1'], ['stone', 'Stone', '#b8b1a5'], ['asphalt', 'Asphalt', '#3a3f47']];
 const WALL_MODES = { up: ['mdi:wall', 'Walls up'], cut: ['mdi:box-cutter', 'Walls cut away in front'], down: ['mdi:arrow-collapse-down', 'Walls down'] };
-const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4], opening: [0.9, 1.2, 2, 3] };
-// what the Door tool puts in: a door (a gate in a fence), an open passage (no wall, no door), or a lock badge
-const DOOR_KINDS = [['door', 'Door', 'mdi:door'], ['gate', 'Gate', 'mdi:gate'], ['opening', 'Open passage', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
-// what the Wall tool draws
-const WALL_KINDS = [['wall', 'Wall', 'mdi:wall'], ['half', 'Low wall', 'mdi:wall-sconce-flat-outline'], ['glass', 'Glass', 'mdi:window-closed'], ['fence', 'Fence', 'mdi:fence']];
+const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4] };
 // the entities a piece is most likely to show
 const DOMAINS = { lamp: ['light'], fan: ['fan', 'switch'], tv: ['media_player'], ac: ['climate'], vacuum: ['vacuum'], blinds: ['cover'], charger: ['switch', 'sensor'], washer: ['switch', 'sensor'],
   sprinkler: ['switch', 'valve'], car: ['device_tracker', 'binary_sensor', 'sensor'], marker: ['light', 'switch', 'sensor', 'binary_sensor', 'lock', 'camera', 'climate', 'cover'] };
@@ -45,7 +39,7 @@ export class BuildTools {
     this._bKeys(on);
     this.$('viewport')?.classList.toggle('building', on); this.$('buildBtn')?.classList.toggle('on', on);
     this._bScene(); this._bRender(); this._noRoomsMsg();
-    if (on && !this._embed) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
+    if (on) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
   }
   // Walls: Up (every wall stands), Cutaway (the outer walls facing you are lowered) or Down (every wall low), like
   // a life-sim game. Remembered on this device; by default Cutaway in the Dollhouse style, Up in the classic one.
@@ -64,121 +58,6 @@ export class BuildTools {
     this._toast(tr(WALL_MODES[m][1]));
     if (this._three) { this._three._dirty = true; this._three.lastInput = performance.now(); }
   }
-  // ---------- Select: the settings of what was tapped (the card editor's forms, in a panel over the 3D view) ----------
-  async _bPick(what) {
-    if (!what) return this._bInspect(null);
-    if (what.k === 'room') {
-      const r = ROOM[what.id]; if (!r) return;
-      if (r.ci == null) await this._bEdit(() => {}); // the house built from the areas becomes your own first
-      return this._bInspect({ k: 'room', i: r.ci ?? ROOMS.indexOf(r) });
-    }
-    if (what.k === 'piece') {
-      const P = FURN[what.fi]; if (!P) return;
-      if (P.src) return this._bInspect(P.src.house != null ? { k: 'piece', room: null, i: P.src.house } : { k: 'piece', room: P.src.room, i: P.src.i });
-      let sel = null; // a piece of a room's automatic set: the room's set becomes its own first
-      await this._bEdit(H => { const f = this._bPieceRef(H, what.fi), r = ROOM[P.room]; if (!f || !r) return false; const ri = r.ci ?? ROOMS.indexOf(r); sel = { k: 'piece', room: ri, i: H.rooms[ri].furniture.indexOf(f) }; });
-      return sel ? this._bInspect(sel) : this._toast(tr('These stairs come with the room: change them in the card editor'), true);
-    }
-    return this._bInspect({ k: what.k, i: what.i });
-  }
-  async _bInspect(sel) {
-    this._bInsFlush();
-    this._bInsSel = sel || null;
-    this._three?.builder?.setSel?.(this._bInsSel);
-    if (!sel) { this._bInsWrap?.remove(); const el = this._bInsWrap?.querySelector('sweet-home-inspector'); if (el) el._isel = null; return; }
-    if (!customElements.get('sweet-home-inspector')) {
-      try { await this.constructor.getConfigElement(); } catch (e) { this._toast(e?.message || String(e), true); return; }
-      if (this._bInsSel !== sel) return;
-    }
-    const W = this._bInsWrap ||= this._bInsMake(), el = W.querySelector('sweet-home-inspector');
-    W.querySelector('.bins-t').textContent = this._bInsTitle(sel);
-    el._isel = null; // the last pick may be gone (deleted): not drawn again on the way
-    el.hass = this._hass?._raw || this._hass; el.setConfig(this._config); el.sel = sel;
-    this._bInsPlace();
-    requestAnimationFrame(() => this._bInsReveal());
-  }
-  // what was picked slides out from under the panel: the view moves until it is in the free part of the 3D view
-  _bInsReveal() {
-    const S = this._three, B = S?.builder, W = this._bInsWrap, vp = this.$('viewport'); if (!B?.selG?.children.length || !W?.isConnected || !vp) return;
-    const T = S.T, box = new T.Box3().setFromObject(B.selG), r = vp.getBoundingClientRect(), w = W.getBoundingClientRect();
-    // the picked thing's extent on screen (its box's 8 corners)
-    const pts = []; for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) { const v = new T.Vector3(x, y, z).project(S.cam); pts.push([r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]); }
-    const x0 = Math.min(...pts.map(q => q[0])), x1 = Math.max(...pts.map(q => q[0])), y0 = Math.min(...pts.map(q => q[1])), y1 = Math.max(...pts.map(q => q[1]));
-    if (w.width > r.width * 0.7) { // a bottom sheet (phones): up from under it
-      if (y1 > w.top - 20) S._pan(0, -Math.min(y1 - (w.top - 30), Math.max(0, y0 - (r.top + 60))));
-    } else if (x1 > w.left - 20) S._pan(-Math.min(x1 - (w.left - 30), Math.max(0, x0 - (r.left + 20))), 0); // a side panel: to its left, as far as there is room
-    // …and down from under the toolbar's rows at the top
-    const rows = [...(this.$('buildbar')?.querySelectorAll('.btools, .bname, .bopts') || [])].map(e => e.getBoundingClientRect().bottom), top = rows.length ? Math.max(...rows) : r.top;
-    if (y0 < top + 12 && w.width <= r.width * 0.7) S._pan(0, Math.min(top + 24 - y0, Math.max(0, (w.width > r.width * 0.7 ? w.top : r.bottom - 70) - y1)));
-    S.lastInput = performance.now();
-  }
-  _bInsTitle(sel) {
-    const H = this._config?.house || {};
-    if (sel.k === 'room') { const rc = arr(H.rooms)[sel.i], r = ROOMS.find(x => x.ci === sel.i); return rc?.name || r?.name || tr('Room'); }
-    if (sel.k === 'piece') { const f = arr(sel.room == null ? H.furniture : arr(H.rooms)[sel.room]?.furniture)[sel.i]; return f?.name || tr(FURN_TYPES[f?.type]?.[0] || 'Furniture'); }
-    if (sel.k === 'door') return tr(arr(H.doors)[sel.i]?.gate ? 'Gate' : 'Door');
-    return tr({ window: 'Window', opening: 'Open passage', badge: 'Lock badge', wall: 'Wall' }[sel.k] || '');
-  }
-  _bInsMake() {
-    const W = document.createElement('div'); W.className = 'binsp';
-    W.innerHTML = `<div class="bins-h"><b class="bins-t"></b><button class="bb" data-insmin title="${tr('Fold')}" aria-label="${tr('Fold')}">${ic('mdi:chevron-up')}</button><button class="bb" data-insx title="${tr('Close')}" aria-label="${tr('Close')}">${ic('mdi:close')}</button></div><div class="bins-b"></div>`;
-    W.querySelector('[data-insmin]').addEventListener('click', e => { e.stopPropagation(); W.classList.toggle('mini'); });
-    const el = document.createElement('sweet-home-inspector'); W.querySelector('.bins-b').appendChild(el);
-    W.querySelector('[data-insx]').addEventListener('click', e => { e.stopPropagation(); this._bInspect(null); });
-    el.addEventListener('sh-inspect-change', e => this._bInsChange(e.detail));
-    el.addEventListener('sh-inspect-close', () => this._bInspect(null));
-    W.addEventListener('focusout', () => setTimeout(() => { if (!W.contains(W.getRootNode().activeElement)) this._bInsFlush(); }, 0));
-    return W;
-  }
-  // the panel sits in the toolbar's column, between the tool's options and Undo / Save
-  _bInsPlace() {
-    const W = this._bInsWrap, bar = this.$('buildbar'); if (!W || !this._bInsSel || !bar) return;
-    const act = bar.querySelector('.bact'); if (W.parentNode !== bar || W.nextSibling !== act) bar.insertBefore(W, act);
-    const el = W.querySelector('sweet-home-inspector'); if (el && el._config && el._last !== JSON.stringify(this._config)) el.setConfig(this._config);
-  }
-  // a typed change waits until typing stops (or the field is left): each change rebuilds the house
-  _bInsChange({ config, typing }) {
-    this._bInsPending = config; clearTimeout(this._bInsT);
-    if (typing) this._bInsT = setTimeout(() => this._bInsFlush(), 1500); else this._bInsFlush();
-  }
-  _bInsFlush() { clearTimeout(this._bInsT); const c = this._bInsPending; this._bInsPending = null; if (c) { this._bCommit(c); const W = this._bInsWrap; if (W && this._bInsSel) W.querySelector('.bins-t').textContent = this._bInsTitle(this._bInsSel); } }
-  // a piece moved near a wall goes flat against it (on the floor of `P`, its piece in the 3D view)
-  _bToWall(f, P) { toWall(f, this._bWallSegs(this._bCfgH || this._config?.house || {}, Number(P?.level) || 0)); }
-  // the wall lines of a floor (config coordinates): the rooms' edges and the separate walls
-  _bWallSegs(H, level) {
-    const out = [], lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
-    for (const r of arr(H.rooms)) if (lvOf(r) === level) {
-      const poly = roomOutline(r);
-      if (poly) poly.forEach((a, i) => { const b = poly[(i + 1) % poly.length]; out.push([a[0], a[1], b[0], b[1]]); });
-      else for (const [x1, z1, x2, z2] of arr(r.rects).map(q => q.map(Number))) out.push([x1, z1, x2, z1], [x1, z2, x2, z2], [x1, z1, x1, z2], [x2, z1, x2, z2]);
-    }
-    for (const w of extraWalls(H.extra_walls)) if ((Number(w[5]) || 0) === level) out.push(w.slice(0, 4));
-    return out;
-  }
-  // Home Assistant areas no room is linked to yet
-  _bFreeAreas() {
-    const used = new Set(ROOMS.map(r => r.area).filter(Boolean)), cfgUsed = new Set(arr(this._config?.house?.rooms).map(r => r.area).filter(Boolean));
-    return Object.values(this._hass?.areas || {}).filter(a => !used.has(a.area_id) && !cfgUsed.has(a.area_id)).sort((a, b) => String(a.name).localeCompare(b.name));
-  }
-  // every area with no room yet becomes a 4 × 4 m room, in rows to the right of the rooms on this floor
-  _bAddAreas() {
-    const free = this._bFreeAreas(); if (!free.length) return;
-    const lvl = this._level ?? 0;
-    this._bEdit(H => {
-      const rooms = H.rooms ||= [], here = rooms.filter(r => (Number(r.level) || 0) === lvl);
-      const xs = here.flatMap(r => { const p = roomOutline(r); return p ? p.map(q => q[0]) : arr(r.rects).flatMap(q => [q[0], q[2]]); }).map(Number);
-      const ox = xs.length ? Math.ceil(Math.max(...xs)) + 1 : 0, cols = Math.max(1, Math.ceil(Math.sqrt(free.length * 1.3)));
-      free.forEach((a, i) => { const x = ox + (i % cols) * 4, z = Math.floor(i / cols) * 4; rooms.push({ area: a.area_id, rects: [[x, z, x + 4, z + 4]], ...(lvl ? { level: lvl } : {}) }); });
-    });
-    this._toast(tr('{0} rooms added from your areas: drag them into place with Select', free.length));
-  }
-  // the card editor (a problem in its list): this room, selected, on its floor
-  async _bShowRoom(i) {
-    const r = ROOMS.find(x => x.ci === i); if (!r) return;
-    if (this._level !== r.level) this._setLevel(r.level);
-    this._bTool = 'select'; this._three?.builder?.setTool('select'); this._bScene(); this._bRender();
-    await this._bInspect({ k: 'room', i });
-  }
   _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
   // changes not saved yet (with the card editor open, each step already went through it)
   _bDirty() { return !!this._building && !this._viaEditor() && this._bOrig != null && this._cfgJSON !== this._bOrig; }
@@ -194,10 +73,10 @@ export class BuildTools {
       const k = e.key, B = this._three?.builder;
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && k.toLowerCase() === 'z') { e.preventDefault(); this._bAct({ dataset: { b: 'undo' } }); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (k === 'Escape') { e.preventDefault(); if (this._bInsSel) this._bInspect(null); else if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else if (!this._embed) this._bToggle(false); }
+      if (k === 'Escape') { e.preventDefault(); if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else this._bToggle(false); }
       else if ((k === 'r' || k === 'R') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'turn' } }); }
       else if ((k === 'Delete' || k === 'Backspace') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'delpiece' } }); }
-      else if (new RegExp(`^[1-${TOOLS.length}]$`).test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
+      else if (/^[1-7]$/.test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
     };
     window.addEventListener('keydown', this._bKeyFn); window.addEventListener('beforeunload', this._bLeave);
   }
@@ -205,30 +84,21 @@ export class BuildTools {
   _bScene() {
     const S = this._three; if (!S) return;
     S.setBuild?.(!!this._building);
-    S.arrange = !!this._arrange || (!!this._building && ['furniture', 'select'].includes(this._bTool));
-    S.builder?.setSel?.(this._building ? this._bInsSel : null);
+    S.arrange = !!this._arrange || (!!this._building && this._bTool === 'furniture');
   }
   _bInfo(s) { const el = this.$('bInfo'); if (el) el.textContent = s; }
-  _bWidth(tool) { const W = (this._bW ||= { door: 0.9, window: 1.2, opening: 1.2 }); return tool === 'door' && this._bDoorKind === 'opening' ? W.opening : W[tool]; }
+  _bWidth(tool) { return (this._bW ||= { door: 0.9, window: 1.2 })[tool]; }
 
   _bRender() {
     const el = this.$('buildbar'); if (!el) return;
-    if (!this._building) { el.innerHTML = ''; el.classList.remove('open'); if (this._bInsSel) this._bInspect(null); return; }
+    if (!this._building) { el.innerHTML = ''; el.classList.remove('open'); return; }
     el.classList.add('open');
     const tool = this._bTool, b = (act, v, label, icon, on, extra = '') => `<button class="bb ${on ? 'on' : ''}" data-act="b" data-b="${act}" data-v="${esc(v)}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${icon ? ic(icon) : ''}<span>${esc(label)}</span></button>`;
     const tools = TOOLS.map(([k, n, i]) => b('tool', k, tr(n), i, tool === k)).join('');
     let opts = '';
-    if (tool === 'select') {
-      const L = MODEL.levels || [{ level: 0 }], cur = L.find(l => l.level === (this._level ?? 0)), own = arr(this._config?.house?.levels).find(x => Number(x.level) === (this._level ?? 0))?.name;
-      opts = `<span class="bh">${tr('Tap anything to see and change all its settings: a room (its name, area, shape, devices), a piece, a door, a window, a wall. Drag a piece to move it.')}</span>
-        <label class="blink bfloor">${ic('mdi:layers-outline')}<input data-bfloor value="${esc(own || '')}" placeholder="${esc(cur ? tr(cur.name) : '')}" aria-label="${tr('Name of this floor')}" title="${tr('Name of this floor')}"></label>`;
-    }
-    else if (tool === 'room') { const n = this._bFreeAreas().length; opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>${n ? b('areas', '', tr('Add my other areas ({0})', n), 'mdi:home-import-outline', false) : ''}`; }
-    else if (tool === 'wall') { const wk = this._bWallKind || 'wall'; opts = `<span class="bh">${tr(wk === 'wall' ? 'Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.' : 'Drag to draw it (straight or at 45°). Select it later to change its height or bend it.')}</span>${WALL_KINDS.map(([k, n, i]) => b('wallkind', k, tr(n), i, wk === k)).join('')}`; }
-    else if (tool === 'door') {
-      const dk = this._bDoorKind || 'door', kinds = DOOR_KINDS.map(([k, n, i]) => b('doorkind', k, tr(n), i, dk === k)).join('');
-      opts = `${kinds}<span class="bh">${tr({ door: 'Tap a wall to put a door in it (a gate in a fence).', gate: 'Tap a fence or an outer wall to put a gate in it.', opening: 'Tap a wall between two rooms to open it: no wall, no door.', badge: 'Tap where a small lock badge should float, then pick its lock.' }[dk])}</span>${dk === 'badge' ? '' : WIDTHS[dk === 'gate' ? 'door' : dk].map(w => b('width', w, `${w} m`, '', this._bWidth('door') === w)).join('')}`;
-    } else if (tool === 'window') opts = `<span class="bh">${tr('Tap an outer wall to put a window in it.')}</span>${WIDTHS.window.map(w => b('width', w, `${w} m`, '', this._bWidth('window') === w)).join('')}${Array.isArray(this._config?.house?.windows) ? b('autowin', '', tr('Back to automatic windows'), 'mdi:window-shutter-auto', false) : ''}`;
+    if (tool === 'room') opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>`;
+    else if (tool === 'wall') opts = `<span class="bh">${tr('Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.')}</span>`;
+    else if (tool === 'door' || tool === 'window') opts = `<span class="bh">${tr(tool === 'door' ? 'Tap a wall to put a door in it (a gate in a fence).' : 'Tap an outer wall to put a window in it.')}</span>${WIDTHS[tool].map(w => b('width', w, `${w} m`, '', this._bWidth(tool) === w)).join('')}`;
     else if (tool === 'paint') {
       const br = this._bBrush ||= { k: 'wall', v: PAPERS[0] };
       opts = `<span class="bh">${tr('Pick a wallpaper or a floor, then tap a room.')}</span>
@@ -256,28 +126,18 @@ export class BuildTools {
     // bottom left: undo, cancel and save / done
     el.innerHTML = `<div class="brow btools">${tools}<span class="bsp"></span>
         <span class="bturn">${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}</span>
-        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}${b('addfloor', '', tr('Add floor'), 'mdi:layers-plus', false)}</div>
+        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}</div>
       ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>
       <div class="brow bact">${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
         ${this._bDirty() ? b('cancel', '', tr('Cancel'), 'mdi:close', false) : ''}
         ${b('done', '', this._bSaving ? tr('Saving…') : this._bDirty() ? tr('Save') : tr('Done'), this._bDirty() ? 'mdi:content-save' : 'mdi:check', true, this._bSaving ? 'disabled' : '')}</div>`;
-    this._bInsPlace();
   }
 
   _bAct(t) {
     const v = t.dataset.v;
     switch (t.dataset.b) {
-      case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'select' && this._bInsSel) this._bInspect(null); if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
-      case 'width': this._bW[this._bTool === 'door' && this._bDoorKind === 'opening' ? 'opening' : this._bTool] = Number(v); break;
-      case 'doorkind': this._bDoorKind = v; break;
-      case 'wallkind': this._bWallKind = v; break;
-      case 'autowin': this._bEdit(H => { delete H.windows; }); break;
-      case 'areas': this._bAddAreas(); break;
-      case 'addfloor': { // a new floor above the top one, shown at once (empty until you build on it)
-        const top = Math.max(0, ...(MODEL.levels || []).map(l => l.level), ...arr(this._config?.house?.levels).map(l => Number(l.level) || 0)), n = top + 1;
-        this._level = n; this._bEdit(H => { (H.levels ||= []).push({ level: n, name: `${tr('Floor')} ${n}` }); });
-        this._toast(tr('Floor {0} added: build on it', n)); break;
-      }
+      case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
+      case 'width': this._bW[this._bTool] = Number(v); break;
       case 'brush': this._bBrush = { k: t.dataset.k, v }; break;
       case 'piece': this._bPiece = this._bPiece === v ? null : v; break;
       case 'grid': this._bGrid = (this._bGrid || 0.5) === 0.5 ? 0.25 : (this._bGrid || 0.5) === 0.25 ? 1 : 0.5; this._three?.builder?.setGrid(); break;
@@ -296,11 +156,6 @@ export class BuildTools {
   _bChange(el) {
     if (el.matches('[data-blink]')) { const id = el.value.trim(); if (id && !this._hass?.states[id]) { this._toast(tr('No entity {0}', id), true); return; } this._bPieceEdit(f => { delete f.entity; if (id) f.entities = [id]; else delete f.entities; }); return true; }
     if (el.matches('[data-bname], [data-barea]')) { if (el.matches('[data-barea]')) this._bName(); return true; }
-    if (el.matches('[data-bfloor]')) { // the name of the floor shown
-      const lv = this._level ?? 0, v = el.value.trim();
-      this._bEdit(H => { const list = arr(H.levels).filter(x => Number(x.level) !== lv); if (v) list.push({ level: lv, name: v }); if (list.length) H.levels = list.sort((a, b) => a.level - b.level); else delete H.levels; });
-      return true;
-    }
     return false;
   }
   _bName() {
@@ -340,8 +195,7 @@ export class BuildTools {
   async _bEdit(fn) {
     const before = JSON.stringify(this._config || {}), cfg = JSON.parse(before), H = cfg.house ||= {};
     this._bOwnHouse(H);
-    this._bCfgH = H; const ok = fn(H, cfg); this._bCfgH = null;
-    if (ok === false) return false;
+    if (fn(H, cfg) === false) return false;
     return this._bCommit(cfg, before);
   }
   // a new config while building: undo remembers the one before; it changes this card only (or goes through the open
@@ -349,7 +203,6 @@ export class BuildTools {
   _bCommit(cfg, before = JSON.stringify(this._config || {})) {
     (this._bUndo ||= []).push(before); if (this._bUndo.length > 50) this._bUndo.shift();
     this._bApply(cfg); this._bRender();
-    if (this._bAfter) { const s2 = this._bAfter; this._bAfter = null; this._bTool = 'select'; this._three?.builder?.setTool('select'); this._bScene(); this._bRender(); this._bInspect(s2); } // a new lock badge: pick its lock
     return true;
   }
   _bApply(cfg) { if (this._viaEditor()) window.__sweetHomeEditor.applyExternal(cfg); else this.setConfig(cfg); }
@@ -370,19 +223,10 @@ export class BuildTools {
       rooms.push(lv({ name: `${tr('Room')} ${rooms.length + 1}`, rects: [[X(x1), Z(z1), X(x2), Z(z2)]], furniture: [] })); this._bNew = rooms.length - 1; // a new room starts empty
     });
     if (op === 'wall') return this._bEdit(H => {
-      const kind = this._bWallKind && this._bWallKind !== 'wall' ? { type: this._bWallKind } : {};
-      (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])], ...kind }));
+      (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])] }));
       const { made, split } = this._bWallRooms(H, a.level || 0);
       if (split) this._toast(split > 1 ? tr('{0} rooms split', split) : tr('Room split in two'));
       else if (made) this._toast(made > 1 ? tr('{0} new rooms', made) : tr('New room'));
-    });
-    if (op === 'opening') return this._bEdit(H => { const [x1, z1, x2, z2] = a.seg; (H.openings ||= []).push([X(x1), Z(z1), X(x2), Z(z2), ...(a.level ? [a.level] : [])]); });
-    if (op === 'badge') return this._bEdit(H => { (H.lock_badges ||= []).push(lv({ lock: '', x: X(a.x), z: Z(a.z) })); this._bAfter = { k: 'badge', i: H.lock_badges.length - 1 }; });
-    if (op === 'moveitem') return this._bEdit(H => { // a door, window, passage or badge dragged to another place
-      if (a.k === 'badge') { const b0 = arr(H.lock_badges)[a.i]; if (!b0) return false; b0.x = X(a.x); b0.z = Z(a.z); return; }
-      const [x1, z1, x2, z2] = a.seg;
-      if (a.k === 'door') { const d = arr(H.doors)[a.i]; if (!d) return false; d.from = [X(x1), Z(z1)]; d.to = [X(x2), Z(z2)]; return; }
-      const w = arr(H[a.k === 'window' ? 'windows' : 'openings'])[a.i]; if (!Array.isArray(w)) return false; w[0] = X(x1); w[1] = Z(z1); w[2] = X(x2); w[3] = Z(z2);
     });
     if (op === 'door' || op === 'window') return this._bEdit(H => {
       const [x1, z1, x2, z2] = a.seg;
@@ -401,40 +245,14 @@ export class BuildTools {
       const o = JSON.parse(JSON.stringify(NEW_PIECE[a.type] || {})), span = o._span; delete o._span;
       const x = X(a.x), z = Z(a.z), f = span ? { type: a.type, from: [r2(x - span[0]), r2(z - span[1])], to: [r2(x + span[0]), r2(z + span[1])], ...o } : { type: a.type, x, z, ...o };
       const r = a.room && ROOM[a.room], rc = r && H.rooms?.[r.ci ?? ROOMS.indexOf(r)];
-      toWall(f, this._bWallSegs(H, a.level || 0)); // near a wall: flat against it (a toilet, sink… also turns to face the room)
       if (rc) { if (!Array.isArray(rc.furniture)) rc.furniture = []; rc.furniture.push(f); }
       else (H.furniture ||= []).push(lv(f));
-    });
-    if (op === 'piecesize') return this._bEdit(H => { // a selected piece resized by its corners
-      const S = a.sel, f = arr(S.room == null ? H.furniture : arr(H.rooms)[S.room]?.furniture)[S.i]; if (!f) return false;
-      const [x1, z1, x2, z2] = a.box; sizePiece(f, x1, z1, x2, z2);
-    });
-    if (op === 'wallshape') return this._bEdit(H => { // a separate wall's end moved, or the whole wall
-      const w = arr(H.extra_walls)[a.i]; if (!w?.from || !w?.to) return false; const c = a.ch;
-      if (c.wallMove) { w.from = [r2(w.from[0] + c.dx), r2(w.from[1] + c.dz)]; w.to = [r2(w.to[0] + c.dx), r2(w.to[1] + c.dz)]; }
-      else if (c.wend) w.to = [r2(c.to[0]), r2(c.to[1])]; else w.from = [r2(c.to[0]), r2(c.to[1])];
-    });
-    if (op === 'shape') return this._bEdit(H => {
-      const rc = arr(H.rooms)[a.room]; if (!rc) return false;
-      if (a.ch.move) { // the room moves with what is in it and on its walls: furniture, doors, windows, passages, badges
-        const poly = roomOutline(rc) || arr(rc.rects).flatMap(([x1, z1, x2, z2]) => [[x1, z1], [x2, z1], [x2, z2], [x1, z2]]), lv = Number(rc.level) || 0;
-        const box = poly.reduce((b, [x, z]) => [Math.min(b[0], x), Math.min(b[1], z), Math.max(b[2], x), Math.max(b[3], z)], [1e9, 1e9, -1e9, -1e9]);
-        const mine = (x, z) => x >= box[0] - 0.05 && x <= box[2] + 0.05 && z >= box[1] - 0.05 && z <= box[3] + 0.05, lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
-        for (const f of arr(rc.furniture)) movePiece(f, a.ch.dx, a.ch.dz);
-        for (const d of arr(H.doors)) if (lvOf(d) === lv && d.from && d.to && mine(...d.from) && mine(...d.to)) { d.from = [r2(d.from[0] + a.ch.dx), r2(d.from[1] + a.ch.dz)]; d.to = [r2(d.to[0] + a.ch.dx), r2(d.to[1] + a.ch.dz)]; }
-        for (const k of ['windows', 'openings']) for (const w of arr(H[k])) if (Array.isArray(w) && lvOf(w) === lv && mine(w[0], w[1]) && mine(w[2], w[3])) { w[0] = r2(w[0] + a.ch.dx); w[1] = r2(w[1] + a.ch.dz); w[2] = r2(w[2] + a.ch.dx); w[3] = r2(w[3] + a.ch.dz); }
-        for (const b of arr(H.lock_badges)) if (lvOf(b) === lv && mine(Number(b.x), Number(b.z))) { b.x = r2(Number(b.x) + a.ch.dx); b.z = r2(Number(b.z) + a.ch.dz); }
-      }
-      applyShape(rc, a.ch);
     });
     if (op === 'delete') return this._bEdit(H => {
       if (a.k === 'piece') {
         const f = this._bPieceRef(H, a.fi); if (!f) return false;
         for (const list of [H.furniture, ...arr(H.rooms).map(r => r.furniture)]) { const i = Array.isArray(list) ? list.indexOf(f) : -1; if (i >= 0) { list.splice(i, 1); break; } }
-      } else if (a.k === 'door') { H.doors?.splice(a.i, 1); if (!H.doors?.length) delete H.doors; }
-      else if (a.k === 'window') H.windows?.splice(a.i, 1); // an empty list: no windows (deleting the list: automatic windows again)
-      else if (a.k === 'opening') { H.openings?.splice(a.i, 1); if (!H.openings?.length) delete H.openings; }
-      else if (a.k === 'badge') { H.lock_badges?.splice(a.i, 1); if (!H.lock_badges?.length) delete H.lock_badges; }
+      } else if (a.k === 'door') H.doors?.splice(a.i, 1);
       else if (a.k === 'wall') { H.extra_walls?.splice(a.i, 1); if (!H.extra_walls?.length) delete H.extra_walls; }
       else if (a.k === 'room') {
         const r = ROOM[a.id]; if (!r) return false;

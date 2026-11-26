@@ -127,32 +127,52 @@ The dashboard is generated for you until you take control of it:
 2. Choose **Take control**. The dashboard becomes a normal one with a single Sweet Home card.
 3. Click **Edit** at the left end of the bar under the card. The ⋮ at its right end only has move, copy and delete.
 4. The Sweet Home editor opens with three steps:
-   1. **Rooms**: your home, built right in 3D (a Sweet Home 3D view in Build mode, like a life-sim game; see
-      [Build mode](#build-mode-build-right-in-the-3d-view) for every tool). Draw rooms and walls on a grid, put in
-      doors, gates, windows, open passages and lock badges, paint wallpaper and floors, and furnish from a catalogue.
-      **Select**, then tap anything, opens all its settings beside the 3D view:
-      - **a room**: its Home Assistant area (its devices are found on their own), name, icon, floor covering, outdoor,
-        stairs and floor; its **shape** (ready-made rectangle, L, T, U, cut corner, bay, curved or round; **Turn**,
-        **15°** either way or any typed angle, **Mirror**, **Edit corners**); **Duplicate** or **Delete**; its
-        **Devices** (remove what you don't want, add from the area or any entity, rename on this dashboard, how each
-        light is drawn: ceiling light, spots, LED strip, TV backlight, with the strip's walls) and its **Furniture**
-        (suggest a set from its name, remove all, no furniture). In 3D, a selected room has dots on its corners (drag
-        to move one, or resize a rectangle) and squares on the middle of its walls (drag to bend the wall into a curve,
-        tap to add a corner); drag its floor to move the room with everything in it.
-      - **a piece**: its linked entities (a lamp to its light, a TV to its media player…), name, size, which way it
-        faces, a colour for each part (a sofa's frame, cushions and pillows; a bed's duvet, frame, headboard…), the
-        badge; **Turn**, **Duplicate**, **Delete**. Drag it to move it, its corner dots to resize it; near a wall it
-        goes flat against it, and a toilet, sink or washer turns to face the room.
-      - **a door or gate** (its sensor or cover, which way it swings, main entrance, its height for a gate), **a
-        window**, **an open passage** (their width in metres), **a lock badge** (its lock and name), **a separate
-        wall** (kind: wall, low wall, glass or fence; height; bend). Drag any of them to move it.
+   1. **Rooms**: a floor plan with four modes. A setup guide walks you through them the first time.
+      **Room by room** (in the setup guide, or **+ Room by room** above the plan) goes through your Home Assistant
+      areas one at a time. For each, pick a shape (rectangle, L, T, U, cut corner, bay, curved, round), a size (a
+      starting size comes from the room's name) and where it goes (right of / below / left of / above a room already
+      on the map; a dashed preview shows the spot). **Add to the map** or **Skip**; **Add a room that isn't an area**
+      for anything else; **Finish** whenever you like.
+      - **Shape**: add rooms (or all your areas at once), link them to areas, and draw them by dragging on a grid. Drag
+        a rectangle to move it and its corner dots to resize it. Draw more than one rectangle for an L-shaped room.
+        Duplicate or delete rooms.
+        - **Ready-made shapes**: rectangle, L, T, U, cut corner, bay window, curved wall and round. Tap one to give the
+          room that shape in the space it takes now. **Turn** and **Mirror** change which way it faces.
+        - **Edit corners** gives a room free corners. Drag a corner to move it, which slants the walls next to it. Drag
+          the square in the middle of a wall to bend it into a curve, or tap the square to add a corner there.
+        - **Draw walls**: tap each corner of the room in turn and its walls follow; tap the first corner again (or
+          **Done**) to close it. **Straight walls** keeps every wall at a multiple of 45°; turn it off to draw at any angle.
+          **Remove last corner** (or Backspace) steps back.
+        - **Rotate**: **Turn** (a quarter), **15°** either way, or type any angle. A room drawn with rectangles gets free
+          corners first. In the room-by-room guide, **Turn** turns the ready-made shape before it is added.
+        - **Separate walls**: drag on the plan to draw a wall that stands on its own, in any direction. Use it for a
+          partition, a kitchen half wall, a glass screen, a garden fence or a curved garden wall. Tap one to set its kind
+          (wall, half wall, glass or fence), height and bend, or drag it to move it. Doors, gates and openings cut
+          separate walls too.
+      - **Entities**: what each room shows in its popup. Devices in the room's area are found on their own. Remove
+        what you don't want, add other devices from the area, or add any entity. Edit a name to rename the entity on this
+        dashboard (Home Assistant is not changed). Set how each light is drawn (ceiling
+        light, spots, LED strip, TV backlight), with or without colours. For an LED strip, pick the walls it runs along and
+        whether it stops where a wall is missing. A list shows devices that are in no room yet.
+      - **Furniture**: pick a piece, then tap the plan to place it. Drag to move, use the corner dot to resize, and
+        **Turn** to rotate. Link a piece to one or more entities, such as a lamp to its light or a bed to the bedside
+        lights, so it can be tapped in the 3D view. **Suggest furniture** fills a room from its name.
+        Two sofas (or two counters) placed at a right angle with their ends overlapping become one L-shaped corner sofa
+        (or corner counter; worktops at the same height join too). Pieces made of several parts have a colour for each:
+        a sofa's frame and back, seat cushions and pillows; a bed's duvet, frame, headboard and pillows; a table's top and
+        legs; a chair's frame and seat. A piece moved or placed within 35 cm of a wall goes flat against it. Resizing
+        changes only the side you drag; the other keeps its exact size.
+      - **Doors & windows**: rooms are closed by walls until you add a way through. Drag along a wall to add a door
+        (pick its contact sensor to make it swing open in 3D), a window, an open passage or a **gate** (a gate leaf
+        with bars, about fence height: drag it along a fence or an outer wall; pick its sensor or cover to make it swing
+        open). Tap to add a lock badge. Drag any of them to move it; tap one to type its exact **width** in metres (a door
+        or gate keeps its hinge end, a window or passage keeps its middle). On a slanted wall the door follows the wall; on a curved wall a door or passage runs from point to point of the curve. They work on every wall: inner and outer walls, outdoor railings, and separate walls.
 
-      **Floors**: the floor buttons switch floors, **Add floor** adds one above, and the Select bar names the floor
-      shown. **+ Add my other areas** (or **Add all my areas**) gives every Home Assistant area with no room yet a
-      4 × 4 m room, to drag into place.
+      **Floors**: tabs above the plan switch floors, and **Add floor** adds one. Other floors show as dashed outlines
+      so you can line them up. Areas on a Home Assistant floor are added to that floor.
 
       **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover every change. *Things to check* lists entities that weren't found,
-      rooms without a shape and devices that are in another room's area; tap one to open that room.
+      rooms without a shape and devices that are in another room's area.
    2. **Panels**: turn panels on or off and pick their entities. **Modes** adds one-tap buttons to the Home tab (guests, holiday, scenes, scripts).
    3. **Look**: title, weather, start tab, wall height, automatic furniture, **Hide the "tap a room" tip** (on: the tip and the "tap a room" under the 3D view's title are not shown), or a 3D file.
       **Names on this dashboard** lists every entity renamed here (in a room or on a panel). Change or clear a name,
@@ -186,10 +206,9 @@ style builder: a grid appears on the ground and a toolbar over the view.
 
 | Tool | What it does |
 |---|---|
-| **Select** | Tap anything for all its settings (the card editor's own forms) in a panel beside the 3D view: a room, a piece, a door, a window, a passage, a lock badge, a wall. A selected room, piece or wall gets dots to drag (corners, wall middles, wall ends); drag a selected door, window, passage or badge to move it. The bar also names the floor shown. |
-| **Room** | Drag a rectangle on the grid: a room goes up with its walls. Name it and link it to a Home Assistant area in the bar that appears. **Add my other areas** gives each area with no room yet a room. |
-| **Wall** | Drag to draw a wall, straight or at 45°: a wall, a low wall, glass or a fence. When walls close in an area (on their own or against rooms you already have), it becomes a new room; a wall drawn right across a room splits it. |
-| **Door** / **Window** | Tap a wall to put in a door, a gate, an open passage (no wall, no door) or a lock badge, or a window in an outer wall; curved walls too. Pick the width in the bar; **Back to automatic windows** undoes your own windows. |
+| **Room** | Drag a rectangle on the grid: a room goes up with its walls. Name it and link it to a Home Assistant area in the bar that appears. |
+| **Wall** | Drag to draw a wall, straight or at 45°. When walls close in an area (on their own or against rooms you already have), it becomes a new room. |
+| **Door** / **Window** | Tap a wall to put a door in it (a gate in a fence), or a window in an outer wall. Pick the width in the bar. |
 | **Paint** | Pick a wallpaper colour or a floor (wood, tiles, marble, carpet, stone, asphalt), then tap a room. Wallpaper shows in the Dollhouse style. |
 | **Furniture** | Pick a piece from the catalogue and tap the floor to place it. Drag a piece to move it; tap it to turn it, link it to an entity (a lamp to its light, a TV to its media player…) or remove it. Pieces a room got automatically can be changed too: the room's set becomes its own. |
 | **Knock down** | Tap a piece, a door, a wall you drew or a room (tap a room twice) to remove it. |

@@ -182,7 +182,7 @@ export class SweetHomeCard extends HTMLElement {
     this._unmountCams(); if (this._visH) { document.removeEventListener('visibilitychange', this._visH); this._visH = null; }
     if (this._three) this._three.pause();
     // while the dashboard or this card is being edited: the 3D view is kept for the card that replaces this one
-    if (this._three && !this._embed && (this._previewProp || this._editModeProp || window.__sweetHomeEditor?.isConnected) && this.$('viewport')) {
+    if (this._three && (this._previewProp || this._editModeProp || window.__sweetHomeEditor?.isConnected) && this.$('viewport')) {
       if (SHARED && SHARED.scene !== this._three) dropShared();
       setShared({ scene: this._three, vp: this.$('viewport'), owner: this, mode: this._mode, level: this._level, sel: this._sel, tab: this._tab, timer: setTimeout(dropShared, 5000) });
       this._three = null; this._gaveAway = true;
@@ -333,8 +333,7 @@ export class SweetHomeCard extends HTMLElement {
     if (this._solo) { // Sweet Home 3D: only the 3D view; `height` sets it outside a sections grid
       const hh = this._config?.height, px = typeof hh === 'number' || /^\d+$/.test(String(hh ?? '')) ? `${hh}px` : hh;
       this.toggleAttribute('solo', true);
-      if (this._embed) this.style.setProperty('--solo-h', 'min(70vh,640px)'); // the card editor's 3D builder
-      else if (px && /^[\d.]+(px|vh|em|rem)$/.test(px)) this.style.setProperty('--solo-h', px); else this.style.removeProperty('--solo-h');
+      if (px && /^[\d.]+(px|vh|em|rem)$/.test(px)) this.style.setProperty('--solo-h', px); else this.style.removeProperty('--solo-h');
     }
     for (const [el, first] of cmods) { if (first) this.shadowRoot.prepend(el); else this.shadowRoot.appendChild(el); }
     const K3 = this._keep3d; // the same house: the old 3D view (canvas, labels, camera) is moved into the new page as it is
@@ -352,13 +351,13 @@ export class SweetHomeCard extends HTMLElement {
     this._spkInput();
     this.shadowRoot.addEventListener('click', e => this._onClick(e));
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
-    this.shadowRoot.addEventListener('input', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
+    this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
     this.shadowRoot.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('[data-rename]')) e.target.blur(); });
     // a name field being typed in is left alone when the popup redraws
     this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
     this.shadowRoot.addEventListener('focusout', e => { if (e.target.matches?.('[data-rename]') && this._dragging === e.target) this._dragging = null; });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('[data-rename]')) return; if (this._building && e.target.closest?.('#buildbar')) { this._bChange(e.target); return; } if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (this._building && e.target.closest?.('#buildbar')) { this._bChange(e.target); return; } if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
     }
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);
@@ -1058,7 +1057,7 @@ export class SweetHomeCard extends HTMLElement {
   // through it (with undo); otherwise it is saved straight into this dashboard (storage dashboards, admins).
   async _arrangeMove(f, dx, dz, undo) {
     if (this._building) { // Build mode: a step like the others (undo, saved with the house when Build mode closes)
-      if (!(await this._bEdit(H => { const p = this._bPieceRef(H, f?.idx); if (!p) return false; movePiece(p, dx, dz); this._bToWall(p, f); }))) { undo(); this._toast(tr('These stairs come with the room: change them in the card editor'), true); }
+      if (!(await this._bEdit(H => { const p = this._bPieceRef(H, f?.idx); if (!p) return false; movePiece(p, dx, dz); }))) { undo(); this._toast(tr('These stairs come with the room: change them in the card editor'), true); }
       return;
     }
     const src = f?.src;
@@ -1132,7 +1131,7 @@ export class SweetHomeCard extends HTMLElement {
   /* ---------- sections ---------- */
   // take the 3D view handed over by the card this one replaces (the editor's preview): see SHARED
   _adoptShared() {
-    const S = SHARED, vp = this.$('viewport'); if (this._embed || !S || !vp || !this.shadowRoot.contains(vp)) return false; // the editor's 3D builder keeps its own
+    const S = SHARED, vp = this.$('viewport'); if (!S || !vp || !this.shadowRoot.contains(vp)) return false;
     if (S.owner?.constructor !== this.constructor) return false; // the full card and Sweet Home 3D keep their room popup in different places
     clearTimeout(S.timer); setShared(null);
     this._moveViewport(vp, S.vp);
@@ -1172,7 +1171,6 @@ export class SweetHomeCard extends HTMLElement {
     if (V && this._focus) scene._goFocus(true); // zoomed on one room: framed again after the house changed
     if (!this.isConnected) scene.pause();
     this.$('loading').classList.add('gone');
-    if (this._embed && !this._building) this._bToggle(true); // the card editor's 3D builder: always building
     this._bScene();
     { const vp = this.$('viewport'), im = vp?.querySelector('.bsnap'); if (im) { vp.classList.remove('snapping'); im.classList.add('out'); setTimeout(() => im.remove(), 250); } }
     this._noRoomsMsg();
