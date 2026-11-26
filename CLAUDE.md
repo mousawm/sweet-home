@@ -28,8 +28,6 @@
 - `src/scene.js`: the Three.js scene (`HouseScene`). `src/styles.js`: the stylesheet. `src/core.js`: shared helpers
   and the current model (`MODEL`, `E`, `ROOMS`…, switched with `useModel`); change `FAHR` / `SHARED` / `SMART` only
   through `setFahr` / `setShared` / `setSmart`.
-- `src/build.js`: Build mode's scene side (grid, ghosts, pointer tools); `src/panels/build.js`: its toolbar and the
-  config changes (with undo). `src/pieces.js`: furniture footprints / defaults / turning, shared by the editor and Build mode.
 - `src/model.js`: config + Home Assistant → model (pure, unit-tested). `src/editor.js`: the card editor. `src/i18n.js`:
   translations (`t()`).
 - Tests: `test/model.test.mjs` (model), `test/e2e.mjs` (card and editor in a browser, fake WebGL), `test/visual.mjs`

@@ -525,7 +525,7 @@ export function buildModel(cfg = {}, hass) {
     const r = {
       id: roomIdOf(rc, i, R), name, area: rc.area || null, icon: rc.icon || (rc.stairs ? 'mdi:stairs' : roomIcon(name)), level: lvl, ci: auto ? null : i, stairs: rc.stairs ?? null,
       rects, poly: poly || undefined, floorRects: rc.floor_rects || rc.floorRects || undefined, floor: rc.floor || roomFloor(String(name).toLowerCase()),
-      outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined, wallColor: rc.wall_color ?? undefined,
+      outdoor: rc.outdoor ?? isOutdoor(name), anchor: rc.anchor || undefined,
       lights: arr(pick('lights')), temp: pick('temperature', 'temp') || null, hum: pick('humidity', 'hum') || null,
       motion: arr(pick('motion')), doors: arr(pick('doors')), locks: arr(pick('locks')),
       climate: pick('climate') || null, fan: pick('fan') || null, count: rc.count || null,
@@ -578,8 +578,7 @@ export function buildModel(cfg = {}, hass) {
   }
 
   /* ---------- floors (levels) ---------- */
-  // the floors with rooms, and the floors named in `levels` (a floor added in Build mode stays while it is empty)
-  const levelIds = [...new Set([...rooms.map(r => r.level), ...arr(house.levels).map(l => Number(l?.level)).filter(l => Number.isInteger(l))])].sort((x, y) => x - y);
+  const levelIds = [...new Set(rooms.map(r => r.level))].sort((x, y) => x - y);
   if (!levelIds.length) levelIds.push(0);
   const lvOf = v => (v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : levelIds.includes(0) ? 0 : levelIds[0]);
   const flv = floorLevels(R);
@@ -596,7 +595,7 @@ export function buildModel(cfg = {}, hass) {
     .map(q => lineOf(q[0], q[1], q[2], q[3])).filter(Boolean);
 
   /* ---------- doors: a leaf that swings open with its contact sensor (or stays shut without one) ---------- */
-  const doors = arr(house.doors).map((d, ci) => {
+  const doors = arr(house.doors).map(d => {
     const from = d.from || [d.x, d.z], to = d.to;
     if (from[0] == null || from[1] == null) return null;
     let axis = d.axis || 'x', dir = d.dir ?? 1, w = num(d.width ?? d.w, 0.9);
@@ -621,7 +620,7 @@ export function buildModel(cfg = {}, hass) {
     }
     if (Math.abs(vz) < 1e-6) { axis = 'x'; dir = vx >= 0 ? 1 : -1; } else if (Math.abs(vx) < 1e-6) { axis = 'z'; dir = vz >= 0 ? 1 : -1; } else axis = 'a';
     // gate: a gate leaf (rails and bars, about fence height) instead of a full-height door
-    return { ci, id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level, gate: !!d.gate, gh: d.gate ? num(d.height, null) : null,
+    return { id: d.entity || d.id || null, x, z, axis, dir, w, vx, vz, side: d.side ?? 1, main: !!d.main, level, gate: !!d.gate, gh: d.gate ? num(d.height, null) : null,
       seg: [x, z, rnd4(x + vx * w), rnd4(z + vz * w)] };
   }).filter(Boolean);
 
@@ -1017,12 +1016,8 @@ export function buildModel(cfg = {}, hass) {
 
   return {
     E, rooms, walls, doors, doorInfo, furniture, badges, levels,
-    plan: { W, D, CX: W / 2, CZ: D / 2, ox, oz }, // ox, oz: where the plan's 0, 0 is in the config's coordinates
+    plan: { W, D, CX: W / 2, CZ: D / 2 },
     wallH: num(house.wall_height, 1.35),
-    style: house.style === 'dollhouse' ? 'dollhouse' : 'classic', // dollhouse: a bright lot, wallpapered rooms, walls facing you cut down
-    // apartment: the home is a flat on floor `apartment_floor` (0 = the ground floor; default 2) of a building: it stands
-    // on the building's block (a storey of 3 m per floor below it), with the street at the bottom instead of a garden
-    setting: house.setting === 'apartment' ? 'apartment' : 'house', aptFloor: Math.max(0, Math.min(40, Math.round(num(house.apartment_floor, 2)))),
     title: cfg.title || 'My Home', auto, has, hasMS,
     gltf: house.type === 'gltf' ? { url: house.url, scale: num(house.scale, 1), rotation: num(house.rotation, 0), offset: house.offset || [0, 0, 0], rooms: house.mesh_rooms || {} } : null,
     tabsOrder: arr(cfg.tabs),
@@ -1036,104 +1031,4 @@ export function movePiece(f, dx, dz) {
   const r2 = v => Math.round(v * 100) / 100, N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
   if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
   else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
-}
-
-/* ---------- Build mode: walls first, rooms found ---------- */
-const k2 = v => Math.round(v * 100) / 100;
-// wall lines [x1, z1, x2, z2] cut where they cross or touch each other: the pieces, each with the index of its line
-function cutLines(segs) {
-  const E = 1e-6, S = segs.map(s => s.slice(0, 4).map(Number)), cuts = S.map(() => [0, 1]);
-  const along = (px, pz, [x1, z1, x2, z2]) => { const vx = x2 - x1, vz = z2 - z1, L2 = vx * vx + vz * vz, t = ((px - x1) * vx + (pz - z1) * vz) / L2; return Math.hypot(x1 + vx * t - px, z1 + vz * t - pz) < 0.02 && t > -E && t < 1 + E ? t : null; };
-  for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) {
-    const [ax, az, bx, bz] = S[i], [cx, cz, dx, dz] = S[j], rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx;
-    if (Math.abs(den) > E) {
-      const t = ((cx - ax) * sz - (cz - az) * sx) / den, u = ((cx - ax) * rz - (cz - az) * rx) / den;
-      if (t > -E && t < 1 + E && u > -E && u < 1 + E) { cuts[i].push(t); cuts[j].push(u); }
-    } else for (const [p, q, a] of [[[cx, cz], S[i], i], [[dx, dz], S[i], i], [[ax, az], S[j], j], [[bx, bz], S[j], j]]) { const t = along(p[0], p[1], q); if (t != null) cuts[a].push(t); }
-  }
-  const out = [];
-  S.forEach(([x1, z1, x2, z2], i) => {
-    if (Math.hypot(x2 - x1, z2 - z1) <= 0.05) return;
-    const ts = [...new Set(cuts[i].map(t => Math.min(1, Math.max(0, t))).map(t => Math.round(t * 1e5) / 1e5))].sort((a, b) => a - b);
-    for (let n = 0; n + 1 < ts.length; n++) {
-      const a = [k2(x1 + (x2 - x1) * ts[n]), k2(z1 + (z2 - z1) * ts[n])], b = [k2(x1 + (x2 - x1) * ts[n + 1]), k2(z1 + (z2 - z1) * ts[n + 1])];
-      if (a[0] !== b[0] || a[1] !== b[1]) out.push([...a, ...b, i]);
-    }
-  });
-  return out;
-}
-// the closed areas a set of wall pieces makes: each an outline (corners in order) with a point inside it
-function facesOf(pieces) {
-  const E = 1e-6, P = {}, adj = {}, key = (x, z) => `${x},${z}`;
-  const node = (x, z) => { const id = key(x, z); P[id] ||= [x, z]; adj[id] ||= new Set(); return id; };
-  for (const [x1, z1, x2, z2] of pieces) { const a = node(x1, z1), b = node(x2, z2); if (a !== b) { adj[a].add(b); adj[b].add(a); } }
-  // loose ends can't close anything: drop them, again and again
-  for (let again = true; again;) { again = false; for (const id in adj) if (adj[id].size === 1) { for (const o of adj[id]) adj[o].delete(id); adj[id].clear(); again = true; } }
-  // walk every face: at each corner, take the sharpest turn to the right
-  const ang = (a, b) => Math.atan2(P[b][1] - P[a][1], P[b][0] - P[a][0]), seen = new Set(), out = [];
-  for (const a in adj) for (const b of adj[a]) {
-    if (seen.has(a + '>' + b)) continue;
-    const face = []; let u = a, v = b, guard = 0;
-    while (!seen.has(u + '>' + v) && guard++ < 10000) {
-      seen.add(u + '>' + v); face.push(P[u]);
-      const back = ang(v, u); let best = null, bestD = Infinity;
-      for (const w of adj[v]) { if (w === u && adj[v].size > 1) continue; let d = back - ang(v, w); while (d <= E) d += 2 * Math.PI; if (d < bestD) { bestD = d; best = w; } }
-      u = v; v = best;
-    }
-    if (face.length < 3 || polyArea(face) < 0.5) continue; // the outside of a group of walls goes round the other way
-    // corners in a straight line are not corners
-    const pts = face.filter((p, i) => { const a2 = face[(i + face.length - 1) % face.length], c = face[(i + 1) % face.length]; return Math.abs((p[0] - a2[0]) * (c[1] - p[1]) - (p[1] - a2[1]) * (c[0] - p[0])) > 1e-4; });
-    if (pts.length < 3) continue;
-    // a point inside it: the middle, or else the middle of a corner's two neighbours
-    let inside = null; const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-    if (inPoly(cx, cz, pts)) inside = [cx, cz];
-    else for (let i = 0; i < pts.length && !inside; i++) { const a2 = pts[i], c = pts[(i + 2) % pts.length], m = [(a2[0] + c[0]) / 2, (a2[1] + c[1]) / 2]; if (inPoly(m[0], m[1], pts)) inside = m; }
-    if (inside) out.push({ pts, inside });
-  }
-  return out;
-}
-// The areas closed in by walls (like a life-sim build mode): `segs` are wall lines [x1, z1, x2, z2] (separate walls and
-// the edges of the rooms there already are), `rooms` the outlines of those rooms ([[x, z]…]). Walls are cut where they
-// cross or touch, and every closed area that is not already a room (nor holds one) comes back as an outline, corner by
-// corner. Areas under 0.5 m² are left out.
-export function enclosedAreas(segs, rooms = []) {
-  return facesOf(cutLines(segs)).filter(({ pts, inside }) =>
-    !rooms.some(r => inPoly(inside[0], inside[1], r)) && // already a room
-    !rooms.some(r => r.some(([x, z]) => inPoly(x, z, pts) && !onEdge(x, z, pts)))).map(f => f.pts); // it would hold a room
-}
-// A room cut in parts by walls drawn across it (like a life-sim build mode): `room` is its outlines (one per rectangle,
-// or its one outline), `walls` the wall lines. Returns the parts' outlines, biggest first, or [] when the walls don't
-// cut it in two. Rectangles of one room that touch are one area: the edge between them is not a wall.
-export function splitRoom(room, walls) {
-  const inRoom = (x, z) => room.some(p => inPoly(x, z, p));
-  const edges = room.flatMap(p => p.map(([x, z], i) => [x, z, ...p[(i + 1) % p.length]]));
-  const pieces = cutLines([...edges, ...walls]).filter(([x1, z1, x2, z2, i]) => {
-    const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2, L = Math.hypot(x2 - x1, z2 - z1), nx = -(z2 - z1) / L * 0.05, nz = (x2 - x1) / L * 0.05;
-    const a = inRoom(mx + nx, mz + nz), b = inRoom(mx - nx, mz - nz);
-    if (i >= edges.length) return a || b; // a wall: the parts of it inside the room (or on its edge)
-    return !(a && b); // a room edge: not where two of its rectangles meet
-  });
-  const faces = facesOf(pieces).filter(f => inRoom(f.inside[0], f.inside[1]));
-  return faces.length > 1 ? faces.map(f => f.pts).sort((p, q) => polyArea(q) - polyArea(p)) : [];
-}
-// the parts of wall line `seg` [x1, z1, x2, z2] that no edge of the outlines `polys` covers (each [x1, z1, x2, z2],
-// at least 5 cm long): a wall drawn where rooms now have their own walls keeps only what sticks out
-export function uncovered(seg, polys) {
-  const [x1, z1, x2, z2] = seg.map(Number), vx = x2 - x1, vz = z2 - z1, L = Math.hypot(vx, vz); if (L < 0.05) return [];
-  const t = (x, z) => ((x - x1) * vx + (z - z1) * vz) / (L * L), off = (x, z) => Math.abs((x - x1) * vz - (z - z1) * vx) / L;
-  const cov = [];
-  for (const p of polys) p.forEach(([ax, az], i) => {
-    const [bx, bz] = p[(i + 1) % p.length];
-    if (off(ax, az) > 0.02 || off(bx, bz) > 0.02) return; // not on this wall's line
-    const a = Math.max(0, Math.min(t(ax, az), t(bx, bz))), b = Math.min(1, Math.max(t(ax, az), t(bx, bz))); if (b > a) cov.push([a, b]);
-  });
-  cov.sort((p, q) => p[0] - q[0]);
-  const out = []; let at = 0;
-  for (const [a, b] of cov) { if (a > at) out.push([at, a]); at = Math.max(at, b); }
-  if (at < 1) out.push([at, 1]);
-  return out.filter(([a, b]) => (b - a) * L >= 0.05).map(([a, b]) => [k2(x1 + vx * a), k2(z1 + vz * a), k2(x1 + vx * b), k2(z1 + vz * b)]);
-}
-// is x, z on the outline's edge (within 2 cm)?
-export function onEdge(x, z, poly) {
-  return poly.some(([x1, z1], i) => { const [x2, z2] = poly[(i + 1) % poly.length], vx = x2 - x1, vz = z2 - z1, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - x1) * vx + (z - z1) * vz) / L2)); return Math.hypot(x1 + vx * t - x, z1 + vz * t - z) < 0.02; });
 }
