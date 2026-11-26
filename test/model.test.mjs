@@ -369,6 +369,11 @@ test('fence and gate: a fence separate wall keeps its kind (and its height); a g
   assert.deepEqual(m.doors.map(d => [d.gate, d.gh]), [[true, 1.4], [false, null]]);
   assert.equal(m.walls.filter(w => w[4] === 'fence').length, 2, 'the gate cuts the fence in two');
 });
+test('water trend_hours: the tank trend is worked out from 2, 6, 12 or 24 hours (6 by default, or for anything else)', () => {
+  const H = w => buildModel({ panels: { water: w } }, hass).E.water.trendHours;
+  assert.deepEqual([H({}), H({ trend_hours: 2 }), H({ trend_hours: '12' }), H({ trend_hours: 24 }), H({ trend_hours: 3 }), H({ trend_hours: 'x' })], [6, 2, 12, 24, 6, 6]);
+});
+
 test('doors_hours: the timeline span is 6, 12, 18 or 24 hours (24 by default, or for anything else)', () => {
   const H = sec => buildModel({ panels: { security: sec } }, hass).E.doorsHours;
   assert.deepEqual([H({}), H({ doors_hours: 6 }), H({ doors_hours: '12' }), H({ doors_hours: 18 }), H({ doors_hours: 7 }), H({ doors_hours: 'x' })], [24, 6, 12, 18, 24, 24]);

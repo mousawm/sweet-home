@@ -413,6 +413,7 @@ listed below).
   card: valves, flow, pressure…). While a pump runs its tile shows `show: power` (default), `time` (a live timer of how
   long it has been on) or `both`. `presses: 1` turns it on with one tap; the default is two (tap again to confirm).
   Turning it off is always one tap. Both are set per pump in the card editor under Panels → Water.
+  `trend_hours`: how much tank history the trend pill (rate and “empty in / full in”) uses: 2, 6 (default), 12 or 24.
 - **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`; pick them in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
 - **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
   colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
