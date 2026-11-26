@@ -13,7 +13,11 @@ const TOOLS = [['select', 'Select', 'mdi:cursor-default-click-outline'], ['room'
 const PAPERS = ['#f0dcc4', '#eccaa3', '#f5dc96', '#c6dbb2', '#b5e0d6', '#b9cdee', '#e6d5ec', '#f2c4d2', '#eee5d4', '#d8d6cf', '#ffffff', '#9bb0c9'];
 const FLOORS = [['wood', 'Wood', '#b08a62'], ['tile', 'Tiles', '#eef2f6'], ['marble', 'Marble', '#e8dfcf'], ['carpet', 'Carpet', '#9097a1'], ['stone', 'Stone', '#b8b1a5'], ['asphalt', 'Asphalt', '#3a3f47']];
 const WALL_MODES = { up: ['mdi:wall', 'Walls up'], cut: ['mdi:box-cutter', 'Walls cut away in front'], down: ['mdi:arrow-collapse-down', 'Walls down'] };
-const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4] };
+const WIDTHS = { door: [0.8, 0.9, 1.2, 1.6], window: [0.8, 1.2, 1.8, 2.4], opening: [0.9, 1.2, 2, 3] };
+// what the Door tool puts in: a door (a gate in a fence), an open passage (no wall, no door), or a lock badge
+const DOOR_KINDS = [['door', 'Door', 'mdi:door'], ['opening', 'Open passage', 'mdi:arrow-expand-horizontal'], ['badge', 'Lock badge', 'mdi:lock']];
+// what the Wall tool draws
+const WALL_KINDS = [['wall', 'Wall', 'mdi:wall'], ['half', 'Low wall', 'mdi:wall-sconce-flat-outline'], ['glass', 'Glass', 'mdi:window-closed'], ['fence', 'Fence', 'mdi:fence']];
 // the entities a piece is most likely to show
 const DOMAINS = { lamp: ['light'], fan: ['fan', 'switch'], tv: ['media_player'], ac: ['climate'], vacuum: ['vacuum'], blinds: ['cover'], charger: ['switch', 'sensor'], washer: ['switch', 'sensor'],
   sprinkler: ['switch', 'valve'], car: ['device_tracker', 'binary_sensor', 'sensor'], marker: ['light', 'switch', 'sensor', 'binary_sensor', 'lock', 'camera', 'climate', 'cover'] };
@@ -134,6 +138,23 @@ export class BuildTools {
     if (typing) this._bInsT = setTimeout(() => this._bInsFlush(), 1500); else this._bInsFlush();
   }
   _bInsFlush() { clearTimeout(this._bInsT); const c = this._bInsPending; this._bInsPending = null; if (c) { this._bCommit(c); const W = this._bInsWrap; if (W && this._bInsSel) W.querySelector('.bins-t').textContent = this._bInsTitle(this._bInsSel); } }
+  // Home Assistant areas no room is linked to yet
+  _bFreeAreas() {
+    const used = new Set(ROOMS.map(r => r.area).filter(Boolean)), cfgUsed = new Set(arr(this._config?.house?.rooms).map(r => r.area).filter(Boolean));
+    return Object.values(this._hass?.areas || {}).filter(a => !used.has(a.area_id) && !cfgUsed.has(a.area_id)).sort((a, b) => String(a.name).localeCompare(b.name));
+  }
+  // every area with no room yet becomes a 4 × 4 m room, in rows to the right of the rooms on this floor
+  _bAddAreas() {
+    const free = this._bFreeAreas(); if (!free.length) return;
+    const lvl = this._level ?? 0;
+    this._bEdit(H => {
+      const rooms = H.rooms ||= [], here = rooms.filter(r => (Number(r.level) || 0) === lvl);
+      const xs = here.flatMap(r => { const p = roomOutline(r); return p ? p.map(q => q[0]) : arr(r.rects).flatMap(q => [q[0], q[2]]); }).map(Number);
+      const ox = xs.length ? Math.ceil(Math.max(...xs)) + 1 : 0, cols = Math.max(1, Math.ceil(Math.sqrt(free.length * 1.3)));
+      free.forEach((a, i) => { const x = ox + (i % cols) * 4, z = Math.floor(i / cols) * 4; rooms.push({ area: a.area_id, rects: [[x, z, x + 4, z + 4]], ...(lvl ? { level: lvl } : {}) }); });
+    });
+    this._toast(tr('{0} rooms added from your areas: drag them into place with Select', free.length));
+  }
   _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
   // changes not saved yet (with the card editor open, each step already went through it)
   _bDirty() { return !!this._building && !this._viaEditor() && this._bOrig != null && this._cfgJSON !== this._bOrig; }
@@ -164,7 +185,7 @@ export class BuildTools {
     S.builder?.setSel?.(this._building ? this._bInsSel : null);
   }
   _bInfo(s) { const el = this.$('bInfo'); if (el) el.textContent = s; }
-  _bWidth(tool) { return (this._bW ||= { door: 0.9, window: 1.2 })[tool]; }
+  _bWidth(tool) { const W = (this._bW ||= { door: 0.9, window: 1.2, opening: 1.2 }); return tool === 'door' && this._bDoorKind === 'opening' ? W.opening : W[tool]; }
 
   _bRender() {
     const el = this.$('buildbar'); if (!el) return;
@@ -173,10 +194,17 @@ export class BuildTools {
     const tool = this._bTool, b = (act, v, label, icon, on, extra = '') => `<button class="bb ${on ? 'on' : ''}" data-act="b" data-b="${act}" data-v="${esc(v)}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${icon ? ic(icon) : ''}<span>${esc(label)}</span></button>`;
     const tools = TOOLS.map(([k, n, i]) => b('tool', k, tr(n), i, tool === k)).join('');
     let opts = '';
-    if (tool === 'select') opts = `<span class="bh">${tr('Tap anything to see and change all its settings: a room (its name, area, shape, devices), a piece, a door, a window, a wall. Drag a piece to move it.')}</span>`;
-    else if (tool === 'room') opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>`;
-    else if (tool === 'wall') opts = `<span class="bh">${tr('Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.')}</span>`;
-    else if (tool === 'door' || tool === 'window') opts = `<span class="bh">${tr(tool === 'door' ? 'Tap a wall to put a door in it (a gate in a fence).' : 'Tap an outer wall to put a window in it.')}</span>${WIDTHS[tool].map(w => b('width', w, `${w} m`, '', this._bWidth(tool) === w)).join('')}`;
+    if (tool === 'select') {
+      const L = MODEL.levels || [{ level: 0 }], cur = L.find(l => l.level === (this._level ?? 0)), own = arr(this._config?.house?.levels).find(x => Number(x.level) === (this._level ?? 0))?.name;
+      opts = `<span class="bh">${tr('Tap anything to see and change all its settings: a room (its name, area, shape, devices), a piece, a door, a window, a wall. Drag a piece to move it.')}</span>
+        <label class="blink bfloor">${ic('mdi:layers-outline')}<input data-bfloor value="${esc(own || '')}" placeholder="${esc(cur ? tr(cur.name) : '')}" aria-label="${tr('Name of this floor')}" title="${tr('Name of this floor')}"></label>`;
+    }
+    else if (tool === 'room') { const n = this._bFreeAreas().length; opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>${n ? b('areas', '', tr('Add my other areas ({0})', n), 'mdi:home-import-outline', false) : ''}`; }
+    else if (tool === 'wall') { const wk = this._bWallKind || 'wall'; opts = `<span class="bh">${tr(wk === 'wall' ? 'Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.' : 'Drag to draw it (straight or at 45°). Select it later to change its height or bend it.')}</span>${WALL_KINDS.map(([k, n, i]) => b('wallkind', k, tr(n), i, wk === k)).join('')}`; }
+    else if (tool === 'door') {
+      const dk = this._bDoorKind || 'door', kinds = DOOR_KINDS.map(([k, n, i]) => b('doorkind', k, tr(n), i, dk === k)).join('');
+      opts = `${kinds}<span class="bh">${tr({ door: 'Tap a wall to put a door in it (a gate in a fence).', opening: 'Tap a wall between two rooms to open it: no wall, no door.', badge: 'Tap where a small lock badge should float, then pick its lock.' }[dk])}</span>${dk === 'badge' ? '' : WIDTHS[dk].map(w => b('width', w, `${w} m`, '', this._bWidth('door') === w)).join('')}`;
+    } else if (tool === 'window') opts = `<span class="bh">${tr('Tap an outer wall to put a window in it.')}</span>${WIDTHS.window.map(w => b('width', w, `${w} m`, '', this._bWidth('window') === w)).join('')}${Array.isArray(this._config?.house?.windows) ? b('autowin', '', tr('Back to automatic windows'), 'mdi:window-shutter-auto', false) : ''}`;
     else if (tool === 'paint') {
       const br = this._bBrush ||= { k: 'wall', v: PAPERS[0] };
       opts = `<span class="bh">${tr('Pick a wallpaper or a floor, then tap a room.')}</span>
@@ -204,7 +232,7 @@ export class BuildTools {
     // bottom left: undo, cancel and save / done
     el.innerHTML = `<div class="brow btools">${tools}<span class="bsp"></span>
         <span class="bturn">${b('turnv', '-1', tr('Turn left'), 'mdi:rotate-left', false)}${b('turnv', '1', tr('Turn right'), 'mdi:rotate-right', false)}</span>
-        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}</div>
+        ${b('grid', '', `${this._bGrid || 0.5} m`, 'mdi:grid', false)}${b('addfloor', '', tr('Add floor'), 'mdi:layers-plus', false)}</div>
       ${naming}<div class="brow bopts">${opts}<span class="binfo" id="bInfo"></span></div>
       <div class="brow bact">${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
         ${this._bDirty() ? b('cancel', '', tr('Cancel'), 'mdi:close', false) : ''}
@@ -216,7 +244,16 @@ export class BuildTools {
     const v = t.dataset.v;
     switch (t.dataset.b) {
       case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'select' && this._bInsSel) this._bInspect(null); if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
-      case 'width': this._bW[this._bTool] = Number(v); break;
+      case 'width': this._bW[this._bTool === 'door' && this._bDoorKind === 'opening' ? 'opening' : this._bTool] = Number(v); break;
+      case 'doorkind': this._bDoorKind = v; break;
+      case 'wallkind': this._bWallKind = v; break;
+      case 'autowin': this._bEdit(H => { delete H.windows; }); break;
+      case 'areas': this._bAddAreas(); break;
+      case 'addfloor': { // a new floor above the top one, shown at once (empty until you build on it)
+        const top = Math.max(0, ...(MODEL.levels || []).map(l => l.level), ...arr(this._config?.house?.levels).map(l => Number(l.level) || 0)), n = top + 1;
+        this._level = n; this._bEdit(H => { (H.levels ||= []).push({ level: n, name: `${tr('Floor')} ${n}` }); });
+        this._toast(tr('Floor {0} added: build on it', n)); break;
+      }
       case 'brush': this._bBrush = { k: t.dataset.k, v }; break;
       case 'piece': this._bPiece = this._bPiece === v ? null : v; break;
       case 'grid': this._bGrid = (this._bGrid || 0.5) === 0.5 ? 0.25 : (this._bGrid || 0.5) === 0.25 ? 1 : 0.5; this._three?.builder?.setGrid(); break;
@@ -235,6 +272,11 @@ export class BuildTools {
   _bChange(el) {
     if (el.matches('[data-blink]')) { const id = el.value.trim(); if (id && !this._hass?.states[id]) { this._toast(tr('No entity {0}', id), true); return; } this._bPieceEdit(f => { delete f.entity; if (id) f.entities = [id]; else delete f.entities; }); return true; }
     if (el.matches('[data-bname], [data-barea]')) { if (el.matches('[data-barea]')) this._bName(); return true; }
+    if (el.matches('[data-bfloor]')) { // the name of the floor shown
+      const lv = this._level ?? 0, v = el.value.trim();
+      this._bEdit(H => { const list = arr(H.levels).filter(x => Number(x.level) !== lv); if (v) list.push({ level: lv, name: v }); if (list.length) H.levels = list.sort((a, b) => a.level - b.level); else delete H.levels; });
+      return true;
+    }
     return false;
   }
   _bName() {
@@ -282,6 +324,7 @@ export class BuildTools {
   _bCommit(cfg, before = JSON.stringify(this._config || {})) {
     (this._bUndo ||= []).push(before); if (this._bUndo.length > 50) this._bUndo.shift();
     this._bApply(cfg); this._bRender();
+    if (this._bAfter) { const s2 = this._bAfter; this._bAfter = null; this._bTool = 'select'; this._three?.builder?.setTool('select'); this._bScene(); this._bRender(); this._bInspect(s2); } // a new lock badge: pick its lock
     return true;
   }
   _bApply(cfg) { if (this._viaEditor()) window.__sweetHomeEditor.applyExternal(cfg); else this.setConfig(cfg); }
@@ -302,10 +345,19 @@ export class BuildTools {
       rooms.push(lv({ name: `${tr('Room')} ${rooms.length + 1}`, rects: [[X(x1), Z(z1), X(x2), Z(z2)]], furniture: [] })); this._bNew = rooms.length - 1; // a new room starts empty
     });
     if (op === 'wall') return this._bEdit(H => {
-      (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])] }));
+      const kind = this._bWallKind && this._bWallKind !== 'wall' ? { type: this._bWallKind } : {};
+      (H.extra_walls ||= []).push(lv({ from: [X(a.from[0]), Z(a.from[1])], to: [X(a.to[0]), Z(a.to[1])], ...kind }));
       const { made, split } = this._bWallRooms(H, a.level || 0);
       if (split) this._toast(split > 1 ? tr('{0} rooms split', split) : tr('Room split in two'));
       else if (made) this._toast(made > 1 ? tr('{0} new rooms', made) : tr('New room'));
+    });
+    if (op === 'opening') return this._bEdit(H => { const [x1, z1, x2, z2] = a.seg; (H.openings ||= []).push([X(x1), Z(z1), X(x2), Z(z2), ...(a.level ? [a.level] : [])]); });
+    if (op === 'badge') return this._bEdit(H => { (H.lock_badges ||= []).push(lv({ lock: '', x: X(a.x), z: Z(a.z) })); this._bAfter = { k: 'badge', i: H.lock_badges.length - 1 }; });
+    if (op === 'moveitem') return this._bEdit(H => { // a door, window, passage or badge dragged to another place
+      if (a.k === 'badge') { const b0 = arr(H.lock_badges)[a.i]; if (!b0) return false; b0.x = X(a.x); b0.z = Z(a.z); return; }
+      const [x1, z1, x2, z2] = a.seg;
+      if (a.k === 'door') { const d = arr(H.doors)[a.i]; if (!d) return false; d.from = [X(x1), Z(z1)]; d.to = [X(x2), Z(z2)]; return; }
+      const w = arr(H[a.k === 'window' ? 'windows' : 'openings'])[a.i]; if (!Array.isArray(w)) return false; w[0] = X(x1); w[1] = Z(z1); w[2] = X(x2); w[3] = Z(z2);
     });
     if (op === 'door' || op === 'window') return this._bEdit(H => {
       const [x1, z1, x2, z2] = a.seg;

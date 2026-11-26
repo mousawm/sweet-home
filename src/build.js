@@ -211,8 +211,14 @@ export class Builder {
       this._slab(x1, z1, x2, z2); this._wall(x1, z1, x2, z1); this._wall(x2, z1, x2, z2); this._wall(x2, z2, x1, z2); this._wall(x1, z2, x1, z1);
       this.S.card._bInfo(`${(x2 - x1).toFixed(2)} × ${(z2 - z1).toFixed(2)} m`);
     } else if (tool === 'wall' && op) {
-      const b = this._wallEnd(op.a, p); this._wall(op.a[0], op.a[1], b[0], b[1]);
+      const b = this._wallEnd(op.a, p), wk = this.S.card._bWallKind || 'wall';
+      this._wall(op.a[0], op.a[1], b[0], b[1], wk === 'half' ? Math.max(0.5, WALL_H * 0.62) : wk === 'fence' ? Math.min(WALL_H, 1.2) : WALL_H, wk === 'wall' ? 0.12 : 0.06);
       this.S.card._bInfo(`${Math.hypot(b[0] - op.a[0], b[1] - op.a[1]).toFixed(2)} m`);
+    } else if (tool === 'door' && this.S.card._bDoorKind === 'badge') {
+      const [x, z] = [this.snap(p[0], 0.1), this.snap(p[1], 0.1)]; this._slab(x - 0.07, z - 0.07, x + 0.07, z + 0.07, 1.1); this._slab(x - 0.12, z - 0.12, x + 0.12, z + 0.12, 0.03);
+    } else if (tool === 'door' && this.S.card._bDoorKind === 'opening') {
+      const W = this._onWall(p, this.S.card._bWidth('door'), false);
+      if (W) { const [x1, z1, x2, z2] = W.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.1, 0.3); }
     } else if (tool === 'door' || tool === 'window') {
       const W = this._onWall(p, this.S.card._bWidth(tool), tool === 'window');
       if (W) { this._paint(!W.ok); const [x1, z1, x2, z2] = W.seg; if (tool === 'door') this._wall(x1, z1, x2, z2, Math.max(0.5, WALL_H - 0.08), 0.16); else { this._wall(x1, z1, x2, z2, WALL_H - 0.8, 0.16); this.ghost.children.at(-1).position.y += 0.79; } }
@@ -285,7 +291,8 @@ export class Builder {
       if (this.tool === 'room' || this.tool === 'wall') this.op = { a: [this.snap(p[0]), this.snap(p[1])] };
       if (this.tool === 'select') { // a handle of the selected room, or (once it moves) the selected room itself
         const sr = this.sel?.k === 'room' && (ROOMS.find(x => x.ci === this.sel.i) || null), h0 = this._hit(e);
-        this.op = hd ? { h: hd, p0: p } : sr && h0.room === sr.id ? { maybeMove: true, p0: p } : null;
+        const it = this.sel && ['door', 'window', 'opening', 'badge'].includes(this.sel.k) && this._target(p, h0, true);
+        this.op = hd ? { h: hd, p0: p } : it && it.k === this.sel.k && it.i === this.sel.i ? { item: this.sel, len: it.seg ? Math.hypot(it.seg[2] - it.seg[0], it.seg[3] - it.seg[1]) : 0, p0: p } : sr && h0.room === sr.id ? { maybeMove: true, p0: p } : null;
       }
       this.S.lastInput = performance.now(); this._preview(p, e);
     };
@@ -294,6 +301,12 @@ export class Builder {
       const p = this._plan(e); if (!p) return;
       if (down) e.stopImmediatePropagation();
       if (down && this.op?.maybeMove && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) { this.op.move = true; this.op.maybeMove = false; }
+      if (down && this.op?.item && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { // dragging the selected door, window, passage or badge
+        this._clear(); const I = this.op.item;
+        if (I.k === 'badge') { const x = this.snap(p[0], 0.1), z = this.snap(p[1], 0.1); this.op.to = { x, z }; this._slab(x - 0.07, z - 0.07, x + 0.07, z + 0.07, 1.1, this.selMat); }
+        else { const W = this._onWall(p, Math.max(0.3, this.op.len), I.k === 'window'); this.op.to = W && W.ok ? { seg: W.seg } : null; if (W) { this._paint(!W.ok); const [x1, z1, x2, z2] = W.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.06, 0.22, this.selMat); } }
+        this.S._dirty = true; return;
+      }
       if (down && (this.op?.h || this.op?.move)) { // dragging a handle or the room: its new outline
         this._clear(); const ch = this._shapeDrag(this.op, p), rc = (card._config?.house?.rooms || [])[this.sel?.i];
         if (ch && rc) { this.op.ch = ch; this._shapeGhost(rc, ch); if (ch.move) card._bInfo(`${ch.dx >= 0 ? '+' : ''}${ch.dx} m, ${ch.dz >= 0 ? '+' : ''}${ch.dz} m`); else if (ch.bend != null) card._bInfo(`${ch.bow} m`); }
@@ -311,6 +324,10 @@ export class Builder {
         if (x2 - x1 >= this.step && z2 - z1 >= this.step) card._bOp('room', { rect: [x1, z1, x2, z2], level: lv });
       } else if (this.tool === 'wall' && op) {
         const b = this._wallEnd(op.a, p); if (Math.hypot(b[0] - op.a[0], b[1] - op.a[1]) >= this.step) card._bOp('wall', { from: op.a, to: b, level: lv });
+      } else if (this.tool === 'door' && card._bDoorKind === 'badge') card._bOp('badge', { x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), level: lv });
+      else if (this.tool === 'door' && card._bDoorKind === 'opening') {
+        const W = this._onWall(p, card._bWidth('door'), false);
+        if (!W) card._toast(card._bT('Point at a wall'), true); else card._bOp('opening', { seg: W.seg, level: lv });
       } else if (this.tool === 'door' || this.tool === 'window') {
         const W = this._onWall(p, card._bWidth(this.tool), this.tool === 'window');
         if (!W) card._toast(card._bT('Point at a wall'), true);
@@ -322,7 +339,8 @@ export class Builder {
         else card._bSelect(null);
       } else if (this.tool === 'delete') { const what = this._target(p, h); if (what) card._bOp('delete', what); }
       else if (this.tool === 'select') {
-        if (op?.h || op?.move) {
+        if (op?.item && op.to) card._bOp('moveitem', { k: op.item.k, i: op.item.i, ...op.to });
+        else if (op?.h || op?.move) {
           const ch = op.ch;
           if (op.h?.k === 'mid' && (!ch || Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < 0.15)) card._bOp('shape', { room: this.sel.i, ch: { addCorner: op.h.i } }); // a tap on an edge: a new corner there
           else if (ch && !(ch.move && !ch.dx && !ch.dz)) card._bOp('shape', { room: this.sel.i, ch });
