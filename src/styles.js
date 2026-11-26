@@ -545,6 +545,8 @@ main{scroll-margin-top:84px}
 .viewport.building .labels{pointer-events:none}
 .viewport.building .labels *{pointer-events:none!important;opacity:.75}
 .viewport.building canvas{cursor:crosshair}
+/* the card editor's 3D builder: always building (no hammer, no Done / Save: each step goes through the editor) */
+:host([embed]) #buildBtn,:host([embed]) .bact [data-b=done],:host([embed]) .bact [data-b=cancel],:host([embed]) .stage-top .title,:host([embed]) #modeSeg{display:none}
 .bsnap{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .2s}
 .bsnap.out{opacity:0}
 .viewport.snapping .loading,.viewport.snapping .labels{visibility:hidden}
@@ -552,6 +554,13 @@ main{scroll-margin-top:84px}
   .btools,.bopts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.btools::-webkit-scrollbar,.bopts::-webkit-scrollbar{display:none}
   .btools .bb,.bopts .bb,.bsw,.bcat{flex:none}.bsw{flex-wrap:nowrap}.bh{flex:1 1 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bopts:has(.bcat,.bsw,.bb,.bsel) .bh{display:none}}
+/* the same in a narrow 3D view (a narrow column, the card editor's builder), whatever the window's width */
+.viewport{container-type:inline-size}
+@container (max-width:700px){.bb span{display:none}.bb{padding:7px}.bb.on span,.bact .bb span{display:inline}
+  .btools,.bopts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.btools::-webkit-scrollbar,.bopts::-webkit-scrollbar{display:none}
+  .btools .bb,.bopts .bb,.bsw,.bcat{flex:none}.bsw{flex-wrap:nowrap}.bh{flex:1 1 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bopts:has(.bcat,.bsw,.bb,.bsel) .bh{display:none}}
+@container (max-width:560px){.binsp{align-self:stretch;width:auto;margin-top:auto;max-height:58%}}
 /* touch screens: buttons and swatches big enough for a finger (about 40 px) */
 @media (pointer:coarse){.bturn{display:none}.bb{min-width:40px;min-height:40px;justify-content:center}.sw{width:34px;height:34px}.sw.fl{height:34px}.brow input,.brow select{min-height:40px}}
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(var(--s1),.72);border:1px solid rgba(var(--ink),.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}

@@ -280,6 +280,16 @@ const AR = {
   'Walls up': 'الجدران مرفوعة', 'Walls cut away in front': 'الجدران الأمامية منخفضة', 'Walls down': 'الجدران منخفضة',
   'Home type': 'نوع المسكن', 'A house (on its own lot)': 'منزل (على أرض مستقلة)', 'An apartment (a flat in a building, the street below)': 'شقة (في مبنى، والشارع في الأسفل)',
   'The floor the apartment is on (0 = ground floor)': 'الطابق الذي تقع فيه الشقة (0 = الطابق الأرضي)',
+  Select: 'تحديد', 'Low wall': 'جدار منخفض', Fold: 'طيّ', Close: 'إغلاق', 'Floor {0} added: build on it': 'أُضيف الطابق {0}: ابنِ عليه',
+  'Tap anything to see and change all its settings: a room (its name, area, shape, devices), a piece, a door, a window, a wall. Drag a piece to move it.': 'اضغط على أي شيء لعرض كل إعداداته وتعديلها: غرفة (اسمها ومنطقتها وشكلها وأجهزتها)، قطعة أثاث، باب، نافذة، جدار. اسحب القطعة لتحريكها.',
+  'Add my other areas ({0})': 'أضف مناطقي الأخرى ({0})', '{0} rooms added from your areas: drag them into place with Select': 'أُضيفت {0} غرف من مناطقك: اسحبها إلى مكانها بأداة التحديد',
+  'Build your home right here in 3D: draw rooms and walls, put in doors and windows, paint, furnish. Tap Select, then anything, for all its settings (a room’s area and devices too).': 'ابنِ منزلك هنا مباشرة بالأبعاد الثلاثية: ارسم الغرف والجدران، أضف الأبواب والنوافذ، اطلِ وأثّث. اضغط «تحديد» ثم أي شيء لعرض كل إعداداته (ومنها منطقة الغرفة وأجهزتها).',
+  'The 3D builder could not start here. Edit the house on the dashboard instead: the hammer button on the 3D view, while the dashboard is in edit mode.': 'تعذّر تشغيل أداة البناء ثلاثية الأبعاد هنا. عدّل المنزل من لوحة التحكم بدلًا من ذلك: زر المطرقة في العرض ثلاثي الأبعاد أثناء وضع التعديل.',
+  'Drag to draw it (straight or at 45°). Select it later to change its height or bend it.': 'اسحب لرسمه (مستقيمًا أو بزاوية 45°). حدّده لاحقًا لتغيير ارتفاعه أو ثنيه.',
+  'Tap a fence or an outer wall to put a gate in it.': 'اضغط على سياج أو جدار خارجي لإضافة بوابة فيه.',
+  'Tap a wall between two rooms to open it: no wall, no door.': 'اضغط على جدار بين غرفتين لفتحه: بلا جدار وبلا باب.',
+  'Tap where a small lock badge should float, then pick its lock.': 'اضغط حيث تريد شارة القفل الصغيرة، ثم اختر قفلها.',
+  'This wall is written as a list in YAML: change it there.': 'هذا الجدار مكتوب كقائمة في YAML: عدّله هناك.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

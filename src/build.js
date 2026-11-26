@@ -184,7 +184,8 @@ export class Builder {
   }
   // a door / window of width `wd` centred where the pointer is along the wall, kept inside it
   _onWall(p, wd, window) {
-    const nw = this.nearWall(p, 0.6, s => (window ? ['w', 'win', undefined].includes(s[4]) : !['glass', 'rail'].includes(s[4])));
+    // a window: walls (and window walls); a door: not glass or railings; an open passage: any wall, railings too
+    const nw = this.nearWall(p, 0.6, s => (window === 'opening' ? true : window ? ['w', 'win', undefined].includes(s[4]) : !['glass', 'rail'].includes(s[4])));
     if (!nw) return null;
     // the wall the piece belongs to, as a line of points: one straight piece, or the many short pieces of a curved wall
     const P = this._chain(nw.seg), cum = [0];
@@ -203,7 +204,7 @@ export class Builder {
     const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
     const nx = -uz * 0.3, nz = ux * 0.3, mx = (seg[0] + seg[2]) / 2, mz = (seg[1] + seg[3]) / 2;
     const outer = !this.roomAt(mx + nx, mz + nz, this.S.level, true) !== !this.roomAt(mx - nx, mz - nz, this.S.level, true);
-    return { seg, ok: !window || outer, fence: nw.type === 'fence' };
+    return { seg, ok: window !== true || outer, fence: nw.type === 'fence' };
   }
   // the pieces that carry on from wall piece `seg` (same floor and kind, joined end to end, turning less than 25° at
   // each joint: a curved wall), as one line of points (plan coordinates)
@@ -264,7 +265,7 @@ export class Builder {
     } else if (tool === 'door' && this.S.card._bDoorKind === 'badge') {
       const [x, z] = [this.snap(p[0], 0.1), this.snap(p[1], 0.1)]; this._slab(x - 0.07, z - 0.07, x + 0.07, z + 0.07, 1.1); this._slab(x - 0.12, z - 0.12, x + 0.12, z + 0.12, 0.03);
     } else if (tool === 'door' && this.S.card._bDoorKind === 'opening') {
-      const W = this._onWall(p, this.S.card._bWidth('door'), false);
+      const W = this._onWall(p, this.S.card._bWidth('door'), 'opening');
       if (W) { const [x1, z1, x2, z2] = W.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.1, 0.3); }
     } else if (tool === 'door' || tool === 'window') {
       const W = this._onWall(p, this.S.card._bWidth(tool), tool === 'window');
@@ -353,7 +354,7 @@ export class Builder {
       if (down && this.op?.item && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { // dragging the selected door, window, passage or badge
         this._clear(); const I = this.op.item;
         if (I.k === 'badge') { const x = this.snap(p[0], 0.1), z = this.snap(p[1], 0.1); this.op.to = { x, z }; this._slab(x - 0.07, z - 0.07, x + 0.07, z + 0.07, 1.1, this.selMat); }
-        else { const W = this._onWall(p, Math.max(0.3, this.op.len), I.k === 'window'); this.op.to = W && W.ok ? { seg: W.seg } : null; if (W) { this._paint(!W.ok); const [x1, z1, x2, z2] = W.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.06, 0.22, this.selMat); } }
+        else { const W = this._onWall(p, Math.max(0.3, this.op.len), I.k === 'window' || (I.k === 'opening' ? 'opening' : false)); this.op.to = W && W.ok ? { seg: W.seg } : null; if (W) { this._paint(!W.ok); const [x1, z1, x2, z2] = W.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.06, 0.22, this.selMat); } }
         this.S._dirty = true; return;
       }
       if (down && (this.op?.h || this.op?.move)) { // dragging a handle or the room: its new outline
@@ -375,7 +376,7 @@ export class Builder {
         const b = this._wallEnd(op.a, p); if (Math.hypot(b[0] - op.a[0], b[1] - op.a[1]) >= this.step) card._bOp('wall', { from: op.a, to: b, level: lv });
       } else if (this.tool === 'door' && card._bDoorKind === 'badge') card._bOp('badge', { x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), level: lv });
       else if (this.tool === 'door' && card._bDoorKind === 'opening') {
-        const W = this._onWall(p, card._bWidth('door'), false);
+        const W = this._onWall(p, card._bWidth('door'), 'opening');
         if (!W) card._toast(card._bT('Point at a wall'), true); else card._bOp('opening', { seg: W.seg, level: lv });
       } else if (this.tool === 'door' || this.tool === 'window') {
         const W = this._onWall(p, card._bWidth(this.tool), this.tool === 'window');

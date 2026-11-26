@@ -45,7 +45,7 @@ export class BuildTools {
     this._bKeys(on);
     this.$('viewport')?.classList.toggle('building', on); this.$('buildBtn')?.classList.toggle('on', on);
     this._bScene(); this._bRender(); this._noRoomsMsg();
-    if (on) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
+    if (on && !this._embed) this._toast(tr('Build mode: draw on the grid. Two fingers or the right mouse button turn the view.'));
   }
   // Walls: Up (every wall stands), Cutaway (the outer walls facing you are lowered) or Down (every wall low), like
   // a life-sim game. Remembered on this device; by default Cutaway in the Dollhouse style, Up in the classic one.
@@ -85,13 +85,14 @@ export class BuildTools {
     this._bInsFlush();
     this._bInsSel = sel || null;
     this._three?.builder?.setSel?.(this._bInsSel);
-    if (!sel) { this._bInsWrap?.remove(); return; }
+    if (!sel) { this._bInsWrap?.remove(); const el = this._bInsWrap?.querySelector('sweet-home-inspector'); if (el) el._isel = null; return; }
     if (!customElements.get('sweet-home-inspector')) {
       try { await this.constructor.getConfigElement(); } catch (e) { this._toast(e?.message || String(e), true); return; }
       if (this._bInsSel !== sel) return;
     }
     const W = this._bInsWrap ||= this._bInsMake(), el = W.querySelector('sweet-home-inspector');
     W.querySelector('.bins-t').textContent = this._bInsTitle(sel);
+    el._isel = null; // the last pick may be gone (deleted): not drawn again on the way
     el.hass = this._hass?._raw || this._hass; el.setConfig(this._config); el.sel = sel;
     this._bInsPlace();
     requestAnimationFrame(() => this._bInsReveal());
@@ -141,6 +142,8 @@ export class BuildTools {
     if (typing) this._bInsT = setTimeout(() => this._bInsFlush(), 1500); else this._bInsFlush();
   }
   _bInsFlush() { clearTimeout(this._bInsT); const c = this._bInsPending; this._bInsPending = null; if (c) { this._bCommit(c); const W = this._bInsWrap; if (W && this._bInsSel) W.querySelector('.bins-t').textContent = this._bInsTitle(this._bInsSel); } }
+  // a piece moved near a wall goes flat against it (on the floor of `P`, its piece in the 3D view)
+  _bToWall(f, P) { toWall(f, this._bWallSegs(this._bCfgH || this._config?.house || {}, Number(P?.level) || 0)); }
   // the wall lines of a floor (config coordinates): the rooms' edges and the separate walls
   _bWallSegs(H, level) {
     const out = [], lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
@@ -169,6 +172,13 @@ export class BuildTools {
     });
     this._toast(tr('{0} rooms added from your areas: drag them into place with Select', free.length));
   }
+  // the card editor (a problem in its list): this room, selected, on its floor
+  async _bShowRoom(i) {
+    const r = ROOMS.find(x => x.ci === i); if (!r) return;
+    if (this._level !== r.level) this._setLevel(r.level);
+    this._bTool = 'select'; this._three?.builder?.setTool('select'); this._bScene(); this._bRender();
+    await this._bInspect({ k: 'room', i });
+  }
   _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
   // changes not saved yet (with the card editor open, each step already went through it)
   _bDirty() { return !!this._building && !this._viaEditor() && this._bOrig != null && this._cfgJSON !== this._bOrig; }
@@ -184,7 +194,7 @@ export class BuildTools {
       const k = e.key, B = this._three?.builder;
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && k.toLowerCase() === 'z') { e.preventDefault(); this._bAct({ dataset: { b: 'undo' } }); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (k === 'Escape') { e.preventDefault(); if (this._bInsSel) this._bInspect(null); else if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else this._bToggle(false); }
+      if (k === 'Escape') { e.preventDefault(); if (this._bInsSel) this._bInspect(null); else if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else if (!this._embed) this._bToggle(false); }
       else if ((k === 'r' || k === 'R') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'turn' } }); }
       else if ((k === 'Delete' || k === 'Backspace') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'delpiece' } }); }
       else if (new RegExp(`^[1-${TOOLS.length}]$`).test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
@@ -330,7 +340,8 @@ export class BuildTools {
   async _bEdit(fn) {
     const before = JSON.stringify(this._config || {}), cfg = JSON.parse(before), H = cfg.house ||= {};
     this._bOwnHouse(H);
-    if (fn(H, cfg) === false) return false;
+    this._bCfgH = H; const ok = fn(H, cfg); this._bCfgH = null;
+    if (ok === false) return false;
     return this._bCommit(cfg, before);
   }
   // a new config while building: undo remembers the one before; it changes this card only (or goes through the open
