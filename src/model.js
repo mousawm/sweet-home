@@ -578,7 +578,8 @@ export function buildModel(cfg = {}, hass) {
   }
 
   /* ---------- floors (levels) ---------- */
-  const levelIds = [...new Set(rooms.map(r => r.level))].sort((x, y) => x - y);
+  // the floors with rooms, and the floors named in `levels` (a floor added in Build mode stays while it is empty)
+  const levelIds = [...new Set([...rooms.map(r => r.level), ...arr(house.levels).map(l => Number(l?.level)).filter(l => Number.isInteger(l))])].sort((x, y) => x - y);
   if (!levelIds.length) levelIds.push(0);
   const lvOf = v => (v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : levelIds.includes(0) ? 0 : levelIds[0]);
   const flv = floorLevels(R);

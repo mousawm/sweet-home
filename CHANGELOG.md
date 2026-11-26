@@ -11,6 +11,17 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.63-beta.2 — 2026-11-26
+
+_Prerelease (beta): the whole house is now built in 3D (Build mode), in the card editor too._
+
+### Changed
+- Card editor: the **Rooms** step is now the 3D builder (Build mode in a Sweet Home 3D view) instead of the 2D floor plan. Everything the floor plan did is done in 3D: Select a room, piece, door, window, passage, badge or wall for all its settings (the same forms), drag dots to reshape rooms, resize pieces and move wall ends.
+
+### Added
+- Build mode: a **Select** tool. Tap anything for all its settings beside the 3D view; a selected room gets corner and wall-middle dots (move corners, bend walls, add corners) and can be dragged with what is in it; a selected piece gets corner dots to resize it; a selected wall gets its ends; doors, windows, passages and badges are dragged to move them.
+- Build mode: open passages, lock badges, gates, low walls, glass and fences, doors and passages on curved walls, back to automatic windows, add a floor and name it, add rooms for your other areas; pieces placed or dragged near a wall go flat against it.
+
 ## v0.6.63-beta.1 — 2026-11-25
 
 _Prerelease (beta): the Dollhouse look, Build mode and the apartment setting, for testing before the next release._

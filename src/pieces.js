@@ -1,5 +1,6 @@
 // Sweet Home — furniture pieces on the plan (config coordinates, metres): defaults for a new piece, footprints, turning
 // and resizing. Shared by the card editor and the 3D Build mode.
+import { movePiece } from './model.js';
 export const N = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
 export const r2 = v => Math.round(v * 100) / 100;
 export const DIRS = ['n', 'e', 's', 'w'];
@@ -83,4 +84,26 @@ export function turnPiece(f) {
     const [a, b, c, d] = footprint(f).rect; f.w = r2(d - b); f.d = r2(c - a); // its size as drawn, also when it was the default size
   }
   return true;
+}
+
+// A piece close to a wall (up to 35 cm) is pulled flat against it: counters, cabinets, sofas, beds… go where a wall
+// is, not a grid step away from it. It stops at the wall's inner face (walls are drawn on the room's edge lines).
+// A toilet, sink, washer… (and a wall AC) also turns to face away from that wall. `segs`: the wall lines [x1, z1, x2, z2].
+export function toWall(f, segs, again = false) {
+  const t = String(f.type || 'box'); if (t === 'ac' && f.style === 'cassette') return; if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'tree', 'sprinkler', 'rug', 'pool', 'car', 'blinds', 'stairs'].includes(t)) return;
+  const b = fpBox(footprint(f)), MAG = 0.35, IN = 0.06; let dx = 0, dz = 0, bx = MAG, bz = MAG, fx = null, fz = null;
+  for (const [x1, z1, x2, z2] of segs) {
+    if (Math.abs(x1 - x2) < 1e-6) { // a wall along z at x = x1: the piece's left or right side goes to it
+      if (Math.min(z1, z2) > b[3] - 0.05 || Math.max(z1, z2) < b[1] + 0.05) continue;
+      for (const [d, fc] of [[x1 + IN - b[0], 'e'], [x1 - IN - b[2], 'w']]) if (Math.abs(d) < bx) { bx = Math.abs(d); dx = d; fx = fc; }
+    } else if (Math.abs(z1 - z2) < 1e-6) { // a wall along x at z = z1
+      if (Math.min(x1, x2) > b[2] - 0.05 || Math.max(x1, x2) < b[0] + 0.05) continue;
+      for (const [d, fc] of [[z1 + IN - b[1], 's'], [z1 - IN - b[3], 'n']]) if (Math.abs(d) < bz) { bz = Math.abs(d); dz = d; fz = fc; }
+    }
+  }
+  if ((t === 'ac' || FRONTED.includes(t)) && !again && (fx || fz)) { // a wall AC blows away from its wall; a toilet, sink, washer… faces away from it: turn it, then put it flat against that wall
+    const fc = fx && (!fz || bx <= bz) ? fx : fz;
+    if (fc !== (f.facing || 's')) { if (t === 'ac') f.facing = fc; else for (let k = 0; k < 3 && (f.facing || 's') !== fc; k++) turnPiece(f); return toWall(f, segs, true); }
+  }
+  if (dx || dz) movePiece(f, r2(dx), r2(dz));
 }

@@ -509,8 +509,16 @@ main{scroll-margin-top:84px}
 [dir=rtl]{font-family:'Noto Kufi Arabic','SF Arabic','Noto Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
 .rback{display:none} /* only on phones (below) */
 /* Build mode: the toolbar over the 3D view (tools, their options, undo / done) */
-.buildbar{position:absolute;inset:10px;z-index:3;display:none;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none}
+.buildbar{position:absolute;inset:10px;z-index:3;display:none;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none;min-height:0}
 .bact{margin-top:auto;align-self:flex-start;flex-wrap:nowrap}
+/* Build mode, Select: the settings of what was tapped (the card editor's forms), beside the 3D view */
+.binsp{pointer-events:auto;align-self:flex-end;width:min(400px,100%);flex:0 1 auto;min-height:120px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
+  background:var(--card-background-color,#fff);color:var(--primary-text-color,#111);border:1px solid rgba(var(--ink),.14);box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.bins-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--divider-color,rgba(127,127,127,.25))}
+.bins-h b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bins-h .bb{background:transparent;color:inherit}
+.bins-b{overflow:auto;padding:12px 14px;flex:1 1 auto;min-height:0;font-size:13px}
+.binsp.mini{min-height:0}.binsp.mini .bins-b{display:none}.binsp.mini [data-insmin]{transform:rotate(180deg)}
+.buildbar .bact{flex:none}
 .bturn{display:contents}
 .buildbar.open{display:flex}
 .brow{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px;border-radius:14px;background:rgba(var(--s1),.82);border:1px solid rgba(var(--ink),.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.35);color:var(--tx);font-size:12px}
@@ -537,6 +545,8 @@ main{scroll-margin-top:84px}
 .viewport.building .labels{pointer-events:none}
 .viewport.building .labels *{pointer-events:none!important;opacity:.75}
 .viewport.building canvas{cursor:crosshair}
+/* the card editor's 3D builder: always building (no hammer, no Done / Save: each step goes through the editor) */
+:host([embed]) #buildBtn,:host([embed]) .bact [data-b=done],:host([embed]) .bact [data-b=cancel],:host([embed]) .stage-top .title,:host([embed]) #modeSeg{display:none}
 .bsnap{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .2s}
 .bsnap.out{opacity:0}
 .viewport.snapping .loading,.viewport.snapping .labels{visibility:hidden}
@@ -544,6 +554,13 @@ main{scroll-margin-top:84px}
   .btools,.bopts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.btools::-webkit-scrollbar,.bopts::-webkit-scrollbar{display:none}
   .btools .bb,.bopts .bb,.bsw,.bcat{flex:none}.bsw{flex-wrap:nowrap}.bh{flex:1 1 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bopts:has(.bcat,.bsw,.bb,.bsel) .bh{display:none}}
+/* the same in a narrow 3D view (a narrow column, the card editor's builder), whatever the window's width */
+.viewport{container-type:inline-size}
+@container (max-width:700px){.bb span{display:none}.bb{padding:7px}.bb.on span,.bact .bb span{display:inline}
+  .btools,.bopts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.btools::-webkit-scrollbar,.bopts::-webkit-scrollbar{display:none}
+  .btools .bb,.bopts .bb,.bsw,.bcat{flex:none}.bsw{flex-wrap:nowrap}.bh{flex:1 1 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bopts:has(.bcat,.bsw,.bb,.bsel) .bh{display:none}}
+@container (max-width:560px){.binsp{align-self:stretch;width:auto;margin-top:auto;max-height:58%}}
 /* touch screens: buttons and swatches big enough for a finger (about 40 px) */
 @media (pointer:coarse){.bturn{display:none}.bb{min-width:40px;min-height:40px;justify-content:center}.sw{width:34px;height:34px}.sw.fl{height:34px}.brow input,.brow select{min-height:40px}}
 .lvls{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:4px;padding:4px;border-radius:14px;background:rgba(var(--s1),.72);border:1px solid rgba(var(--ink),.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1}

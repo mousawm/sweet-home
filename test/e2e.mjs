@@ -626,30 +626,39 @@ try {
 
   console.log('editor');
   p = await open('?config=demo&editor=1');
-  const pt = (x, z) => p.evaluate(([x, z]) => { const s = editor.querySelector('.sh-plan'), b = s.getBoundingClientRect(), B = editor._B; return [b.left + (x - B.minX) / (B.maxX - B.minX) * b.width, b.top + (z - B.minZ) / (B.maxZ - B.minZ) * b.height]; }, [x, z]);
-  const drag = async (a, c) => { const A = await pt(...a), C = await pt(...c); await p.mouse.move(...A); await p.mouse.down(); await p.mouse.move(...C, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(150); };
+  // the Rooms step is the 3D builder (Build mode in a Sweet Home 3D view): helpers to drive it
+  const builderHelpers = () => p.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    window.BB = () => editor.querySelector('sweet-home-3d-card');
+    window.INS = () => BB()?.shadowRoot.querySelector('sweet-home-inspector');
+    window.bready = async () => { await wait(120); for (let i = 0; i < 150 && !(BB()?._three?.builder && BB()._three._key === BB()._houseJSON); i++) await wait(100); await wait(60); };
+    window.bop = async (op, a) => { await bready(); await BB()._bOp(op, a); await bready(); };
+    window.insp = async sel => { await bready(); await BB()._bInspect(sel); await wait(60); return INS(); };
+    window.iflush = async () => { BB()._bInsFlush(); await bready(); };
+    await bready();
+  });
+  await builderHelpers();
+  check('the Rooms step is the 3D builder, always building (the old floor plan is gone)', await p.evaluate(() => !!BB() && BB()._building && !!BB()._three?.builder && !editor.querySelector('.sh-plan')));
   const rooms = () => p.evaluate(() => JSON.stringify(editor._config.house.rooms.map(r => r.rects)));
   const before = await rooms();
-  await p.mouse.click(...await pt(8, 2)); await drag([8, 2], [8.5, 2]);
-  check('dragging a room moves it', await p.evaluate(() => editor._config.house.rooms[1].rects[0][0] === 6.5));
+  await p.evaluate(() => bop('shape', { room: 1, ch: { move: true, dx: 0.5, dz: 0 } }));
+  check('moving a room in the builder', await p.evaluate(() => editor._config.house.rooms[1].rects[0][0] === 6.5));
   await p.click('[data-undo]');
   check('undo', await rooms() === before);
-  await p.evaluate(() => { editor._mode = 'doors'; editor._render(); });
-  await drag([1, 5], [2, 5]);
-  check('drawing a door', await p.evaluate(() => JSON.stringify(editor._config.house.doors.at(-1)) === '{"from":[1,5],"to":[2,5]}'));
-  check('a door\'s width typed in metres moves its far end (the hinge stays)', await p.evaluate(() => {
-    const i = editor.querySelector('[data-dw]'); if (!i) return false; i.value = '1.4'; i.dispatchEvent(new Event('change'));
+  await p.evaluate(() => bop('door', { seg: [1, 5, 2, 5], level: 0 }));
+  check('a door', await p.evaluate(() => JSON.stringify(editor._config.house.doors.at(-1)) === '{"from":[1,5],"to":[2,5]}'));
+  check('a door\'s width typed in metres moves its far end (the hinge stays)', await p.evaluate(async () => {
+    const I = await insp({ k: 'door', i: editor._config.house.doors.length - 1 }), i = I?.querySelector('[data-dw]'); if (!i) return false; i.value = '1.4'; i.dispatchEvent(new Event('change')); await iflush();
     return JSON.stringify(editor._config.house.doors.at(-1)) === '{"from":[1,5],"to":[2.4,5]}';
   }));
-  await p.evaluate(() => { editor._dtool = 'gate'; editor._render(); });
-  await drag([1.5, 1], [2.5, 1]);
-  check('the Gate tool adds a gate, shown as a Gate with a height', await p.evaluate(() => { const d = editor._config.house.doors.at(-1);
-    return d.gate === true && /Gate/.test(editor.querySelector('.sh-ditem b')?.textContent || '') && !!editor.querySelector('[data-dw]'); }));
-  await p.evaluate(() => { editor._config.house.doors.pop(); editor._config.house.doors.at(-1).to = [2, 5]; editor._emit(); editor._dtool = 'door'; editor._dsel = null; editor._render(); });
-  await drag([8.3, 8.9], [9.3, 8.9]);
-  check('dragging a lock badge', await p.evaluate(() => editor._config.house.lock_badges[0].x === 9.3));
-  await p.evaluate(() => { editor._sel = 2; editor._mode = 'furniture'; editor._fsel = null; editor._render(); });
-  await p.click('[data-pal="blinds"]'); await p.mouse.click(...await pt(3, 5.2)); await p.waitForTimeout(150);
+  check('the Gate choice adds a gate, shown as a Gate with a width', await p.evaluate(async () => {
+    await bop('door', { seg: [1.5, 1, 2.5, 1], level: 0, gate: true }); const n = editor._config.house.doors.length - 1, d = editor._config.house.doors[n];
+    const I = await insp({ k: 'door', i: n }); return d.gate === true && /Gate/.test(BB().shadowRoot.querySelector('.bins-t')?.textContent || '') && !!I.querySelector('[data-dw]');
+  }));
+  await p.evaluate(async () => { await insp(null); editor._config.house.doors.pop(); editor._config.house.doors.at(-1).to = [2, 5]; editor._emit(); editor._render(); await bready(); });
+  await p.evaluate(() => bop('moveitem', { k: 'badge', i: 0, x: 9.3, z: 8.9 }));
+  check('moving a lock badge', await p.evaluate(() => editor._config.house.lock_badges[0].x === 9.3));
+  await p.evaluate(() => bop('piece', { type: 'blinds', x: 3, z: 5.2, room: 'bedroom', level: 0 }));
   check('placing blinds', await p.evaluate(() => editor._config.house.rooms[2].furniture.at(-1).type === 'blinds'));
   // (the card rebuilds after each editor change: wait until the System tab shows the row)
   await p.waitForFunction(() => { if (card._tab !== 'system') card._setTab('system'); return !!card.shadowRoot.querySelector('#alerts [data-act=exclude][data-id="sensor.door_sensor_battery"]'); }, null, { timeout: 10000, polling: 300 });
@@ -661,15 +670,13 @@ try {
   await p.waitForTimeout(1500);
   check('the hidden device is gone from the list', await p.waitForFunction(() => { if (card._tab !== 'system') card._setTab('system'); const el = card.shadowRoot.querySelector('#alerts'); return card._tab === 'system' && el?._html !== undefined && card._model.E.alerts.batteryExcludeDevices.includes('ds1') && !el.querySelector('[data-id="sensor.door_sensor_battery"]'); }, null, { timeout: 10000, polling: 300 }).then(() => true, () => false));
   await p.evaluate(() => card._setTab('home'));
-  await p.evaluate(() => editor._goLevel(1));
-  check('first floor shows its own rooms', await p.evaluate(() => [...editor.querySelectorAll('[data-room]')].map(b => b.textContent.trim()).join() === 'Office,Landing'));
+  check('first floor: the builder shows its own rooms', await p.evaluate(async () => { BB()._setLevel(1); await new Promise(r => setTimeout(r, 200)); return BB()._three.level === 1 && Object.values(BB()._three.rooms).filter(R => R.r.level === 1).map(R => R.r.name).join() === 'Office,Landing'; }));
   await p.waitForTimeout(1500);
   check('the card follows the editor', await p.evaluate(() => card._model.doors.length === 8));
-  await p.evaluate(() => { editor._goLevel(0); editor._sel = 0; editor._mode = 'entities'; editor._render(); });
-  await p.evaluate(() => { const i = editor.querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); });
-  await p.waitForTimeout(100);
+  await p.evaluate(async () => { BB()._setLevel(0); await insp({ k: 'room', i: 0 }); });
+  await p.evaluate(async () => { const i = INS().querySelector('[data-rename="light.living_room"]'); i.value = 'Ceiling strip'; i.dispatchEvent(new Event('change')); await iflush(); });
   check('renaming in the editor list: a name on this dashboard only', await p.evaluate(() => editor._config.house.rooms[0].names?.['light.living_room'] === 'Ceiling strip' && !(window.ws || []).some(m => m.type === 'config/entity_registry/update')));
-  await p.evaluate(() => { const i = editor.querySelector('[data-rename="script.movie_night"]'); i.value = 'Cinema'; i.dispatchEvent(new Event('change')); });
+  await p.evaluate(async () => { await insp({ k: 'room', i: 0 }); const i = INS().querySelector('[data-rename="script.movie_night"]'); i.value = 'Cinema'; i.dispatchEvent(new Event('change')); await iflush(); await insp(null); });
   check('renaming an entity Home Assistant can\'t rename: a name in this card', await p.evaluate(() => editor._config.house.rooms[0].names?.['script.movie_night'] === 'Cinema'));
   await p.waitForTimeout(1500);
   await p.evaluate(() => card._select('living_room')); await p.waitForTimeout(200);
@@ -684,7 +691,7 @@ try {
   await p.evaluate(() => { card.editMode = true; }); await p.waitForTimeout(200);
   await p.evaluate(() => card.shadowRoot.querySelector('.blbl [data-act=rnbadge]').click()); await p.waitForTimeout(100);
   await p.evaluate(() => { const i = card.shadowRoot.querySelector('#sheet [data-rename="badge:0"]'); i.value = 'Main entrance'; i.dispatchEvent(new Event('change', { bubbles: true })); card.shadowRoot.querySelector('#sheet [data-act=rnbsave]').click(); });
-  await p.waitForTimeout(1500);
+  await p.waitForFunction(() => card.shadowRoot.querySelector('.blbl')?.textContent.includes('Main entrance'), null, { timeout: 8000 }).catch(() => {}); // the card is rebuilt (with the editor's 3D builder beside it)
   check('renaming a lock badge in 3D: saved on the badge, shown above it', await p.evaluate(() => editor._config.house.lock_badges[0].name === 'Main entrance' && card.shadowRoot.querySelector('.blbl').textContent.includes('Main entrance') && !(window.ws || []).some(m => m.type === 'config/entity_registry/update')));
   await p.evaluate(() => { card.editMode = false; });
   // renaming on the other panels (edit mode): a pencil on each panel, names for this dashboard only
@@ -924,21 +931,20 @@ try {
   await p.waitForTimeout(1500);
   check('…the card shows the picked one and the older gate', await p.evaluate(() => { card._setTab('security'); return [...card.shadowRoot.querySelectorAll('#security [data-act=entrance]')].map(b => b.dataset.id).join() === 'cover.garage_door,switch.gate_relay'; }));
   await p.evaluate(() => card._setTab('home'));
-  // open passages on curved and outdoor walls: drawn along the wall, cut in the plan and in 3D
-  await p.evaluate(() => { editor._step = 'rooms'; editor._mode = 'doors'; editor._dtool = 'opening'; editor._render(); });
+  // open passages on curved and outdoor walls: placed along the wall (both ends on a curve), cut in 3D
+  await p.evaluate(async () => { editor._step = 'rooms'; editor._render(); await bready(); });
   const nOp = await p.evaluate(() => (editor._config.house.openings || []).length);
-  for (const [a, c] of [[[-0.6, 6.0], [-0.6, 7.0]], [[2, 12.15], [3.4, 12.05]], [[10, 6], [10, 7]], [[2, 14], [4, 14]]]) await drag(a, c);
-  check('drawing open passages on a curved room wall, a curved garden wall and outdoor railings', await p.evaluate(n => (editor._config.house.openings || []).length === n + 4, nOp));
+  for (const [q, w] of [[[-0.6, 6.5], 1], [[2.7, 12.1], 1.4], [[10, 6.5], 1], [[3, 14], 2]]) await p.evaluate(async ([q, w]) => { const W = BB()._three.builder._onWall(q, w, 'opening'); if (W) await bop('opening', { seg: W.seg, level: 0 }); }, [q, w]);
+  check('open passages on a curved room wall, a curved garden wall and outdoor railings', await p.evaluate(n => (editor._config.house.openings || []).length === n + 4, nOp));
   await p.waitForTimeout(1500);
-  check('…each one opens the wall in the editor plan and in 3D', await p.evaluate(n => {
+  check('…each one opens the wall in 3D', await p.evaluate(n => {
     const near = (walls, o, ox = 0, oz = 0) => { const x = (o[0] + o[2]) / 2 + ox, z = (o[1] + o[3]) / 2 + oz; return walls.some(w => (w[5] ?? 0) === 0 && (() => { const [x1, z1, x2, z2] = w, dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / L)); return Math.hypot(x1 + t * dx - x, z1 + t * dz - z) < 0.15; })()); };
-    const liv = card._model.rooms.find(r => r.id === 'living_room').rects[0], plan = editor._walls();
-    return editor._config.house.openings.slice(n).every(o => !near(plan, o) && !near(card._model.walls, o, liv[0], liv[1]));
+    const liv = card._model.rooms.find(r => r.id === 'living_room').rects[0];
+    return editor._config.house.openings.slice(n).every(o => !near(card._model.walls, o, liv[0], liv[1]));
   }, nOp));
   const arcOp = await p.evaluate(n => editor._config.house.openings[n], nOp);
-  await drag([(arcOp[0] + arcOp[2]) / 2, (arcOp[1] + arcOp[3]) / 2], [(arcOp[0] + arcOp[2]) / 2 + 0.2, (arcOp[1] + arcOp[3]) / 2 + 0.5]);
-  check('moving a passage on a curved wall keeps both ends on the arc', await p.evaluate(n => { const o = editor._config.house.openings[n]; return o[1] > 6.2 && [[o[0], o[1]], [o[2], o[3]]].every(q => editor._nearWall(q, 0.03)); }, nOp));
-  await p.evaluate(() => { editor._mode = 'shape'; editor._render(); });
+  await p.evaluate(async ([n, o]) => { const B = BB()._three.builder, W = B._onWall([(o[0] + o[2]) / 2 + 0.2, (o[1] + o[3]) / 2 + 0.5], Math.hypot(o[2] - o[0], o[3] - o[1]), 'opening'); await bop('moveitem', { k: 'opening', i: n, seg: W.seg }); }, [nOp, arcOp]);
+  check('moving a passage on a curved wall keeps both ends on the arc', await p.evaluate(n => { const o = editor._config.house.openings[n]; return o[1] > 6.2 && [[o[0], o[1]], [o[2], o[3]]].every(q => BB()._three.builder.nearWall(q, 0.03)); }, nOp));
   // Devices panel: found on its own (Companion app), or picked in the editor (any battery), with name, charging and place
   check('devices: the Companion-app iPad is found on its own, with its charging state and place', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('30') && !t.includes('Door Sensor'); }));
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
@@ -1023,68 +1029,64 @@ try {
   check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
   // turning furniture: the robot vacuum, a cabinet at its default size, stairs (they climb the other way); round pieces have no Turn
+  const setFurn = list => p.evaluate(async list => { const r = editor._config.house.rooms[0]; if (list) r.furniture = list; else delete r.furniture; editor._emit(); editor._render(); await bready(); }, list);
+  await setFurn([{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }]);
   check('Turn works for every piece that has a front or a long side', await p.evaluate(async () => {
-    const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }];
-    editor._sel = 0; editor._mode = 'furniture'; const out = [];
-    for (let i = 0; i < 5; i++) { editor._fsel = i; editor._render(); const b = editor.querySelector('[data-turn]'); if (!b) { out.push('no turn'); continue; } b.click(); out.push(JSON.stringify(editor._config.house.rooms[0].furniture[i])); }
-    return out;
+    const out = [];
+    for (let i = 0; i < 5; i++) { const I = await insp({ k: 'piece', room: 0, i }), b = I?.querySelector('[data-turn]'); if (!b) { out.push('no turn'); continue; } b.click(); await iflush(); out.push(JSON.stringify(editor._config.house.rooms[0].furniture[i])); }
+    await insp(null); return out;
   }).then(o => { const ok = o[0].includes('"facing":"w"') && o[1].includes('"w":0.5') && o[2].includes('"axis":"z"') && o[2].includes('"w":1') && o[2].includes('"d":2') && o[3].includes('"w":0.8') && o[3].includes('"d":1.2') && o[4] === 'no turn'; if (!ok) console.log('      got', o); return ok; }));
   await p.waitForTimeout(1500);
   check('…the robot vacuum sits beside its dock on the side it faces', await p.evaluate(() => { const v = card._three.vacuums[0]; return !!v; }));
-  await p.evaluate(() => { editor._mode = 'shape'; editor._fsel = null; editor._render(); });
-  // resizing a turned sofa: only the side dragged changes, the other keeps its exact size
-  check('editor: a toilet put near the bottom wall turns to face into the room and sits flat against it', await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = []; editor._addPiece(0, 'toilet', 3, 4.8); const f = r.furniture[0]; return f.facing === 'n' && Math.abs(f.z + f.d / 2 - (5 - 0.06)) < 0.011 && f.d === 0.65; }));
-  check('editor: an AC with no entity picked still has the "show a badge" switch', await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'ac', x: 3, z: 0.2, facing: 's' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); return [...editor.querySelectorAll('ha-form')].some(f => JSON.stringify(f.schema).includes('"badge"')); }));
-  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); });
-  const hd = await p.evaluate(() => editor._handles()[0]);
-  await drag(hd, [hd[0] + 0.08, hd[1] + 1]);
+  await setFurn([]);
+  await p.evaluate(() => bop('piece', { type: 'toilet', x: 3, z: 4.8, room: 'living_room', level: 0 }));
+  check('a toilet put near the bottom wall turns to face into the room and sits flat against it', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture.at(-1); return f.type === 'toilet' && f.facing === 'n' && Math.abs(f.z + f.d / 2 - (5 - 0.06)) < 0.011 && f.d === 0.65; }));
+  await setFurn([{ type: 'ac', x: 3, z: 0.2, facing: 's' }]);
+  check('an AC with no entity picked still has the "show a badge" switch', await p.evaluate(async () => { const I = await insp({ k: 'piece', room: 0, i: 0 }); return [...I.querySelectorAll('ha-form')].some(f => JSON.stringify(f.schema).includes('"badge"')); }));
+  // resizing a piece by a corner: a turned sofa keeps its width (0.9 m), only the side dragged changes
+  const resizeBy = dz => p.evaluate(async dz => { const I = await insp({ k: 'piece', room: 0, i: 0 }); I.querySelector('[data-turn]').click(); await iflush(); await insp({ k: 'piece', room: 0, i: 0 });
+    const B = BB()._three.builder, h = B.handles.find(x => x.k === 'pcorner' && x.c === 2), ch = B._shapeDrag({ h }, [h.x, h.z + dz]); await bop('piecesize', { sel: { k: 'piece', room: 0, i: 0 }, box: ch.piece }); await insp(null); }, dz);
+  await setFurn([{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]); await resizeBy(1);
   check('resizing a turned sofa keeps its width (0.9 m) and changes only its length', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.w === 0.9 && f.d === 3; }));
-  // a counter dropped near a wall is pulled flat against it (the grid alone left a gap)
-  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'block', from: [1, 3], to: [3, 3.6], h: 0.9 }]; editor._sel = 0; editor._mode = 'furniture'; editor._fsel = 0; editor._render(); });
-  await drag([2, 3.3], [2, 4.3]);
+  // a counter dragged near a wall is pulled flat against it (the grid alone left a gap)
+  await setFurn([{ type: 'block', from: [1, 3], to: [3, 3.6], h: 0.9 }]);
+  const dragPiece = dz => p.evaluate(async dz => { await bready(); const f = BB()._model.furniture.find(x => x.src?.room === 0 && x.src.i === 0); await BB()._arrangeMove(f, 0, dz, () => {}); await bready(); }, dz);
+  await dragPiece(1);
   check('a counter dragged near a wall goes flat against it', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return Math.abs(Math.max(f.from[1], f.to[1]) - 4.94) < 1e-6 && Math.abs(Math.abs(f.to[1] - f.from[1]) - 0.6) < 1e-6; }));
-  await drag([2, 4.6], [2, 2.6]);
-  check('…and away from walls it just follows the grid', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return Math.abs(Math.min(f.from[1], f.to[1]) - 2.34) < 1e-6; }));
-  await p.evaluate(() => { delete editor._config.house.rooms[0].furniture; editor._sel = 0; editor._render(); });
+  await dragPiece(-2);
+  check('…and away from walls it just follows the drag', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return Math.abs(Math.min(f.from[1], f.to[1]) - 2.34) < 1e-6; }));
   // a sofa's parts each get a colour: frame and back, seat cushions, pillows
-  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]; editor._fsel = 0; editor._render(); });
-  check('a sofa has colours for its seat cushions and pillows, showing the 3D defaults', await p.evaluate(() => { const c = editor.querySelector('ha-form input[name=c_cushion]'), pl = editor.querySelector('ha-form input[name=c_pillow]'); return c?.value === '#64748b' && pl?.value === '#e2e8f0'; }));
-  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=c_cushion]'); i.value = '#7c3aed'; i.dispatchEvent(new Event('change')); });
+  await setFurn([{ type: 'sofa', x: 3, z: 2.5, w: 2, d: 0.9, back: 'n' }]);
+  check('a sofa has colours for its seat cushions and pillows, showing the 3D defaults', await p.evaluate(async () => { const I = await insp({ k: 'piece', room: 0, i: 0 }), c = I.querySelector('ha-form input[name=c_cushion]'), pl = I.querySelector('ha-form input[name=c_pillow]'); return c?.value === '#64748b' && pl?.value === '#e2e8f0'; }));
+  await p.evaluate(async () => { const i = INS().querySelector('ha-form input[name=c_cushion]'); i.value = '#7c3aed'; i.dispatchEvent(new Event('change')); await iflush(); await insp(null); });
   check('…changing the cushions writes only the cushions', await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0]; return f.cushion === '#7c3aed' && f.pillow === undefined; }));
   await p.waitForTimeout(1500);
   check('…and the 3D sofa uses it', await p.evaluate(() => card._model.furniture.find(f => f.type === 'sofa' && f.room === 'living_room')?.cushion === 0x7c3aed));
   // the same for a counter (written with corners, as the suggested kitchen set writes it) and a counter at its default size
   for (const piece of [{ type: 'block', from: [1, 1], to: [3.5, 1.6], h: 0.9 }, { type: 'block', x: 3, z: 3, w: 2, d: 0.6 }]) {
-    await p.evaluate(pc => { const r = editor._config.house.rooms[0]; r.furniture = [pc]; editor._fsel = 0; editor._render(); editor.querySelector('[data-turn]').click(); }, piece);
-    const h2 = await p.evaluate(() => editor._handles()[0]);
-    await drag(h2, [h2[0] + 0.1, h2[1] + 1]);
+    await setFurn([piece]); await resizeBy(1);
     check(`resizing a turned counter keeps its depth (${piece.from ? 'corners' : 'centre and size'})`, await p.evaluate(() => { const f = editor._config.house.rooms[0].furniture[0], b = f.from ? [Math.abs(f.to[0] - f.from[0]), Math.abs(f.to[1] - f.from[1])] : [f.w, f.d]; return Math.abs(b[0] - 0.6) < 1e-6 && b[1] > 2.5; }));
   }
-  await p.evaluate(() => { delete editor._config.house.rooms[0].furniture; editor._mode = 'shape'; editor._fsel = null; editor._emit(); editor._render(); });
-  // drawing a room's walls corner by corner (straight walls snap to 45°), and rotating a room by any angle
-  await p.evaluate(() => { editor._sel = 2; editor._mode = 'shape'; editor._stool = 'draw'; editor._render(); });
-  for (const q of [[0, 5], [6, 5], [6, 8.2], [3.1, 9.9], [0, 9.9], [0, 5]]) { await p.mouse.click(...await pt(...q)); await p.waitForTimeout(80); }
-  check('drawing walls: tap each corner, back on the first one closes the room (a slanted wall snaps to 45°)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[2].points) === '[[0,5],[6,5],[6,8],[3.5,10.5],[0,10.5]]' && editor._stool === 'rect'));
-  await p.evaluate(() => { editor._sel = 0; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-rotby="15"]').click(); });
+  await setFurn(null);
+  // walls snap to 45°, and a room rotated by any angle
+  check('a slanted wall snaps to 45° (its end stays on the grid)', await p.evaluate(() => JSON.stringify(BB()._three.builder._wallEnd([6, 8], [3.1, 9.9])) === '[3.5,10.5]'));
+  await p.evaluate(async () => { const I = await insp({ k: 'room', i: 0 }); I.querySelector('[data-rotby="15"]').click(); await iflush(); });
   check('rotating a room by 15° (a rectangle becomes free corners, turned around its middle)', await p.evaluate(() => { const P = editor._config.house.rooms[0].points; return P?.length === 4 && Math.abs(P[0][0] - (3 - 3 * Math.cos(Math.PI / 12) + 2.5 * Math.sin(Math.PI / 12))) < 0.02 && !editor._config.house.rooms[0].rects; }));
-  await p.evaluate(() => { const i = editor.querySelector('[data-rotdeg]'); i.value = '-15'; i.dispatchEvent(new Event('change')); });
+  await p.evaluate(async () => { const I = await insp({ k: 'room', i: 0 }), i = I.querySelector('[data-rotdeg]'); i.value = '-15'; i.dispatchEvent(new Event('change')); await iflush(); });
   check('…and back by typing an angle (to the centimetre)', await p.evaluate(() => [[0, 0], [6, 0], [6, 5], [0, 5]].every((q, i) => Math.abs(editor._config.house.rooms[0].points[i][0] - q[0]) <= 0.011 && Math.abs(editor._config.house.rooms[0].points[i][1] - q[1]) <= 0.011)));
-  await p.evaluate(() => { const r = editor._config.house.rooms[0]; delete r.points; r.rects = [[0, 0, 6, 5]]; editor._emit(); editor._render(); }); // as it was, for the tests below
+  await p.evaluate(async () => { await insp(null); const r = editor._config.house.rooms[0]; delete r.points; r.rects = [[0, 0, 6, 5]]; editor._emit(); editor._render(); await bready(); }); // as it was, for the tests below
   // room shapes: ready-made shapes, corners, bends, separate walls
-  await p.evaluate(() => { editor._sel = 1; editor._mode = 'shape'; editor._stool = 'rect'; editor._render(); editor.querySelector('[data-shape=l]').click(); });
+  await p.evaluate(async () => { const I = await insp({ k: 'room', i: 1 }); I.querySelector('[data-shape=l]').click(); await iflush(); });
   check('a ready-made L shape', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points) === '[[6,0],[10,0],[10,2.5],[8,2.5],[8,5],[6,5]]' && !editor._config.house.rooms[1].rects));
-  await drag([10, 2.5], [10.5, 3]);
+  await p.evaluate(() => bop('shape', { room: 1, ch: { corner: 2, to: [10.5, 3] } }));
   check('dragging a corner', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[1].points[2]) === '[10.5,3]'));
-  const mh = await p.evaluate(() => editor._midHandles()[0]);
-  await drag(mh, [mh[0], mh[1] - 1]);
+  await p.evaluate(async () => { await insp({ k: 'room', i: 1 }); const B = BB()._three.builder, h = B.handles.find(x => x.k === 'mid' && x.i === 0), ch = B._shapeDrag({ h }, [h.x, h.z - 1]); await bop('shape', { room: 1, ch }); await insp(null); });
   check('dragging the middle of an edge bends it', await p.evaluate(() => editor._config.house.rooms[1].points[0][2] === 1));
-  await p.evaluate(() => { editor._sel = 0; editor._render(); editor.querySelector('[data-outline]').click(); });
+  await p.evaluate(async () => { const I = await insp({ k: 'room', i: 0 }); I.querySelector('[data-outline]').click(); await iflush(); await insp(null); });
   check('rectangles turn into an outline', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0].points) === '[[0,0],[6,0],[6,5],[0,5]]'));
-  await p.evaluate(() => editor.querySelector('[data-stool=wall]').click());
   const nw = await p.evaluate(() => editor._config.house.extra_walls.length);
-  await drag([1, 1.5], [3, 3.5]);
-  await p.evaluate(() => { const s = editor.querySelector('[data-wt]'); s.value = 'half'; s.dispatchEvent(new Event('change')); });
-  check('drawing a separate wall at an angle and making it a half wall', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
+  await p.evaluate(async () => { BB()._bWallKind = 'half'; await bop('wall', { from: [1, 1.5], to: [3, 3.5], level: 0 }); BB()._bWallKind = 'wall'; });
+  check('a low wall at an angle', await p.evaluate(n => { const w = editor._config.house.extra_walls; return w.length === n + 1 && JSON.stringify(w.at(-1)) === '{"from":[1,1.5],"to":[3,3.5],"type":"half"}'; }, nw));
   await p.waitForTimeout(1500);
   check('the card draws the new shapes', await p.evaluate(() => card._model.rooms.find(r => r.id === 'kitchen').poly.length > 8 && card._model.walls.some(w => w[4] === 'half' && w[0] !== w[2] && w[1] !== w[3])));
   { const r = await p.evaluate(async () => {
@@ -1105,30 +1107,15 @@ try {
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
-  console.log('room by room');
+  console.log('rooms from areas');
   p = await open('?editor=1');
-  check('the setup guide offers to add rooms one by one', await p.evaluate(() => !!editor.querySelector('[data-g=wizard]')));
-  await p.evaluate(() => editor.querySelector('[data-g=wizard]').click());
-  const wizName = () => p.evaluate(() => editor.querySelector('.sh-wiz-name')?.textContent.trim());
-  check('…it starts with the first area (by floor, then name)', (await wizName()).startsWith('Balcony'));
-  await p.evaluate(() => editor.querySelector('[data-wskip]').click());
-  check('…Skip leaves it out and goes to the next', (await wizName()).startsWith('Bedroom') && await p.evaluate(() => !(editor._config.house?.rooms || []).length));
-  await p.evaluate(() => { const set = (s, v) => { const i = editor.querySelector(s); i.value = v; i.dispatchEvent(new Event('change')); }; set('[data-ww]', '4'); set('[data-wd]', '3'); editor.querySelector('[data-wadd]').click(); });
-  check('…Add puts it on the map with its size (a name-based size to start with)', await p.evaluate(() => JSON.stringify(editor._config.house.rooms[0]) === '{"area":"bedroom","rects":[[0,0,4,3]]}'));
-  check('…the next area gets a size that suits its name', await p.evaluate(() => editor._wiz.w === 3.5 && editor._wiz.d === 3 && editor.querySelector('.sh-wiz-name').textContent.startsWith('Kitchen')));
-  await p.evaluate(() => { editor.querySelector('[data-wshape=l]').click(); });
-  check('…the plan shows where the next room will go (dashed, with its name)', await p.evaluate(() => [...editor.querySelectorAll('.sh-plan path[stroke-dasharray="8 6"]')].length === 1 && [...editor.querySelectorAll('.sh-plan text')].some(t => t.textContent === 'Kitchen')));
-  await p.evaluate(() => editor.querySelector('[data-wturn]').click());
-  check('…a ready-made shape can be turned before it is added', await p.evaluate(() => editor._wiz.rot === 1 && editor.querySelector('[data-wturn]').textContent.includes('90°')));
-  await p.evaluate(() => editor.querySelector('[data-wturn]').click()); await p.evaluate(() => editor.querySelector('[data-wturn]').click()); await p.evaluate(() => editor.querySelector('[data-wturn]').click());
-  await p.evaluate(() => { const s = editor.querySelector('[data-wside]'); s.value = 'below'; s.dispatchEvent(new Event('change')); editor.querySelector('[data-wadd]').click(); });
-  check('…with a shape, placed below the last room without overlapping', await p.evaluate(() => { const r = editor._config.house.rooms[1]; return r.area === 'kitchen' && r.points?.length === 6 && Math.min(...r.points.map(q => q[1])) === 3; }));
-  await p.evaluate(() => editor.querySelector('[data-wcustom]').click());
-  await p.evaluate(() => { const i = editor.querySelector('[data-wname]'); i.value = 'Store room'; i.dispatchEvent(new Event('input')); editor.querySelector('[data-wadd]').click(); });
-  check('…a room that is no area can be added on the way, then the areas go on', await p.evaluate(() => editor._config.house.rooms[2].name === 'Store room' && !editor._config.house.rooms[2].area && editor.querySelector('.sh-wiz-name').textContent.startsWith('Living Room')));
-  await p.evaluate(() => editor.querySelector('[data-wend]').click());
-  check('…Finish any time: the rooms added stay, the other areas are left out', await p.evaluate(() => !editor._wiz && editor._config.house.rooms.length === 3 && !!editor.querySelector('[data-wiz]')));
-  check('no page errors (room by room)', !p.errors.length, p.errors.join(' | '));
+  await builderHelpers();
+  check('a house built from the areas: the Rooms step offers them, and the 3D builder shows the house', await p.evaluate(() => !!editor.querySelector('[data-import]') && !!BB()?._building && Object.keys(BB()._three.rooms).length > 0));
+  await p.evaluate(async () => { editor.querySelector('[data-import]').click(); await bready(); });
+  check('…"Add all my areas" makes them rooms of your own (4 × 4 m each)', await p.evaluate(() => { const r = editor._config.house?.rooms || []; return r.length > 2 && r.every(x => x.area && x.rects?.[0]?.[2] - x.rects[0][0] === 4); }));
+  await p.evaluate(async () => { await bop('room', { rect: [30, 0, 34, 3], level: 0 }); const R = BB().shadowRoot; R.querySelector('[data-bname]').value = 'Store room'; BB()._bName(); await bready(); });
+  check('…a room drawn in the builder, named in its bar', await p.evaluate(() => { const r = editor._config.house.rooms.at(-1); return r.name === 'Store room' && JSON.stringify(r.rects) === '[[30,0,34,3]]'; }));
+  check('no page errors (rooms from areas)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
   console.log('sweet home 3d');
@@ -1244,10 +1231,10 @@ try {
     out.del = !H().rooms.at(-1).furniture.length;
     R.querySelector('[data-b=undo]').click(); await ready();
     out.undo = JSON.stringify(H()) === before;
-    // keys: Ctrl+Z undoes, 2 picks the Wall tool
+    // keys: Ctrl+Z undoes, 3 picks the Wall tool (1 Select, 2 Room)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); await ready();
     out.keyUndo = H().rooms.at(-1).furniture[0]?.entities == null && H().rooms.at(-1).furniture.length === 1;
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' })); await wait(50);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' })); await wait(50);
     out.keyTool = card._bTool === 'wall' && card._three.builder.tool === 'wall';
     R.querySelector('[data-b=grid]').click(); await wait(50);
     out.grid = card._bGrid === 0.25 && card._three.builder.grid.geometry.attributes.position.count > 400; // a line every 25 cm
@@ -1255,6 +1242,13 @@ try {
     const nS = H().rooms.length, ri = H().rooms.findIndex(r => JSON.stringify(r.rects) === '[[20,0,24,3]]');
     await card._bOp('wall', { from: [22, -1], to: [22, 3.5], level: 0 }); await ready();
     out.split = H().rooms.length === nS + 1 && polyA(H().rooms[ri].points) === 6 && polyA(H().rooms.at(-1).points) === 6 && JSON.stringify(H().extra_walls.filter(w => w.from[0] === 22).map(w => [w.from, w.to])) === '[[[22,-1],[22,0]],[[22,3],[22,3.5]]]' || JSON.stringify([H().rooms[ri].points, H().rooms.at(-1).points, H().extra_walls.filter(w => w.from[0] === 22)]);
+    // a floor added above, shown at once, and named
+    R.querySelector('[data-b=addfloor]').click(); await ready();
+    const top = Math.max(...H().levels.map(l => l.level));
+    R.querySelector('[data-b=tool][data-v=select]').click(); await wait(50);
+    const flIn = R.querySelector('[data-bfloor]'); flIn.value = 'Attic'; flIn.dispatchEvent(new Event('change', { bubbles: true })); await ready();
+    out.floor = card._level === top && card._three.level === top && H().levels.find(l => l.level === top)?.name === 'Attic' && (card._model?.levels || []).some(l => l.level === top) || JSON.stringify([top, card._level, H().levels]);
+    card._setLevel(0); await wait(100);
     // Done: one save, of the house as built, into the card's place on the dashboard
     const built = card._cfgJSON;
     R.querySelector('[data-b=done]').click(); for (let i = 0; i < 30 && card._building; i++) await wait(50);

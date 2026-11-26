@@ -1272,7 +1272,7 @@ export class HouseScene {
     };
     let mv = null;
     el.addEventListener('pointerdown', e => {
-      if (!this.arrange || !e.isPrimary || (this.builder && this.card._bPiece)) return; // Build mode with a piece picked: the tap places it
+      if (!this.arrange || !e.isPrimary || (this.builder && (this.card._bPiece || this.builder._handleAt(e)))) return; // Build mode with a piece picked: the tap places it; a shape handle comes first
       const fi = fiAt(e.clientX, e.clientY), p0 = fi != null && floorPt(e.clientX, e.clientY); if (fi == null || !p0) return;
       const objs = this.fmov[fi] || [];
       mv = { fi, p0, objs, orig: objs.map(o => o.position.clone()), dx: 0, dz: 0 };
@@ -1288,7 +1288,7 @@ export class HouseScene {
     }, true);
     const mvEnd = e => {
       if (!mv) return; e.stopImmediatePropagation(); const m = mv; mv = null; el.style.cursor = '';
-      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) { if (this.builder) this.card._bSelect(m.fi); return; } // Build mode: a tap picks the piece
+      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) { if (this.builder) { if (this.builder.tool === 'select') this.card._bPick({ k: 'piece', fi: m.fi }); else this.card._bSelect(m.fi); } return; } // Build mode: a tap picks the piece
       const undo = () => { m.objs.forEach((o, i) => o.position.copy(m.orig[i])); this.renderer.shadowMap.needsUpdate = true; this._dirty = true; };
       this.card._arrangeMove(FURN[m.fi], Math.round(m.dx * 100) / 100, Math.round(m.dz * 100) / 100, undo);
     };
