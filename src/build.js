@@ -4,7 +4,7 @@
 // change is handed to the card (`card._bOp`), which writes it into the card's config; the house is then built again.
 import { MODEL, ROOMS, WALLS, DOORS, FURN, CX, CZ, PLAN_W, PLAN_D, WALL_H } from './core.js';
 import { inPoly, extraWalls, roomOutline } from './model.js';
-import { NEW_PIECE, footprint, fpBox } from './pieces.js';
+import { NEW_PIECE, ROUND, footprint, fpBox } from './pieces.js';
 
 const GHOST = 0x2dd4bf, BAD_C = 0xfb7185;
 const r2 = v => Math.round(v * 100) / 100;
@@ -60,10 +60,21 @@ export class Builder {
   // Its handles: a dot on each corner (drag: move the corner; a rectangle's corner resizes it), and on a room drawn
   // with corners, a square in the middle of each edge (drag across: bend the wall into a curve; tap: a new corner).
   // Dragging the room's floor moves the whole room, with what is in it.
-  _handles(ri) {
-    const T = this.T, rc = (this.S.card._config?.house?.rooms || [])[ri]; this.handles = []; if (!rc) return;
+  _handles(sel) {
+    const T = this.T, H = this.S.card._config?.house || {}; this.handles = [];
     const mat = (c) => new T.MeshBasicMaterial({ color: c, depthTest: false, transparent: true, opacity: 0.95 });
-    const dot = (x, z, h) => { const m = new T.Mesh(new T.SphereGeometry(0.16, 16, 12), this._hMat ||= mat(0xfbbf24)); const [wx, wz] = this.w(x, z); m.position.set(wx, 0.18, wz); m.renderOrder = 9; this.selG.add(m); this.handles.push({ ...h, m, x, z }); };
+    const dot = (x, z, h, y = 0.18) => { const m = new T.Mesh(new T.SphereGeometry(0.16, 16, 12), this._hMat ||= mat(0xfbbf24)); const [wx, wz] = this.w(x, z); m.position.set(wx, y, wz); m.renderOrder = 9; this.selG.add(m); this.handles.push({ ...h, m, x, z }); };
+    if (sel?.k === 'piece') { // a piece: its corners resize it (round pieces keep their size)
+      const f = (sel.room == null ? H.furniture : (H.rooms || [])[sel.room]?.furniture || [])?.[sel.i]; if (!f || ROUND.includes(String(f.type))) return;
+      try { const [a, b, c, d] = fpBox(footprint(f)); [[a, b], [c, b], [c, d], [a, d]].forEach(([x, z], c2) => dot(x, z, { k: 'pcorner', c: c2, box: [a, b, c, d] }, 0.25)); } catch (e) { /* odd piece */ }
+      return;
+    }
+    if (sel?.k === 'wall') { // a separate wall: its two ends
+      const w = (H.extra_walls || [])[sel.i]; if (!w || Array.isArray(w) || !w.from || !w.to) return;
+      dot(Number(w.from[0]), Number(w.from[1]), { k: 'wend', end: 0 }, 0.3); dot(Number(w.to[0]), Number(w.to[1]), { k: 'wend', end: 1 }, 0.3);
+      return;
+    }
+    const rc = sel?.k === 'room' && (H.rooms || [])[sel.i]; if (!rc) return;
     const sq = (x, z, h) => { const m = new T.Mesh(new T.BoxGeometry(0.22, 0.08, 0.22), this._hMat2 ||= mat(0x2dd4bf)); const [wx, wz] = this.w(x, z); m.position.set(wx, 0.18, wz); m.renderOrder = 9; this.selG.add(m); this.handles.push({ ...h, m, x, z }); };
     if (Array.isArray(rc.points) && rc.points.length >= 2) {
       const P = rc.points.map(q => q.map(Number));
@@ -87,8 +98,11 @@ export class Builder {
   }
   // the room's new corners while a handle (or the room) is dragged to p
   _shapeDrag(op, p) {
-    const rc = (this.S.card._config?.house?.rooms || [])[this.sel?.i]; if (!rc) return null;
     const sp = [this.snap(p[0]), this.snap(p[1])], H = op.h;
+    if (H?.k === 'pcorner') { const o = [[H.box[2], H.box[3]], [H.box[0], H.box[3]], [H.box[0], H.box[1]], [H.box[2], H.box[1]]][H.c], q = [this.snap(p[0], 0.05), this.snap(p[1], 0.05)]; return { piece: [Math.min(q[0], o[0]), Math.min(q[1], o[1]), Math.max(q[0], o[0]), Math.max(q[1], o[1])] }; }
+    if (H?.k === 'wend') return { wend: H.end, to: sp };
+    if (op.wallMove || H?.k === 'wmove') return { wallMove: true, dx: this.snap(p[0] - op.p0[0]), dz: this.snap(p[1] - op.p0[1]) };
+    const rc = (this.S.card._config?.house?.rooms || [])[this.sel?.i]; if (!rc) return null;
     if (op.move) { const dx = this.snap(p[0] - op.p0[0]), dz = this.snap(p[1] - op.p0[1]); return { move: true, dx, dz }; }
     if (H.k === 'corner') return { corner: H.i, to: sp };
     if (H.k === 'rect') return { rect: H.r, c: H.c, to: sp };
@@ -101,8 +115,11 @@ export class Builder {
   }
   // a dragged shape, drawn as low walls along its new outline
   _shapeGhost(rc, ch) {
+    const M = this.selMat, H = this.S.card._config?.house || {};
+    if (ch.piece) { const [a, b, c, d] = ch.piece; this._slab(a, b, c, d, 0.08, M); return; }
+    if (ch.wend != null || ch.wallMove) { const w = (H.extra_walls || [])[this.sel?.i]; if (!w?.from) return; let A = w.from.map(Number), B = w.to.map(Number); if (ch.wallMove) { A = [A[0] + ch.dx, A[1] + ch.dz]; B = [B[0] + ch.dx, B[1] + ch.dz]; } else if (ch.wend) B = ch.to; else A = ch.to; this._wall(A[0], A[1], B[0], B[1], WALL_H, 0.14, M); return; }
     const c = JSON.parse(JSON.stringify(rc)); applyShape(c, ch);
-    const poly = roomOutline(c) || null, M = this.selMat;
+    const poly = roomOutline(c) || null;
     if (poly) poly.forEach(([x, z], i) => { const [x2, z2] = poly[(i + 1) % poly.length]; this._wall(x, z, x2, z2, 0.25, 0.1, M); });
     else for (const [a, b, cc, d] of c.rects || []) { this._wall(a, b, cc, b, 0.25, 0.1, M); this._wall(cc, b, cc, d, 0.25, 0.1, M); this._wall(cc, d, a, d, 0.25, 0.1, M); this._wall(a, d, a, b, 0.25, 0.1, M); }
   }
@@ -111,7 +128,7 @@ export class Builder {
     for (const c of [...this.selG.children]) { this.selG.remove(c); c.geometry?.dispose(); }
     this.sel = sel || null; if (!sel) { this.S._dirty = true; return; }
     const H = this.S.card._config?.house || {}, M = this.selMat, add = (fn, ...a) => { const n = this.ghost.children.length; fn.call(this, ...a); for (const c of this.ghost.children.slice(n)) this.selG.add(c); };
-    if (sel.k === 'room') { const r = ROOMS.find(x => x.ci === sel.i) || ROOMS[sel.i]; if (r) add(() => { for (const [a, b, c, d] of r.rects) this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.035, M); }); this._handles(sel.i); }
+    if (sel.k === 'room') { const r = ROOMS.find(x => x.ci === sel.i) || ROOMS[sel.i]; if (r) add(() => { for (const [a, b, c, d] of r.rects) this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.035, M); }); }
     else if (sel.k === 'piece') {
       const P = FURN.find(f => f.src && (sel.room == null ? f.src.house === sel.i : f.src.room === sel.room && f.src.i === sel.i));
       if (P) { try { const [a, b, c, d] = fpBox(footprint(P)); add(() => this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.06, M)); } catch (e) { /* odd piece */ } }
@@ -123,6 +140,7 @@ export class Builder {
       else if (sel.k === 'wall') { const w = (H.extra_walls || [])[sel.i]; const s0 = w && extraWalls([w]); if (s0?.length) for (const q of s0) add(() => this._wall(q[0], q[1], q[2], q[3], WALL_H + 0.06, 0.22, M)); }
       if (seg) add(() => this._wall(seg[0], seg[1], seg[2], seg[3], WALL_H + 0.06, 0.22, M));
     }
+    this._handles(sel); // dots to drag: a room's corners and edges, a piece's corners, a wall's ends
     this.S._dirty = true;
   }
   dispose() { this.off?.(); this.S.scene.remove(this.g); this.S._dirty = true; }
@@ -167,14 +185,43 @@ export class Builder {
   // a door / window of width `wd` centred where the pointer is along the wall, kept inside it
   _onWall(p, wd, window) {
     const nw = this.nearWall(p, 0.6, s => (window ? ['w', 'win', undefined].includes(s[4]) : !['glass', 'rail'].includes(s[4])));
-    if (!nw || nw.len < wd + 0.1) return null;
-    const [x1, z1, x2, z2] = nw.seg, ux = (x2 - x1) / nw.len, uz = (z2 - z1) / nw.len;
-    const c = Math.max(wd / 2 + 0.05, Math.min(nw.len - wd / 2 - 0.05, Math.round(nw.t * nw.len / 0.1) * 0.1));
-    const seg = [...this.C(x1 + ux * (c - wd / 2), z1 + uz * (c - wd / 2)), ...this.C(x1 + ux * (c + wd / 2), z1 + uz * (c + wd / 2))];
+    if (!nw) return null;
+    // the wall the piece belongs to, as a line of points: one straight piece, or the many short pieces of a curved wall
+    const P = this._chain(nw.seg), cum = [0];
+    for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    const total = cum.at(-1); if (total < wd + 0.1) return null;
+    const at = s0 => { let i = 1; while (i < P.length - 1 && cum[i] < s0) i++; const L = cum[i] - cum[i - 1] || 1, f = (s0 - cum[i - 1]) / L; return [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f]; };
+    // where the pointer is along it
+    const q = this.P(p); let best = Infinity, sp = 0;
+    for (let i = 1; i < P.length; i++) {
+      const [ax, az] = P[i - 1], [bx, bz] = P[i], vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((q[0] - ax) * vx + (q[1] - az) * vz) / L2)), d = Math.hypot(ax + vx * t - q[0], az + vz * t - q[1]);
+      if (d < best) { best = d; sp = cum[i - 1] + t * Math.sqrt(L2); }
+    }
+    const c = Math.max(wd / 2 + 0.05, Math.min(total - wd / 2 - 0.05, Math.round(sp / 0.1) * 0.1)), A = at(c - wd / 2), B = at(c + wd / 2);
+    const seg = [...this.C(A[0], A[1]), ...this.C(B[0], B[1])];
     // a window goes in an outer wall: a room on one side only
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
     const nx = -uz * 0.3, nz = ux * 0.3, mx = (seg[0] + seg[2]) / 2, mz = (seg[1] + seg[3]) / 2;
     const outer = !this.roomAt(mx + nx, mz + nz, this.S.level, true) !== !this.roomAt(mx - nx, mz - nz, this.S.level, true);
     return { seg, ok: !window || outer, fence: nw.type === 'fence' };
+  }
+  // the pieces that carry on from wall piece `seg` (same floor and kind, joined end to end, turning less than 25° at
+  // each joint: a curved wall), as one line of points (plan coordinates)
+  _chain(seg) {
+    const [sx1, sz1, sx2, sz2, type, lvl] = seg, k = (x, z) => `${Math.round(x * 100)},${Math.round(z * 100)}`;
+    const same = WALLS.filter(w => (w[5] ?? 0) === (lvl ?? 0) && w[4] === type), used = new Set([seg]);
+    const dir = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const grow = (pts, back) => {
+      for (let n = 0; n < 400; n++) {
+        const end = back ? pts[0] : pts.at(-1), prev = back ? pts[1] : pts.at(-2), d0 = back ? dir(end, prev) : dir(prev, end);
+        const nx = same.find(w => !used.has(w) && (k(w[0], w[1]) === k(...end) || k(w[2], w[3]) === k(...end)) && (() => { const o = k(w[0], w[1]) === k(...end) ? [w[2], w[3]] : [w[0], w[1]], d1 = back ? dir(o, end) : dir(end, o); let a = Math.abs(d1 - d0) % (2 * Math.PI); if (a > Math.PI) a = 2 * Math.PI - a; return a < 0.44; })());
+        if (!nx) return; used.add(nx);
+        const o = k(nx[0], nx[1]) === k(...end) ? [nx[2], nx[3]] : [nx[0], nx[1]];
+        if (back) pts.unshift(o); else pts.push(o);
+      }
+    };
+    const pts = [[sx1, sz1], [sx2, sz2]]; grow(pts, false); grow(pts, true);
+    return pts;
   }
 
   // ---------- ghosts ----------
@@ -292,6 +339,8 @@ export class Builder {
       if (this.tool === 'select') { // a handle of the selected room, or (once it moves) the selected room itself
         const sr = this.sel?.k === 'room' && (ROOMS.find(x => x.ci === this.sel.i) || null), h0 = this._hit(e);
         const it = this.sel && ['door', 'window', 'opening', 'badge'].includes(this.sel.k) && this._target(p, h0, true);
+        const wl = this.sel?.k === 'wall' && !hd && this._target(p, h0, true);
+        if (wl && wl.k === 'wall' && wl.i === this.sel.i) { this.op = { maybeMove: true, wallMove: true, p0: p }; this.S.lastInput = performance.now(); this._preview(p, e); return; }
         this.op = hd ? { h: hd, p0: p } : it && it.k === this.sel.k && it.i === this.sel.i ? { item: this.sel, len: it.seg ? Math.hypot(it.seg[2] - it.seg[0], it.seg[3] - it.seg[1]) : 0, p0: p } : sr && h0.room === sr.id ? { maybeMove: true, p0: p } : null;
       }
       this.S.lastInput = performance.now(); this._preview(p, e);
@@ -300,7 +349,7 @@ export class Builder {
       if (!e.isPrimary) return;
       const p = this._plan(e); if (!p) return;
       if (down) e.stopImmediatePropagation();
-      if (down && this.op?.maybeMove && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) { this.op.move = true; this.op.maybeMove = false; }
+      if (down && this.op?.maybeMove && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) { if (this.op.wallMove) this.op.h = { k: 'wmove' }; else this.op.move = true; this.op.maybeMove = false; }
       if (down && this.op?.item && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { // dragging the selected door, window, passage or badge
         this._clear(); const I = this.op.item;
         if (I.k === 'badge') { const x = this.snap(p[0], 0.1), z = this.snap(p[1], 0.1); this.op.to = { x, z }; this._slab(x - 0.07, z - 0.07, x + 0.07, z + 0.07, 1.1, this.selMat); }
@@ -309,7 +358,7 @@ export class Builder {
       }
       if (down && (this.op?.h || this.op?.move)) { // dragging a handle or the room: its new outline
         this._clear(); const ch = this._shapeDrag(this.op, p), rc = (card._config?.house?.rooms || [])[this.sel?.i];
-        if (ch && rc) { this.op.ch = ch; this._shapeGhost(rc, ch); if (ch.move) card._bInfo(`${ch.dx >= 0 ? '+' : ''}${ch.dx} m, ${ch.dz >= 0 ? '+' : ''}${ch.dz} m`); else if (ch.bend != null) card._bInfo(`${ch.bow} m`); }
+        if (ch && (rc || this.sel?.k !== 'room')) { this.op.ch = ch; this._shapeGhost(rc, ch); if (ch.move) card._bInfo(`${ch.dx >= 0 ? '+' : ''}${ch.dx} m, ${ch.dz >= 0 ? '+' : ''}${ch.dz} m`); else if (ch.bend != null) card._bInfo(`${ch.bow} m`); }
         this.S._dirty = true; return;
       }
       if (down || e.pointerType === 'mouse') this._preview(p, e);
@@ -332,7 +381,7 @@ export class Builder {
         const W = this._onWall(p, card._bWidth(this.tool), this.tool === 'window');
         if (!W) card._toast(card._bT('Point at a wall'), true);
         else if (!W.ok) card._toast(card._bT('Windows go in outer walls'), true);
-        else card._bOp(this.tool, { seg: W.seg, level: lv, gate: W.fence });
+        else card._bOp(this.tool, { seg: W.seg, level: lv, gate: W.fence || card._bDoorKind === 'gate' });
       } else if (this.tool === 'paint') { if (h.room) card._bOp('paint', { room: h.room }); }
       else if (this.tool === 'furniture') {
         if (card._bPiece) card._bOp('piece', { type: card._bPiece, x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), room: this.roomAt(p[0], p[1])?.id || null, level: lv });
@@ -342,7 +391,10 @@ export class Builder {
         if (op?.item && op.to) card._bOp('moveitem', { k: op.item.k, i: op.item.i, ...op.to });
         else if (op?.h || op?.move) {
           const ch = op.ch;
-          if (op.h?.k === 'mid' && (!ch || Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < 0.15)) card._bOp('shape', { room: this.sel.i, ch: { addCorner: op.h.i } }); // a tap on an edge: a new corner there
+          if (ch?.piece) card._bOp('piecesize', { sel: this.sel, box: ch.piece });
+          else if (ch?.wend != null || ch?.wallMove) { if (!ch.wallMove || ch.dx || ch.dz) card._bOp('wallshape', { i: this.sel.i, ch }); }
+          else if (op.h?.k === 'pcorner' || op.h?.k === 'wend' || op.h?.k === 'wmove') { /* a tap on a handle: nothing */ }
+          else if (op.h?.k === 'mid' && (!ch || Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < 0.15)) card._bOp('shape', { room: this.sel.i, ch: { addCorner: op.h.i } }); // a tap on an edge: a new corner there
           else if (ch && !(ch.move && !ch.dx && !ch.dz)) card._bOp('shape', { room: this.sel.i, ch });
         } else card._bPick(this._target(p, h, true));
       }

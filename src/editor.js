@@ -9,7 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
-import { N, r2, DIRS, FRONTED, ROUND, NEW_PIECE, PALETTE, footprint, fpBox, inBox, sizePiece, turnPiece } from './pieces.js';
+import { N, r2, DIRS, FRONTED, ROUND, NEW_PIECE, PALETTE, footprint, fpBox, inBox, sizePiece, turnPiece, toWall } from './pieces.js';
 import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
@@ -1425,24 +1425,7 @@ class SweetHomeCardEditor extends HTMLElement {
   }
   // A piece close to a wall (up to 35 cm) is pulled flat against it: counters, cabinets, sofas, beds… go where a wall
   // is, not a grid step away from it. It stops at the wall's inner face (walls are drawn on the room's edge lines).
-  _toWall(f, again = false) {
-    const t = String(f.type || 'box'); if (t === 'ac' && f.style === 'cassette') return; if (['lamp', 'fan', 'marker', 'plant', 'cylinder', 'ball', 'tree', 'sprinkler', 'rug', 'pool', 'car', 'blinds', 'stairs'].includes(t)) return;
-    const b = fpBox(footprint(f)), MAG = 0.35, IN = 0.06; let dx = 0, dz = 0, bx = MAG, bz = MAG, fx = null, fz = null;
-    for (const [x1, z1, x2, z2] of this._wallSegsHere()) {
-      if (Math.abs(x1 - x2) < 1e-6) { // a wall along z at x = x1: the piece's left or right side goes to it
-        if (Math.min(z1, z2) > b[3] - 0.05 || Math.max(z1, z2) < b[1] + 0.05) continue;
-        for (const [d, fc] of [[x1 + IN - b[0], 'e'], [x1 - IN - b[2], 'w']]) if (Math.abs(d) < bx) { bx = Math.abs(d); dx = d; fx = fc; }
-      } else if (Math.abs(z1 - z2) < 1e-6) { // a wall along x at z = z1
-        if (Math.min(x1, x2) > b[2] - 0.05 || Math.max(x1, x2) < b[0] + 0.05) continue;
-        for (const [d, fc] of [[z1 + IN - b[1], 's'], [z1 - IN - b[3], 'n']]) if (Math.abs(d) < bz) { bz = Math.abs(d); dz = d; fz = fc; }
-      }
-    }
-    if ((t === 'ac' || FRONTED.includes(t)) && !again && (fx || fz)) { // a wall AC blows away from its wall; a toilet, sink, washer… faces away from it: turn it, then put it flat against that wall
-      const fc = fx && (!fz || bx <= bz) ? fx : fz;
-      if (fc !== (f.facing || 's')) { if (t === 'ac') f.facing = fc; else for (let k = 0; k < 3 && (f.facing || 's') !== fc; k++) turnPiece(f); return this._toWall(f, true); }
-    }
-    if (dx || dz) movePiece(f, r2(dx), r2(dz));
-  }
+  _toWall(f) { toWall(f, this._wallSegsHere()); }
   _mFurniture(box, r) {
     const auto = !Array.isArray(r.furniture) && this._H.auto_furniture && r.furniture !== false;
     const list = arr(Array.isArray(r.furniture) ? r.furniture : []);
