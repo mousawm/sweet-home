@@ -345,20 +345,6 @@ try {
   for (const id of ['cover.garage_door', 'cover.driveway_gate', 'switch.gate_relay']) for (let k = 0; k < 2; k++) { await p.evaluate(id => card.shadowRoot.querySelector(`#security [data-act=entrance][data-id="${id}"]`).click(), id); await p.waitForTimeout(400); }
   check('a second tap opens the garage door, stops the moving gate, pulses the relay', await p.evaluate(() => { const c = window.calls || [], has = (d, s, id) => c.some(x => x[0] === d && x[1] === s && x[2].entity_id === id); return has('cover', 'open_cover', 'cover.garage_door') && has('cover', 'stop_cover', 'cover.driveway_gate') && has('switch', 'turn_on', 'switch.gate_relay'); }));
   check('one tap alone does nothing', await p.evaluate(() => (window.calls || []).filter(x => x[2]?.entity_id === 'cover.garage_door').length === 1));
-  { // Home Lab update_script: a double tap on Updates arms it, the next tap runs the script with the node's name; one tap alone opens the details
-    const r = await p.evaluate(async () => {
-      const cfg0 = card._config, w = ms => new Promise(r => setTimeout(r, ms)), out = {};
-      card.setConfig({ ...cfg0, panels: { ...(cfg0.panels || {}), homelab: { ...(cfg0.panels?.homelab || {}), update_script: 'script.movie_night' } } }); await w(900);
-      card._setTab('system'); await w(200);
-      const tile = () => card.shadowRoot.querySelector('#lab [data-act=labupd]'), runs = () => (window.calls || []).filter(c => c[0] === 'script' && c[2]?.entity_id === 'script.movie_night');
-      out.tile = !!tile(); if (!out.tile) { card.setConfig(cfg0); return JSON.stringify(out); }
-      const more = card.more, opened = []; card.more = id => opened.push(id);
-      tile().click(); await w(450); out.single = opened.length === 1 && runs().length === 0;
-      tile().click(); await w(60); tile().click(); await w(450); out.armed = tile().classList.contains('confirm') && runs().length === 0;
-      tile().click(); await w(450); const c = runs(); out.ran = c.length === 1 && c[0][1] === 'turn_on' && c[0][2].variables?.node === 'pve';
-      card.more = more; card.setConfig(cfg0); await w(900); card._setTab('security');
-      return Object.values(out).every(Boolean) || JSON.stringify(out);
-    }); check('Home Lab: double tap Updates, then tap again, runs the update script (with the node); one tap opens the details', r === true, r); }
   await p.evaluate(() => card._setTab('home'));
   // modes on the Home tab: switches light up while on, a scene runs with one tap
   check('modes card on the Home tab', await p.evaluate(() => { card._setTab('home'); const t = [...card.shadowRoot.querySelectorAll('#modes .tile')]; return t.length === 3 && t[0].classList.contains('on') && t[0].textContent.includes('Guests') && !t[1].classList.contains('on') && t[2].dataset.act === 'run'; }));

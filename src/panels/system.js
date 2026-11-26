@@ -203,14 +203,14 @@ export class SystemPanels {
     const more = head.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') + (rest.length ? (this._labMore ? rest.map(g => row(g.keys, g.name, g.icon, g.gid)).join('') : '')
       + `<button class="vmmore" data-act="labmore">${this._labMore ? tr("Show less") : tr('Show more · {0} servers', rest.length)}${ic(this._labMore ? 'mdi:chevron-up' : 'mdi:chevron-down')}</button>` : '')
       + (edit && L.order.length ? `<button class="vmmore edit-only" data-act="labreset">${ic('mdi:sort')}${tr('Reset the order')}</button>` : '');
-    const upd = this.n(L.updates), updRun = !!(L.updateScript && this.s(L.updateScript) && h.user?.is_admin); // double tap → install the updates
+    const upd = this.n(L.updates);
     return `<div class="ch">${ic('mdi:server')}<h3>${tr("Home Lab")}</h3>${L.status ? `<span class="pill" style="--c:${this.on(L.status) ? '#34d399' : '#f43f5e'}">${this.on(L.status) ? tr("Online") : tr("Offline")}</span>` : ''}</div>
       ${nodes}<div class="rings r4">${ring(L.cpu, 'CPU', '#22d3ee')}${ring(L.mem, 'Memory', '#a78bfa')}${ring(L.disk, 'Disk', '#fbbf24')}${ring(L.swap, 'Swap', '#f472b6', L.swapUsed, 'swap')}</div>
       <div class="stats3 ${L.temp ? 's4' : ''}">
         ${L.temp ? `<div data-act="more" data-id="${L.temp}">${ic('mdi:thermometer')}<b>${this.f(L.temp, 0)}</b></div>` : ''}
         <div data-act="more" data-id="${L.cts}">${ic('mdi:docker')}<b>${esc(this.v(L.cts) || '—')}</b><span>${tr('containers')}</span></div>
         <div data-act="more" data-id="${L.vms}">${ic('mdi:monitor-multiple')}<b>${esc(this.v(L.vms) || '—')}</b><span>${tr('VMs')}</span></div>
-        <div data-act="${updRun ? 'labupd' : 'more'}" data-id="${L.updates}" data-id2="${updRun ? L.updates : L.update}"${updRun ? ` data-node="${esc(sel || '')}"` : ''}${upd > 0 ? ' style="color:#fbbf24"' : ''}>${ic('mdi:package-up')}<b>${upd != null ? upd.toFixed(0) : '—'}</b><span>${tr('updates')}</span></div>
+        <div data-act="more" data-id="${L.updates}" data-id2="${L.update}"${upd > 0 ? ' style="color:#fbbf24"' : ''}>${ic('mdi:package-up')}<b>${upd != null ? upd.toFixed(0) : '—'}</b><span>${tr('updates')}</span></div>
       </div>
       <div class="vms">${more}</div>`;
   }

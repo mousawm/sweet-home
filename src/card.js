@@ -758,7 +758,7 @@ export class SweetHomeCard extends HTMLElement {
   /* ---------- click handling ---------- */
   // Gestures on every button:
   //   tap        = the button's own action (open info / switch / toggle …)
-  //   double tap = details of the 2nd entity (buttons with data-id2); on Home Lab's Updates with update_script: arm the install
+  //   double tap = details of the 2nd entity (buttons with data-id2)
   //   long press = details of the button's own entity when a tap does something else (switch, toggle, picker …);
   //                avatars with data-lp open the phone panel
   _longPress() {
@@ -799,7 +799,7 @@ export class SweetHomeCard extends HTMLElement {
     // confirm with a second, slower tap, so their quick double tap still opens the 2nd entity.
     if (t.dataset.id2 && !e._deferred && !['lock', 'relay'].includes(a)) {
       const now = performance.now();
-      if (this._tap && this._tap.el === t && now - this._tap.t < 320) { clearTimeout(this._tap.timer); this._tap = null; this.haptic('light'); if (a === 'labupd') { this._armConfirm(t, 'labupd', 'Tap again to install the updates'); return; } if (t.dataset.dt) this._openInfo(t.dataset.dt); else this.more(t.dataset.id2); return; }
+      if (this._tap && this._tap.el === t && now - this._tap.t < 320) { clearTimeout(this._tap.timer); this._tap = null; this.haptic('light'); if (t.dataset.dt) this._openInfo(t.dataset.dt); else this.more(t.dataset.id2); return; }
       if (this._tap) clearTimeout(this._tap.timer);
       this._tap = { el: t, t: now, timer: setTimeout(() => { this._tap = null; this._onClick({ target: t, _deferred: true, stopPropagation() {}, preventDefault() {} }); }, 280) };
       return;
@@ -808,13 +808,6 @@ export class SweetHomeCard extends HTMLElement {
       case 'toggle': this.call('homeassistant', 'toggle', { entity_id: id }); break;
       case 'color': this.call('light', 'turn_on', t.dataset.k ? { entity_id: id, color_temp_kelvin: Number(t.dataset.k) } : { entity_id: id, rgb_color: t.dataset.rgb.split(',').map(Number) }); break;
       case 'more': this.more(id); break;
-      case 'labupd': { // Home Lab updates: double tap armed it, this tap runs the update script; otherwise the details
-        const s = E.lab.updateScript; if (!s || !this._confirm.labupd || Date.now() - this._confirm.labupd >= 3500) { this.more(id); break; }
-        this._armConfirm(t, 'labupd', '');
-        const d = s.split('.')[0], node = t.dataset.node;
-        if (d === 'script') this.call('script', 'turn_on', { entity_id: s, variables: node ? { node } : {} }); else this.call(d, 'press', { entity_id: s });
-        this._toast(node ? tr('Installing the updates on {0}', node) : tr('Installing the updates')); break;
-      }
       case 'doorsview': this._doorsFlip(); break;
       case 'dmark': this._doorMark(t, e); break;
       case 'dlog': this._doorLog(t.dataset.f, t.dataset.door); break;
