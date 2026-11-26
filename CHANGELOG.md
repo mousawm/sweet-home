@@ -8,8 +8,10 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+- Water: the tank trend (rate and “empty in / full in”) now looks at the last 6 hours by default instead of 2, for a steadier estimate.
 
 ### Added
+- Water: a *Tank trend from the last* option (`trend_hours`: 2, 6, 12 or 24 hours) sets how much history the tank trend uses.
 
 ## v0.6.62 — 2026-11-25
 

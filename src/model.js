@@ -965,8 +965,9 @@ export function buildModel(cfg = {}, hass) {
     // when not given. show: what a running pump shows — power (default), time (how long it has been on) or both;
     // presses: 1 or 2 (default) taps to turn it on (turning off is always one tap).
     // entities: anything else for the Water card (valves, flow and pressure sensors, …)
+    // trend_hours: how many hours of the tank level the trend pill (rate and time left) is worked out from: 2, 6 (default), 12 or 24
     water: {
-      tank: W2.tank || null, quality: W2.quality || null, temp: W2.temperature || null,
+      tank: W2.tank || null, trendHours: [2, 6, 12, 24].includes(Number(W2.trend_hours)) ? Number(W2.trend_hours) : 6, quality: W2.quality || null, temp: W2.temperature || null,
       pumps: arr(W2.pumps).map(p => (typeof p === 'string' ? { entity: p } : p)).filter(p => p?.entity).map(p => ({ id: p.entity, name: p.name || R.name(p.entity), power: p.power || R.powerOf(p.entity), info: p.info || p.timer || null,
         show: ['power', 'time', 'both'].includes(p.show) ? p.show : 'power', confirm: p.presses != null ? Number(p.presses) !== 1 : p.confirm !== false })),
       entities: arr(W2.entities).map(e => (typeof e === 'string' ? { id: e } : { id: e.entity || e.id, name: e.name, icon: e.icon })).filter(e => e.id),

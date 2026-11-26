@@ -1653,7 +1653,7 @@ class SweetHomeCardEditor extends HTMLElement {
         { type: 'grid', name: '', schema: [{ name: 'energy_per_charge', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_per_charge', selector: { entity: { domain: 'sensor' } } },
           { name: 'energy_month', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_month', selector: { entity: { domain: 'sensor' } } },
           { name: 'energy_year', selector: { entity: { domain: 'sensor' } } }, { name: 'cost_year', selector: { entity: { domain: 'sensor' } } }] }],
-      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
+      water: [{ name: 'tank', selector: { entity: { domain: 'sensor' } } }, { name: 'trend_hours', selector: { select: { mode: 'dropdown', options: [2, 6, 12, 24].map(h => ({ value: String(h), label: t('Last {0} hours', h) })) } } }, { name: 'quality', selector: { entity: { domain: 'sensor' } } }, { name: 'temperature', selector: { entity: { domain: 'sensor' } } },
         { name: 'pumps', selector: { entity: { domain: ['switch', 'input_boolean'], multiple: true } } }, { name: 'entities', selector: { entity: { multiple: true } } }],
       irrigation: [{ name: 'zones', selector: { entity: { domain: ['valve', 'switch', 'input_boolean'], multiple: true } } }, { name: 'interval', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'weekday', selector: { entity: { domain: ['select', 'input_select'] } } }, { name: 'tomorrow', selector: { entity: { domain: ['input_boolean', 'switch'] } } }, { name: 'next', selector: { entity: {} } }, { name: 'notification', selector: { entity: {} } }, { name: 'time', selector: { entity: {} } }],
       media: [{ name: 'player', selector: { entity: { domain: 'media_player' } } }, { name: 'speakers', selector: { entity: { domain: 'media_player', multiple: true } } },
@@ -1753,6 +1753,7 @@ class SweetHomeCardEditor extends HTMLElement {
         let schema = enStats ? schemas[k].filter(f => !['month_sensor', 'year_sensor'].includes(f.name)) : schemas[k];
         if (k === 'security' && cur.doors_view === 'list') schema = schema.filter(f => !['doors_timeline', 'doors_hours'].includes(f.name)); // the bars' layout and span are for the timeline
         if (k === 'security') data.doors_hours = String(cur.doors_hours || 24); // shown as the default (24 h) when not set
+        if (k === 'water') data.trend_hours = String(cur.trend_hours || 6); // shown as the default (6 h) when not set
         if (k === 'homelab') { // the Proxmox guests Home Assistant has (sensor / binary_sensor <lxc|qemu>_…_status), by name
           const keys = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^(?:binary_)?sensor\.((?:lxc|qemu)_.+)_status$/)?.[1]).filter(Boolean))];
           const nm = g => (this._reg.name(`sensor.${g}_status`) || this._reg.name(`binary_sensor.${g}_status`) || g).replace(/\s*status$/i, '');
@@ -1784,6 +1785,7 @@ class SweetHomeCardEditor extends HTMLElement {
             if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
             if (k === 'irrigation' && kk === 'zones') { val = arr(vv).map(id => arr(next.zones ?? next.valves).find(o => typeof o === 'object' && entityId(o) === id) || id); delete next.valves; } // a zone's name and duration are kept
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
+            if (k === 'water' && kk === 'trend_hours') { const h = Number(vv); val = [2, 12, 24].includes(h) ? h : null; } // 6 h is the default: not stored
             if (k === 'security' && kk === 'doors_hours') { const h = Number(vv); val = [6, 12, 18].includes(h) ? h : null; } // 24 h is the default: not stored
             if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
             if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete next[kk]; else next[kk] = val;
@@ -1791,7 +1793,7 @@ class SweetHomeCardEditor extends HTMLElement {
           set(k, next);
         }, { exclude_devices: 'Hidden devices', exclude_entities: 'Hidden entities', battery_exclude_devices: 'Hidden from low batteries only', battery_threshold: 'Battery alert below', wifi_threshold: 'Weak Wi-Fi below', tunnels: 'Cloudflare tunnels',
           name: k === 'car' ? 'Name' : undefined, color: 'Colour', charging: 'Charging (on while it charges)', power: 'Charging power', battery: 'Battery level', range: 'Range',
-          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', doors_view: 'Doors view', doors_timeline: 'Timeline bars', doors_hours: 'Timeline span', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
+          status: 'Status (parked, driving…)', time: k === 'car' ? 'Charging time / time left' : 'Watering time', zones: 'Valves (one per zone)', entrances: 'Gates, garage doors, barriers, shutters', doors_view: 'Doors view', doors_timeline: 'Timeline bars', doors_hours: 'Timeline span', trend_hours: 'Tank trend from the last', locks: 'Locks', notification: 'Reminder notification', interval: 'Water every', weekday: 'Day of the week', tomorrow: 'Water tomorrow (switch)', next: 'Next watering', energy_per_charge: 'This charge: energy', cost_per_charge: 'This charge: cost', energy_month: 'This month: energy',
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
