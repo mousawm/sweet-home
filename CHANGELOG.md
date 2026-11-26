@@ -11,21 +11,6 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
-## v0.6.63-beta.1 — 2026-11-25
-
-_Prerelease (beta): the Dollhouse look, Build mode and the apartment setting, for testing before the next release._
-
-### Added
-- 3D view: a **Dollhouse** house style (`house.style: dollhouse`, card editor: Look → House style): a sunny lot with lawn, pavement and a build grid, wallpaper in every room (or the room's `wall_color`), siding outside, and the outer walls facing you cut down as you turn the view.
-- **Build mode** in the 3D view (edit mode, admins: the hammer button): a life-sim style builder with a grid. Draw rooms and walls (walls that close an area become a room), tap walls to add doors and windows, paint wallpaper and floors, place furniture from a catalogue (automatic pieces too), then move, turn, link it to an entity or knock it down, with undo and keyboard shortcuts. The changes stay on the card while you build and are saved into the dashboard once, with Save (or Cancel to throw them away); the view stays on screen while the house is rebuilt after each step.
-- Build mode: a wall drawn right across a room splits it in two (the furniture goes with the part it stands in).
-- 3D view: a **walls** button switches between walls up, cutaway (the outer walls facing you lowered) and down (every wall low), remembered on each device.
-- 3D view: an **apartment** setting (`house.setting: apartment`, `apartment_floor`; card editor: Look → Home type): the flat stands on top of its building, with a window facade below it and the street at the bottom; balconies hang off the building.
-- Dollhouse style: an upper floor stands a storey up, on the floors below it (shown with their walls up to it), with the ground that far down, like in a life-sim game.
-- Stacked floors: the rooms of a floor below the one you look at get a flat roof (open over the stairs).
-- Build mode on phones and tablets: buttons big enough for a finger, one row of tools that scrolls, Undo / Cancel / Save at the bottom left; two fingers always move the view and never draw (a wall started by the first finger is dropped).
-- Rooms: `wall_color` sets a room's wallpaper (Dollhouse style).
-
 ## v0.6.62 — 2026-11-25
 
 ### Added

@@ -192,41 +192,6 @@ type: custom:sweet-home-card
 
 It is built to fill the screen, so put it in a view with the **Panel** layout (view settings → View type → Panel).
 
-### Walls: up, cutaway or down
-
-The **walls** button on the 3D view switches between three views, like in a life-sim game: **up** (every wall
-stands), **cutaway** (the outer walls on your side are lowered as you turn the view, so you see into the rooms) and
-**down** (every wall is a low stub). Each device remembers its choice; by default it is cutaway in the Dollhouse style
-and up in the classic one.
-
-### Build mode: build right in the 3D view
-
-While the dashboard is in edit mode, admins get a **hammer** button on the 3D view. It opens Build mode, a life-sim
-style builder: a grid appears on the ground and a toolbar over the view.
-
-| Tool | What it does |
-|---|---|
-| **Room** | Drag a rectangle on the grid: a room goes up with its walls. Name it and link it to a Home Assistant area in the bar that appears. |
-| **Wall** | Drag to draw a wall, straight or at 45°. When walls close in an area (on their own or against rooms you already have), it becomes a new room. |
-| **Door** / **Window** | Tap a wall to put a door in it (a gate in a fence), or a window in an outer wall. Pick the width in the bar. |
-| **Paint** | Pick a wallpaper colour or a floor (wood, tiles, marble, carpet, stone, asphalt), then tap a room. Wallpaper shows in the Dollhouse style. |
-| **Furniture** | Pick a piece from the catalogue and tap the floor to place it. Drag a piece to move it; tap it to turn it, link it to an entity (a lamp to its light, a TV to its media player…) or remove it. Pieces a room got automatically can be changed too: the room's set becomes its own. |
-| **Knock down** | Tap a piece, a door, a wall you drew or a room (tap a room twice) to remove it. |
-
-A **wall drawn right across a room** splits it in two: the bigger part keeps the room (its name, area and devices),
-the other part becomes a new room, and the furniture goes with the part it stands in.
-
-**Turn left / right** rotate the view (with a mouse, the right button drags the view too). On a phone or tablet, one
-finger draws and two fingers turn, zoom and move the view; Undo, Cancel and Save sit at the bottom left. The grid button switches between 50 cm, 25 cm and 1 m steps. **Undo** steps back.
-
-While you build, the changes stay on the card. **Save** writes them into the dashboard once, when you are done
-(leaving edit mode saves too); **Cancel** throws them away. With the card editor open, each step goes through the
-editor instead (with its own undo). Everything is written as plain `rooms`, `extra_walls`, `doors`, `windows` and
-`furniture` entries. If the house was built from your areas, its rooms become your own the first time you build.
-
-Keys: **1–7** pick a tool, **Ctrl+Z** undoes, **R** turns the selected piece, **Delete** removes it, **Esc** stops a
-drawing, then lets go of the piece, then closes Build mode.
-
 ### Only the 3D view: Sweet Home 3D
 
 To place the 3D house among your other cards, add **Sweet Home 3D** (**Add card → Sweet Home 3D**), or in YAML:
@@ -287,9 +252,6 @@ that device. It is kept by that browser only and wins over `default_view` / `def
 | `areas` | With automatic rooms: only these area ids |
 | `auto_furniture` | Add furniture to every room based on its name |
 | `wall_height` | In metres (default 1.35, a cut-away dollhouse height) |
-| `style` | `dollhouse`: a sunny lot (lawn, pavement, build grid, shrubs) with the house on a stone foundation, wallpaper in each room (picked from its name, or the room's `wall_color`), siding outside, and the outer walls on the side you look from cut down to a low stub as you turn the view. Upper floors stand on the floors below them: on the first floor you see the ground floor under it (its walls up to your floor, a flat roof on the rooms your floor doesn't cover) and the garden a storey down. Default `classic` (night blue). |
-| `setting` | `apartment`: your home is a flat in a building. It stands on top of the building's block (a facade of windows, 3 m per floor below it), with the pavement, a road and street trees at the bottom instead of a garden; outdoor rooms (balconies) hang off the building on a concrete slab. Default `house`. (Card editor: Look → Home type.) |
-| `apartment_floor` | With `setting: apartment`: the floor the flat is on, 0 for the ground floor (default 2) |
 | `walls` | Your own wall segments `[x1, z1, x2, z2, type]`, where type is `w` (wall), `win` (window) or `rail` (glass railing). By default, walls are drawn around the rooms. |
 | `extra_walls` | Walls that stand on their own, on top of the room walls: `from: [x, z]`, `to: [x, z]`, `type` (`wall`, `half`, `glass` or `fence`; a fence is 1.2 m high unless `height` says otherwise), `height` (m), `bow` (bends the wall into an arc: how many metres its middle moves to one side, negative for the other side), `level`. A plain `[x1, z1, x2, z2]` works too. Doors and openings cut them. |
 | `openings` | Gaps in the automatic walls `[x1, z1, x2, z2]`, plus the floor as a 5th item when it isn't the ground floor |
@@ -315,7 +277,6 @@ shifted so that it starts at 0.
   # points: [[0, 7, 2], [4, 7, 2]]                              # two bent corners make a round room
   icon: mdi:bed
   floor: carpet               # wood, tile, marble, carpet, stone, grass, asphalt (parking)
-  wall_color: '#b9cdee'       # wallpaper in the Dollhouse style (default: picked from the room's name)
   outdoor: false
   level: 1                    # the floor (default 0, the ground floor)
   stairs: true                # a flight of stairs, set by the floors: up from the lowest floor, down from the top

@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, devices } from 'playwright';
+import { chromium } from 'playwright';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json' };
@@ -1208,99 +1208,6 @@ try {
   }); check('Sweet Home 3D: inside an ha-card that follows the theme (light or dark), with a themed pop-up; card-mod ha-card styles apply', r === true, r); }
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
   await p.close();
-
-  console.log('build mode');
-  p = await open('?config=demo&edit=1', { width: 1280, height: 900 });
-  { const r = await p.evaluate(async () => {
-    const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), out = {}, H = () => card._config.house;
-    const polyA = p => Math.abs(p.reduce((a, [x, z], i) => { const [x2, z2] = p[(i + 1) % p.length]; return a + x * z2 - x2 * z; }, 0) / 2);
-    const ready = async () => { await wait(150); for (let i = 0; i < 100 && !(card._three?.builder && card._three._key === card._houseJSON); i++) await wait(100); await wait(100); };
-    // a dashboard holding this card: build steps stay on the card, and one save writes it when Build mode closes
-    card.setConfig({ type: 'custom:sweet-home-card', ...card._config }); await wait(900);
-    let dash = { views: [{ cards: [JSON.parse(card._cfgJSON)] }] }, saves = 0;
-    const ws0 = window.hassObj.callWS; window.hassObj.callWS = card._hass.callWS = async m => m.type === 'lovelace/config' ? JSON.parse(JSON.stringify(dash)) : m.type === 'lovelace/config/save' ? (saves++, dash = m.config, null) : ws0(m);
-    out.button = !!R.querySelector('#buildBtn');
-    R.querySelector('#buildBtn').click(); await wait(100);
-    out.on = !!card._three.builder && R.querySelector('#buildbar').classList.contains('open') && R.querySelector('#viewport').classList.contains('building');
-    const n0 = H().rooms.length;
-    await card._bOp('room', { rect: [20, 0, 24, 3], level: 0 }); await ready();
-    out.room = H().rooms.length === n0 + 1 && JSON.stringify(H().rooms.at(-1).rects) === '[[20,0,24,3]]' && !!R.querySelector('[data-bname]') && !!card._three.builder;
-    out.local = saves === 0 && R.querySelector('[data-b=done]').textContent.includes('Save') && !!R.querySelector('[data-b=cancel]');
-    // walls first: four walls closing an area make a room, and the walls become that room's own
-    for (const [a, b] of [[[20, 4], [23, 4]], [[23, 4], [23, 6.5]], [[23, 6.5], [20, 6.5]], [[20, 6.5], [20, 4]]]) { await card._bOp('wall', { from: a, to: b, level: 0 }); await ready(); }
-    out.walls = H().rooms.length === n0 + 2 && JSON.stringify(H().rooms.at(-1).points) === '[[20,4],[23,4],[23,6.5],[20,6.5]]' && !(H().extra_walls || []).some(w => w.from?.[0] >= 20);
-    await card._bOp('door', { seg: [21, 4, 21.9, 4], level: 0 }); await ready();
-    out.door = JSON.stringify(H().doors.at(-1)) === '{"from":[21,4],"to":[21.9,4]}';
-    const id = Object.values(card._three.rooms).at(-1).r.id;
-    card._bBrush = { k: 'wall', v: '#b9cdee' }; await card._bOp('paint', { room: id }); await ready();
-    card._bBrush = { k: 'floor', v: 'carpet' }; await card._bOp('paint', { room: id }); await ready();
-    out.paint = H().rooms.at(-1).wall_color === '#b9cdee' && H().rooms.at(-1).floor === 'carpet';
-    await card._bOp('piece', { type: 'lamp', x: 21.5, z: 5, room: id, level: 0 }); await ready();
-    out.piece = JSON.stringify(H().rooms.at(-1).furniture) === '[{"type":"lamp","x":21.5,"z":5,"h":1.5}]';
-    const fi = Object.keys(card._three.fmov).map(Number).at(-1);
-    card._bTool = 'furniture'; card._bSelect(fi); R.querySelector('[data-blink]').value = 'light.kitchen'; R.querySelector('[data-blink]').dispatchEvent(new Event('change', { bubbles: true })); await ready();
-    out.link = JSON.stringify(H().rooms.at(-1).furniture[0].entities) === '["light.kitchen"]';
-    const before = JSON.stringify(H()); await card._bOp('delete', { k: 'piece', fi: card._bSel ?? fi }); await ready();
-    out.del = !H().rooms.at(-1).furniture.length;
-    R.querySelector('[data-b=undo]').click(); await ready();
-    out.undo = JSON.stringify(H()) === before;
-    // keys: Ctrl+Z undoes, 2 picks the Wall tool
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); await ready();
-    out.keyUndo = H().rooms.at(-1).furniture[0]?.entities == null && H().rooms.at(-1).furniture.length === 1;
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' })); await wait(50);
-    out.keyTool = card._bTool === 'wall' && card._three.builder.tool === 'wall';
-    R.querySelector('[data-b=grid]').click(); await wait(50);
-    out.grid = card._bGrid === 0.25 && card._three.builder.grid.geometry.attributes.position.count > 400; // a line every 25 cm
-    // a wall right across a room splits it in two; the wall keeps only the bits outside the rooms
-    const nS = H().rooms.length, ri = H().rooms.findIndex(r => JSON.stringify(r.rects) === '[[20,0,24,3]]');
-    await card._bOp('wall', { from: [22, -1], to: [22, 3.5], level: 0 }); await ready();
-    out.split = H().rooms.length === nS + 1 && polyA(H().rooms[ri].points) === 6 && polyA(H().rooms.at(-1).points) === 6 && JSON.stringify(H().extra_walls.filter(w => w.from[0] === 22).map(w => [w.from, w.to])) === '[[[22,-1],[22,0]],[[22,3],[22,3.5]]]' || JSON.stringify([H().rooms[ri].points, H().rooms.at(-1).points, H().extra_walls.filter(w => w.from[0] === 22)]);
-    // Done: one save, of the house as built, into the card's place on the dashboard
-    const built = card._cfgJSON;
-    R.querySelector('[data-b=done]').click(); for (let i = 0; i < 30 && card._building; i++) await wait(50);
-    out.saved = saves === 1 && JSON.stringify(dash.views[0].cards[0]) === built && !card._building && !card._three.builder;
-    // Cancel: the steps are thrown away, nothing is saved
-    R.querySelector('#buildBtn').click(); await wait(100);
-    await card._bOp('room', { rect: [30, 0, 33, 3], level: 0 }); await ready();
-    R.querySelector('[data-b=cancel]').click(); await ready(); await wait(300);
-    out.cancel = saves === 1 && card._cfgJSON === built && !card._building;
-    // the house's automatic furniture (from its areas) can be moved: the room's set becomes its own
-    const c2 = JSON.parse(built); delete c2.house.rooms[0].furniture; c2.house.auto_furniture = true; card.setConfig(c2); await wait(900); await ready();
-    R.querySelector('#buildBtn').click(); await wait(100);
-    const autoFi = [...Array(300).keys()].find(i => card._bCanEdit(i) && card._bPieceRef(JSON.parse(card._cfgJSON).house, i)); // a piece of the first room's automatic set
-    card._arrangeMove({ idx: autoFi }, 0.5, 0, () => {}); await ready();
-    out.auto = Array.isArray(H().rooms[0].furniture) && H().rooms[0].furniture.length > 0;
-    card._bToggle(false, false); await ready();
-    return Object.values(out).every(Boolean) || JSON.stringify(out);
-  }); check('build mode: rooms, walls that close a room, doors, paint, furniture (placed, linked, removed, automatic ones moved), undo and keys; saved once on Done, nothing on Cancel', r === true, r); }
-  check('no page errors (build mode)', !p.errors.length, p.errors.join(' | '));
-  await p.close();
-
-  console.log('build mode on a phone');
-  { const ctx = await browser.newContext({ ...devices['iPhone 13'] }), pg = await ctx.newPage(); pg.errors = []; pg.on('pageerror', e => pg.errors.push(e.message));
-    await pg.goto(base + '?config=demo&edit=1'); await pg.waitForFunction(() => window.ready); await pg.waitForFunction(() => window.card._three, null, { timeout: 15000 });
-    await pg.evaluate(() => { card._hintDone?.(); card.shadowRoot.querySelector('#buildBtn').click(); card.shadowRoot.querySelector('[data-b=tool][data-v=wall]').click(); card.shadowRoot.querySelector('#viewport').scrollIntoView({ block: 'end' }); });
-    await pg.waitForTimeout(300);
-    const cdp = await ctx.newCDPSession(pg), touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], i) => ({ x, y, id: i })) });
-    const scr = (x, z) => pg.evaluate(([x, z]) => { const S = card._three, T = S.T, [wx, wz] = S.builder.w(x, z); const v = new T.Vector3(wx, 0, wz).project(S.cam), b = S.cv.getBoundingClientRect(); return [b.left + (v.x + 1) / 2 * b.width, b.top + (1 - v.y) / 2 * b.height]; }, [x, z]);
-    const walls = () => pg.evaluate(() => (card._config.house.extra_walls || []).length);
-    const settle = async () => { await pg.waitForTimeout(300); await pg.waitForFunction(() => card._three?.builder && card._three._key === card._houseJSON, null, { timeout: 15000 }); await pg.waitForTimeout(200); };
-    const w0 = await walls(), A = await scr(9, 11), B = await scr(13, 11);
-    await touch('touchStart', [A]); for (let i = 1; i <= 8; i++) await touch('touchMove', [[A[0] + (B[0] - A[0]) * i / 8, A[1]]]); await touch('touchEnd', []); await settle();
-    const one = (await walls()) === w0 + 1;
-    // two fingers: the view turns, nothing is drawn (even when the second finger's pointer comes late)
-    const view = () => pg.evaluate(() => { const g = card._three.goal; return [g.theta, g.radius, g.target.x, g.target.z]; }), th0 = await view(), c = await scr(6, 6);
-    await touch('touchStart', [[c[0] - 50, c[1]], [c[0] + 50, c[1]]]); for (let i = 1; i <= 8; i++) await touch('touchMove', [[c[0] - 50 + i * 8, c[1]], [c[0] + 50 + i * 8, c[1]]]); await touch('touchEnd', []); await pg.waitForTimeout(400);
-    const two = (await walls()) === w0 + 1, turned = (await view()).some((v, i) => Math.abs(v - th0[i]) > 0.01); // turned, zoomed or panned
-    // and the next one-finger tap works again: a door on the new wall
-    await pg.evaluate(() => card.shadowRoot.querySelector('[data-b=tool][data-v=door]').click());
-    const d0 = await pg.evaluate(() => (card._config.house.doors || []).length); const D = await scr(11, 11);
-    await touch('touchStart', [D]); await touch('touchEnd', []); await settle();
-    const door = (await pg.evaluate(() => (card._config.house.doors || []).length)) === d0 + 1;
-    const ui = await pg.evaluate(() => { const bar = card.shadowRoot.querySelector('#buildbar'), btns = [...bar.querySelectorAll('.bb')].map(e => e.getBoundingClientRect()).filter(b => b.width); return { min: Math.min(...btns.map(b => Math.min(b.width, b.height))), wide: document.documentElement.scrollWidth > innerWidth + 1 }; });
-    check('build mode on a phone: one finger draws, two fingers move the view and draw nothing, taps work after; buttons ≥ 40 px', one && two && turned && door && ui.min >= 40 && !ui.wide, JSON.stringify({ one, two, turned, door, ui }));
-    check('no page errors (build mode on a phone)', !pg.errors.length, pg.errors.join(' | '));
-    await ctx.close(); }
 
   console.log('arabic');
   p = await open('?config=demo&lang=ar', { width: 1280, height: 900 });
