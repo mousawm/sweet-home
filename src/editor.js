@@ -1667,6 +1667,7 @@ class SweetHomeCardEditor extends HTMLElement {
       // gets its options below
       homelab: [...[['cpu'], ['memory'], ['disk'], ['swap'], ['temperature', 'temperature'], ['containers'], ['vms'], ['updates']]
         .map(([name, dc]) => ({ name, selector: { entity: { domain: 'sensor', ...(dc ? { device_class: dc } : {}) } } })),
+        { name: 'update_script', selector: { entity: { domain: ['script', 'button', 'input_button'] } } },
         { name: 'auto_guests', selector: { boolean: {} } }, { name: 'pinned', selector: { select: { multiple: true, mode: 'list', options: [] } } }],
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
@@ -1797,7 +1798,7 @@ class SweetHomeCardEditor extends HTMLElement {
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
-          cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
+          cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates', update_script: 'Install updates (script or button; double tap Updates, then tap to confirm)',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',
           pinned: k === 'homelab' && cur.auto_guests === false ? 'Servers to show' : 'Servers pinned at the top',
           player: 'TV', speakers: 'Speakers', watch_timer: 'Screen time: watched today (H:MM:SS)', watch_limit: 'Screen time: daily limit (H:MM:SS)', limit_select: 'Screen time: daily limit picker',

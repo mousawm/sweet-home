@@ -839,7 +839,8 @@ export function buildModel(cfg = {}, hass) {
   const pveNode = (P.homelab?.node && pveNodes.includes(P.homelab.node) ? P.homelab.node : pveNodes[0]) || null;
   // Home Lab: every sensor is found from the node's name, or picked in the card editor (panels.homelab: cpu, memory, disk,
   // swap, temperature, containers, vms, updates). auto_guests (on by default): every container / VM is listed, pinned ones
-  // first; off: only the pinned ones.
+  // first; off: only the pinned ones. update_script: a script / button that installs the node's updates (Proxmox's API
+  // can't), run by a double tap on the Updates tile, then a second tap to confirm (admins only); a script gets `node`.
   const HL = P.homelab || {}, node = (suf) => (pveNode ? `${suf[0]}.node_${pveNode}_${suf[1]}` : null);
   const lab = pveNode || ['cpu', 'memory', 'disk', 'swap', 'containers', 'vms', 'updates'].some(k => HL[k]) ? {
     node: pveNode || null, status: node(['binary_sensor', 'status']),
@@ -852,7 +853,8 @@ export function buildModel(cfg = {}, hass) {
     order: arr(HL.order).map(String), // guest order set by dragging the rows (Proxmox ids)
     auto: HL.auto_guests !== false,
     nodes: pveNodes,
-  } : { guests: [], order: [], auto: true, nodes: [] };
+    updateScript: /^(script|button|input_button)\./.test(HL.update_script || '') ? HL.update_script : null,
+  } : { guests: [], order: [], auto: true, nodes: [], updateScript: null };
   // the other nodes' gauges (the Home Lab card switches between nodes; picked sensors are the first node's only)
   if (lab.nodes.length > 1) lab.byNode = Object.fromEntries(pveNodes.map(n => {
     const nd = suf => `${suf[0]}.node_${n}_${suf[1]}`;

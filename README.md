@@ -450,6 +450,10 @@ listed below).
     node's (empty: found from the Proxmox node). With no Proxmox node, picking them still gives a Home Lab card
   - `auto_guests` (on by default): every container and VM is listed (the `pinned` ones first, the rest behind
     **Show more**). Off: only the `pinned` servers are listed
+  - `update_script`: a `script`, `button` or `input_button` that installs the node's updates. Proxmox's API can only
+    refresh the package list, not install it, so the work is done by your own script (for example `shell_command` / SSH
+    running `apt-get update && apt-get -y dist-upgrade` on the node). Double tap **Updates**, then tap once more within
+    3 s to run it; a script gets the node's name as `node`. Admins only; without it, a double tap opens the update details
   - `pinned`: servers (Proxmox guest keys, e.g. `lxc_jellyfin_102`, or `{key, name, icon}`), `order`
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.

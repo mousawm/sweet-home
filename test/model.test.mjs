@@ -369,6 +369,11 @@ test('fence and gate: a fence separate wall keeps its kind (and its height); a g
   assert.deepEqual(m.doors.map(d => [d.gate, d.gh]), [[true, 1.4], [false, null]]);
   assert.equal(m.walls.filter(w => w[4] === 'fence').length, 2, 'the gate cuts the fence in two');
 });
+test('homelab update_script: a script / button is kept; anything else is ignored', () => {
+  const U = hl => buildModel({ panels: { homelab: { cpu: 'sensor.cpu', ...hl } } }, hass).E.lab.updateScript;
+  assert.deepEqual([U({}), U({ update_script: 'script.pve_upgrade' }), U({ update_script: 'button.pve_upgrade' }), U({ update_script: 'switch.x' })], [null, 'script.pve_upgrade', 'button.pve_upgrade', null]);
+});
+
 test('water trend_hours: the tank trend is worked out from 2, 6, 12 or 24 hours (6 by default, or for anything else)', () => {
   const H = w => buildModel({ panels: { water: w } }, hass).E.water.trendHours;
   assert.deepEqual([H({}), H({ trend_hours: 2 }), H({ trend_hours: '12' }), H({ trend_hours: 24 }), H({ trend_hours: 3 }), H({ trend_hours: 'x' })], [6, 2, 12, 24, 6, 6]);
