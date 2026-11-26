@@ -1272,7 +1272,7 @@ export class HouseScene {
     };
     let mv = null;
     el.addEventListener('pointerdown', e => {
-      if (!this.arrange || !e.isPrimary || (this.builder && this.card._bPiece)) return; // Build mode with a piece picked: the tap places it
+      if (!this.arrange || !e.isPrimary || (this.builder && (this.card._bPiece || this.builder._handleAt(e)))) return; // Build mode with a piece picked: the tap places it; a shape handle comes first
       const fi = fiAt(e.clientX, e.clientY), p0 = fi != null && floorPt(e.clientX, e.clientY); if (fi == null || !p0) return;
       const objs = this.fmov[fi] || [];
       mv = { fi, p0, objs, orig: objs.map(o => o.position.clone()), dx: 0, dz: 0 };

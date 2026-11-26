@@ -3,6 +3,8 @@
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { arr, enclosedAreas, splitRoom, uncovered, extraWalls, inPoly, roomOutline, autoFurnitureConfig, FURN_TYPES, furnEntities } from '../model.js';
 import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
+import { applyShape } from '../build.js';
+import { movePiece } from '../model.js';
 import { t as tr } from '../i18n.js';
 import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
 
@@ -88,6 +90,19 @@ export class BuildTools {
     W.querySelector('.bins-t').textContent = this._bInsTitle(sel);
     el.hass = this._hass?._raw || this._hass; el.setConfig(this._config); el.sel = sel;
     this._bInsPlace();
+    requestAnimationFrame(() => this._bInsReveal());
+  }
+  // what was picked slides out from under the panel: the view moves until it is in the free part of the 3D view
+  _bInsReveal() {
+    const S = this._three, B = S?.builder, W = this._bInsWrap, vp = this.$('viewport'); if (!B?.selG?.children.length || !W?.isConnected || !vp) return;
+    const T = S.T, box = new T.Box3().setFromObject(B.selG), r = vp.getBoundingClientRect(), w = W.getBoundingClientRect();
+    // the picked thing's extent on screen (its box's 8 corners)
+    const pts = []; for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) { const v = new T.Vector3(x, y, z).project(S.cam); pts.push([r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]); }
+    const x0 = Math.min(...pts.map(q => q[0])), x1 = Math.max(...pts.map(q => q[0])), y0 = Math.min(...pts.map(q => q[1])), y1 = Math.max(...pts.map(q => q[1]));
+    if (w.width > r.width * 0.7) { // a bottom sheet (phones): up from under it
+      if (y1 > w.top - 20) S._pan(0, -Math.min(y1 - (w.top - 30), Math.max(0, y0 - (r.top + 60))));
+    } else if (x1 > w.left - 20) S._pan(-Math.min(x1 - (w.left - 30), Math.max(0, x0 - (r.left + 20))), 0); // a side panel: to its left, as far as there is room
+    S.lastInput = performance.now();
   }
   _bInsTitle(sel) {
     const H = this._config?.house || {};
@@ -98,7 +113,8 @@ export class BuildTools {
   }
   _bInsMake() {
     const W = document.createElement('div'); W.className = 'binsp';
-    W.innerHTML = `<div class="bins-h"><b class="bins-t"></b><button class="bb" data-insx title="${tr('Close')}" aria-label="${tr('Close')}">${ic('mdi:close')}</button></div><div class="bins-b"></div>`;
+    W.innerHTML = `<div class="bins-h"><b class="bins-t"></b><button class="bb" data-insmin title="${tr('Fold')}" aria-label="${tr('Fold')}">${ic('mdi:chevron-up')}</button><button class="bb" data-insx title="${tr('Close')}" aria-label="${tr('Close')}">${ic('mdi:close')}</button></div><div class="bins-b"></div>`;
+    W.querySelector('[data-insmin]').addEventListener('click', e => { e.stopPropagation(); W.classList.toggle('mini'); });
     const el = document.createElement('sweet-home-inspector'); W.querySelector('.bins-b').appendChild(el);
     W.querySelector('[data-insx]').addEventListener('click', e => { e.stopPropagation(); this._bInspect(null); });
     el.addEventListener('sh-inspect-change', e => this._bInsChange(e.detail));
@@ -310,6 +326,19 @@ export class BuildTools {
       const r = a.room && ROOM[a.room], rc = r && H.rooms?.[r.ci ?? ROOMS.indexOf(r)];
       if (rc) { if (!Array.isArray(rc.furniture)) rc.furniture = []; rc.furniture.push(f); }
       else (H.furniture ||= []).push(lv(f));
+    });
+    if (op === 'shape') return this._bEdit(H => {
+      const rc = arr(H.rooms)[a.room]; if (!rc) return false;
+      if (a.ch.move) { // the room moves with what is in it and on its walls: furniture, doors, windows, passages, badges
+        const poly = roomOutline(rc) || arr(rc.rects).flatMap(([x1, z1, x2, z2]) => [[x1, z1], [x2, z1], [x2, z2], [x1, z2]]), lv = Number(rc.level) || 0;
+        const box = poly.reduce((b, [x, z]) => [Math.min(b[0], x), Math.min(b[1], z), Math.max(b[2], x), Math.max(b[3], z)], [1e9, 1e9, -1e9, -1e9]);
+        const mine = (x, z) => x >= box[0] - 0.05 && x <= box[2] + 0.05 && z >= box[1] - 0.05 && z <= box[3] + 0.05, lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
+        for (const f of arr(rc.furniture)) movePiece(f, a.ch.dx, a.ch.dz);
+        for (const d of arr(H.doors)) if (lvOf(d) === lv && d.from && d.to && mine(...d.from) && mine(...d.to)) { d.from = [r2(d.from[0] + a.ch.dx), r2(d.from[1] + a.ch.dz)]; d.to = [r2(d.to[0] + a.ch.dx), r2(d.to[1] + a.ch.dz)]; }
+        for (const k of ['windows', 'openings']) for (const w of arr(H[k])) if (Array.isArray(w) && lvOf(w) === lv && mine(w[0], w[1]) && mine(w[2], w[3])) { w[0] = r2(w[0] + a.ch.dx); w[1] = r2(w[1] + a.ch.dz); w[2] = r2(w[2] + a.ch.dx); w[3] = r2(w[3] + a.ch.dz); }
+        for (const b of arr(H.lock_badges)) if (lvOf(b) === lv && mine(Number(b.x), Number(b.z))) { b.x = r2(Number(b.x) + a.ch.dx); b.z = r2(Number(b.z) + a.ch.dz); }
+      }
+      applyShape(rc, a.ch);
     });
     if (op === 'delete') return this._bEdit(H => {
       if (a.k === 'piece') {

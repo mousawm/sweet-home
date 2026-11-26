@@ -3,10 +3,29 @@
 // furniture, and knock things down. The scene side: the grid, the cursor, the ghost previews and the pointer. Every
 // change is handed to the card (`card._bOp`), which writes it into the card's config; the house is then built again.
 import { MODEL, ROOMS, WALLS, DOORS, FURN, CX, CZ, PLAN_W, PLAN_D, WALL_H } from './core.js';
-import { inPoly, extraWalls } from './model.js';
+import { inPoly, extraWalls, roomOutline } from './model.js';
 import { NEW_PIECE, footprint, fpBox } from './pieces.js';
 
 const GHOST = 0x2dd4bf, BAD_C = 0xfb7185;
+const r2 = v => Math.round(v * 100) / 100;
+// a room's shape change (config coordinates): { corner: i, to } · { rect: i, c (0..3: corner), to } · { bend: i, bow } ·
+// { addCorner: i } (in the middle of edge i) · { move: true, dx, dz }. Rectangles stay rectangles; a moved corner of an
+// outline keeps its bend.
+export function applyShape(rc, ch) {
+  if (ch.move) {
+    if (Array.isArray(rc.points)) rc.points = rc.points.map(q => [r2(Number(q[0]) + ch.dx), r2(Number(q[1]) + ch.dz), ...q.slice(2)]);
+    if (Array.isArray(rc.rects)) rc.rects = rc.rects.map(q => [r2(Number(q[0]) + ch.dx), r2(Number(q[1]) + ch.dz), r2(Number(q[2]) + ch.dx), r2(Number(q[3]) + ch.dz)]);
+  } else if (ch.corner != null && rc.points?.[ch.corner]) rc.points[ch.corner] = [r2(ch.to[0]), r2(ch.to[1]), ...rc.points[ch.corner].slice(2)];
+  else if (ch.rect != null && rc.rects?.[ch.rect]) {
+    const q = rc.rects[ch.rect].map(Number), [x, z] = ch.to, o = [[q[2], q[3]], [q[0], q[3]], [q[0], q[1]], [q[2], q[1]]][ch.c]; // the opposite corner stays
+    if (Math.abs(x - o[0]) >= 0.25 && Math.abs(z - o[1]) >= 0.25) rc.rects[ch.rect] = [r2(Math.min(x, o[0])), r2(Math.min(z, o[1])), r2(Math.max(x, o[0])), r2(Math.max(z, o[1]))];
+  } else if (ch.bend != null && rc.points?.[ch.bend]) { const q = rc.points[ch.bend]; rc.points[ch.bend] = ch.bow ? [q[0], q[1], ch.bow] : [q[0], q[1]]; }
+  else if (ch.addCorner != null && rc.points?.[ch.addCorner]) {
+    const P = rc.points, a = P[ch.addCorner], b = P[(ch.addCorner + 1) % P.length];
+    P[ch.addCorner] = [a[0], a[1]]; P.splice(ch.addCorner + 1, 0, [r2((Number(a[0]) + Number(b[0])) / 2), r2((Number(a[1]) + Number(b[1])) / 2)]);
+  }
+  return rc;
+}
 
 export class Builder {
   constructor(S) {
@@ -37,11 +56,62 @@ export class Builder {
     const [gx, gz] = this.w(Math.round((PLAN_W / 2 + this.ox) / st) * st, Math.round((PLAN_D / 2 + this.oz) / st) * st);
     grid.position.set(gx, 0.012, gz); this.g.add(grid); this.S._dirty = true;
   }
+  // ---------- a selected room's shape, edited in 3D ----------
+  // Its handles: a dot on each corner (drag: move the corner; a rectangle's corner resizes it), and on a room drawn
+  // with corners, a square in the middle of each edge (drag across: bend the wall into a curve; tap: a new corner).
+  // Dragging the room's floor moves the whole room, with what is in it.
+  _handles(ri) {
+    const T = this.T, rc = (this.S.card._config?.house?.rooms || [])[ri]; this.handles = []; if (!rc) return;
+    const mat = (c) => new T.MeshBasicMaterial({ color: c, depthTest: false, transparent: true, opacity: 0.95 });
+    const dot = (x, z, h) => { const m = new T.Mesh(new T.SphereGeometry(0.16, 16, 12), this._hMat ||= mat(0xfbbf24)); const [wx, wz] = this.w(x, z); m.position.set(wx, 0.18, wz); m.renderOrder = 9; this.selG.add(m); this.handles.push({ ...h, m, x, z }); };
+    const sq = (x, z, h) => { const m = new T.Mesh(new T.BoxGeometry(0.22, 0.08, 0.22), this._hMat2 ||= mat(0x2dd4bf)); const [wx, wz] = this.w(x, z); m.position.set(wx, 0.18, wz); m.renderOrder = 9; this.selG.add(m); this.handles.push({ ...h, m, x, z }); };
+    if (Array.isArray(rc.points) && rc.points.length >= 2) {
+      const P = rc.points.map(q => q.map(Number));
+      P.forEach((q, i) => dot(q[0], q[1], { k: 'corner', i }));
+      if (P.length >= 3) P.forEach((q, i) => {
+        const n = P[(i + 1) % P.length], L = Math.hypot(n[0] - q[0], n[1] - q[1]); if (L < 0.4) return;
+        const o = this._outward(P, i), b = q[2] || 0; sq((q[0] + n[0]) / 2 + o[0] * b, (q[1] + n[1]) / 2 + o[1] * b, { k: 'mid', i, o });
+      });
+    } else (rc.rects || []).forEach((q, ri2) => { const [a, b, c, d] = q.map(Number); [[a, b], [c, b], [c, d], [a, d]].forEach(([x, z], c2) => dot(x, z, { k: 'rect', r: ri2, c: c2 })); });
+  }
+  // the unit vector out of the room, across its edge i (from corner i to the next)
+  _outward(P, i) {
+    const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, n = [-(b[1] - a[1]) / L, (b[0] - a[0]) / L];
+    const m = [(a[0] + b[0]) / 2 + n[0] * 0.05, (a[1] + b[1]) / 2 + n[1] * 0.05];
+    return inPoly(m[0], m[1], P) ? [-n[0], -n[1]] : n;
+  }
+  _handleAt(e) {
+    if (!this.handles?.length) return null;
+    this._plan(e); const hit = this.ray.intersectObjects(this.handles.map(h => h.m), false)[0];
+    return hit ? this.handles.find(h => h.m === hit.object) : null;
+  }
+  // the room's new corners while a handle (or the room) is dragged to p
+  _shapeDrag(op, p) {
+    const rc = (this.S.card._config?.house?.rooms || [])[this.sel?.i]; if (!rc) return null;
+    const sp = [this.snap(p[0]), this.snap(p[1])], H = op.h;
+    if (op.move) { const dx = this.snap(p[0] - op.p0[0]), dz = this.snap(p[1] - op.p0[1]); return { move: true, dx, dz }; }
+    if (H.k === 'corner') return { corner: H.i, to: sp };
+    if (H.k === 'rect') return { rect: H.r, c: H.c, to: sp };
+    if (H.k === 'mid') {
+      const P = rc.points.map(q => q.map(Number)), a = P[H.i], b = P[(H.i + 1) % P.length], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const bow = Math.round(((p[0] - m[0]) * H.o[0] + (p[1] - m[1]) * H.o[1]) / 0.1) * 0.1;
+      return { bend: H.i, bow: Math.abs(bow) < 0.1 ? 0 : Math.round(bow * 100) / 100 };
+    }
+    return null;
+  }
+  // a dragged shape, drawn as low walls along its new outline
+  _shapeGhost(rc, ch) {
+    const c = JSON.parse(JSON.stringify(rc)); applyShape(c, ch);
+    const poly = roomOutline(c) || null, M = this.selMat;
+    if (poly) poly.forEach(([x, z], i) => { const [x2, z2] = poly[(i + 1) % poly.length]; this._wall(x, z, x2, z2, 0.25, 0.1, M); });
+    else for (const [a, b, cc, d] of c.rects || []) { this._wall(a, b, cc, b, 0.25, 0.1, M); this._wall(cc, b, cc, d, 0.25, 0.1, M); this._wall(cc, d, a, d, 0.25, 0.1, M); this._wall(a, d, a, b, 0.25, 0.1, M); }
+  }
   setSel(sel) {
+    this.handles = [];
     for (const c of [...this.selG.children]) { this.selG.remove(c); c.geometry?.dispose(); }
     this.sel = sel || null; if (!sel) { this.S._dirty = true; return; }
     const H = this.S.card._config?.house || {}, M = this.selMat, add = (fn, ...a) => { const n = this.ghost.children.length; fn.call(this, ...a); for (const c of this.ghost.children.slice(n)) this.selG.add(c); };
-    if (sel.k === 'room') { const r = ROOMS.find(x => x.ci === sel.i) || ROOMS[sel.i]; if (r) add(() => { for (const [a, b, c, d] of r.rects) this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.035, M); }); }
+    if (sel.k === 'room') { const r = ROOMS.find(x => x.ci === sel.i) || ROOMS[sel.i]; if (r) add(() => { for (const [a, b, c, d] of r.rects) this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.035, M); }); this._handles(sel.i); }
     else if (sel.k === 'piece') {
       const P = FURN.find(f => f.src && (sel.room == null ? f.src.house === sel.i : f.src.room === sel.room && f.src.i === sel.i));
       if (P) { try { const [a, b, c, d] = fpBox(footprint(P)); add(() => this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.06, M)); } catch (e) { /* odd piece */ } }
@@ -205,19 +275,30 @@ export class Builder {
       if (this.multi) return; // still part of a two-finger gesture
       if (!e.isPrimary || e.button !== 0) { stop(); return; } // a second finger / the right button: the camera
       const p = this._plan(e); if (!p) return;
-      if ((this.tool === 'furniture' && !this.S.card._bPiece || this.tool === 'select') && this._hit(e).fi != null) return; // a piece: moved by the arrange drag (a tap picks it)
+      const hd = this.tool === 'select' && this._handleAt(e);
+      if (!hd && (this.tool === 'furniture' && !this.S.card._bPiece || this.tool === 'select') && this._hit(e).fi != null) return; // a piece: moved by the arrange drag (a tap picks it)
       // a finger also goes to the camera, so that if a second one comes, the two turn and zoom the view (moves and
       // the lift are kept from it while this finger draws); the mouse stays with the tool
       if (e.pointerType !== 'touch') e.stopImmediatePropagation();
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* gone */ }
       down = { x: e.clientX, y: e.clientY };
       if (this.tool === 'room' || this.tool === 'wall') this.op = { a: [this.snap(p[0]), this.snap(p[1])] };
+      if (this.tool === 'select') { // a handle of the selected room, or (once it moves) the selected room itself
+        const sr = this.sel?.k === 'room' && (ROOMS.find(x => x.ci === this.sel.i) || null), h0 = this._hit(e);
+        this.op = hd ? { h: hd, p0: p } : sr && h0.room === sr.id ? { maybeMove: true, p0: p } : null;
+      }
       this.S.lastInput = performance.now(); this._preview(p, e);
     };
     const pm = e => {
       if (!e.isPrimary) return;
       const p = this._plan(e); if (!p) return;
       if (down) e.stopImmediatePropagation();
+      if (down && this.op?.maybeMove && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) { this.op.move = true; this.op.maybeMove = false; }
+      if (down && (this.op?.h || this.op?.move)) { // dragging a handle or the room: its new outline
+        this._clear(); const ch = this._shapeDrag(this.op, p), rc = (card._config?.house?.rooms || [])[this.sel?.i];
+        if (ch && rc) { this.op.ch = ch; this._shapeGhost(rc, ch); if (ch.move) card._bInfo(`${ch.dx >= 0 ? '+' : ''}${ch.dx} m, ${ch.dz >= 0 ? '+' : ''}${ch.dz} m`); else if (ch.bend != null) card._bInfo(`${ch.bow} m`); }
+        this.S._dirty = true; return;
+      }
       if (down || e.pointerType === 'mouse') this._preview(p, e);
     };
     const pu = e => {
@@ -240,7 +321,13 @@ export class Builder {
         if (card._bPiece) card._bOp('piece', { type: card._bPiece, x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), room: this.roomAt(p[0], p[1])?.id || null, level: lv });
         else card._bSelect(null);
       } else if (this.tool === 'delete') { const what = this._target(p, h); if (what) card._bOp('delete', what); }
-      else if (this.tool === 'select') card._bPick(this._target(p, h, true));
+      else if (this.tool === 'select') {
+        if (op?.h || op?.move) {
+          const ch = op.ch;
+          if (op.h?.k === 'mid' && (!ch || Math.hypot(p[0] - op.p0[0], p[1] - op.p0[1]) < 0.15)) card._bOp('shape', { room: this.sel.i, ch: { addCorner: op.h.i } }); // a tap on an edge: a new corner there
+          else if (ch && !(ch.move && !ch.dx && !ch.dz)) card._bOp('shape', { room: this.sel.i, ch });
+        } else card._bPick(this._target(p, h, true));
+      }
       // a step that changes the house: its ghost stays (in the picture kept while the house is built again) until then
       if ((card._bUndo?.length || 0) > n0 && ['room', 'wall', 'door', 'window'].includes(this.tool)) { this.hold = true; setTimeout(() => { this.hold = false; this._clear(); this.S._dirty = true; }, 1500); }
       else this._clear();

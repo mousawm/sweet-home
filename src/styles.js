@@ -517,6 +517,7 @@ main{scroll-margin-top:84px}
 .bins-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--divider-color,rgba(127,127,127,.25))}
 .bins-h b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bins-h .bb{background:transparent;color:inherit}
 .bins-b{overflow:auto;padding:12px 14px;flex:1 1 auto;min-height:0;font-size:13px}
+.binsp.mini{min-height:0}.binsp.mini .bins-b{display:none}.binsp.mini [data-insmin]{transform:rotate(180deg)}
 .buildbar .bact{flex:none}
 .bturn{display:contents}
 .buildbar.open{display:flex}

@@ -1244,10 +1244,10 @@ try {
     out.del = !H().rooms.at(-1).furniture.length;
     R.querySelector('[data-b=undo]').click(); await ready();
     out.undo = JSON.stringify(H()) === before;
-    // keys: Ctrl+Z undoes, 2 picks the Wall tool
+    // keys: Ctrl+Z undoes, 3 picks the Wall tool (1 Select, 2 Room)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })); await ready();
     out.keyUndo = H().rooms.at(-1).furniture[0]?.entities == null && H().rooms.at(-1).furniture.length === 1;
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' })); await wait(50);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' })); await wait(50);
     out.keyTool = card._bTool === 'wall' && card._three.builder.tool === 'wall';
     R.querySelector('[data-b=grid]').click(); await wait(50);
     out.grid = card._bGrid === 0.25 && card._three.builder.grid.geometry.attributes.position.count > 400; // a line every 25 cm
