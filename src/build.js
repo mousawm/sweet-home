@@ -22,7 +22,11 @@ export class Builder {
     this.cur = new T.Mesh(new T.RingGeometry(0.09, 0.14, 24), this.lineMat); this.cur.rotation.x = -Math.PI / 2; this.cur.position.y = 0.03; this.cur.visible = false; this.g.add(this.cur);
     this.ghost = new T.Group(); this.g.add(this.ghost);
     this.tool = S.card._bTool || 'room';
+    // what the Select tool picked: outlined in amber while its settings are open
+    this.selMat = new T.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.45, depthWrite: false });
+    this.selG = new T.Group(); this.g.add(this.selG);
     this._listen();
+    this.setSel(S.card._bInsSel);
   }
   // the build grid: a line every grid step (50 cm, 25 cm or 1 m), around the house with room to grow
   setGrid() {
@@ -32,6 +36,24 @@ export class Builder {
     grid.material.transparent = true; grid.material.opacity = st < 0.5 ? 0.18 : 0.28; grid.material.depthWrite = false;
     const [gx, gz] = this.w(Math.round((PLAN_W / 2 + this.ox) / st) * st, Math.round((PLAN_D / 2 + this.oz) / st) * st);
     grid.position.set(gx, 0.012, gz); this.g.add(grid); this.S._dirty = true;
+  }
+  setSel(sel) {
+    for (const c of [...this.selG.children]) { this.selG.remove(c); c.geometry?.dispose(); }
+    this.sel = sel || null; if (!sel) { this.S._dirty = true; return; }
+    const H = this.S.card._config?.house || {}, M = this.selMat, add = (fn, ...a) => { const n = this.ghost.children.length; fn.call(this, ...a); for (const c of this.ghost.children.slice(n)) this.selG.add(c); };
+    if (sel.k === 'room') { const r = ROOMS.find(x => x.ci === sel.i) || ROOMS[sel.i]; if (r) add(() => { for (const [a, b, c, d] of r.rects) this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.035, M); }); }
+    else if (sel.k === 'piece') {
+      const P = FURN.find(f => f.src && (sel.room == null ? f.src.house === sel.i : f.src.room === sel.room && f.src.i === sel.i));
+      if (P) { try { const [a, b, c, d] = fpBox(footprint(P)); add(() => this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.06, M)); } catch (e) { /* odd piece */ } }
+    } else {
+      let seg = null;
+      if (sel.k === 'door') { const d = DOORS.find(x => x.ci === sel.i); if (d?.seg) seg = [...this.C(d.seg[0], d.seg[1]), ...this.C(d.seg[2], d.seg[3])]; }
+      else if (sel.k === 'window' || sel.k === 'opening') { const w = (H[sel.k === 'window' ? 'windows' : 'openings'] || [])[sel.i]; if (Array.isArray(w)) seg = w.slice(0, 4).map(Number); }
+      else if (sel.k === 'badge') { const b = (H.lock_badges || [])[sel.i]; if (b) seg = [Number(b.x) - 0.15, Number(b.z), Number(b.x) + 0.15, Number(b.z)]; }
+      else if (sel.k === 'wall') { const w = (H.extra_walls || [])[sel.i]; const s0 = w && extraWalls([w]); if (s0?.length) for (const q of s0) add(() => this._wall(q[0], q[1], q[2], q[3], WALL_H + 0.06, 0.22, M)); }
+      if (seg) add(() => this._wall(seg[0], seg[1], seg[2], seg[3], WALL_H + 0.06, 0.22, M));
+    }
+    this.S._dirty = true;
   }
   dispose() { this.off?.(); this.S.scene.remove(this.g); this.S._dirty = true; }
   setTool(t) { this.tool = t; this.op = null; this._clear(); this.S._dirty = true; }
@@ -128,12 +150,12 @@ export class Builder {
       const f = { type: this.S.card._bPiece, x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), ...NEW_PIECE[this.S.card._bPiece] };
       if (f._span) { f.from = [f.x - f._span[0], f.z - f._span[1]]; f.to = [f.x + f._span[0], f.z + f._span[1]]; }
       const [a, b, c, d] = fpBox(footprint(f)); this._slab(a, b, c, d, 0.05);
-    } else if (tool === 'paint' || tool === 'delete') {
+    } else if (tool === 'paint' || tool === 'delete' || tool === 'select') {
       const h = this._hit(e), r = h.room && ROOMS.find(x => x.id === h.room);
-      if (tool === 'delete') {
-        const what = this._target(p, h);
-        this._paint(true);
-        if (what?.k === 'wall' || what?.k === 'door') { const [x1, z1, x2, z2] = what.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.05, 0.2); }
+      if (tool === 'delete' || tool === 'select') {
+        const what = this._target(p, h, tool === 'select');
+        this._paint(tool === 'delete');
+        if (['wall', 'door', 'window', 'opening', 'badge'].includes(what?.k)) { const [x1, z1, x2, z2] = what.seg; this._wall(x1, z1, x2, z2, WALL_H + 0.05, 0.2); }
         else if (what?.k === 'piece') { const P = FURN[what.fi]; if (P) { try { const [a, b, c, d] = fpBox(footprint(P)); this._slab(a + this.ox, b + this.oz, c + this.ox, d + this.oz, 0.06); } catch (err) { /* odd piece */ } } }
         else if (what?.k === 'room' && r) this._roomSlab(r);
       } else if (r) this._roomSlab(r);
@@ -141,13 +163,22 @@ export class Builder {
     this.S._dirty = true;
   }
   // what a tap with the hammer would knock down: a piece, a door, a separate wall, or the room
-  _target(p0, h) {
-    if (h.fi != null && FURN[h.fi]?.src) return { k: 'piece', fi: h.fi };
-    const p = this.P(p0);
+  // what the pointer points at, for Select and Knock down: a piece, a lock badge, a door, a window, an open passage,
+  // a separate wall, or the room. (Knock down skips pieces of a room's automatic set and the stairs.)
+  _target(p0, h, any = false) {
+    const card = this.S.card;
+    if (h.fi != null && (FURN[h.fi]?.src || (any && card._bCanEdit?.(h.fi)))) return { k: 'piece', fi: h.fi };
+    const p = this.P(p0), H = card._config?.house || {}, lv = this.S.level, lvOf = o => Number(Array.isArray(o) ? o[4] : o?.level) || 0;
+    const near = (s, d) => { const vx = s[2] - s[0], vz = s[3] - s[1], L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((p0[0] - s[0]) * vx + (p0[1] - s[1]) * vz) / L2)); return Math.hypot(s[0] + vx * t - p0[0], s[1] + vz * t - p0[1]) < d; };
+    for (const [i, b] of (Array.isArray(H.lock_badges) ? H.lock_badges : []).entries()) if (lvOf(b) === lv && Math.hypot(Number(b.x) - p0[0], Number(b.z) - p0[1]) < 0.4) return { k: 'badge', i, seg: [Number(b.x) - 0.1, Number(b.z), Number(b.x) + 0.1, Number(b.z)] };
     for (const [i, d] of DOORS.entries()) {
       if ((d.level ?? 0) !== this.S.level || !d.seg) continue;
       const s = d.seg, vx = s[2] - s[0], vz = s[3] - s[1], L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((p[0] - s[0]) * vx + (p[1] - s[1]) * vz) / L2));
       if (Math.hypot(s[0] + vx * t - p[0], s[1] + vz * t - p[1]) < 0.35) return { k: 'door', i: d.ci ?? i, seg: [...this.C(s[0], s[1]), ...this.C(s[2], s[3])] };
+    }
+    for (const k of ['windows', 'openings']) for (const [i, w] of (Array.isArray(H[k]) ? H[k] : []).entries()) {
+      if (!Array.isArray(w) || lvOf(w) !== lv) continue;
+      const s = w.slice(0, 4).map(Number); if (near(s, 0.35)) return { k: k === 'windows' ? 'window' : 'opening', i, seg: s };
     }
     const ex = this.S.card._config?.house?.extra_walls || [], ox = this.ox, oz = this.oz;
     for (let i = 0; i < ex.length; i++) for (const s0 of extraWalls([ex[i]])) {
@@ -174,7 +205,7 @@ export class Builder {
       if (this.multi) return; // still part of a two-finger gesture
       if (!e.isPrimary || e.button !== 0) { stop(); return; } // a second finger / the right button: the camera
       const p = this._plan(e); if (!p) return;
-      if (this.tool === 'furniture' && !this.S.card._bPiece && this._hit(e).fi != null) return; // a piece: moved by the arrange drag
+      if ((this.tool === 'furniture' && !this.S.card._bPiece || this.tool === 'select') && this._hit(e).fi != null) return; // a piece: moved by the arrange drag (a tap picks it)
       // a finger also goes to the camera, so that if a second one comes, the two turn and zoom the view (moves and
       // the lift are kept from it while this finger draws); the mouse stays with the tool
       if (e.pointerType !== 'touch') e.stopImmediatePropagation();
@@ -209,6 +240,7 @@ export class Builder {
         if (card._bPiece) card._bOp('piece', { type: card._bPiece, x: this.snap(p[0], 0.1), z: this.snap(p[1], 0.1), room: this.roomAt(p[0], p[1])?.id || null, level: lv });
         else card._bSelect(null);
       } else if (this.tool === 'delete') { const what = this._target(p, h); if (what) card._bOp('delete', what); }
+      else if (this.tool === 'select') card._bPick(this._target(p, h, true));
       // a step that changes the house: its ghost stays (in the picture kept while the house is built again) until then
       if ((card._bUndo?.length || 0) > n0 && ['room', 'wall', 'door', 'window'].includes(this.tool)) { this.hold = true; setTimeout(() => { this.hold = false; this._clear(); this.S._dirty = true; }, 1500); }
       else this._clear();

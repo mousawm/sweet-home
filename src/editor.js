@@ -113,6 +113,69 @@ const segDist = ([px, pz], [x1, z1, x2, z2]) => {
   return Math.hypot(px - (x1 + t * dx), pz - (z1 + t * dz));
 };
 
+// the editor's stylesheet (also the inspector's, in Build mode)
+const EDITOR_CSS = `
+      .sh-ed{display:flex;flex-direction:column;gap:14px}
+      .sh-steps,.sh-modes{display:flex;gap:6px;flex-wrap:wrap}
+      .sh-steps button,.sh-modes button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;cursor:pointer;min-height:40px}
+      .sh-modes button{font-size:13px;padding:7px 8px;white-space:nowrap}
+      .sh-shapes{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+      .sh-shapes button{width:44px;height:40px;padding:4px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-color);cursor:pointer}
+      .sh-shapes button:hover{background:rgba(127,127,127,.12)}
+      .sh-shapes svg{width:100%;height:100%;display:block}
+      .sh-ent input[type=number]{width:90px;padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
+      .sh-steps button.on,.sh-modes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
+      .sh-steps ha-icon,.sh-modes ha-icon{--mdc-icon-size:18px}
+      .sh-hint{font-size:13px;color:var(--secondary-text-color);line-height:1.45}
+      .sh-int{display:flex;flex-direction:column;gap:2px;margin:0 0 10px;padding:6px 10px;border-radius:10px;background:rgba(127,127,127,.08)}
+      .sh-int>small{font-size:12px;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.04em;padding:4px 0}
+      .sh-intr{display:flex;align-items:center;gap:10px;min-height:40px}.sh-intr ha-icon{--mdc-icon-size:20px;color:#22c55e}.sh-intr.no ha-icon{color:var(--disabled-text-color,#9ca3af)}
+      .sh-intr>span{flex:1;display:flex;flex-direction:column;font-size:14px}.sh-intr>span small{font-size:12px;color:var(--secondary-text-color)}.sh-intr.no>span b{color:var(--secondary-text-color);font-weight:500}
+      .sh-rooms{display:flex;flex-wrap:wrap;gap:6px}
+      .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
+      .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
+      .sh-rooms i{width:10px;height:10px;border-radius:3px;display:inline-block}
+      .sh-plan{direction:ltr}.sh-plan:focus{outline:none}.sh-plan:focus-visible{outline:2px solid var(--primary-color)}
+      .sh-plan{width:100%;touch-action:none;background:var(--secondary-background-color);border-radius:12px;cursor:crosshair;user-select:none;-webkit-user-select:none;display:block}
+      .sh-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .sh-row button,.sh-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+      .sh-row button:disabled,.sh-btn:disabled{opacity:.4;cursor:default}
+      .sh-btn ha-icon,.sh-row button ha-icon{--mdc-icon-size:18px}
+      .sh-btn.del{color:var(--error-color)}.sh-btn.pri{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
+      .sh-panel,.sh-box{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px}
+      .sh-panel summary,.sh-box summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;list-style:none}
+      .sh-panel summary small{color:var(--secondary-text-color)}
+      .sh-panel[open] summary,.sh-box[open] summary{margin-bottom:8px}
+      .sh-warn{border-color:var(--warning-color,#ffa600);background:color-mix(in srgb,var(--warning-color,#ffa600) 8%,transparent)}
+      .sh-warn li{margin:4px 0;cursor:pointer}.sh-warn ul{margin:0;padding-left:18px;font-size:13px}
+      .sh-guide ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+      .sh-wiz{border-color:var(--primary-color)}.sh-wiz-name{font-size:18px;font-weight:600;margin:8px 0 4px}.sh-wiz-name small{display:block;font-size:12px;font-weight:400;color:var(--secondary-text-color)}
+      .sh-wiz-name input{font:inherit;font-size:16px;width:100%;padding:6px 8px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
+      .sh-wiz input[type=number]{width:70px;padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
+      .sh-wiz select{padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
+      .sh-shapes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
+      .sh-guide li{display:flex;gap:10px;align-items:flex-start;font-size:13px}.sh-guide li>ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color);flex:none}
+      .sh-guide li.done>ha-icon{color:var(--success-color,#43a047)}.sh-guide li b{display:block}.sh-guide li .sh-row{margin-top:6px}
+      .sh-role{border-top:1px solid var(--divider-color);padding-top:10px}
+      .sh-role h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}.sh-role h4 ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color)}
+      .sh-role h4 small{font-weight:400;color:var(--secondary-text-color)}.sh-role h4 a{font-weight:400;font-size:12px;color:var(--primary-color);cursor:pointer;margin-left:auto}
+      .sh-ent{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--secondary-background-color);margin-bottom:6px;flex-wrap:wrap;font-size:13px}
+      .sh-namebox{display:flex;align-items:center;gap:6px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);padding:0 8px;margin-bottom:3px;cursor:text}
+      .sh-namebox:focus-within{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}.sh-namebox ha-icon{--mdc-icon-size:16px;color:var(--secondary-text-color);flex:none}
+      .sh-rename{font:inherit;font-size:13px;color:var(--primary-text-color);background:transparent;border:0;padding:7px 0;width:100%;min-width:0;outline:none}
+      .sh-ent .nm{flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis}.sh-ent .nm small{display:block;color:var(--secondary-text-color);font-size:11px}
+      .sh-ent.bad .nm small{color:var(--error-color)}
+      .sh-ent select{font:inherit;font-size:12px;padding:4px;border-radius:6px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
+      .sh-ent label{font-size:12px;display:flex;align-items:center;gap:3px;color:var(--secondary-text-color)}
+      .sh-x{border:0;background:none;color:var(--secondary-text-color);cursor:pointer;padding:6px;border-radius:50%;display:inline-flex}.sh-x ha-icon{--mdc-icon-size:18px}
+      .sh-sugg{display:flex;flex-wrap:wrap;gap:6px}.sh-sugg .sh-chip ha-icon{--mdc-icon-size:16px}
+      .sh-pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+      .sh-pal button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:12px;cursor:pointer}
+      .sh-pal button.on{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 14%,transparent)}
+      .sh-search{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
+      .sh-tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--divider-color);color:var(--secondary-text-color)}
+`;
+
 class SweetHomeCardEditor extends HTMLElement {
   constructor() {
     super();
@@ -230,67 +293,7 @@ class SweetHomeCardEditor extends HTMLElement {
   _render() {
     if (!this._config || !this._hass) return;
     this._R = null;
-    this.innerHTML = `<style>
-      .sh-ed{display:flex;flex-direction:column;gap:14px}
-      .sh-steps,.sh-modes{display:flex;gap:6px;flex-wrap:wrap}
-      .sh-steps button,.sh-modes button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;cursor:pointer;min-height:40px}
-      .sh-modes button{font-size:13px;padding:7px 8px;white-space:nowrap}
-      .sh-shapes{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
-      .sh-shapes button{width:44px;height:40px;padding:4px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-color);cursor:pointer}
-      .sh-shapes button:hover{background:rgba(127,127,127,.12)}
-      .sh-shapes svg{width:100%;height:100%;display:block}
-      .sh-ent input[type=number]{width:90px;padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
-      .sh-steps button.on,.sh-modes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
-      .sh-steps ha-icon,.sh-modes ha-icon{--mdc-icon-size:18px}
-      .sh-hint{font-size:13px;color:var(--secondary-text-color);line-height:1.45}
-      .sh-int{display:flex;flex-direction:column;gap:2px;margin:0 0 10px;padding:6px 10px;border-radius:10px;background:rgba(127,127,127,.08)}
-      .sh-int>small{font-size:12px;color:var(--secondary-text-color);text-transform:uppercase;letter-spacing:.04em;padding:4px 0}
-      .sh-intr{display:flex;align-items:center;gap:10px;min-height:40px}.sh-intr ha-icon{--mdc-icon-size:20px;color:#22c55e}.sh-intr.no ha-icon{color:var(--disabled-text-color,#9ca3af)}
-      .sh-intr>span{flex:1;display:flex;flex-direction:column;font-size:14px}.sh-intr>span small{font-size:12px;color:var(--secondary-text-color)}.sh-intr.no>span b{color:var(--secondary-text-color);font-weight:500}
-      .sh-rooms{display:flex;flex-wrap:wrap;gap:6px}
-      .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
-      .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
-      .sh-rooms i{width:10px;height:10px;border-radius:3px;display:inline-block}
-      .sh-plan{direction:ltr}.sh-plan:focus{outline:none}.sh-plan:focus-visible{outline:2px solid var(--primary-color)}
-      .sh-plan{width:100%;touch-action:none;background:var(--secondary-background-color);border-radius:12px;cursor:crosshair;user-select:none;-webkit-user-select:none;display:block}
-      .sh-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-      .sh-row button,.sh-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
-      .sh-row button:disabled,.sh-btn:disabled{opacity:.4;cursor:default}
-      .sh-btn ha-icon,.sh-row button ha-icon{--mdc-icon-size:18px}
-      .sh-btn.del{color:var(--error-color)}.sh-btn.pri{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
-      .sh-panel,.sh-box{border:1px solid var(--divider-color);border-radius:12px;padding:10px 12px}
-      .sh-panel summary,.sh-box summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;list-style:none}
-      .sh-panel summary small{color:var(--secondary-text-color)}
-      .sh-panel[open] summary,.sh-box[open] summary{margin-bottom:8px}
-      .sh-warn{border-color:var(--warning-color,#ffa600);background:color-mix(in srgb,var(--warning-color,#ffa600) 8%,transparent)}
-      .sh-warn li{margin:4px 0;cursor:pointer}.sh-warn ul{margin:0;padding-left:18px;font-size:13px}
-      .sh-guide ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
-      .sh-wiz{border-color:var(--primary-color)}.sh-wiz-name{font-size:18px;font-weight:600;margin:8px 0 4px}.sh-wiz-name small{display:block;font-size:12px;font-weight:400;color:var(--secondary-text-color)}
-      .sh-wiz-name input{font:inherit;font-size:16px;width:100%;padding:6px 8px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
-      .sh-wiz input[type=number]{width:70px;padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
-      .sh-wiz select{padding:6px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);font:inherit}
-      .sh-shapes button.on{background:var(--primary-color);color:var(--text-primary-color,#fff);border-color:var(--primary-color)}
-      .sh-guide li{display:flex;gap:10px;align-items:flex-start;font-size:13px}.sh-guide li>ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color);flex:none}
-      .sh-guide li.done>ha-icon{color:var(--success-color,#43a047)}.sh-guide li b{display:block}.sh-guide li .sh-row{margin-top:6px}
-      .sh-role{border-top:1px solid var(--divider-color);padding-top:10px}
-      .sh-role h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600}.sh-role h4 ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color)}
-      .sh-role h4 small{font-weight:400;color:var(--secondary-text-color)}.sh-role h4 a{font-weight:400;font-size:12px;color:var(--primary-color);cursor:pointer;margin-left:auto}
-      .sh-ent{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--secondary-background-color);margin-bottom:6px;flex-wrap:wrap;font-size:13px}
-      .sh-namebox{display:flex;align-items:center;gap:6px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);padding:0 8px;margin-bottom:3px;cursor:text}
-      .sh-namebox:focus-within{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}.sh-namebox ha-icon{--mdc-icon-size:16px;color:var(--secondary-text-color);flex:none}
-      .sh-rename{font:inherit;font-size:13px;color:var(--primary-text-color);background:transparent;border:0;padding:7px 0;width:100%;min-width:0;outline:none}
-      .sh-ent .nm{flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis}.sh-ent .nm small{display:block;color:var(--secondary-text-color);font-size:11px}
-      .sh-ent.bad .nm small{color:var(--error-color)}
-      .sh-ent select{font:inherit;font-size:12px;padding:4px;border-radius:6px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
-      .sh-ent label{font-size:12px;display:flex;align-items:center;gap:3px;color:var(--secondary-text-color)}
-      .sh-x{border:0;background:none;color:var(--secondary-text-color);cursor:pointer;padding:6px;border-radius:50%;display:inline-flex}.sh-x ha-icon{--mdc-icon-size:18px}
-      .sh-sugg{display:flex;flex-wrap:wrap;gap:6px}.sh-sugg .sh-chip ha-icon{--mdc-icon-size:16px}
-      .sh-pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
-      .sh-pal button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:10px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:12px;cursor:pointer}
-      .sh-pal button.on{border-color:var(--primary-color);background:color-mix(in srgb,var(--primary-color) 14%,transparent)}
-      .sh-search{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color)}
-      .sh-tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--divider-color);color:var(--secondary-text-color)}
-    </style>
+    this.innerHTML = `<style>${EDITOR_CSS}    </style>
     <div class="sh-ed" dir="${isRTL() ? 'rtl' : 'ltr'}">
       <div class="sh-steps">${STEPS.filter(([k]) => !(this.solo && k === 'panels')).map(([k, n, i]) => `<button data-step="${k}" class="${this._step === k ? 'on' : ''}"><ha-icon icon="${i}"></ha-icon>${t(n)}</button>`).join('')}</div>
       <div class="sh-body"></div>
@@ -952,6 +955,11 @@ class SweetHomeCardEditor extends HTMLElement {
     box.appendChild(tb);
     if (this._stool === 'wall') return this._mWalls(box);
     if (this._stool === 'draw') return this._mDraw(box, r);
+    this._shapeTools(box, r);
+    const formEl = this._roomForm(r); formEl.style.marginTop = '12px'; box.appendChild(formEl); // the room's settings under its shape tools
+  }
+  // a room's settings: area, name, icon, floor covering, outdoor, stairs, which floor it is on
+  _roomForm(r) {
     const L = this._levels();
     const stairsNow = r.stairs === true || (r.stairs && typeof r.stairs === 'object') ? 'auto' : r.stairs === false ? 'none' : ['both', 'up', 'down'].includes(r.stairs) ? r.stairs : '';
     const data = { name: r.name || '', area: r.area || '', icon: r.icon || '', floor: r.floor || '', outdoor: !!r.outdoor, stairs: stairsNow, level: String(this._lvOf(r)) };
@@ -977,6 +985,10 @@ class SweetHomeCardEditor extends HTMLElement {
       if (areaChanged) this._render();
       if (v.stairs !== data.stairs) { data.stairs = v.stairs; this._emit(); return this._render(); }
     }, { floor: 'Floor covering', area: 'Home Assistant area (its devices are found on their own)', outdoor: 'Outdoor (balcony, garden: no ceiling light, glass railing)', stairs: 'Stairs going', level: 'Floor' }, true));
+    return formEl;
+  }
+  // a room's shape tools: ready-made shapes, its rectangles or corners, turn / rotate / mirror, duplicate, delete
+  _shapeTools(box, r) {
     // ready-made shapes, drawn small: tap one to give the room that shape in the space it takes now
     const sh = document.createElement('div'); sh.className = 'sh-shapes';
     const prev = k => { if (k === 'rect') return 'M 0 0 L 1.4 0 L 1.4 1 L 0 1 Z'; const o = roomOutline({ points: shapePoints(k, 0, 0, 1.4, 1) }); return 'M ' + o.map(([x, z]) => `${r2(x)} ${r2(z)}`).join(' L ') + ' Z'; };
@@ -1014,7 +1026,6 @@ class SweetHomeCardEditor extends HTMLElement {
     if (this._toast) { const n = document.createElement('div'); n.className = 'sh-hint'; n.style.color = 'var(--warning-color, #f59e0b)'; n.textContent = this._toast; box.appendChild(n); this._toast = null; }
     row.querySelector('[data-dup]').addEventListener('click', () => this._dupRoom());
     row.querySelector('[data-del]').addEventListener('click', () => { this._rooms.splice(this._sel, 1); this._sel = Math.max(0, this._sel - 1); this._rsel = null; this._emit(); this._render(); });
-    formEl.style.marginTop = '12px'; box.appendChild(formEl); // the room's settings under its shape tools
   }
   // a room gets a ready-made shape, in the box it takes now (the box is kept while you try shapes on the same room)
   _applyShape(r, kind) {
@@ -1089,12 +1100,19 @@ class SweetHomeCardEditor extends HTMLElement {
     d.innerHTML = `<div class="sh-hint">${t('Drag on the plan to draw a wall that stands on its own: a partition, a kitchen half wall, a glass screen, a curved garden wall. Tap a wall to change it, drag it or its ends to move it. Doors and openings cut it too.')}</div>
       <div class="sh-hint">${t('For a garden fence, pick Fence under Kind; add its gate in the Doors & windows step (Gate).')}</div>
       <div class="sh-hint">${t('{0} separate wall(s) on this floor', n)}</div>
-      ${o ? `<div class="sh-ent"><span class="nm">${t('Kind')}</span><select data-wt>${WALL_TYPES.map(([v, l]) => `<option value="${v}" ${(o.type || 'wall') === v ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></div>
+      ${o ? this._wallHtml(o) : ''}`;
+    box.appendChild(d);
+    if (o) this._wallWire(d, o);
+  }
+  // a separate wall's settings: kind, height, bend, length, delete
+  _wallHtml(o) {
+    return `<div class="sh-ent"><span class="nm">${t('Kind')}</span><select data-wt>${WALL_TYPES.map(([v, l]) => `<option value="${v}" ${(o.type || 'wall') === v ? 'selected' : ''}>${t(l)}</option>`).join('')}</select></div>
       <div class="sh-ent"><span class="nm">${t('Height (m, empty: automatic)')}</span><input data-wh type="number" min="0.2" max="3" step="0.05" value="${o.height ?? ''}"></div>
       <div class="sh-ent"><span class="nm">${t('Bend (m, + one side, − the other)')}</span><input data-wb type="number" min="-5" max="5" step="0.1" value="${o.bow ?? ''}"></div>
-      <div class="sh-row"><span class="sh-hint">${t('Length')}: ${r2(Math.hypot(o.to[0] - o.from[0], o.to[1] - o.from[1]))} m</span><span style="flex:1"></span><button data-wdel class="del"><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete wall')}</button></div>` : ''}`;
-    box.appendChild(d);
-    if (!o) return;
+      <div class="sh-row"><span class="sh-hint">${t('Length')}: ${r2(Math.hypot(o.to[0] - o.from[0], o.to[1] - o.from[1]))} m</span><span style="flex:1"></span><button data-wdel class="del"><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete wall')}</button></div>`;
+  }
+  _wallWire(d, o) {
+    const H = this._H;
     const set = (k, v) => { if (v === '' || v == null || (k === 'type' && v === 'wall')) delete o[k]; else o[k] = k === 'type' ? v : Number(v); this._emit(); this._render(); };
     d.querySelector('[data-wt]').addEventListener('change', e => set('type', e.target.value));
     d.querySelector('[data-wh]').addEventListener('change', e => set('height', e.target.value));
@@ -1493,7 +1511,11 @@ class SweetHomeCardEditor extends HTMLElement {
       <div class="sh-ditem"></div></div>`;
     box.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => { this._dtool = b.dataset.tool; this._dsel = null; this._render(); }));
     box.querySelector('[data-autowin]')?.addEventListener('click', () => { delete H.windows; this._dsel = null; this._emit(); this._render(); });
-    const it = this._dsel, slot = box.querySelector('.sh-ditem'); if (!it) return;
+    this._doorItem(box.querySelector('.sh-ditem'));
+  }
+  // the selected door, gate, window, open passage or lock badge (`_dsel`): its settings
+  _doorItem(slot) {
+    const H = this._H, it = this._dsel; if (!it) return;
     const head = document.createElement('div'); head.className = 'sh-row';
     head.innerHTML = `<b style="flex:1">${t(it.k === 'door' && H.doors[it.i]?.gate ? 'Gate' : { door: 'Door', window: 'Window', opening: 'Open passage', badge: 'Lock badge' }[it.k])}</b><button class="del" data-deld><ha-icon icon="mdi:delete-outline"></ha-icon>${t('Delete')}</button>`;
     slot.appendChild(head);
@@ -1805,4 +1827,60 @@ class SweetHomeCardEditor extends HTMLElement {
   }
 }
 if (!customElements.get('sweet-home-card-editor')) customElements.define('sweet-home-card-editor', SweetHomeCardEditor);
+
+/* ================================================================ */
+/* Inspector (Build mode)                                            */
+/* ================================================================ */
+// The settings of one thing picked in the 3D view with Build mode's Select tool: a room (its settings, shape,
+// devices, furniture), a furniture piece, a door / gate, window, open passage, lock badge or separate wall. It is the
+// card editor's own forms, for that one thing. `sel`: {k: 'room', i} · {k: 'piece', room (index or null: the house's
+// own pieces), i} · {k: 'door' | 'window' | 'opening' | 'badge' | 'wall', i}. Each change is sent as a
+// `sh-inspect-change` event ({config, typing}); `sh-inspect-close` when the thing is gone (deleted).
+class SweetHomeInspector extends SweetHomeCardEditor {
+  connectedCallback() { /* not the card editor: Build mode sends its changes itself */ }
+  disconnectedCallback() {}
+  _keys() { /* the card handles the keys while building */ }
+  set sel(v) { this._isel = v; this._fsel = null; this._render(); }
+  get sel() { return this._isel; }
+  _emit(typing) {
+    const H = this._config.house;
+    if (H && Array.isArray(H.rooms) && !H.rooms.length) delete H.rooms;
+    if (H && !Object.keys(H).length) delete this._config.house;
+    const j = JSON.stringify(this._config); if (j === this._last) return; this._last = j;
+    this.dispatchEvent(new CustomEvent('sh-inspect-change', { detail: { config: clone(this._config), typing: !!typing } }));
+  }
+  _syncUndo() {}
+  _render() {
+    const S = this._isel; if (!this._config || !this._hass || !S) { this.innerHTML = ''; return; }
+    this._R = null;
+    const H = this._H, rooms = arr(H.rooms), gone = () => { this.innerHTML = ''; this.dispatchEvent(new CustomEvent('sh-inspect-close')); };
+    // a piece picked in a room's furniture list
+    if (S.k === 'room' && this._fsel != null) { this._isel = { k: 'piece', room: S.i, i: this._fsel }; this._fsel = null; return this._render(); }
+    this.innerHTML = `<style>${EDITOR_CSS}.sh-insp .sh-pal{display:none}.sh-insp details>summary{font-weight:600}</style><div class="sh-ed sh-insp" dir="${isRTL() ? 'rtl' : 'ltr'}"></div>`;
+    const box = this.querySelector('.sh-insp');
+    if (S.k === 'room') {
+      const r = rooms[S.i]; if (!r) return gone();
+      this._sel = S.i; this._lvl = this._lvOf(r); this._mode = 'shape'; this._stool = 'rect';
+      box.appendChild(this._roomForm(r));
+      const shape = document.createElement('div'); this._shapeTools(shape, r); box.appendChild(shape);
+      const sec = (title, open, fill) => { const d = document.createElement('details'); d.className = 'sh-box'; d.open = !!(this._open ||= {})[title] || open; d.innerHTML = `<summary>${t(title)}</summary>`; d.addEventListener('toggle', () => { this._open[title] = d.open; }); const b = document.createElement('div'); d.appendChild(b); box.appendChild(d); fill(b); };
+      sec('Devices', false, b => this._mEntities(b, r));
+      sec('Furniture', false, b => this._mFurniture(b, r));
+    } else if (S.k === 'piece') {
+      const r = S.room == null ? { furniture: (H.furniture ||= []) } : rooms[S.room], f = arr(r?.furniture)[S.i]; if (!f) return gone();
+      this._sel = S.room ?? 0; this._fsel = S.i;
+      this._pieceForm(box, r, f);
+      this._fsel = null;
+    } else if (['door', 'window', 'opening', 'badge'].includes(S.k)) {
+      const key = { door: 'doors', window: 'windows', opening: 'openings', badge: 'lock_badges' }[S.k]; if (!arr(H[key])[S.i]) return gone();
+      this._dsel = { k: S.k, i: S.i }; this._doorItem(box);
+    } else if (S.k === 'wall') {
+      const o = arr(H.extra_walls)[S.i]; if (!o) return gone();
+      this._wsel = S.i;
+      if (Array.isArray(o)) { box.innerHTML = `<div class="sh-hint">${t('This wall is written as a list in YAML: change it there.')}</div>`; return; }
+      box.innerHTML = this._wallHtml(o); this._wallWire(box, o);
+    }
+  }
+}
+if (!customElements.get('sweet-home-inspector')) customElements.define('sweet-home-inspector', SweetHomeInspector);
 export { footprint, sizePiece, turnPiece, movePiece };

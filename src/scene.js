@@ -1288,7 +1288,7 @@ export class HouseScene {
     }, true);
     const mvEnd = e => {
       if (!mv) return; e.stopImmediatePropagation(); const m = mv; mv = null; el.style.cursor = '';
-      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) { if (this.builder) this.card._bSelect(m.fi); return; } // Build mode: a tap picks the piece
+      if (Math.abs(m.dx) < 0.05 && Math.abs(m.dz) < 0.05) { if (this.builder) { if (this.builder.tool === 'select') this.card._bPick({ k: 'piece', fi: m.fi }); else this.card._bSelect(m.fi); } return; } // Build mode: a tap picks the piece
       const undo = () => { m.objs.forEach((o, i) => o.position.copy(m.orig[i])); this.renderer.shadowMap.needsUpdate = true; this._dirty = true; };
       this.card._arrangeMove(FURN[m.fi], Math.round(m.dx * 100) / 100, Math.round(m.dz * 100) / 100, undo);
     };

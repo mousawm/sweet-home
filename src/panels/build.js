@@ -6,7 +6,7 @@ import { NEW_PIECE, PALETTE, r2, turnPiece } from '../pieces.js';
 import { t as tr } from '../i18n.js';
 import { MODEL, ROOMS, ROOM, FURN, esc, ic } from '../core.js';
 
-const TOOLS = [['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall'], ['door', 'Door', 'mdi:door'], ['window', 'Window', 'mdi:window-closed-variant'],
+const TOOLS = [['select', 'Select', 'mdi:cursor-default-click-outline'], ['room', 'Room', 'mdi:vector-square'], ['wall', 'Wall', 'mdi:wall'], ['door', 'Door', 'mdi:door'], ['window', 'Window', 'mdi:window-closed-variant'],
   ['paint', 'Paint', 'mdi:format-paint'], ['furniture', 'Furniture', 'mdi:sofa-outline'], ['delete', 'Knock down', 'mdi:hammer']];
 const PAPERS = ['#f0dcc4', '#eccaa3', '#f5dc96', '#c6dbb2', '#b5e0d6', '#b9cdee', '#e6d5ec', '#f2c4d2', '#eee5d4', '#d8d6cf', '#ffffff', '#9bb0c9'];
 const FLOORS = [['wood', 'Wood', '#b08a62'], ['tile', 'Tiles', '#eef2f6'], ['marble', 'Marble', '#e8dfcf'], ['carpet', 'Carpet', '#9097a1'], ['stone', 'Stone', '#b8b1a5'], ['asphalt', 'Asphalt', '#3a3f47']];
@@ -58,6 +58,66 @@ export class BuildTools {
     this._toast(tr(WALL_MODES[m][1]));
     if (this._three) { this._three._dirty = true; this._three.lastInput = performance.now(); }
   }
+  // ---------- Select: the settings of what was tapped (the card editor's forms, in a panel over the 3D view) ----------
+  async _bPick(what) {
+    if (!what) return this._bInspect(null);
+    if (what.k === 'room') {
+      const r = ROOM[what.id]; if (!r) return;
+      if (r.ci == null) await this._bEdit(() => {}); // the house built from the areas becomes your own first
+      return this._bInspect({ k: 'room', i: r.ci ?? ROOMS.indexOf(r) });
+    }
+    if (what.k === 'piece') {
+      const P = FURN[what.fi]; if (!P) return;
+      if (P.src) return this._bInspect(P.src.house != null ? { k: 'piece', room: null, i: P.src.house } : { k: 'piece', room: P.src.room, i: P.src.i });
+      let sel = null; // a piece of a room's automatic set: the room's set becomes its own first
+      await this._bEdit(H => { const f = this._bPieceRef(H, what.fi), r = ROOM[P.room]; if (!f || !r) return false; const ri = r.ci ?? ROOMS.indexOf(r); sel = { k: 'piece', room: ri, i: H.rooms[ri].furniture.indexOf(f) }; });
+      return sel ? this._bInspect(sel) : this._toast(tr('These stairs come with the room: change them in the card editor'), true);
+    }
+    return this._bInspect({ k: what.k, i: what.i });
+  }
+  async _bInspect(sel) {
+    this._bInsFlush();
+    this._bInsSel = sel || null;
+    this._three?.builder?.setSel?.(this._bInsSel);
+    if (!sel) { this._bInsWrap?.remove(); return; }
+    if (!customElements.get('sweet-home-inspector')) {
+      try { await this.constructor.getConfigElement(); } catch (e) { this._toast(e?.message || String(e), true); return; }
+      if (this._bInsSel !== sel) return;
+    }
+    const W = this._bInsWrap ||= this._bInsMake(), el = W.querySelector('sweet-home-inspector');
+    W.querySelector('.bins-t').textContent = this._bInsTitle(sel);
+    el.hass = this._hass?._raw || this._hass; el.setConfig(this._config); el.sel = sel;
+    this._bInsPlace();
+  }
+  _bInsTitle(sel) {
+    const H = this._config?.house || {};
+    if (sel.k === 'room') { const rc = arr(H.rooms)[sel.i], r = ROOMS.find(x => x.ci === sel.i); return rc?.name || r?.name || tr('Room'); }
+    if (sel.k === 'piece') { const f = arr(sel.room == null ? H.furniture : arr(H.rooms)[sel.room]?.furniture)[sel.i]; return f?.name || tr(FURN_TYPES[f?.type]?.[0] || 'Furniture'); }
+    if (sel.k === 'door') return tr(arr(H.doors)[sel.i]?.gate ? 'Gate' : 'Door');
+    return tr({ window: 'Window', opening: 'Open passage', badge: 'Lock badge', wall: 'Wall' }[sel.k] || '');
+  }
+  _bInsMake() {
+    const W = document.createElement('div'); W.className = 'binsp';
+    W.innerHTML = `<div class="bins-h"><b class="bins-t"></b><button class="bb" data-insx title="${tr('Close')}" aria-label="${tr('Close')}">${ic('mdi:close')}</button></div><div class="bins-b"></div>`;
+    const el = document.createElement('sweet-home-inspector'); W.querySelector('.bins-b').appendChild(el);
+    W.querySelector('[data-insx]').addEventListener('click', e => { e.stopPropagation(); this._bInspect(null); });
+    el.addEventListener('sh-inspect-change', e => this._bInsChange(e.detail));
+    el.addEventListener('sh-inspect-close', () => this._bInspect(null));
+    W.addEventListener('focusout', () => setTimeout(() => { if (!W.contains(W.getRootNode().activeElement)) this._bInsFlush(); }, 0));
+    return W;
+  }
+  // the panel sits in the toolbar's column, between the tool's options and Undo / Save
+  _bInsPlace() {
+    const W = this._bInsWrap, bar = this.$('buildbar'); if (!W || !this._bInsSel || !bar) return;
+    const act = bar.querySelector('.bact'); if (W.parentNode !== bar || W.nextSibling !== act) bar.insertBefore(W, act);
+    const el = W.querySelector('sweet-home-inspector'); if (el && el._config && el._last !== JSON.stringify(this._config)) el.setConfig(this._config);
+  }
+  // a typed change waits until typing stops (or the field is left): each change rebuilds the house
+  _bInsChange({ config, typing }) {
+    this._bInsPending = config; clearTimeout(this._bInsT);
+    if (typing) this._bInsT = setTimeout(() => this._bInsFlush(), 1500); else this._bInsFlush();
+  }
+  _bInsFlush() { clearTimeout(this._bInsT); const c = this._bInsPending; this._bInsPending = null; if (c) { this._bCommit(c); const W = this._bInsWrap; if (W && this._bInsSel) W.querySelector('.bins-t').textContent = this._bInsTitle(this._bInsSel); } }
   _viaEditor() { return !!window.__sweetHomeEditor?.isConnected && !!window.__sweetHomeEditor.applyExternal; }
   // changes not saved yet (with the card editor open, each step already went through it)
   _bDirty() { return !!this._building && !this._viaEditor() && this._bOrig != null && this._cfgJSON !== this._bOrig; }
@@ -73,10 +133,10 @@ export class BuildTools {
       const k = e.key, B = this._three?.builder;
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && k.toLowerCase() === 'z') { e.preventDefault(); this._bAct({ dataset: { b: 'undo' } }); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (k === 'Escape') { e.preventDefault(); if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else this._bToggle(false); }
+      if (k === 'Escape') { e.preventDefault(); if (this._bInsSel) this._bInspect(null); else if (B?.op) { B.op = null; B._clear(); B.S._dirty = true; } else if (this._bSel != null || this._bPiece) { this._bSel = null; this._bPiece = null; this._bRender(); } else this._bToggle(false); }
       else if ((k === 'r' || k === 'R') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'turn' } }); }
       else if ((k === 'Delete' || k === 'Backspace') && this._bSel != null) { e.preventDefault(); this._bAct({ dataset: { b: 'delpiece' } }); }
-      else if (/^[1-7]$/.test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
+      else if (new RegExp(`^[1-${TOOLS.length}]$`).test(k)) { e.preventDefault(); this._bAct({ dataset: { b: 'tool', v: TOOLS[Number(k) - 1][0] } }); }
     };
     window.addEventListener('keydown', this._bKeyFn); window.addEventListener('beforeunload', this._bLeave);
   }
@@ -84,19 +144,21 @@ export class BuildTools {
   _bScene() {
     const S = this._three; if (!S) return;
     S.setBuild?.(!!this._building);
-    S.arrange = !!this._arrange || (!!this._building && this._bTool === 'furniture');
+    S.arrange = !!this._arrange || (!!this._building && ['furniture', 'select'].includes(this._bTool));
+    S.builder?.setSel?.(this._building ? this._bInsSel : null);
   }
   _bInfo(s) { const el = this.$('bInfo'); if (el) el.textContent = s; }
   _bWidth(tool) { return (this._bW ||= { door: 0.9, window: 1.2 })[tool]; }
 
   _bRender() {
     const el = this.$('buildbar'); if (!el) return;
-    if (!this._building) { el.innerHTML = ''; el.classList.remove('open'); return; }
+    if (!this._building) { el.innerHTML = ''; el.classList.remove('open'); if (this._bInsSel) this._bInspect(null); return; }
     el.classList.add('open');
     const tool = this._bTool, b = (act, v, label, icon, on, extra = '') => `<button class="bb ${on ? 'on' : ''}" data-act="b" data-b="${act}" data-v="${esc(v)}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${icon ? ic(icon) : ''}<span>${esc(label)}</span></button>`;
     const tools = TOOLS.map(([k, n, i]) => b('tool', k, tr(n), i, tool === k)).join('');
     let opts = '';
-    if (tool === 'room') opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>`;
+    if (tool === 'select') opts = `<span class="bh">${tr('Tap anything to see and change all its settings: a room (its name, area, shape, devices), a piece, a door, a window, a wall. Drag a piece to move it.')}</span>`;
+    else if (tool === 'room') opts = `<span class="bh">${tr('Drag on the grid to draw a room: its walls go up around it.')}</span>`;
     else if (tool === 'wall') opts = `<span class="bh">${tr('Drag to draw a wall (straight or at 45°). Walls that close an area make a new room.')}</span>`;
     else if (tool === 'door' || tool === 'window') opts = `<span class="bh">${tr(tool === 'door' ? 'Tap a wall to put a door in it (a gate in a fence).' : 'Tap an outer wall to put a window in it.')}</span>${WIDTHS[tool].map(w => b('width', w, `${w} m`, '', this._bWidth(tool) === w)).join('')}`;
     else if (tool === 'paint') {
@@ -131,12 +193,13 @@ export class BuildTools {
       <div class="brow bact">${b('undo', '', tr('Undo'), 'mdi:undo', false, (this._bUndo || []).length ? '' : 'disabled')}
         ${this._bDirty() ? b('cancel', '', tr('Cancel'), 'mdi:close', false) : ''}
         ${b('done', '', this._bSaving ? tr('Saving…') : this._bDirty() ? tr('Save') : tr('Done'), this._bDirty() ? 'mdi:content-save' : 'mdi:check', true, this._bSaving ? 'disabled' : '')}</div>`;
+    this._bInsPlace();
   }
 
   _bAct(t) {
     const v = t.dataset.v;
     switch (t.dataset.b) {
-      case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
+      case 'tool': this._bTool = v; this._bSel = null; this._bNew = null; if (v !== 'select' && this._bInsSel) this._bInspect(null); if (v !== 'furniture') this._bPiece = null; this._three?.builder?.setTool(v); this._bScene(); break;
       case 'width': this._bW[this._bTool] = Number(v); break;
       case 'brush': this._bBrush = { k: t.dataset.k, v }; break;
       case 'piece': this._bPiece = this._bPiece === v ? null : v; break;
@@ -252,7 +315,10 @@ export class BuildTools {
       if (a.k === 'piece') {
         const f = this._bPieceRef(H, a.fi); if (!f) return false;
         for (const list of [H.furniture, ...arr(H.rooms).map(r => r.furniture)]) { const i = Array.isArray(list) ? list.indexOf(f) : -1; if (i >= 0) { list.splice(i, 1); break; } }
-      } else if (a.k === 'door') H.doors?.splice(a.i, 1);
+      } else if (a.k === 'door') { H.doors?.splice(a.i, 1); if (!H.doors?.length) delete H.doors; }
+      else if (a.k === 'window') H.windows?.splice(a.i, 1); // an empty list: no windows (deleting the list: automatic windows again)
+      else if (a.k === 'opening') { H.openings?.splice(a.i, 1); if (!H.openings?.length) delete H.openings; }
+      else if (a.k === 'badge') { H.lock_badges?.splice(a.i, 1); if (!H.lock_badges?.length) delete H.lock_badges; }
       else if (a.k === 'wall') { H.extra_walls?.splice(a.i, 1); if (!H.extra_walls?.length) delete H.extra_walls; }
       else if (a.k === 'room') {
         const r = ROOM[a.id]; if (!r) return false;

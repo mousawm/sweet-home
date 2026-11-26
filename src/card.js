@@ -351,13 +351,13 @@ export class SweetHomeCard extends HTMLElement {
     this._spkInput();
     this.shadowRoot.addEventListener('click', e => this._onClick(e));
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
-    this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
+    this.shadowRoot.addEventListener('input', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
     this.shadowRoot.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('[data-rename]')) e.target.blur(); });
     // a name field being typed in is left alone when the popup redraws
     this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
     this.shadowRoot.addEventListener('focusout', e => { if (e.target.matches?.('[data-rename]') && this._dragging === e.target) this._dragging = null; });
-    this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) return; if (this._building && e.target.closest?.('#buildbar')) { this._bChange(e.target); return; } if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
+    this.shadowRoot.addEventListener('change', e => { if (e.target.closest?.('.binsp')) return; if (e.target.matches?.('[data-rename]')) return; if (this._building && e.target.closest?.('#buildbar')) { this._bChange(e.target); return; } if (e.target.matches?.('input[type=range]')) this.haptic('light'); this._onSlide(e, true); this._dragging = null; });
     }
 
     const all = (...a) => a.flat(Infinity).filter(Boolean);

@@ -509,8 +509,15 @@ main{scroll-margin-top:84px}
 [dir=rtl]{font-family:'Noto Kufi Arabic','SF Arabic','Noto Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif}
 .rback{display:none} /* only on phones (below) */
 /* Build mode: the toolbar over the 3D view (tools, their options, undo / done) */
-.buildbar{position:absolute;inset:10px;z-index:3;display:none;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none}
+.buildbar{position:absolute;inset:10px;z-index:3;display:none;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none;min-height:0}
 .bact{margin-top:auto;align-self:flex-start;flex-wrap:nowrap}
+/* Build mode, Select: the settings of what was tapped (the card editor's forms), beside the 3D view */
+.binsp{pointer-events:auto;align-self:flex-end;width:min(400px,100%);flex:0 1 auto;min-height:120px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
+  background:var(--card-background-color,#fff);color:var(--primary-text-color,#111);border:1px solid rgba(var(--ink),.14);box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.bins-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--divider-color,rgba(127,127,127,.25))}
+.bins-h b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bins-h .bb{background:transparent;color:inherit}
+.bins-b{overflow:auto;padding:12px 14px;flex:1 1 auto;min-height:0;font-size:13px}
+.buildbar .bact{flex:none}
 .bturn{display:contents}
 .buildbar.open{display:flex}
 .brow{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px;border-radius:14px;background:rgba(var(--s1),.82);border:1px solid rgba(var(--ink),.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.35);color:var(--tx);font-size:12px}
