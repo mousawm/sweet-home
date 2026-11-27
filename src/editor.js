@@ -1783,7 +1783,7 @@ class SweetHomeCardEditor extends HTMLElement {
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
       // Zigbee: which integration (found on its own), the views on the System tab and the Needs Attention sections
       zigbee: [{ name: 'source', selector: sel([['', 'Found on its own'], ['z2m', 'Zigbee2MQTT'], ['zha', 'ZHA']]) }, { name: 'base_topic', selector: { text: {} } },
-        { name: 'views', selector: { select: { multiple: true, mode: 'list', options: [['summary', 'Summary'], ['list', 'Device list'], ['map', 'Network map (coming soon)']].map(([value, label]) => ({ value, label })) } } },
+        { name: 'views', selector: { select: { multiple: true, mode: 'list', options: [['summary', 'Summary'], ['list', 'Device list'], ['map', 'Network map']].map(([value, label]) => ({ value, label })) } } },
         { name: 'alerts', selector: { select: { multiple: true, mode: 'list', options: [['offline', 'Zigbee offline'], ['weak', 'Weak Zigbee signal']].map(([value, label]) => ({ value, label })) } } },
         { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },

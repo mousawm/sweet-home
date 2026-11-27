@@ -1479,6 +1479,35 @@ try {
     }); check('zigbee: the card editor sets the integration, views, alerts and LQI limit (defaults not stored)', r === true, r); }
   check('no page errors (zigbee editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
+  // Zigbee network map: Scan network asks Zigbee2MQTT for the map over MQTT; its answer draws the links and routes
+  p = await open('?zigbee=1');
+  await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(400);
+  { const r = await p.evaluate(async () => {
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), M = () => R.getElementById('zbmap');
+      const out = { card: M().style.display !== 'none' && M().querySelectorAll('.zbn').length === 5 && M().textContent.includes('Scan the network'), noLinks: !M().querySelector('.zblk') };
+      M().querySelector('[data-act=zbscan]').click(); await wait(500);
+      out.asked = (window.calls || []).some(c => c[0] === 'mqtt' && c[1] === 'publish' && c[2].topic === 'zigbee2mqtt/bridge/request/networkmap' && JSON.parse(c[2].payload).type === 'raw') && !!M().querySelector('.zbscanbar');
+      const C = '0x00124b0024c1aa01', n = i => `0x00158d0001a2b30${i}`, L = (s, t, q, rel) => ({ source: { ieeeAddr: s }, target: { ieeeAddr: t }, linkquality: q, relationship: rel });
+      mqttSend('zigbee2mqtt/bridge/response/networkmap', { status: 'ok', data: { type: 'raw', routes: false, value: {
+        nodes: [{ ieeeAddr: C, type: 'Coordinator' }, ...[1, 2, 3, 4].map(i => ({ ieeeAddr: n(i), type: i < 3 ? 'Router' : 'EndDevice' }))],
+        links: [L(n(1), C, 182, 1), L(n(2), n(1), 71, 1), L(n(3), n(1), 38, 1), L(n(4), n(2), 150, 1)] } } });
+      await wait(800);
+      out.drawn = M().querySelectorAll('.zblk').length === 4 && !M().querySelector('.zbscanbar') && M().textContent.includes('Map from');
+      out.kept = !!localStorage.getItem('sweet-home-zbmap:zigbee2mqtt');
+      out.orphan = !!R.querySelector('#alerts .mrow.zbw[data-dev=zb4]') && R.getElementById('alerts').textContent.includes('Router offline'); // Hallway Motion is behind the offline Garage Relay
+      M().querySelector('.zbn[data-dev=zb4]').dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true })); await wait(300);
+      out.route = [...M().querySelectorAll('.zbhop')].map(x => x.textContent).join(' > ') === 'Hallway Motion > Garage Relay > Kitchen Plug > Coordinator' && M().querySelectorAll('.zblk.hl').length === 3;
+      M().querySelector('[data-act=zbmode][data-v=areas]').click(); await wait(300);
+      out.areas = [...M().querySelectorAll('.zbarea text')].map(x => x.textContent).includes('Kitchen');
+      M().querySelector('[data-act=zball]').click(); await wait(300); out.parentsOnly = M().querySelectorAll('.zblk').length === 4; // every link here is a parent link
+      R.querySelector('#zblist [data-dev=zb4]').click(); await wait(200);
+      const sh = R.getElementById('sheet'); sh.querySelector('[data-act=zbshow][data-dev=zb4]').click(); await wait(200);
+      out.sheetMap = !!sh.querySelector('.zbmap svg .zbn.hl[data-dev=zb4]') && sh.querySelector('.zbseg button.on')?.textContent.includes('Map');
+      card._closeSheet();
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee map: Scan network, the answer draws links and routes, a device behind an offline router, by area, the sheet\'s map', r === true, r); }
+  check('no page errors (zigbee map)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
 } finally { await browser.close(); server.close(); }
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

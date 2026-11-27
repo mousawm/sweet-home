@@ -315,7 +315,7 @@ export class SweetHomeCard extends HTMLElement {
       <section class="tab" data-tab="energy"><div class="tgrid wide1"><div class="card" id="energy"></div><div class="card" id="car"></div><div class="card" id="ehist"></div></div></section>
       <section class="tab" data-tab="water"><div class="tgrid"><div class="card" id="water"></div><div class="card" id="irrigation"></div></div></section>
       <section class="tab" data-tab="media"><div class="tgrid"><div class="card" id="media"></div><div class="card" id="mserver"></div><div class="card" id="tvlight"></div></div></section>
-      <section class="tab" data-tab="system"><div class="tgrid"><div class="alerts" id="alerts"></div><div class="card" id="zigbee"></div><div class="card" id="zblist"></div><div class="card" id="lab"></div><div class="card" id="devices"></div></div></section>
+      <section class="tab" data-tab="system"><div class="tgrid"><div class="alerts" id="alerts"></div><div class="card" id="zigbee"></div><div class="card" id="zblist"></div><div class="card zbmapc" id="zbmap"></div><div class="card" id="lab"></div><div class="card" id="devices"></div></div></section>
       </main>
       <footer class="foot">Sweet Home · v${VERSION}</footer>
     </div>${this._solo ? '</ha-card>' : ''}
@@ -381,6 +381,7 @@ export class SweetHomeCard extends HTMLElement {
       // Zigbee: the Summary and Device list cards (panels/zigbee.js); also redrawn when something new is heard on MQTT / from ZHA
       { el: $('zigbee'), deps: zbEnts, render: () => this._rZigbee() },
       { el: $('zblist'), deps: zbEnts, render: () => this._rZbList() },
+      { el: $('zbmap'), deps: zbEnts, render: () => this._rZbMap() },
       { el: $('lab'), deps: all(Object.values(E.lab).filter(x => typeof x === 'string'), Object.values(E.lab.byNode || {}).map(o => Object.values(o)), this._labGuestIds().map(g => [`binary_sensor.${g}_status`, `sensor.${g}_status`, `sensor.${g}_cpu_used`, `sensor.${g}_memory_used_percentage`])), render: () => this._rLab() },
       { el: $('devices'), deps: all(E.devices.map(d => [d.bat, d.chg, d.trk, d.chgState]), E.persons), render: () => this._rDevices() },
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
@@ -394,6 +395,7 @@ export class SweetHomeCard extends HTMLElement {
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
       // Zigbee: switched off, no Zigbee2MQTT / ZHA devices, or the view not picked (panels.zigbee.views)
       zigbee: !E.zigbee.on || !this._zb()?.source || !E.zigbee.views.includes('summary'), zblist: !E.zigbee.on || !this._zb()?.source || !E.zigbee.views.includes('list'),
+      zbmap: !E.zigbee.on || !this._zb()?.source || !E.zigbee.views.includes('map'),
     };
     if (this._solo) for (const sec of this._sections) if (sec.el.id !== 'drawer') off[sec.el.id] = true; // Sweet Home 3D: the room pop-up only
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
@@ -958,6 +960,12 @@ export class SweetHomeCard extends HTMLElement {
       case 'zbopen': this._zbOpen(t.dataset.dev, t.dataset.f); break; // Zigbee: the sheet (a device opened, or a filter)
       case 'zbf': this._zbF.f = t.dataset.k; this._zbF.open = null; this._renderInfo(); break;
       case 'zbrow': this._zbF.open = this._zbF.open === t.dataset.dev ? null : t.dataset.dev; this._renderInfo(); break;
+      case 'zbview': this._zbF.view = t.dataset.v; this._renderInfo(); break; // the sheet: Devices / Map
+      case 'zbshow': this._zbSel = t.dataset.dev; this._zbF.view = 'map'; this._renderInfo(); break;
+      case 'zbnode': this._zbSel = this._zbSel === t.dataset.dev ? null : t.dataset.dev; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
+      case 'zbmode': this._zbMode = t.dataset.v; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
+      case 'zball': this._zbAll = this._zbAll === false; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
+      case 'zbscan': this._zbScan(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
       case 'labnode': this._labNode = t.dataset.node === E.lab.node ? null : t.dataset.node; this._rerender('lab'); break; // Home Lab: another Proxmox node
       case 'labgrip': break; // dragged, see _labDragSetup

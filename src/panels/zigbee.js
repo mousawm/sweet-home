@@ -1,11 +1,12 @@
-// Sweet Home — Zigbee (System tab): the Summary and Device list cards, the Zigbee sheet (every device, with filters),
-// and the Zigbee rows of Needs Attention. The network itself is worked out in ../zigbee.js.
+// Sweet Home — Zigbee (System tab): the Summary, Device list and Network map cards, the Zigbee sheet (every device,
+// with filters, and the map), and the Zigbee rows of Needs Attention. The network itself is worked out in ../zigbee.js.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
 import { E, esc, ic, agoShort, ago, bidi, tc } from '../core.js';
-import { zigbeeModel, zbStatus, zbSummary } from '../zigbee.js';
+import { zigbeeModel, zbStatus, zbSummary, zbRoute, z2mMap } from '../zigbee.js';
 
-const RANK = { off: 0, weak: 1, ok: 2 };
+const RANK = { off: 0, weak: 1, orphan: 2, ok: 3 };
+const MAP_KEY = base => `sweet-home-zbmap:${base}`; // the last network map, kept in this browser
 const ROLE_ICON = { R: 'mdi:router-wireless', E: 'mdi:radiobox-marked' };
 const ROLE_NAME = { R: 'Router', E: 'End device' };
 const SRC_NAME = { z2m: 'Zigbee2MQTT', zha: 'ZHA' };
@@ -38,10 +39,12 @@ export class ZigbeePanels {
       if (!conn?.subscribeMessage) return;
       this._zbStop(); this._zbBase = base;
       const L = this._zbLive = { avail: {}, seen: {} };
+      try { const mp = JSON.parse(localStorage.getItem(MAP_KEY(base)) || 'null'); if (mp?.entries) L.map = mp; } catch (e) { /* no storage */ }
+      this._zbNoMqtt = false;
       const on = (topic, f) => conn.subscribeMessage(msg => {
         let p = msg?.payload; if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { /* plain text */ } }
         try { f(p, String(msg?.topic || ''), msg); } catch (e) { /* a message it can't read */ }
-      }, { type: 'mqtt/subscribe', topic }).catch(() => null); // not an admin, or no MQTT: the entities are enough
+      }, { type: 'mqtt/subscribe', topic }).catch(() => { if (!this._zbNoMqtt) { this._zbNoMqtt = true; this._zbBump(); } return null; }); // not an admin, or no MQTT: the entities are enough
       const name = (t, end = '') => t.slice(base.length + 1, end ? -end.length : undefined);
       const avail = (p, t) => { const s = p && typeof p === 'object' ? p.state : p; if (s === 'online' || s === 'offline') { L.avail[name(t, '/availability')] = s === 'online'; this._zbBump(); } };
       this._zbSubs = [
@@ -49,6 +52,15 @@ export class ZigbeePanels {
         on(`${base}/bridge/info`, p => { if (p && typeof p === 'object') { L.info = p; this._zbBump(); } }),
         on(`${base}/bridge/state`, p => { const s = p && typeof p === 'object' ? p.state : p; if (s === 'online' || s === 'offline') { L.state = s; this._zbBump(); } }),
         on(`${base}/+/availability`, avail), on(`${base}/+/+/availability`, avail),
+        // the answer to Scan network: the links, kept in this browser for next time
+        on(`${base}/bridge/response/networkmap`, p => {
+          const mp = p?.status === 'ok' || p?.data ? z2mMap(p) : null;
+          if (!this._zbScanning && !mp) return;
+          this._zbScanning = 0; clearTimeout(this._zbScanT);
+          if (mp) { L.map = mp; try { localStorage.setItem(MAP_KEY(base), JSON.stringify(mp)); } catch (e) { /* full or blocked */ } this._toast(tr('Network map updated')); }
+          else this._toast(tr('Zigbee2MQTT could not draw the map: {0}', String(p?.error || '?')));
+          this._zbBump();
+        }),
         // each device's own messages: its link quality, and the time it last spoke (a kept, retained message is old news)
         on(`${base}/+`, (p, t, msg) => {
           const n = name(t); if (!n || n === 'bridge' || !p || typeof p !== 'object' || Array.isArray(p)) return;
@@ -60,7 +72,7 @@ export class ZigbeePanels {
     } else if (src === 'zha') { // ZHA's own device list, again every minute while it is looked at
       if (this._zhaBusy || this._zhaNo || Date.now() - (this._zhaAt || 0) < 60e3 || !h?.callWS) return;
       this._zhaBusy = true;
-      h.callWS({ type: 'zha/devices' }).then(r => { (this._zbLive ||= {}).zha = Array.isArray(r) ? r : null; }, () => { this._zhaNo = true; })
+      h.callWS({ type: 'zha/devices' }).then(r => { const L = this._zbLive ||= {}; L.zha = Array.isArray(r) ? r : null; if (this._zhaScanned) { L.zhaAt = this._zhaScanned; this._zhaScanned = 0; } }, () => { this._zhaNo = true; })
         .finally(() => { this._zhaBusy = false; this._zhaAt = Date.now(); this._zbBump(); });
     }
   }
@@ -74,7 +86,7 @@ export class ZigbeePanels {
     if (this._zbT) return;
     this._zbT = setTimeout(() => {
       this._zbT = null; this._zbV = (this._zbV || 0) + 1; this._alertCount = null;
-      if (this._sections?.length) this._rerender('zigbee', 'zblist', 'alerts', 'tabs');
+      if (this._sections?.length) this._rerender('zigbee', 'zblist', 'zbmap', 'alerts', 'tabs');
       if (this._info === 'zigbee') this._renderInfo();
     }, chatter ? 3000 : 400);
   }
@@ -83,22 +95,23 @@ export class ZigbeePanels {
   // one device: icon by how it is doing, name, kind · area · battery, link quality and when it was last heard from
   _zbRowHTML(d, act, open) {
     const Z = E.zigbee, st = zbStatus(d, Z.lqiMin), lang = this._hass?.locale?.language || 'en';
-    const icon = st === 'off' ? 'mdi:lan-disconnect' : st === 'weak' ? 'mdi:signal-cellular-1' : ROLE_ICON[d.role];
+    const icon = st === 'off' ? 'mdi:lan-disconnect' : st === 'weak' ? 'mdi:signal-cellular-1' : st === 'orphan' ? 'mdi:link-variant-off' : ROLE_ICON[d.role];
     const sub = [tr(ROLE_NAME[d.role]), d.area ? tc(d.area) : '', d.battery != null ? `${Math.round(d.battery)}%` : ''].filter(Boolean).join(' · ');
-    const pre = st === 'off' ? tr('Offline') : d.lqi != null ? `LQI ${Math.round(d.lqi)}` : '';
+    const pre = st === 'off' ? tr('Offline') : st === 'orphan' ? tr('Router offline') : d.lqi != null ? `LQI ${Math.round(d.lqi)}` : '';
     const when = d.lastSeen ? `<b data-ago="${iso(d.lastSeen)}" data-pre="${esc(pre)}" data-short="1">${pre ? `${esc(pre)} · ` : ''}${agoShort(iso(d.lastSeen), lang)}</b>` : `<b>${esc(pre || '—')}</b>`;
     const bar = `<i class="zbbar"><i style="width:${st === 'off' || d.lqi == null ? 0 : Math.max(3, Math.round(d.lqi / 255 * 100))}%;background:${lqiCol(d.lqi, Z.lqiMin)}"></i></i>`;
-    return `<button class="mrow zbrow ${st === 'off' ? 'open' : st === 'weak' ? 'zbw' : ''}" data-act="${act}" data-dev="${esc(d.id)}"${open != null ? ` aria-expanded="${open}"` : ''}>${ic(icon)}<span class="m2">${esc(d.name)}<small>${esc(sub)}</small></span><span class="zbr">${when}${bar}</span></button>`;
+    return `<button class="mrow zbrow ${st === 'off' ? 'open' : st === 'ok' ? '' : 'zbw'}" data-act="${act}" data-dev="${esc(d.id)}"${open != null ? ` aria-expanded="${open}"` : ''}>${ic(icon)}<span class="m2">${esc(d.name)}<small>${esc(sub)}</small></span><span class="zbr">${when}${bar}</span></button>`;
   }
   _zbDetHTML(d) {
     const Z = E.zigbee, lang = this._hass?.locale?.language || 'en', st = zbStatus(d, Z.lqiMin);
     const cell = (k, v) => `<div><small>${tr(k)}</small><b>${v}</b></div>`;
     const role = tr(ROLE_NAME[d.role]) + (d.roleKnown ? '' : ` <i>${tr('(from its power source)')}</i>`);
     const seen = d.lastSeen ? `${esc(ago(iso(d.lastSeen), lang))}` : '—';
-    const btns = [d.entity ? `<button class="rbtn ubtn" data-act="more" data-id="${esc(d.entity)}">${ic('mdi:information-outline')}${tr('Details')}</button>` : '',
+    const par = d.parent === 'coord' ? tr('Coordinator') : this._zb()?.devices.find(x => x.id === d.parent)?.name;
+    const btns = [this._zb()?.map || d.parent ? `<button class="rbtn ubtn" data-act="zbshow" data-dev="${esc(d.id)}">${ic('mdi:graph-outline')}${tr('Show on map')}</button>` : '', d.entity ? `<button class="rbtn ubtn" data-act="more" data-id="${esc(d.entity)}">${ic('mdi:information-outline')}${tr('Details')}</button>` : '',
       st !== 'ok' && d.entity && this._hass?.user?.is_admin && this._editing ? `<button class="rbtn edit-only" data-act="exclude" data-id="${esc(d.entity)}">${ic('mdi:eye-off-outline')}${tr('Hide from Needs Attention')}</button>` : ''].join('');
     return `<div class="zbdet">${cell('Kind', role)}${cell('Area', esc(d.area ? tc(d.area) : '—'))}${cell('Power', d.power === 'battery' ? `${tr('Battery')}${d.battery != null ? ` · ${bidi(`${Math.round(d.battery)}%`)}` : ''}` : tr('Mains'))}
-      ${cell('Link quality', d.lqi != null ? bidi(`${Math.round(d.lqi)}${d.rssi != null ? ` · ${Math.round(d.rssi)} dBm` : ''}`) : '—')}${cell(d.exact ? 'Last seen' : 'Last change', seen)}${cell('Model', esc([d.maker, d.model].filter(Boolean).join(' ') || '—'))}
+      ${cell('Link quality', d.lqi != null ? bidi(`${Math.round(d.lqi)}${d.rssi != null ? ` · ${Math.round(d.rssi)} dBm` : ''}`) : '—')}${cell(d.exact ? 'Last seen' : 'Last change', seen)}${cell('Model', esc([d.maker, d.model].filter(Boolean).join(' ') || '—'))}${par ? cell('Connected through', esc(par)) : ''}
       ${cell('IEEE address', `<bdi>${esc(d.ieee)}</bdi>`).replace('<div>', '<div class="zbwide">')}${btns ? `<div class="zbacts">${btns}</div>` : ''}</div>`;
   }
   _zbSorted(m) { const Z = E.zigbee; return [...m.devices].sort((a, b) => RANK[zbStatus(a, Z.lqiMin)] - RANK[zbStatus(b, Z.lqiMin)] || (a.lqi ?? 999) - (b.lqi ?? 999) || a.name.localeCompare(b.name)); }
@@ -147,7 +160,7 @@ export class ZigbeePanels {
 
   /* ---------- the Zigbee sheet: every device, with filters ---------- */
   _zbOpen(dev, f) {
-    this._zbF = { f: f || 'all', sort: this._zbF?.sort || 'status', room: '', open: dev || null };
+    this._zbF = { f: f || 'all', sort: this._zbF?.sort || 'status', room: '', open: dev || null, view: f === 'map' ? 'map' : 'list' };
     this._openInfo('zigbee');
     if (dev) setTimeout(() => this.$('sheet')?.querySelector(`[data-act="zbrow"][data-dev="${CSS.escape(dev)}"]`)?.scrollIntoView({ block: 'center' }), 60);
   }
@@ -167,9 +180,10 @@ export class ZigbeePanels {
     const sels = `<div class="zbsels">${rooms.length ? `<select data-zbsel="room" aria-label="${tr('Area')}">${opt('', tr('All areas'), F.room)}${rooms.map(r => opt(r, tc(r), F.room)).join('')}</select>` : ''}
       <select data-zbsel="sort" aria-label="${tr('Sort by')}">${[['status', 'Problems first'], ['seen', 'Quietest first'], ['lqi', 'Weakest signal first'], ['name', 'Name']].map(([k, l]) => opt(k, tr(l), F.sort)).join('')}</select></div>`;
     const rows = list.map(d => `<div class="zbitem ${F.open === d.id ? 'on' : ''}">${this._zbRowHTML(d, 'zbrow', F.open === d.id)}${F.open === d.id ? this._zbDetHTML(d) : ''}</div>`).join('');
-    return head('mdi:zigbee', tr('Zigbee'), `${SRC_NAME[m.source]} · ${tr('{0} devices', m.devices.length)}${probs ? ` · ${tr('{0} need a look', probs)}` : ''}`)
-      + `<div class="jfseas mtabs zbtabs" role="tablist">${tabs}</div>${sels}`
-      + (rows || `<div class="wxwait">${tr('Nothing matches these filters.')}</div>`);
+    const seg = `<div class="seg zbseg">${[['list', 'Devices', 'mdi:format-list-bulleted'], ['map', 'Map', 'mdi:graph-outline']].map(([k, l, i]) => `<button class="${(F.view || 'list') === k ? 'on' : ''}" data-act="zbview" data-v="${k}">${ic(i)}${tr(l)}</button>`).join('')}</div>`;
+    return head('mdi:zigbee', tr('Zigbee'), `${SRC_NAME[m.source]} · ${tr('{0} devices', m.devices.length)}${probs ? ` · ${tr('{0} need a look', probs)}` : ''}`) + seg
+      + (F.view === 'map' ? this._zbMapHTML(m) : `<div class="jfseas mtabs zbtabs" role="tablist">${tabs}</div>${sels}`
+      + (rows || `<div class="wxwait">${tr('Nothing matches these filters.')}</div>`));
   }
 
   /* ---------- Needs Attention: Zigbee Offline / Weak Zigbee ---------- */
@@ -189,9 +203,125 @@ export class ZigbeePanels {
       const st = zbStatus(d, Z.lqiMin);
       if (st === 'off' && offOn) off.push([d.role === 'R' ? 0 : 1, -(d.lastSeen || 0), row(d, 'open', d.role === 'R' ? 'mdi:router-wireless' : 'mdi:lan-disconnect', d.lastSeen ? `<b data-ago="${iso(d.lastSeen)}" data-pre="${tr('Offline')}" data-short="1">${tr('Offline')} · ${agoShort(iso(d.lastSeen), lang)}</b>` : `<b>${tr('Offline')}</b>`, where(d))]);
       if (st === 'weak' && weakOn) weak.push([d.lqi, row(d, 'zbw', 'mdi:signal-cellular-1', `<b>${bidi(`LQI ${Math.round(d.lqi)}`)}</b>`, where(d))]);
+      if (st === 'orphan' && offOn) off.push([2, 0, row(d, 'zbw', 'mdi:link-variant-off', `<b>${tr('Router offline')}</b>`, where(d))]); // after the routers: its router is down
     }
     // routers first (the devices behind them depend on them), then the most recent; weakest signal first
     const offRows = off.map(x => (typeof x === 'string' ? [-1, 0, x] : x)).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
     return [offRows, weak.sort((a, b) => a[0] - b[0]).map(x => x[1]), covered];
+  }
+
+  /* ---------- the network map ---------- */
+  // System tab card (views: map), full width
+  _rZbMap() {
+    const m = this._zb(); if (!m?.source) return '';
+    return this._zbHead(m, 'Zigbee Network', 'mdi:graph-outline') + this._zbMapHTML(m);
+  }
+  // Scan network: Zigbee2MQTT draws a new map (raw, without routes; takes up to a minute or two and keeps the mesh
+  // busy, so only when asked); ZHA scans its neighbour tables in the background and its device list is read again
+  async _zbScan() {
+    const m = this._zb(); if (!m?.source || this._zbScanning) return;
+    this._zbScanning = Date.now(); this._zbBump();
+    clearTimeout(this._zbScanT);
+    if (m.source === 'z2m') {
+      this.call('mqtt', 'publish', { topic: `${E.zigbee.base}/bridge/request/networkmap`, payload: JSON.stringify({ type: 'raw', routes: false }) });
+      this._zbScanT = setTimeout(() => { if (!this._zbScanning) return; this._zbScanning = 0; this._toast(tr('No answer from Zigbee2MQTT. Try again in a minute.')); this._zbBump(); }, 180e3);
+    } else {
+      try { await this._hass.callWS({ type: 'zha/topology/update' }); } catch (e) { /* not an admin */ }
+      this._zbScanT = setTimeout(() => { this._zbScanning = 0; this._zhaAt = 0; this._zhaScanned = Date.now(); this._zbListen('zha'); }, 60e3);
+    }
+  }
+  // where each node goes: mesh (coordinator in the middle, routers around it with their subtrees next to each other,
+  // end devices outside, by their router) or by area (one box per Home Assistant area)
+  _zbLayout(m, mode) {
+    const W = 600, P = {}, D = m.devices;
+    if (mode === 'areas') {
+      const groups = new Map([[tr('Coordinator'), ['coord']]]);
+      for (const d of [...D].sort((a, b) => (a.role > b.role ? -1 : a.role < b.role ? 1 : a.name.localeCompare(b.name)))) { const k = d.area ? tc(d.area) : tr('No area'); (groups.get(k) || groups.set(k, []).get(k)).push(d.id); }
+      const list = [...groups.entries()].sort((a, b) => (a[1][0] === 'coord' ? -1 : b[1][0] === 'coord' ? 1 : b[1].length - a[1].length || a[0].localeCompare(b[0])));
+      const cols = 3, bw = 190, gap = 5, per = 4, boxes = [];
+      let y = 6;
+      for (let i = 0; i < list.length; i += cols) {
+        const row = list.slice(i, i + cols), h = 34 + Math.max(...row.map(([, ids]) => Math.ceil(ids.length / per))) * 44;
+        row.forEach(([name, ids], j) => {
+          const x = 6 + j * (bw + gap); boxes.push({ name, x, y, w: bw, h });
+          ids.forEach((id, k) => { P[id] = [x + 24 + (k % per) * ((bw - 48) / (per - 1)), y + 40 + Math.floor(k / per) * 44]; });
+        });
+        y += h + gap;
+      }
+      return { P, boxes, W, H: Math.max(y + 2, 200) };
+    }
+    const H = 560, cx = W / 2, cy = H / 2, byId = new Map(D.map(d => [d.id, d]));
+    P.coord = [cx, cy];
+    // routers in tree order (each router's sub-routers right after it), then end devices around their router
+    const kids = p => D.filter(d => d.role === 'R' && d.parent === p).sort((a, b) => a.name.localeCompare(b.name));
+    const order = [], walk = p => { for (const r of kids(p)) if (!order.includes(r.id)) { order.push(r.id); walk(r.id); } };
+    walk('coord'); for (const r of D) if (r.role === 'R' && !order.includes(r.id)) order.push(r.id);
+    const ends = new Map();
+    for (const d of D) if (d.role !== 'R') { const k = d.parent && (d.parent === 'coord' || byId.has(d.parent)) ? d.parent : '-'; (ends.get(k) || ends.set(k, []).get(k)).push(d.id); }
+    const slots = [...order, ...['coord', '-'].filter(k => ends.has(k))];
+    const total = Math.max(1, D.filter(d => d.role !== 'R').length), step = Math.min(0.26, (2 * Math.PI) / total);
+    const rR = order.length > 14 ? 150 : 130, rE = 240;
+    slots.forEach((k, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / slots.length;
+      if (k !== 'coord' && k !== '-') P[k] = [cx + rR * Math.cos(a), cy + rR * Math.sin(a)];
+      const list = ends.get(k) || [];
+      list.forEach((id, j) => { const b = a + (j - (list.length - 1) / 2) * step; P[id] = [cx + rE * Math.cos(b), cy + rE * Math.sin(b)]; });
+    });
+    return { P, boxes: [], W, H };
+  }
+  _zbMapHTML(m) {
+    const Z = E.zigbee, mode = this._zbMode || 'mesh', { P, boxes, W, H } = this._zbLayout(m, mode), lang = this._hass?.locale?.language || 'en';
+    const byId = new Map(m.devices.map(d => [d.id, d])), st = d => zbStatus(d, Z.lqiMin);
+    const sel = this._zbSel && (this._zbSel === 'coord' || byId.has(this._zbSel)) ? this._zbSel : null;
+    const route = sel ? zbRoute(m, sel) : [], onRoute = new Set(route), rk = (a, b) => [a, b].sort().join('|');
+    const routeEdges = new Set(route.slice(0, -1).map((id, i) => rk(id, route[i + 1])));
+    const off = id => id !== 'coord' && byId.get(id)?.online === false;
+    const parentEdges = new Set(m.devices.filter(d => d.parent).map(d => rk(d.id, d.parent)));
+    const links = (this._zbAll !== false ? m.links : m.links.filter(l => parentEdges.has(rk(l.a, l.b)))).filter(l => P[l.a] && P[l.b]);
+    const lk = links.map(l => {
+      const k = rk(l.a, l.b), hl = routeEdges.has(k), dead = off(l.a) || off(l.b), par = parentEdges.has(k);
+      const [x1, y1] = P[l.a], [x2, y2] = P[l.b];
+      return `<line class="zblk ${hl ? 'hl' : ''}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dead ? 'rgba(148,163,184,.7)' : lqiCol(l.lqi, Z.lqiMin)}" stroke-width="${hl ? 3.2 : par ? 1.8 : 1.1}" stroke-opacity="${hl ? 1 : par ? 0.85 : 0.4}"${dead ? ' stroke-dasharray="4 4"' : ''}/>`;
+    }).join('');
+    const node = (id, d) => {
+      const s = d ? st(d) : 'ok', r = !d ? 14 : d.role === 'R' ? 9.5 : 6.5, [x, y] = P[id];
+      const fill = !d ? '#2dd4bf' : s === 'off' ? 'var(--sheet)' : d.role === 'R' ? '#a78bfa' : '#60a5fa';
+      const ring = s === 'off' ? '#f43f5e' : s !== 'ok' ? '#fbbf24' : 'rgba(var(--ink),.25)';
+      const name = d ? d.name : tr('Coordinator'), show = !d || d.role === 'R' || s !== 'ok' || onRoute.has(id);
+      const ly = mode === 'areas' ? r + 12 : y > H / 2 + 60 ? -r - 6 : r + 13;
+      return `<g class="zbn ${show ? 'show' : ''} ${onRoute.has(id) ? 'hl' : ''}" data-act="zbnode" data-dev="${esc(id)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" role="button" tabindex="0" aria-label="${esc(name)}">
+        <title>${esc(name)}${d ? ` · ${s === 'off' ? tr('Offline') : d.lqi != null ? `LQI ${Math.round(d.lqi)}` : tr(ROLE_NAME[d.role])}` : ''}</title>
+        ${!d ? `<circle r="${r + 6}" fill="none" stroke="#2dd4bf" stroke-opacity=".35" stroke-width="2"/>` : ''}<circle r="${r + 7}" fill="transparent"/>
+        <circle class="zbc" r="${r}" fill="${fill}" stroke="${ring}" stroke-width="${s === 'ok' ? 1.5 : 2.5}"${s === 'off' ? ' stroke-dasharray="3 2"' : ''}/>
+        <text text-anchor="middle" y="${ly}">${esc(name.length > 20 ? name.slice(0, 19) + '…' : name)}</text></g>`;
+    };
+    const nodes = [...m.devices.filter(d => P[d.id]).map(d => node(d.id, d)), node('coord', null)].join('');
+    const areas = boxes.map(b => `<g class="zbarea"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="10"/><text x="${b.x + 10}" y="${b.y + 16}">${esc(b.name)}</text></g>`).join('');
+    // the bar above the map: layout, all links or the routes only, Scan network and how old the map is
+    const can = m.source === 'zha' ? !this._zhaNo : !this._zbNoMqtt;
+    const age = this._zbScanning ? tr('Scanning… this can take a minute or two') : m.map?.at ? tr('Map from {0}', ago(iso(m.map.at), lang)) : m.map ? tr('From ZHA’s last scan') : tr('No map yet');
+    const bar = `<div class="zbmbar"><div class="seg zbseg">${[['mesh', 'Mesh'], ['areas', 'By area']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="zbmode" data-v="${k}">${tr(l)}</button>`).join('')}</div>
+      <button class="zbchip ${this._zbAll !== false ? 'on' : ''}" data-act="zball" aria-pressed="${this._zbAll !== false}">${tr('All links')}</button><span class="zbsp"></span>
+      ${can ? `<button class="rbtn ubtn zbscan" data-act="zbscan"${this._zbScanning ? ' disabled' : ''}>${ic(this._zbScanning ? 'mdi:loading' : 'mdi:radar', this._zbScanning ? 'spin' : '')}${tr(this._zbScanning ? 'Scanning…' : 'Scan network')}</button>` : ''}</div>`;
+    const note = !can ? tr('The links come from {0}, which needs an admin account.', SRC_NAME[m.source]) : !m.map && !this._zbScanning ? tr('Scan the network to draw its links. Until then the devices are placed by kind.') : '';
+    const legend = `<div class="zbleg"><span><i style="background:#34d399"></i>LQI 120+</span><span><i style="background:#fbbf24"></i>${Z.lqiMin}–119</span><span><i style="background:#f43f5e"></i>&lt; ${Z.lqiMin}</span>
+      <span><u style="background:#2dd4bf"></u>${tr('Coordinator')}</span><span><u style="background:#a78bfa"></u>${tr('Router')}</span><span><u style="background:#60a5fa"></u>${tr('End device')}</span><span class="zbsp"></span><span>${esc(age)}</span></div>`;
+    // the device tapped: what is wrong, and its way to the coordinator with the link quality of each hop
+    let det = `<div class="zbroute"><b>${tr('Tap a device')}</b><span>${tr('See its way to the coordinator and the signal on each hop. Dashed lines lead to offline devices.')}</span></div>`;
+    if (sel) {
+      const d = byId.get(sel), s = d ? st(d) : 'ok', nm = id => (id === 'coord' ? tr('Coordinator') : byId.get(id)?.name || '?');
+      const via = d ? m.devices.filter(x => x.parent === d.id).length : m.devices.filter(x => x.parent === 'coord').length;
+      const msg = !d ? tr('{0} devices talk to it directly.', via)
+        : s === 'off' ? (d.role === 'R' && via ? tr('{0} reports this router offline, so the {1} devices that go through it must find another way. Check its power, or the wall switch in front of it.', SRC_NAME[m.source], via) : tr('{0} reports it offline.', SRC_NAME[m.source]))
+        : s === 'weak' ? tr('LQI {0} is below your limit of {1}. A router (a mains-powered plug or bulb) nearer to it would help.', Math.round(d.lqi), Z.lqiMin)
+        : s === 'orphan' ? tr('The router it goes through is offline. It should find another one; until then its reports may not arrive.')
+        : d.hops != null ? tr('{0} hops to the coordinator.', d.hops) : tr('Not in the last network map.');
+      const hops = route.map((id, i) => { const nx = route[i + 1]; const l = nx && m.links.find(x => rk(x.a, x.b) === rk(id, nx)); const dead = nx && (off(id) || off(nx));
+        return `<span class="zbhop">${esc(nm(id))}</span>${nx ? `<em style="color:${dead ? '#f43f5e' : lqiCol(l?.lqi, Z.lqiMin)}">${dead ? '✕' : l?.lqi != null ? Math.round(l.lqi) : ''} →</em>` : ''}`; }).join('');
+      det = `<div class="zbroute"><b>${esc(nm(sel))}</b><span>${esc(msg)}</span>${route.length > 1 ? `<div class="zbhops">${hops}</div>` : ''}${d && this._info !== 'zigbee' ? `<button class="rbtn ubtn" data-act="zbopen" data-dev="${esc(d.id)}">${ic('mdi:information-outline')}${tr('Details')}</button>` : ''}</div>`;
+    }
+    return bar + (note ? `<div class="zbhint">${ic('mdi:information-outline')}<span>${esc(note)}</span></div>` : '')
+      + `<div class="zbmap">${this._zbScanning ? '<i class="zbscanbar"></i>' : ''}<svg class="${sel ? 'dim' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${tr('Zigbee network map')}">${areas}<g>${lk}</g><g>${nodes}</g></svg></div>`
+      + legend + det;
   }
 }
