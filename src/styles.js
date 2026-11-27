@@ -856,4 +856,15 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .zbroute>span{color:var(--mu);line-height:1.45}.zbroute .rbtn{display:flex;align-items:center;gap:5px;margin-top:6px;padding:6px 10px;border-radius:9px;font-size:11.5px;font-weight:600;color:var(--teal);background:rgba(45,212,191,.12);border:1px solid rgba(45,212,191,.42)}.zbroute .rbtn ha-icon{--mdc-icon-size:15px}
 .zbhops{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:4px}.zbhop{padding:3px 9px;border-radius:999px;background:rgba(var(--ink),.06);border:1px solid var(--line);font-weight:600}.zbhops em{font-style:normal;font-size:10.5px;font-weight:700}
 :host([look=light]) :is(.zbchip.on,.zbscan,.zbroute .rbtn){color:#0f766e}
+/* Zigbee mode on the 3D view: a dot per device (routers bigger, the coordinator teal), problems named */
+.zbd{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;width:10px;height:10px;border-radius:50%;background:#60a5fa;border:2px solid rgba(var(--s1),.85);box-shadow:0 2px 8px rgba(0,0,0,.5);will-change:transform}
+.zbd::before{content:'';position:absolute;inset:-12px;border-radius:50%}
+.zbd.ro{width:14px;height:14px;background:#a78bfa}.zbd.co{width:20px;height:20px;background:#2dd4bf;box-shadow:0 0 0 4px rgba(45,212,191,.25),0 2px 8px rgba(0,0,0,.5)}
+.zbd.weak{background:#fbbf24;box-shadow:0 0 10px -1px #fbbf24}.zbd.off{background:#f43f5e;animation:zbpulse 1.4s ease-in-out infinite}
+@keyframes zbpulse{50%{box-shadow:0 0 0 7px rgba(244,63,94,.25)}}
+@media (prefers-reduced-motion:reduce){.zbd.off{animation:none}}
+.zbd span{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;white-space:nowrap;font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:6px;background:rgba(var(--s1),.85);color:var(--tx);pointer-events:none}
+.zbd.off span{color:#fecdd3}.zbd.weak span{color:#fde68a}
+.dot.rose{background:var(--rose);box-shadow:0 0 6px var(--rose)}
+:host([look=light]) .zbd span{background:rgba(255,255,255,.92)}:host([look=light]) .zbd.off span{color:#be123c}:host([look=light]) .zbd.weak span{color:#b45309}
 `;

@@ -298,6 +298,7 @@ const AR = {
   'LQI {0} is below your limit of {1}. A router (a mains-powered plug or bulb) nearer to it would help.': 'قيمة LQI ‏{0} أقل من حدّك ({1}). وجود موجّه أقرب إليه (مقبس أو مصباح يعمل بالكهرباء) سيساعد.',
   'The router it goes through is offline. It should find another one; until then its reports may not arrive.': 'الموجّه الذي يمر عبره غير متصل. يُفترض أن يجد موجّهًا آخر، وحتى ذلك الحين قد لا تصل تقاريره.',
   '{0} hops to the coordinator.': '{0} قفزات إلى المنسّق.', 'Not in the last network map.': 'غير موجود في آخر خريطة للشبكة.',
+  Weak: 'ضعيفة', '{0} without a room': '{0} بلا غرفة',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

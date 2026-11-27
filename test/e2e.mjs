@@ -1403,6 +1403,7 @@ try {
       card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
       return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
     }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
+  check('no Zigbee button on the 3D view without Zigbee devices', await p.evaluate(() => !card.shadowRoot.querySelector('#modeSeg [data-mode=zigbee]')));
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
   // Zigbee (System tab): a made-up Zigbee2MQTT network (?zigbee=1) and a fake MQTT feed (window.mqttSend)
@@ -1506,6 +1507,24 @@ try {
       card._closeSheet();
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('zigbee map: Scan network, the answer draws links and routes, a device behind an offline router, by area, the sheet\'s map', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // Zigbee mode on the 3D view: a dot per device in its area's room (the coordinator with the devices that talk to it),
+      // arcs for the links, rooms tinted by their worst device; a dot opens the device
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms));
+      card._setTab('home'); await wait(200);
+      const btn = R.querySelector('#modeSeg [data-mode=zigbee]'), out = { button: !!btn };
+      btn.click(); await wait(400);
+      const Z = card._zb3d(), dots = [...R.querySelectorAll('.zbd')];
+      out.dots = dots.length === 4 && !!R.querySelector('.zbd.co') && !!R.querySelector('.zbd.weak[data-dev=zb3]') && !R.querySelector('.zbd[data-dev=zb2]'); // the Garage Relay has no area
+      out.coord = Z.nodes.find(n => n.id === 'coord').room === 'kitchen' && Z.rooms.balcony === 'weak';
+      out.arcs = card._three.zbLines.length === 2; // Garden → Kitchen Plug → coordinator; the links to the Garage Relay (no area) are left out
+      out.legend = R.getElementById('legend').textContent.includes('1 without a room');
+      R.querySelector('.zbd[data-dev=zb1]').click(); await wait(200);
+      out.opens = !!R.querySelector('#sheet .zbitem.on [data-dev=zb1]'); card._closeSheet();
+      R.querySelector('#modeSeg [data-mode=lights]').click(); await wait(200);
+      out.gone = !R.querySelector('.zbd') && !card._three.zbLines.length;
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee mode on the 3D view: devices in their rooms, arcs for the links, a dot opens its device', r === true, r); }
   check('no page errors (zigbee map)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }
