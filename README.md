@@ -483,6 +483,7 @@ listed below).
     show under Zigbee Offline as *Router offline*. The map needs an admin account (it comes from Zigbee2MQTT over MQTT
     or from ZHA).
   - `alerts`: any of `offline`, `weak` (default: both); `lqi_min`: weak below this link quality (default 60)
+  - `auto_scan` (on by default): opening the map scans the network when the last map is 10 minutes old or more, at most every 10 minutes (admins). The map's *Names* button shows every device's name, spread so none sits on another.
   - **Zigbee mode on the 3D view** (a button next to Lights, Climate and Presence): each Zigbee device is a dot in the
     room of its Home Assistant area (routers bigger, the coordinator in the room most of its direct devices are in),
     each device's link to its router an arc over the walls coloured by its link quality, and rooms with an offline

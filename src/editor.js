@@ -1787,7 +1787,7 @@ class SweetHomeCardEditor extends HTMLElement {
       zigbee: [{ name: 'source', selector: sel([['', 'Found on its own'], ['z2m', 'Zigbee2MQTT'], ['zha', 'ZHA']]) }, { name: 'base_topic', selector: { text: {} } },
         { name: 'views', selector: { select: { multiple: true, mode: 'list', options: [['summary', 'Summary'], ['list', 'Device list'], ['map', 'Network map']].map(([value, label]) => ({ value, label })) } } },
         { name: 'alerts', selector: { select: { multiple: true, mode: 'list', options: [['offline', 'Zigbee offline'], ['weak', 'Weak Zigbee signal']].map(([value, label]) => ({ value, label })) } } },
-        { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }],
+        { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }, { name: 'auto_scan', selector: { boolean: {} } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
         { name: 'battery_exclude_devices', selector: { device: { multiple: true } } }, { name: 'battery_exclude', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } },
         { name: 'unavailable_domains', selector: { select: { multiple: true, mode: 'list', options: UNAVAIL_DOMAINS.map(d => ({ value: d, label: d })) } } },
@@ -1882,7 +1882,7 @@ class SweetHomeCardEditor extends HTMLElement {
           schema = schema.map(f => (f.name === 'unavailable_integrations' ? { ...f, selector: { select: { ...f.selector.select, options: opts } } } : f));
         }
         if (k === 'zigbee') { // shown with their defaults when not set; the base topic is only asked for Zigbee2MQTT
-          Object.assign(data, { source: cur.source || '', views: arr(cur.views ?? ZB_VIEWS), alerts: arr(cur.alerts ?? ZB_ALERTS), lqi_min: cur.lqi_min ?? ZB_LQI_MIN, base_topic: cur.base_topic || 'zigbee2mqtt' });
+          Object.assign(data, { source: cur.source || '', views: arr(cur.views ?? ZB_VIEWS), alerts: arr(cur.alerts ?? ZB_ALERTS), lqi_min: cur.lqi_min ?? ZB_LQI_MIN, auto_scan: cur.auto_scan !== false, base_topic: cur.base_topic || 'zigbee2mqtt' });
           if (cur.source === 'zha') { schema = schema.filter(f => f.name !== 'base_topic'); delete data.base_topic; }
         }
         if (k === 'homelab') { // which Proxmox node shows first: only asked with several nodes
@@ -1933,6 +1933,7 @@ class SweetHomeCardEditor extends HTMLElement {
                 continue;
               }
               if (kk === 'lqi_min') { const n = Number(vv); if (!isFinite(n) || n === ZB_LQI_MIN || vv === '' || vv == null) delete next[kk]; else next[kk] = n; continue; }
+              if (kk === 'auto_scan') { if (vv === false) next[kk] = false; else delete next[kk]; continue; } // on by default: stored only when off
               if (kk === 'base_topic') { const b = String(vv || '').trim().replace(/^\/+|\/+$/g, ''); if (!b || b === 'zigbee2mqtt') delete next[kk]; else next[kk] = b; continue; }
             }
             if (k === 'attention' && /^unavailable_/.test(kk)) { // a multiple select (a comma list in plain forms); the default domains are not stored
@@ -1951,7 +1952,7 @@ class SweetHomeCardEditor extends HTMLElement {
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
           extra: 'More rows on the Energy card', exclude: 'Meters to leave out (e.g. a charger that is not behind the house meter)',
           cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
-          source: 'Integration', base_topic: 'Zigbee2MQTT base topic', views: 'Show on the System tab', alerts: 'Needs Attention: list', lqi_min: 'Weak signal below (LQI)',
+          source: 'Integration', base_topic: 'Zigbee2MQTT base topic', views: 'Show on the System tab', alerts: 'Needs Attention: list', lqi_min: 'Weak signal below (LQI)', auto_scan: 'Scan the network when the map opens (when the last map is 10 min old or more)',
           node: 'Node shown first', battery_exclude: 'Batteries hidden from low batteries',
           unavailable_domains: 'Unavailable: list these kinds of entities', unavailable_integrations: 'Unavailable: also list everything from these integrations',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',

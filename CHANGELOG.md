@@ -12,6 +12,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Zigbee map: a *Names* button shows every device's name, end devices included, spread so none sits on another (the map widens to fit them).
+- Zigbee map: opening the map scans the network when the last map is 10 minutes old or more, at most every 10 minutes (Panels → Zigbee → *Scan the network when the map opens*, on by default; `auto_scan: false` turns it off).
 - Header chips: choose which chips show at the top of the card (weather, alarm, doors, locks, lights, inside temperature, power, people; card editor: Look → Header chips, or `header_chips`).
 
 ## v0.6.63-beta.2 — 2026-11-27

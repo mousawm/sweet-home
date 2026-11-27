@@ -846,9 +846,8 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .zbmap svg{display:block;width:100%;max-width:760px;height:auto;max-height:640px;margin:0 auto}
 .zbscanbar{position:absolute;left:0;top:0;height:3px;width:35%;background:var(--teal);animation:zbscan 1.4s ease-in-out infinite alternate}@keyframes zbscan{from{left:0}to{left:65%}}
 .zbn{cursor:pointer}.zbn:focus{outline:none}.zbn:focus .zbc{stroke:var(--teal);stroke-width:3}
-.zbn text{font-size:10.5px;fill:var(--tx);paint-order:stroke;stroke:var(--sheet);stroke-width:3px;stroke-linejoin:round;pointer-events:none;opacity:0;transition:opacity .15s}
-.zbn.show text,.zbn:hover text,.zbn:focus text{opacity:1}
-.zbmap svg.dim .zbn:not(.hl){opacity:.3}.zbmap svg.dim .zblk:not(.hl){opacity:.12}
+.zbl{font-size:10.5px;fill:var(--tx);paint-order:stroke;stroke:var(--sheet);stroke-width:3px;stroke-linejoin:round;pointer-events:none}
+.zbmap svg.dim .zbn:not(.hl),.zbmap svg.dim .zbl:not(.hl){opacity:.3}.zbmap svg.dim .zblk:not(.hl){opacity:.12}
 .zbarea rect{fill:rgba(var(--ink),.025);stroke:rgba(var(--ink),.1)}.zbarea text{font-size:10px;fill:var(--mu);text-transform:uppercase;letter-spacing:1px}
 .zbleg{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:8px 0;font-size:11px;color:var(--mu)}.zbleg span{display:inline-flex;align-items:center;gap:5px}
 .zbleg i{display:inline-block;width:14px;height:3px;border-radius:2px}.zbleg u{display:inline-block;width:9px;height:9px;border-radius:50%}

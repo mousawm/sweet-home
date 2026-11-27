@@ -1529,8 +1529,8 @@ try {
   await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(400);
   { const r = await p.evaluate(async () => {
       const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), M = () => R.getElementById('zbmap');
-      const out = { card: M().style.display !== 'none' && M().querySelectorAll('.zbn').length === 5 && M().textContent.includes('Scan the network'), noLinks: !M().querySelector('.zblk') };
-      M().querySelector('[data-act=zbscan]').click(); await wait(500);
+      const out = { card: M().style.display !== 'none' && M().querySelectorAll('.zbn').length === 5 && M().textContent.includes('Scanning'), noLinks: !M().querySelector('.zblk') };
+      await wait(500); // the map opened with no map yet: it scans by itself (auto_scan)
       out.asked = (window.calls || []).some(c => c[0] === 'mqtt' && c[1] === 'publish' && c[2].topic === 'zigbee2mqtt/bridge/request/networkmap' && JSON.parse(c[2].payload).type === 'raw') && !!M().querySelector('.zbscanbar');
       const C = '0x00124b0024c1aa01', n = i => `0x00158d0001a2b30${i}`, L = (s, t, q, rel) => ({ source: { ieeeAddr: s }, target: { ieeeAddr: t }, linkquality: q, relationship: rel });
       mqttSend('zigbee2mqtt/bridge/response/networkmap', { status: 'ok', data: { type: 'raw', routes: false, value: {
@@ -1545,6 +1545,13 @@ try {
       M().querySelector('[data-act=zbmode][data-v=areas]').click(); await wait(300);
       out.areas = [...M().querySelectorAll('.zbarea text')].map(x => x.textContent).includes('Kitchen');
       M().querySelector('[data-act=zball]').click(); await wait(300); out.parentsOnly = M().querySelectorAll('.zblk').length === 4; // every link here is a parent link
+      // Names: every device named, none on another; the map widens to fit them
+      M().querySelector('[data-act=zbmode][data-v=mesh]').click(); await wait(200);
+      const before = M().querySelectorAll('.zbl').length; M().querySelector('[data-act=zbnames]').click(); await wait(300);
+      const NB = [...M().querySelectorAll('.zbl')].map(t => t.getBBox()), clash = NB.some((a, i) => NB.some((b, j) => j > i && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height));
+      out.names = NB.length === 5 && !clash && localStorage.getItem('sweet-home-zbnames') === '1' || JSON.stringify({ n: NB.length, before, clash });
+      M().querySelector('[data-act=zbnames]').click(); await wait(200);
+      out.again = !(card._zbAutoAt && Date.now() - card._zbAutoAt < 10e3 && (window.calls || []).filter(c => c[0] === 'mqtt').length > 1); // no second scan within 10 min
       R.querySelector('#zblist [data-dev=zb4]').click(); await wait(200);
       const sh = R.getElementById('sheet'); sh.querySelector('[data-act=zbshow][data-dev=zb4]').click(); await wait(200);
       out.sheetMap = !!sh.querySelector('.zbmap svg .zbn.hl[data-dev=zb4]') && sh.querySelector('.zbseg button.on')?.textContent.includes('Map');
