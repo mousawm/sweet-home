@@ -6,15 +6,34 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- At a glance: the Home Lab, Water Tank, Cameras and TV tiles no longer show when their panel is switched off in the card editor.
-- Header: the alarm, doors and locks chips no longer show with Security switched off, the inside temperature with Climate off, and power with Energy off.
 
 ### Changed
 
 ### Added
-- Zigbee map: a *Names* button shows every device's name, end devices included, spread so none sits on another (the map widens to fit them).
-- Zigbee map: opening the map scans the network when the last map is 10 minutes old or more, at most every 10 minutes (Panels → Zigbee → *Scan the network when the map opens*, on by default; `auto_scan: false` turns it off).
-- Header chips: choose which chips show at the top of the card (weather, alarm, doors, locks, lights, inside temperature, power, people; card editor: Look → Header chips, or `header_chips`).
+
+## v0.6.63 — 2026-11-27
+
+Everything since v0.6.62, including the two betas (their notes are kept below).
+
+### Added
+- Zigbee (System tab): your Zigbee2MQTT or ZHA network at a glance. A Summary (online devices, routers, healthy devices, coordinator, weakest link, quietest device, lowest battery), a Device list with problems first, and a pop-up with every device, its link quality, last seen, power and details; Needs Attention gets *Zigbee Offline* and *Weak Zigbee* sections. Choose the views, alerts and weak-signal limit in the card editor (Panels → Zigbee).
+- Zigbee network map: coordinator, routers and end devices with each link's quality; tap a device for its way to the coordinator, hop by hop. *By area* groups devices by area, *Names* shows every device's name without overlaps, and *Scan network* draws a fresh map (opening the map also scans when the last map is 10 minutes old or more; can be turned off). Devices behind an offline router show as *Router offline* in Needs Attention.
+- Zigbee mode on the 3D view: devices as dots in their rooms and links as arcs over the house; rooms with an offline device turn red, with a weak one amber. Tap a dot for the device.
+- View only: pick who can look but not control (everyone who is not an admin, or chosen people) and what they can still control (lights, media…). An optional PIN unlocks the rest until the card is left alone, and the PIN pad closes by itself. A long press shows a device's details without its controls (card editor: Look → View only).
+- Card order: put the cards of each tab in the order you want (Panels → Card order).
+- 3D view: choose which mode buttons show (Lights, Climate, Presence, Zigbee) and which one it opens on (Look → Modes on the 3D view).
+- Header chips: choose which chips show at the top (weather, alarm, doors, locks, lights, inside temperature, power, people; Look → Header chips).
+- Water: a *Tank trend from the last* option (2, 6, 12 or 24 hours).
+- Card editor: many YAML-only options can now be set in the editor: locks, gates, irrigation zones, Energy rows and the card's language; each device's name, icon, charging sensor and tracker; the Proxmox node shown first; which entities count as unavailable; a gate's open / closed words and a car's “parked” state.
+
+### Changed
+- Sweet Home is now in the Home Assistant Marketplace's default store: search for it there, no custom repository needed.
+- The Zigbee pop-up is much wider on desktops and taller on tablets and phones.
+- Water: the tank trend now looks at the last 6 hours by default instead of 2, for a steadier estimate.
+
+### Fixed
+- At a glance: the Home Lab, Water Tank, Cameras and TV tiles no longer show when their panel is switched off.
+- Header: the alarm, doors and locks chips hide with Security switched off, the inside temperature with Climate off, and power with Energy off.
 
 ## v0.6.63-beta.2 — 2026-11-27
 
