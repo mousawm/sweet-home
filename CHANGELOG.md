@@ -6,6 +6,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+
+### Changed
+
+### Added
+
+## v0.6.64 — 2026-11-27
+
+### Fixed
 - Water tank trend: a tank that is draining now no longer shows as filling because the pump filled it earlier in the trend window; the rate and time left follow the latest fill or drain only.
 - Zigbee device list: a long status such as “Router offline · 3 h” is no longer cut off.
 - Zigbee mode on the 3D view: the coordinator no longer carries a name that could cover a device's name next to it (it is the big teal dot; its name shows on hover).
@@ -13,8 +21,6 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 - Tapping a tab in the tab bar now swaps to it like a swipe does (it slides in) and takes you back to the top of its cards.
 - README: Zigbee, View only and the new choices in the overview, and new screenshots (the System tab with Zigbee, the Zigbee network map, Zigbee mode on the 3D house).
-
-### Added
 
 ## v0.6.63 — 2026-11-27
 
