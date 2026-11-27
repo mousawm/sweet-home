@@ -4,6 +4,8 @@ name: Release
 # only when main is pushed with a version that has no release yet. Pushes without a version bump do nothing,
 # so fixes collect under "Unreleased" in CHANGELOG.md until a release is cut (see CLAUDE.md).
 # The release notes are that version's section of CHANGELOG.md.
+# A version with a pre-release part (0.6.63-beta.1, 0.7.0-rc.1) is published as a GitHub pre-release: HACS offers it only
+# to those who turn on "Show beta versions" for Sweet Home; everyone else stays on the last full release.
 on:
   push:
     branches: [main]
@@ -27,6 +29,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v$(node -p "require('./package.json').version")"
+          PRE=""; case "$TAG" in *-*) PRE="--prerelease";; esac
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "$TAG is already released; nothing to do (bump the version to release)."
             exit 0
@@ -36,7 +39,7 @@ jobs:
             found && !/^### *$/ { print }
           ' CHANGELOG.md > notes.md
           if [ -s notes.md ] && grep -q '[^[:space:]]' notes.md; then
-            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --notes-file notes.md $PRE
           else
-            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes
+            gh release create "$TAG" dist/sweet-home-card.js dist/sweet-home-editor.js --target "$GITHUB_SHA" --title "Sweet Home $TAG" --generate-notes $PRE
           fi

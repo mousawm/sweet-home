@@ -13,6 +13,9 @@
 2. In `CHANGELOG.md`, rename `## Unreleased` to `## v<version> — <YYYY-MM-DD>`, drop empty subsections, and add a fresh empty `## Unreleased` block (with the three subsections) above it.
 3. `npm run build`, `npm test`, commit as `Release v<version>`.
 4. Once merged to `main`, the workflow creates the release with that CHANGELOG section as its notes.
+5. A **beta** ("beta release"): version `<next>-beta.N` (e.g. `0.6.63-beta.1`). Any version with a `-` is published as a
+   GitHub pre-release, which HACS shows only with "Show beta versions" on. When the full version is released later, its
+   CHANGELOG section lists everything since the last full release (the beta sections' notes included).
 
 ## Pull requests and merging
 
