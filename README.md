@@ -88,9 +88,14 @@ Home Assistant's **Marketplace** (formerly HACS):
 
 [![Open your Home Assistant instance and open Sweet Home in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mousawm&repository=sweet-home&category=plugin)
 
-1. Click the button above. It opens Sweet Home in your Marketplace and offers to add the repository. Or add it by hand: **Marketplace** → ⋮ → **Custom repositories**, this repository's URL, type **Dashboard**.
-2. Search the Marketplace for **Sweet Home** and download it.
+Sweet Home is listed in the Marketplace's default store, so there is no custom repository to add.
+
+1. Open **Marketplace** in Home Assistant and search for **Sweet Home** (or click the button above to go straight to it).
+2. Download it.
 3. Reload the browser, then [add the dashboard](#from-add-dashboard-recommended).
+
+Added it earlier as a custom repository? It keeps working and keeps getting updates. If you want, you can remove the
+custom repository entry (**Marketplace** → ⋮ → **Custom repositories**); Sweet Home stays installed.
 
 The Marketplace adds the dashboard resource for you. If it doesn't, add `/local/community/sweet-home/sweet-home-card.js`
 as a **JavaScript module** under Settings → Dashboards → ⋮ → Resources.
