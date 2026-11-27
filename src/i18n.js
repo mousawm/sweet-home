@@ -268,6 +268,10 @@ const AR = {
   'Unavailable: list these kinds of entities': 'غير المتاح: اعرض هذه الأنواع من الكيانات', 'Unavailable: also list everything from these integrations': 'غير المتاح: اعرض أيضًا كل ما يأتي من هذه التكاملات',
   'Leave a field empty and it is found on the device.': 'اترك الحقل فارغًا ليُكتشف من الجهاز.', 'Name (empty: the device’s name)': 'الاسم (فارغ: اسم الجهاز)',
   'Icon (empty: from the kind of device)': 'الأيقونة (فارغ: حسب نوع الجهاز)', 'Charging sensor': 'حساس الشحن', 'Where it is (tracker)': 'مكانه (المتتبع)',
+  'State that means parked (empty: on, home, parked…)': 'الحالة التي تعني أنها مركونة (فارغ: on، home، parked…)',
+  'State that means parked (empty: on, home, parked…; the sensor reads “{0}” now)': 'الحالة التي تعني أنها مركونة (فارغ: on، home، parked…؛ يقرأ الحساس الآن «{0}»)',
+  'Words that mean open (comma-separated)': 'كلمات تعني مفتوح (مفصولة بفواصل)', 'Words that mean closed (comma-separated)': 'كلمات تعني مغلق (مفصولة بفواصل)',
+  'The sensor reads “{0}” now.': 'يقرأ الحساس الآن «{0}».', 'Empty: open, opened, ajar… and closed, shut… are understood on their own.': 'فارغ: تُفهم open وopened وajar… وclosed وshut… تلقائيًا.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

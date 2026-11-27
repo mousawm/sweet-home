@@ -1040,6 +1040,25 @@ try {
   check('…a suggestion sets the sensor', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '[{"entity":"switch.gate_relay","sensor":"sensor.gate_cam_gate_state"}]'));
   await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=sensor_2]'); i.value = 'binary_sensor.gate'; i.dispatchEvent(new Event('change')); });
   check('…and a second one as a backup', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances[0].sensor) === '["sensor.gate_cam_gate_state","binary_sensor.gate"]'));
+  // a text sensor (Frigate's state classification): the words it uses for open and closed
+  check('…a text sensor brings fields for its open / closed words', await p.evaluate(() => !!editor.querySelector('ha-form input[name=open_states]') && !!editor.querySelector('ha-form input[name=closed_states]')));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=open_states]'); i.value = 'gate_up, up ,'; i.dispatchEvent(new Event('change'));
+    const c = editor.querySelector('ha-form input[name=closed_states]'); c.value = 'gate_down'; c.dispatchEvent(new Event('change')); });
+  check('…stored as lists, with the sensors kept', await p.evaluate(() => { const e = editor._config.panels.security.entrances[0]; return JSON.stringify([e.open_states, e.closed_states, e.sensor]) === '[["gate_up","up"],["gate_down"],["sensor.gate_cam_gate_state","binary_sensor.gate"]]'; }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=open_states]'); i.value = ''; i.dispatchEvent(new Event('change')); });
+  check('…clearing the words removes them', await p.evaluate(() => !('open_states' in editor._config.panels.security.entrances[0]) && 'closed_states' in editor._config.panels.security.entrances[0]));
+  await p.evaluate(() => { editor._config.panels.security.entrances = [{ entity: 'switch.gate_relay', sensor: 'binary_sensor.gate' }]; editor._render(); });
+  check('…no word fields with only a contact sensor', await p.evaluate(() => !editor.querySelector('ha-form input[name=open_states]')));
+  // a car: the exact state of its sensor that means parked (only once a sensor is linked)
+  await p.evaluate(() => { editor._step = 'rooms'; const r = editor._config.house.rooms[0]; r.furniture = [...(r.furniture || []), { type: 'car', x: 2, z: 2 }];
+    editor._sel = 0; editor._mode = 'furniture'; editor._fsel = r.furniture.length - 1; editor._render(); });
+  check('a car with no sensor has no parked state field', await p.evaluate(() => !editor.querySelector('ha-form input[name=parked_state]')));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=entities]')].pop(); i.value = 'sensor.gate_cam_gate_state'; i.dispatchEvent(new Event('change')); });
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=parked_state]'); i.value = ' In bay '; i.dispatchEvent(new Event('change')); });
+  check('…once linked, the state that means parked is stored', await p.evaluate(() => { const r = editor._config.house.rooms[0]; return r.furniture[r.furniture.length - 1].parked_state === 'In bay'; }));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=parked_state]'); i.value = ''; i.dispatchEvent(new Event('change')); });
+  check('…and cleared again', await p.evaluate(() => { const r = editor._config.house.rooms[0], f = r.furniture[r.furniture.length - 1]; return !('parked_state' in f) && f.entity === 'sensor.gate_cam_gate_state'; }));
+  await p.evaluate(() => { const r = editor._config.house.rooms[0]; r.furniture.pop(); if (!r.furniture.length) delete r.furniture; editor._fsel = null; editor._mode = 'shape'; editor._emit(); editor._step = 'panels'; editor._render(); });
   await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // irrigation in the editor: valves are picked there, a zone's name and duration stay
   await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
