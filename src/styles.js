@@ -822,7 +822,7 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .zbfact b{display:block;margin-top:3px;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.zbfact b i{font-style:normal;font-weight:400;color:var(--mu)}
 .zbgo{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:11px 14px;border-radius:12px;font-weight:600;color:var(--teal);background:rgba(45,212,191,.12);border:1px solid rgba(45,212,191,.42)}
 .zbgo span{font-size:11.5px;font-weight:500;color:var(--mu)}
-.zbrow .zbr{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:96px}
+.zbrow .zbr{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:96px;max-width:48%} /* grows for “Router offline · 3 h” */
 .zbrow .zbr b{white-space:nowrap;font-variant-numeric:tabular-nums}
 .zbbar{display:block;width:100%;height:4px;border-radius:2px;background:rgba(var(--ink),.08);overflow:hidden}.zbbar i{display:block;height:100%;border-radius:2px}
 .zbitem.on>.zbrow{margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
@@ -834,7 +834,7 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .zbacts .ubtn{color:var(--teal);background:rgba(45,212,191,.12);border-color:rgba(45,212,191,.42)}
 .zbsels{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 10px}
 .zbsels select{font:inherit;font-size:12px;color:var(--tx);padding:6px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}.zbsels option{background:var(--sheet);color:var(--tx)}
-@media (max-width:480px){.zbdet{grid-template-columns:repeat(2,minmax(0,1fr))}.zbrow .zbr{width:84px}}
+@media (max-width:480px){.zbdet{grid-template-columns:repeat(2,minmax(0,1fr))}.zbrow .zbr{min-width:84px}}
 :host([look=light]) :is(.mrow.zbw ha-icon,.mrow.zbw b){color:#b45309}
 :host([look=light]) :is(.zbgo,.zbacts .ubtn){color:#0f766e}
 .tgrid>.zbmapc{grid-column:1/-1}

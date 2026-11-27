@@ -7,10 +7,11 @@
 ![Sweet Home: the Home tab with the 3D house, At a glance and Modes](docs/screenshots/home.webp)
 
 Your home as an interactive **3D model** in Home Assistant. Tap a room to see and switch what is in it. Tabs cover
-security, climate, energy, water, media and your home lab.
+security, climate, energy, water, media, your home lab and your Zigbee network.
 
 - **3D house**: walls, windows, doors that swing open with their contact sensors, furniture, glowing lights (ceiling
-  lights, spots, LED strips, TV backlight), AC airflow, motion pulses and lock badges. Three views: Lights, Climate and Presence.
+  lights, spots, LED strips, TV backlight), AC airflow, motion pulses and lock badges. Four views: Lights, Climate,
+  Presence and **Zigbee** (your Zigbee devices in their rooms, their links drawn as arcs over the house); pick the ones you want.
 - **Works with no setup**: without any configuration it builds a simple house from your Home Assistant areas. Draw
   your real floor plan in the card editor, or load your own `.glb` model.
 - **Panels**, each shown only when Home Assistant has something for it:
@@ -23,8 +24,13 @@ security, climate, energy, water, media and your home lab.
   - **Media**: TV and speakers, plus a media server card from Jellyfin (or Jellyfin + JellyHA), Sonarr, Radarr and
     qBittorrent: now watching, the library, coming up, downloads and storage. Tap a movie or episode to play it on your TV
   - **Home Lab**: Proxmox VE node and guests
+  - **Zigbee**: your Zigbee2MQTT or ZHA network: a summary, a device list with problems first, and a network map with
+    each device's way to the coordinator, its link quality and every name (see [Zigbee](#zigbee))
   - **Needs Attention**: unavailable devices, low batteries, weak Wi-Fi, repairs, updates (with a live progress bar
-    while one installs)
+    while one installs), offline and weak Zigbee devices
+- **View only**: let family members or a wall tablet look without controlling, except the kinds of devices you allow
+  (lights, media…). An optional PIN unlocks the rest for a while.
+- **Make it yours**: the order of the cards on each tab, which chips show at the top, which views the 3D house offers.
 - **Sweet Home 3D card**: only the 3D view, to place among your other cards. Tap a room and its controls open as a
   pop-up. See [Only the 3D view](#only-the-3d-view-sweet-home-3d).
 - **Shows what it found**: each panel's settings list the integrations it reads (Jellyfin, Sonarr, Radarr,
@@ -49,11 +55,13 @@ security, climate, energy, water, media and your home lab.
 | **3D house** | **Furniture that reacts** |
 | ![The demo house in 3D: rooms with live temperatures, locks, a pool and a parked car](docs/screenshots/overview-3d.webp) | ![A bathroom: toilet, vanity with a glowing mirror, towel warmer, steaming shower, washing machine and bathtub](docs/screenshots/bathroom-3d.webp) |
 | **Media** | **System** |
-| ![Media tab: the TV, and the media server with Now Watching, the library, Coming Up, downloads and storage](docs/screenshots/media.webp) | ![System tab: Needs Attention, the Home Lab server with its containers and VMs, and the phones' batteries](docs/screenshots/system.webp) |
+| ![Media tab: the TV, and the media server with Now Watching, the library, Coming Up, downloads and storage](docs/screenshots/media.webp) | ![System tab: Needs Attention with Zigbee offline and weak devices, the Zigbee summary, device list and network map, the Home Lab server and the phones' batteries](docs/screenshots/system.webp) |
 | **Sweet Home 3D card on a dashboard** | **Tap a room: its pop-up** |
 | ![The Sweet Home 3D card next to other cards on a dashboard](docs/screenshots/sweet-home-3d.webp) | ![The room pop-up of the Sweet Home 3D card: lights with brightness, the front door lock, blinds and the robot vacuum](docs/screenshots/sweet-home-3d-room.webp) |
 | **Floor plan editor** | **On a phone** |
 | ![The card editor: rooms, walls, doors, windows and furniture drawn on a plan](docs/screenshots/editor-plan.webp) | ![A room popup on a phone: lights with brightness, the front door lock and blinds](docs/screenshots/phone-room.webp) |
+| **Zigbee network map** | **Zigbee on the 3D house** |
+| ![The Zigbee network map: the coordinator in the middle, routers around it and every end device named, each link coloured by its link quality](docs/screenshots/zigbee-map.webp) | ![Zigbee mode on the 3D house: each device a dot in its room, links as arcs, a room with an offline device in red and one with a weak device in amber](docs/screenshots/zigbee-3d.webp) |
 | **Doors: the last 24 hours** | **Show details** |
 | ![The Doors timeline: open now, openings, busiest door and openings at night, then one 24-hour strip per door](docs/screenshots/doors-timeline.webp) | ![Show details: the same rows as cards under Open now and Last hour, each with how often it opened today and when it last opened](docs/screenshots/doors-list.webp) |
 
@@ -466,7 +474,7 @@ listed below).
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
 - **tv_light**: `light` (the TV backlight) and `selects` (its mode / effect selectors: `select` or `input_select`, as IDs or `{entity, name, icon}`). Pick them in the card editor under Panels → TV light; switching the panel off hides its card
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices, where each one also takes its own name, icon, charging sensor and tracker. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
-- **zigbee** (System tab): your Zigbee network from **Zigbee2MQTT** or **ZHA**, found on its own from Home Assistant's
+- <a id="zigbee"></a>**zigbee** (System tab): your Zigbee network from **Zigbee2MQTT** or **ZHA**, found on its own from Home Assistant's
   devices. A **Summary** (online devices, routers, healthy devices, the coordinator, the weakest link, the quietest device
   and the lowest battery), a **Device list** with problems first, and a sheet with every device (filters: problems,
   routers, battery; by area; sorted by problems, silence, signal or name; each device's kind, power, link quality, last
