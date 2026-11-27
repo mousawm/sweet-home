@@ -6,6 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- At a glance: the Home Lab, Water Tank, Cameras and TV tiles no longer show when their panel is switched off in the card editor.
 
 ### Changed
 

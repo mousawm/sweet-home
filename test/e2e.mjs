@@ -1403,6 +1403,15 @@ try {
       card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
       return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
     }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // At a glance: a tile goes with its panel (switched off in the card editor), not only when its entities are missing
+      const R = card.shadowRoot, c0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms)), tiles = () => [...R.querySelectorAll('#glance .gl')].map(b => b.dataset.to);
+      card._setTab('home'); await wait(200); const before = tiles();
+      card.setConfig({ ...c0, panels: { ...(c0.panels || {}), homelab: false, water: false, cameras: false, media: false } }); await wait(1300); card._setTab('home'); await wait(300);
+      const after = tiles(); card.setConfig(c0); await wait(1300);
+      const out = { had: ['lab', 'cams', 'media'].every(k => before.includes(k)), gone: !['lab', 'water', 'cams', 'media'].some(k => after.includes(k)), kept: after.includes('security') };
+      return Object.values(out).every(Boolean) || JSON.stringify({ ...out, before, after });
+    }); check('at a glance: switching a panel off in the card editor takes its tile away (Home Lab, Water, Cameras, TV)', r === true, r); }
   check('no Zigbee button on the 3D view without Zigbee devices', await p.evaluate(() => !card.shadowRoot.querySelector('#modeSeg [data-mode=zigbee]')));
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
