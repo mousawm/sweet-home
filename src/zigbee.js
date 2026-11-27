@@ -47,6 +47,7 @@ export function zbConfig(P) {
     source: ['z2m', 'zha'].includes(z.source) ? z.source : null,
     base: String(z.base_topic || 'zigbee2mqtt').replace(/^\/+|\/+$/g, '') || 'zigbee2mqtt',
     views: pick(z.views, ZB_VIEWS), alerts: pick(z.alerts, ZB_ALERTS),
+    autoScan: z.auto_scan !== false, // a new network map when the map opens and the last one is 10 min old or more
     lqiMin: z.lqi_min != null && z.lqi_min !== '' && isFinite(n) ? Math.max(0, Math.min(255, n)) : ZB_LQI_MIN,
   };
 }

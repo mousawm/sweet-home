@@ -240,7 +240,7 @@ export class ZigbeePanels {
       const groups = new Map([[tr('Coordinator'), ['coord']]]);
       for (const d of [...D].sort((a, b) => (a.role > b.role ? -1 : a.role < b.role ? 1 : a.name.localeCompare(b.name)))) { const k = d.area ? tc(d.area) : tr('No area'); (groups.get(k) || groups.set(k, []).get(k)).push(d.id); }
       const list = [...groups.entries()].sort((a, b) => (a[1][0] === 'coord' ? -1 : b[1][0] === 'coord' ? 1 : b[1].length - a[1].length || a[0].localeCompare(b[0])));
-      const cols = 3, bw = 190, gap = 5, per = 4, boxes = [];
+      const cols = 3, bw = 190, gap = 5, per = this._zbNamesOn() ? 2 : 4, boxes = []; // with every name shown: two a row, so the names fit
       let y = 6;
       for (let i = 0; i < list.length; i += cols) {
         const row = list.slice(i, i + cols), h = 34 + Math.max(...row.map(([, ids]) => Math.ceil(ids.length / per))) * 44;
@@ -289,21 +289,26 @@ export class ZigbeePanels {
       const s = d ? st(d) : 'ok', r = !d ? 14 : d.role === 'R' ? 9.5 : 6.5, [x, y] = P[id];
       const fill = !d ? '#2dd4bf' : s === 'off' ? 'var(--sheet)' : d.role === 'R' ? '#a78bfa' : '#60a5fa';
       const ring = s === 'off' ? '#f43f5e' : s !== 'ok' ? '#fbbf24' : 'rgba(var(--ink),.25)';
-      const name = d ? d.name : tr('Coordinator'), show = !d || d.role === 'R' || s !== 'ok' || onRoute.has(id);
-      const ly = mode === 'areas' ? r + 12 : y > H / 2 + 60 ? -r - 6 : r + 13;
-      return `<g class="zbn ${show ? 'show' : ''} ${onRoute.has(id) ? 'hl' : ''}" data-act="zbnode" data-dev="${esc(id)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" role="button" tabindex="0" aria-label="${esc(name)}">
+      const name = d ? d.name : tr('Coordinator'), show = names || !d || d.role === 'R' || s !== 'ok' || onRoute.has(id);
+      if (show) lbls.push(this._zbLabel(id, name, x, y, r, mode === 'mesh' && d && d.role !== 'R', W, H, mode, onRoute.has(id)));
+      return `<g class="zbn ${onRoute.has(id) ? 'hl' : ''}" data-act="zbnode" data-dev="${esc(id)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" role="button" tabindex="0" aria-label="${esc(name)}">
         <title>${esc(name)}${d ? ` · ${s === 'off' ? tr('Offline') : d.lqi != null ? `LQI ${Math.round(d.lqi)}` : tr(ROLE_NAME[d.role])}` : ''}</title>
         ${!d ? `<circle r="${r + 6}" fill="none" stroke="#2dd4bf" stroke-opacity=".35" stroke-width="2"/>` : ''}<circle r="${r + 7}" fill="transparent"/>
-        <circle class="zbc" r="${r}" fill="${fill}" stroke="${ring}" stroke-width="${s === 'ok' ? 1.5 : 2.5}"${s === 'off' ? ' stroke-dasharray="3 2"' : ''}/>
-        <text text-anchor="middle" y="${ly}">${esc(name.length > 20 ? name.slice(0, 19) + '…' : name)}</text></g>`;
+        <circle class="zbc" r="${r}" fill="${fill}" stroke="${ring}" stroke-width="${s === 'ok' ? 1.5 : 2.5}"${s === 'off' ? ' stroke-dasharray="3 2"' : ''}/></g>`;
     };
+    const names = this._zbNamesOn(), lbls = [];
     const nodes = [...m.devices.filter(d => P[d.id]).map(d => node(d.id, d)), node('coord', null)].join('');
+    // the names: spread apart so none sits on another, and the map widened to fit them
+    this._zbSpread(lbls);
+    const bx = lbls.reduce((b, l) => [Math.min(b[0], l.x0 - 4), Math.min(b[1], l.y0 - 4), Math.max(b[2], l.x1 + 4), Math.max(b[3], l.y1 + 4)], [0, 0, W, H]);
+    const lbl = lbls.map(l => `<text class="zbl ${l.hl ? 'hl' : ''}" x="${l.tx.toFixed(1)}" y="${(l.y1 - 3).toFixed(1)}" text-anchor="${l.anchor}">${esc(l.text)}</text>`).join('');
     const areas = boxes.map(b => `<g class="zbarea"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="10"/><text x="${b.x + 10}" y="${b.y + 16}">${esc(b.name)}</text></g>`).join('');
     // the bar above the map: layout, all links or the routes only, Scan network and how old the map is
     const can = m.source === 'zha' ? !this._zhaNo : !this._zbNoMqtt;
     const age = this._zbScanning ? tr('Scanning… this can take a minute or two') : m.map?.at ? tr('Map from {0}', ago(iso(m.map.at), lang)) : m.map ? tr('From ZHA’s last scan') : tr('No map yet');
     const bar = `<div class="zbmbar"><div class="seg zbseg">${[['mesh', 'Mesh'], ['areas', 'By area']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="zbmode" data-v="${k}">${tr(l)}</button>`).join('')}</div>
-      <button class="zbchip ${this._zbAll !== false ? 'on' : ''}" data-act="zball" aria-pressed="${this._zbAll !== false}">${tr('All links')}</button><span class="zbsp"></span>
+      <button class="zbchip ${this._zbAll !== false ? 'on' : ''}" data-act="zball" aria-pressed="${this._zbAll !== false}">${tr('All links')}</button>
+      <button class="zbchip ${this._zbNamesOn() ? 'on' : ''}" data-act="zbnames" aria-pressed="${this._zbNamesOn()}">${tr('Names')}</button><span class="zbsp"></span>
       ${can ? `<button class="rbtn ubtn zbscan" data-act="zbscan"${this._zbScanning ? ' disabled' : ''}>${ic(this._zbScanning ? 'mdi:loading' : 'mdi:radar', this._zbScanning ? 'spin' : '')}${tr(this._zbScanning ? 'Scanning…' : 'Scan network')}</button>` : ''}</div>`;
     const note = !can ? tr('The links come from {0}, which needs an admin account.', SRC_NAME[m.source]) : !m.map && !this._zbScanning ? tr('Scan the network to draw its links. Until then the devices are placed by kind.') : '';
     const legend = `<div class="zbleg"><span><i style="background:#34d399"></i>LQI 120+</span><span><i style="background:#fbbf24"></i>${Z.lqiMin}–119</span><span><i style="background:#f43f5e"></i>&lt; ${Z.lqiMin}</span>
@@ -322,8 +327,9 @@ export class ZigbeePanels {
         return `<span class="zbhop">${esc(nm(id))}</span>${nx ? `<em style="color:${dead ? '#f43f5e' : lqiCol(l?.lqi, Z.lqiMin)}">${dead ? '✕' : l?.lqi != null ? Math.round(l.lqi) : ''} →</em>` : ''}`; }).join('');
       det = `<div class="zbroute"><b>${esc(nm(sel))}</b><span>${esc(msg)}</span>${route.length > 1 ? `<div class="zbhops">${hops}</div>` : ''}${d && this._info !== 'zigbee' ? `<button class="rbtn ubtn" data-act="zbopen" data-dev="${esc(d.id)}">${ic('mdi:information-outline')}${tr('Details')}</button>` : ''}</div>`;
     }
+    this._zbAuto(m);
     return bar + (note ? `<div class="zbhint">${ic('mdi:information-outline')}<span>${esc(note)}</span></div>` : '')
-      + `<div class="zbmap">${this._zbScanning ? '<i class="zbscanbar"></i>' : ''}<svg class="${sel ? 'dim' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${tr('Zigbee network map')}">${areas}<g>${lk}</g><g>${nodes}</g></svg></div>`
+      + `<div class="zbmap">${this._zbScanning ? '<i class="zbscanbar"></i>' : ''}<svg class="${sel ? 'dim' : ''}" viewBox="${Math.floor(bx[0])} ${Math.floor(bx[1])} ${Math.ceil(bx[2] - bx[0])} ${Math.ceil(bx[3] - bx[1])}" role="img" aria-label="${tr('Zigbee network map')}">${areas}<g>${lk}</g><g>${nodes}</g><g class="zbls">${lbl}</g></svg></div>`
       + legend + det;
   }
 
@@ -350,5 +356,46 @@ export class ZigbeePanels {
     const links = m.devices.filter(d => d.parent && placed.has(d.id)).map(d => ({ a: d.id, b: d.parent, lqi: lq(d.id, d.parent) ?? d.lqi, min: Z.lqiMin, dead: d.online === false || byId.get(d.parent)?.online === false }));
     const sig = JSON.stringify([nodes.map(n => [n.id, n.room, n.st]), links.map(l => [l.a, l.b, l.lqi, l.dead]), Z.lqiMin]);
     return { sig, nodes, links, rooms, missing };
+  }
+
+  // the map opened: a fresh scan when the last map is 10 min old or more (auto_scan, on by default), at most every
+  // 10 min; admins only (the answer comes back over MQTT / from ZHA), and not for a view-only user
+  _zbAuto(m) {
+    const Z = E.zigbee, u = this._hass?.user; if (!Z.autoScan || this._zbScanning || (u && !u.is_admin) || !this._mayAct('system')) return;
+    if (m.source === 'zha' ? this._zhaNo : this._zbNoMqtt) return;
+    const now = Date.now(); if ((m.map?.at && now - m.map.at < 10 * 60e3) || now - (this._zbAutoAt || 0) < 10 * 60e3) return;
+    this._zbAutoAt = now; setTimeout(() => this._zbScan(), 0);
+  }
+
+  /* ---------- the map's names ---------- */
+  // Names (the map's button): every device named, not only routers and devices with a problem; kept in this browser
+  _zbNamesOn() { if (this._zbNames == null) { try { this._zbNames = localStorage.getItem('sweet-home-zbnames') === '1'; } catch (e) { this._zbNames = false; } } return this._zbNames; }
+  _zbNamesSet(on) { this._zbNames = on; try { localStorage.setItem('sweet-home-zbnames', on ? '1' : '0'); } catch (e) { /* no storage */ } }
+  // where a name goes: an end device on the outer ring gets it outward (to the right on the right side, to the left on
+  // the left, above / below at the top and bottom); routers, the coordinator and the By area layout: under the dot
+  _zbLabel(id, name, x, y, r, outward, W, H, mode, hl) {
+    const max = mode === 'areas' && this._zbNamesOn() ? 16 : 22, text = name.length > max ? name.slice(0, max - 1) + '…' : name;
+    const w = text.length * 5.7 + 2, h = 12;
+    let tx = x, ty = y + r + 13, anchor = 'middle';
+    if (outward) {
+      const a = Math.atan2(y - H / 2, x - W / 2), c = Math.cos(a), s = Math.sin(a);
+      if (c > 0.35) { anchor = 'start'; tx = x + r + 5; ty = y + 4; } else if (c < -0.35) { anchor = 'end'; tx = x - r - 5; ty = y + 4; }
+      else ty = s < 0 ? y - r - 5 : y + r + 13;
+    } else if (mode !== 'areas' && y > H / 2 + 60) ty = y - r - 6;
+    const x0 = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2;
+    return { id, text, anchor, tx, x0, x1: x0 + w, y0: ty - h + 3, y1: ty + 3, hl };
+  }
+  // pushes names that would sit on each other apart, up and down, a few rounds
+  _zbSpread(L) {
+    for (let k = 0; k < 40; k++) {
+      let moved = false;
+      for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+        const a = L[i], b = L[j];
+        if (a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0) continue;
+        const d = Math.min(a.y1 - b.y0, b.y1 - a.y0) / 2 + 0.5, [up, dn] = (a.y0 + a.y1) <= (b.y0 + b.y1) ? [a, b] : [b, a];
+        up.y0 -= d; up.y1 -= d; dn.y0 += d; dn.y1 += d; moved = true;
+      }
+      if (!moved) break;
+    }
   }
 }

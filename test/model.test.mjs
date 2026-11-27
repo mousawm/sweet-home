@@ -501,8 +501,9 @@ test('several instances: Sonarr / Radarr / qBittorrent per config entry, every P
   test('zigbee: no Zigbee in Home Assistant, ieeeKey, and panels.zigbee defaults', () => {
     assert.equal(zigbeeModel({ states: {}, devices: {} }).source, null);
     assert.equal(ieeeKey('0x00158D0001A2B3C4'), ieeeKey('00:15:8d:00:01:a2:b3:c4'));
-    assert.deepEqual(zbConfig(undefined), { on: true, source: null, base: 'zigbee2mqtt', views: ['summary', 'list', 'map'], alerts: ['offline', 'weak'], lqiMin: 60 });
-    assert.deepEqual(zbConfig({ source: 'zha', base_topic: '/z2m/', views: ['list', 'nope'], alerts: [], lqi_min: '80' }), { on: true, source: 'zha', base: 'z2m', views: ['list'], alerts: [], lqiMin: 80 });
+    assert.deepEqual(zbConfig(undefined), { on: true, source: null, base: 'zigbee2mqtt', views: ['summary', 'list', 'map'], alerts: ['offline', 'weak'], autoScan: true, lqiMin: 60 });
+    assert.deepEqual(zbConfig({ source: 'zha', base_topic: '/z2m/', views: ['list', 'nope'], alerts: [], lqi_min: '80' }), { on: true, source: 'zha', base: 'z2m', views: ['list'], alerts: [], autoScan: true, lqiMin: 80 });
+    assert.equal(zbConfig({ auto_scan: false }).autoScan, false);
     assert.equal(zbConfig(false).on, false);
     assert.deepEqual(buildModel({ panels: { zigbee: { views: 'summary' } } }, hass).E.zigbee.views, ['summary']);
   });
@@ -516,6 +517,7 @@ test('view_modes and card_order: the 3D view\'s modes (all by default, unknown o
   assert.deepEqual(M({ view_modes: [] }).viewModes, []);
   assert.deepEqual(M({ card_order: { system: ['devices', 'alerts'] } }).cardOrder, { system: ['devices', 'alerts'] });
   assert.deepEqual([M({}).cardOrder, M({ card_order: ['x'] }).cardOrder], [{}, {}]);
+  assert.deepEqual([M({}).headerChips.length, M({ header_chips: ['power', 'x', 'weather'] }).headerChips, M({ header_chips: [] }).headerChips], [8, ['power', 'weather'], []]);
 });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

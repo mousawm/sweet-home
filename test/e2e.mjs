@@ -1403,6 +1403,25 @@ try {
       card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
       return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
     }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // At a glance: a tile goes with its panel (switched off in the card editor), not only when its entities are missing
+      const R = card.shadowRoot, c0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms)), tiles = () => [...R.querySelectorAll('#glance .gl')].map(b => b.dataset.to);
+      card._setTab('home'); await wait(200); const before = tiles();
+      card.setConfig({ ...c0, panels: { ...(c0.panels || {}), homelab: false, water: false, cameras: false, media: false } }); await wait(1300); card._setTab('home'); await wait(300);
+      const after = tiles(); card.setConfig(c0); await wait(1300);
+      const out = { had: ['lab', 'cams', 'media'].every(k => before.includes(k)), gone: !['lab', 'water', 'cams', 'media'].some(k => after.includes(k)), kept: after.includes('security') };
+      return Object.values(out).every(Boolean) || JSON.stringify({ ...out, before, after });
+    }); check('at a glance: switching a panel off in the card editor takes its tile away (Home Lab, Water, Cameras, TV)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // header chips: header_chips picks them; a chip also goes with its panel (doors / locks / alarm with Security…)
+      const R = card.shadowRoot, c0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms));
+      const kinds = () => { const h = R.getElementById('hdr'); return { weather: !!h.querySelector('[data-kind=weather]'), lights: !!h.querySelector('[data-kind=lights]'), temps: !!h.querySelector('[data-kind=temps]'), people: !!h.querySelector('.persons'), doors: !!h.querySelector('.chip [icon^="mdi:door"]') || /door/i.test([...h.querySelectorAll('.chip')].map(c => c.innerHTML).join()) }; };
+      const cfg = async c => { card.setConfig({ ...c0, ...c }); await wait(1300); card._setTab('home'); await wait(200); return kinds(); };
+      const all = await cfg({}), some = await cfg({ header_chips: ['lights'] }), off = await cfg({ panels: { ...(c0.panels || {}), security: false, climate: false } });
+      card.setConfig(c0); await wait(1300);
+      const out = { all: all.weather && all.lights && all.temps && all.people && all.doors, some: some.lights && !some.weather && !some.people && !some.doors && !some.temps, off: !off.doors && !off.temps && off.weather && off.lights };
+      return Object.values(out).every(Boolean) || JSON.stringify({ out, all, some, off });
+    }); check('header chips: header_chips picks them, and a chip goes with its panel switched off', r === true, r); }
   check('no Zigbee button on the 3D view without Zigbee devices', await p.evaluate(() => !card.shadowRoot.querySelector('#modeSeg [data-mode=zigbee]')));
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
@@ -1510,8 +1529,8 @@ try {
   await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(400);
   { const r = await p.evaluate(async () => {
       const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), M = () => R.getElementById('zbmap');
-      const out = { card: M().style.display !== 'none' && M().querySelectorAll('.zbn').length === 5 && M().textContent.includes('Scan the network'), noLinks: !M().querySelector('.zblk') };
-      M().querySelector('[data-act=zbscan]').click(); await wait(500);
+      const out = { card: M().style.display !== 'none' && M().querySelectorAll('.zbn').length === 5 && M().textContent.includes('Scanning'), noLinks: !M().querySelector('.zblk') };
+      await wait(500); // the map opened with no map yet: it scans by itself (auto_scan)
       out.asked = (window.calls || []).some(c => c[0] === 'mqtt' && c[1] === 'publish' && c[2].topic === 'zigbee2mqtt/bridge/request/networkmap' && JSON.parse(c[2].payload).type === 'raw') && !!M().querySelector('.zbscanbar');
       const C = '0x00124b0024c1aa01', n = i => `0x00158d0001a2b30${i}`, L = (s, t, q, rel) => ({ source: { ieeeAddr: s }, target: { ieeeAddr: t }, linkquality: q, relationship: rel });
       mqttSend('zigbee2mqtt/bridge/response/networkmap', { status: 'ok', data: { type: 'raw', routes: false, value: {
@@ -1526,6 +1545,13 @@ try {
       M().querySelector('[data-act=zbmode][data-v=areas]').click(); await wait(300);
       out.areas = [...M().querySelectorAll('.zbarea text')].map(x => x.textContent).includes('Kitchen');
       M().querySelector('[data-act=zball]').click(); await wait(300); out.parentsOnly = M().querySelectorAll('.zblk').length === 4; // every link here is a parent link
+      // Names: every device named, none on another; the map widens to fit them
+      M().querySelector('[data-act=zbmode][data-v=mesh]').click(); await wait(200);
+      const before = M().querySelectorAll('.zbl').length; M().querySelector('[data-act=zbnames]').click(); await wait(300);
+      const NB = [...M().querySelectorAll('.zbl')].map(t => t.getBBox()), clash = NB.some((a, i) => NB.some((b, j) => j > i && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height));
+      out.names = NB.length === 5 && !clash && localStorage.getItem('sweet-home-zbnames') === '1' || JSON.stringify({ n: NB.length, before, clash });
+      M().querySelector('[data-act=zbnames]').click(); await wait(200);
+      out.again = !(card._zbAutoAt && Date.now() - card._zbAutoAt < 10e3 && (window.calls || []).filter(c => c[0] === 'mqtt').length > 1); // no second scan within 10 min
       R.querySelector('#zblist [data-dev=zb4]').click(); await wait(200);
       const sh = R.getElementById('sheet'); sh.querySelector('[data-act=zbshow][data-dev=zb4]').click(); await wait(200);
       out.sheetMap = !!sh.querySelector('.zbmap svg .zbn.hl[data-dev=zb4]') && sh.querySelector('.zbseg button.on')?.textContent.includes('Map');

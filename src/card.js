@@ -988,6 +988,7 @@ export class SweetHomeCard extends HTMLElement {
       case 'zbmode': this._zbMode = t.dataset.v; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
       case 'zball': this._zbAll = this._zbAll === false; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
       case 'zbscan': this._zbScan(); break;
+      case 'zbnames': this._zbNamesSet(!this._zbNamesOn()); this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
       case 'vopin': this._voKey(t.dataset.k); break; // view only: the PIN pad, the header chip
       case 'vocancel': this._voCancel(); break;
       case 'vounlock': this._gate('system-unlock', () => true); break;

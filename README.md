@@ -233,6 +233,7 @@ Each 3D view uses the device's graphics. One or two on a dashboard is fine; it p
 | `height` | Sweet Home 3D only: the height of the 3D view in pixels (default `420`; in a Sections view the card's size is used) |
 | `appearance` | The full card's look: `dark` (default), `light`, or `auto` (light or dark with your Home Assistant theme). The 3D view stays dark in both. Card editor: Look → Appearance. Sweet Home 3D always follows the theme. |
 | `start_tab` | `home` / `security` / `climate` / `energy` / `water` / `media` / `system` |
+| `header_chips` | The chips at the top of the card, any of `weather`, `alarm`, `doors`, `locks`, `lights`, `temperature`, `power`, `people` (default: all). A chip is also hidden with its panel switched off: alarm, doors and locks with Security, temperature with Climate, power with Energy. Card editor: Look → Header chips |
 | `view_modes` | The 3D view's mode buttons, any of `lights`, `climate`, `presence`, `zigbee` (default: all; Zigbee shows only with Zigbee devices in rooms). It opens on the first one; with only one, no buttons. Card editor: Look → Modes on the 3D view |
 | `view_only` | Who can look but not control: `non_admins` (everyone who is not an admin) or a list of people (their Home Assistant user names or ids). Card editor: Look → View only. A "View only" chip shows in the header; a long press shows the device's details without its controls. Admins always control everything, and nobody is locked while the dashboard is being edited. |
 | `view_allow` | What they can still control, by kind: `lights`, `switches`, `climate`, `media`, `covers`, `locks`, `alarm`, `scenes`, `buttons`, `other`, `system` (restart, updates, reboots, Zigbee scan) |
@@ -482,6 +483,7 @@ listed below).
     show under Zigbee Offline as *Router offline*. The map needs an admin account (it comes from Zigbee2MQTT over MQTT
     or from ZHA).
   - `alerts`: any of `offline`, `weak` (default: both); `lqi_min`: weak below this link quality (default 60)
+  - `auto_scan` (on by default): opening the map scans the network when the last map is 10 minutes old or more, at most every 10 minutes (admins). The map's *Names* button shows every device's name, spread so none sits on another.
   - **Zigbee mode on the 3D view** (a button next to Lights, Climate and Presence): each Zigbee device is a dot in the
     room of its Home Assistant area (routers bigger, the coordinator in the room most of its direct devices are in),
     each device's link to its router an arc over the walls coloured by its link quality, and rooms with an offline

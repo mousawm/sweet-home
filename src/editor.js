@@ -10,7 +10,7 @@
  */
 import { t, setLang, isRTL } from './i18n.js';
 import { ZB_VIEWS, ZB_ALERTS, ZB_LQI_MIN } from './zigbee.js';
-import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig, VIEW_MODES, CARD_ORDER } from './model.js';
+import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig, VIEW_MODES, CARD_ORDER, HEADER_CHIPS } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -1787,7 +1787,7 @@ class SweetHomeCardEditor extends HTMLElement {
       zigbee: [{ name: 'source', selector: sel([['', 'Found on its own'], ['z2m', 'Zigbee2MQTT'], ['zha', 'ZHA']]) }, { name: 'base_topic', selector: { text: {} } },
         { name: 'views', selector: { select: { multiple: true, mode: 'list', options: [['summary', 'Summary'], ['list', 'Device list'], ['map', 'Network map']].map(([value, label]) => ({ value, label })) } } },
         { name: 'alerts', selector: { select: { multiple: true, mode: 'list', options: [['offline', 'Zigbee offline'], ['weak', 'Weak Zigbee signal']].map(([value, label]) => ({ value, label })) } } },
-        { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }],
+        { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }, { name: 'auto_scan', selector: { boolean: {} } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
         { name: 'battery_exclude_devices', selector: { device: { multiple: true } } }, { name: 'battery_exclude', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } },
         { name: 'unavailable_domains', selector: { select: { multiple: true, mode: 'list', options: UNAVAIL_DOMAINS.map(d => ({ value: d, label: d })) } } },
@@ -1882,7 +1882,7 @@ class SweetHomeCardEditor extends HTMLElement {
           schema = schema.map(f => (f.name === 'unavailable_integrations' ? { ...f, selector: { select: { ...f.selector.select, options: opts } } } : f));
         }
         if (k === 'zigbee') { // shown with their defaults when not set; the base topic is only asked for Zigbee2MQTT
-          Object.assign(data, { source: cur.source || '', views: arr(cur.views ?? ZB_VIEWS), alerts: arr(cur.alerts ?? ZB_ALERTS), lqi_min: cur.lqi_min ?? ZB_LQI_MIN, base_topic: cur.base_topic || 'zigbee2mqtt' });
+          Object.assign(data, { source: cur.source || '', views: arr(cur.views ?? ZB_VIEWS), alerts: arr(cur.alerts ?? ZB_ALERTS), lqi_min: cur.lqi_min ?? ZB_LQI_MIN, auto_scan: cur.auto_scan !== false, base_topic: cur.base_topic || 'zigbee2mqtt' });
           if (cur.source === 'zha') { schema = schema.filter(f => f.name !== 'base_topic'); delete data.base_topic; }
         }
         if (k === 'homelab') { // which Proxmox node shows first: only asked with several nodes
@@ -1933,6 +1933,7 @@ class SweetHomeCardEditor extends HTMLElement {
                 continue;
               }
               if (kk === 'lqi_min') { const n = Number(vv); if (!isFinite(n) || n === ZB_LQI_MIN || vv === '' || vv == null) delete next[kk]; else next[kk] = n; continue; }
+              if (kk === 'auto_scan') { if (vv === false) next[kk] = false; else delete next[kk]; continue; } // on by default: stored only when off
               if (kk === 'base_topic') { const b = String(vv || '').trim().replace(/^\/+|\/+$/g, ''); if (!b || b === 'zigbee2mqtt') delete next[kk]; else next[kk] = b; continue; }
             }
             if (k === 'attention' && /^unavailable_/.test(kk)) { // a multiple select (a comma list in plain forms); the default domains are not stored
@@ -1951,7 +1952,7 @@ class SweetHomeCardEditor extends HTMLElement {
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
           extra: 'More rows on the Energy card', exclude: 'Meters to leave out (e.g. a charger that is not behind the house meter)',
           cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
-          source: 'Integration', base_topic: 'Zigbee2MQTT base topic', views: 'Show on the System tab', alerts: 'Needs Attention: list', lqi_min: 'Weak signal below (LQI)',
+          source: 'Integration', base_topic: 'Zigbee2MQTT base topic', views: 'Show on the System tab', alerts: 'Needs Attention: list', lqi_min: 'Weak signal below (LQI)', auto_scan: 'Scan the network when the map opens (when the last map is 10 min old or more)',
           node: 'Node shown first', battery_exclude: 'Batteries hidden from low batteries',
           unavailable_domains: 'Unavailable: list these kinds of entities', unavailable_integrations: 'Unavailable: also list everything from these integrations',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',
@@ -2009,7 +2010,7 @@ class SweetHomeCardEditor extends HTMLElement {
       this._hass.callWS({ type: 'config/auth/list' }).then(l => { this._users = (l || []).filter(u => !u.system_generated && u.is_active !== false).map(u => ({ value: u.id, label: u.name || u.id })); }, () => { this._users = []; })
         .finally(() => { this._usersBusy = false; if (this._step === 'look') this._render(); });
     }
-    const data = { view_only: voMode, view_users: voMode === 'users' ? arr(C.view_only) : [], view_allow: arr(C.view_allow), view_pin: C.view_pin != null ? String(C.view_pin) : '', view_pin_seconds: Number(C.view_pin_seconds) || 30, view_pin_close_seconds: Number(C.view_pin_close_seconds) || 15, view_modes: arr(C.view_modes ?? VIEW_MODES), title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
+    const data = { view_only: voMode, view_users: voMode === 'users' ? arr(C.view_only) : [], view_allow: arr(C.view_allow), view_pin: C.view_pin != null ? String(C.view_pin) : '', view_pin_seconds: Number(C.view_pin_seconds) || 30, view_pin_close_seconds: Number(C.view_pin_close_seconds) || 15, view_modes: arr(C.view_modes ?? VIEW_MODES), header_chips: arr(C.header_chips ?? HEADER_CHIPS), title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -2029,6 +2030,7 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
       // the 3D view's mode buttons; it opens on the first one of them
       { name: 'view_modes', selector: { select: { multiple: true, mode: 'list', options: [['lights', 'Lights'], ['climate', 'Climate'], ['presence', 'Presence'], ['zigbee', 'Zigbee']].map(([value, label]) => ({ value, label })) } } },
+      ...(this.solo ? [] : [{ name: 'header_chips', selector: { select: { multiple: true, mode: 'list', options: [['weather', 'Weather'], ['alarm', 'Alarm (while armed)'], ['doors', 'Doors'], ['locks', 'Unlocked locks'], ['lights', 'Lights on'], ['temperature', 'Inside temperature'], ['power', 'Power now'], ['people', 'People']].map(([value, label]) => ({ value, label })) } } }]),
       { name: 'hide_hint', selector: { boolean: {} } },
       // View only: who can look but not control, what they may still control, and the PIN that unlocks the rest
       { name: 'view_only', selector: sel([['', 'Off: everyone can control'], ['non_admins', 'Everyone who is not an admin'], ['users', 'Only the people picked below']]) },
@@ -2064,6 +2066,8 @@ class SweetHomeCardEditor extends HTMLElement {
         }
         if (mode !== was) { this._emit(); this._render(); return; }
       }
+      if (!this.solo) { const m = (Array.isArray(v.header_chips) ? v.header_chips : String(v.header_chips ?? '').split(',').map(x => x.trim())).filter(x => HEADER_CHIPS.includes(x)); // every chip: not stored
+        const o = HEADER_CHIPS.filter(x => m.includes(x)); if (o.length === HEADER_CHIPS.length) delete C.header_chips; else C.header_chips = o; }
       { const m = (Array.isArray(v.view_modes) ? v.view_modes : String(v.view_modes ?? '').split(',').map(x => x.trim())).filter(x => VIEW_MODES.includes(x)); // every mode: not stored
         const o = VIEW_MODES.filter(x => m.includes(x)); if (o.length === VIEW_MODES.length) delete C.view_modes; else C.view_modes = o; }
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
@@ -2076,7 +2080,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', view_modes: 'Modes on the 3D view (it opens on the first one; with one, no buttons)', view_only: 'View only (look, don’t control)', view_users: 'People who only view', view_allow: 'They can still control', view_pin: 'PIN to unlock everything else (digits; empty: no unlocking)', view_pin_seconds: 'Stays unlocked for (seconds after the last tap)', view_pin_close_seconds: 'The PIN pad closes after (seconds without a key)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', header_chips: 'Header chips (also hidden with their panel: alarm, doors and locks with Security, temperature with Climate, power with Energy)', view_modes: 'Modes on the 3D view (it opens on the first one; with one, no buttons)', view_only: 'View only (look, don’t control)', view_users: 'People who only view', view_allow: 'They can still control', view_pin: 'PIN to unlock everything else (digits; empty: no unlocking)', view_pin_seconds: 'Stays unlocked for (seconds after the last tap)', view_pin_close_seconds: 'The PIN pad closes after (seconds without a key)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     if (C.view_only != null) { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('View only locks the controls of this card only: those people can still control their devices from the Home Assistant app or another dashboard. The PIN is kept in the dashboard’s settings, which any signed-in user can read, so use it to keep little hands off, not as a password.'); body.appendChild(h); }
     this._mNames(body);
