@@ -17,6 +17,7 @@ import { SystemPanels } from './panels/system.js';
 import { WaterPanels } from './panels/water.js';
 import { RenameTools } from './panels/rename.js';
 import { HomePanels } from './panels/home.js';
+import { ZigbeePanels } from './panels/zigbee.js';
 import './strategy.js';
 
 // The card editor is its own file (sweet-home-editor.js, next to this one): only someone editing the card downloads it.
@@ -171,6 +172,7 @@ export class SweetHomeCard extends HTMLElement {
   disconnectedCallback() {
     if (this._popKey) { window.removeEventListener('keydown', this._popKey); this._popKey = null; }
     clearInterval(this._clockT); clearInterval(this._camT); clearInterval(this._histT);
+    this._zbStop(); // Zigbee2MQTT's MQTT topics (subscribed again when the card is back)
     if (this._repSub) { const p = this._repSub; this._repSub = null; p.then(u => u?.()).catch(() => {}); } // the repairs listener
     this._unmountCams(); if (this._visH) { document.removeEventListener('visibilitychange', this._visH); this._visH = null; }
     if (this._three) this._three.pause();
@@ -313,7 +315,7 @@ export class SweetHomeCard extends HTMLElement {
       <section class="tab" data-tab="energy"><div class="tgrid wide1"><div class="card" id="energy"></div><div class="card" id="car"></div><div class="card" id="ehist"></div></div></section>
       <section class="tab" data-tab="water"><div class="tgrid"><div class="card" id="water"></div><div class="card" id="irrigation"></div></div></section>
       <section class="tab" data-tab="media"><div class="tgrid"><div class="card" id="media"></div><div class="card" id="mserver"></div><div class="card" id="tvlight"></div></div></section>
-      <section class="tab" data-tab="system"><div class="tgrid"><div class="alerts" id="alerts"></div><div class="card" id="lab"></div><div class="card" id="devices"></div></div></section>
+      <section class="tab" data-tab="system"><div class="tgrid"><div class="alerts" id="alerts"></div><div class="card" id="zigbee"></div><div class="card" id="zblist"></div><div class="card" id="lab"></div><div class="card" id="devices"></div></div></section>
       </main>
       <footer class="foot">Sweet Home · v${VERSION}</footer>
     </div>${this._solo ? '</ha-card>' : ''}
@@ -343,6 +345,8 @@ export class SweetHomeCard extends HTMLElement {
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
     this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
     this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
+    // the Zigbee sheet's area and sort pickers
+    this.shadowRoot.addEventListener('change', e => { const k = e.target.dataset?.zbsel; if (k && this._zbF) { this._zbF[k] = e.target.value; this._zbF.open = null; this._renderInfo(); } });
     this.shadowRoot.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('[data-rename]')) e.target.blur(); });
     // a name field being typed in is left alone when the popup redraws
     this.shadowRoot.addEventListener('focusin', e => { if (e.target.matches?.('[data-rename]')) this._dragging = e.target; });
@@ -355,6 +359,7 @@ export class SweetHomeCard extends HTMLElement {
     const acEnts = E.acs.map(a => [a.id, a.power, this._acExtras(a.id)]);
     const glanceEnts = all(E.alarm, E.doors.map(d => d.id), E.locks.map(l => l.id), roomEnts, acEnts, E.energy.grid, E.energy.solar,
       E.water.tank, E.car.charging, E.car.parking, E.cameras.map(c => [c.person, c.car]), E.media.tv, E.lab.cpu, E.lab.status);
+    const zbEnts = this._zbEnts();
     this._sections = [
       // + the gates / garage doors: the Security tab's counter counts them too
       { el: $('tabs'), deps: all(glanceEnts, E.entrances.flatMap(g => [g.id, ...(g.sensors || []), g.sensor])), render: () => this._rTabs() },
@@ -373,6 +378,9 @@ export class SweetHomeCard extends HTMLElement {
       { el: $('cams'), deps: all(E.cameras.map(c => [c.person, c.car, c.motion, c.face, c.plate, c.relay, c.door]), E.face), render: () => this._rCams(), after: () => this._refreshCams(true) },
       { el: $('media'), deps: all(E.media.tv, E.media.shield, E.media.echoes, E.media.ytTimer, E.media.ytLimit, E.media.ytBlock, E.media.ytForce, E.media.ytSelect), render: () => this._rMedia() },
       { el: $('mserver'), deps: all(Object.values(E.mserver).map(o => [Object.values(o).filter(v => typeof v === 'string'), (o.more || []).map(m => Object.values(m))]), this._jfPlayers()), render: () => this._rMServer() },
+      // Zigbee: the Summary and Device list cards (panels/zigbee.js); also redrawn when something new is heard on MQTT / from ZHA
+      { el: $('zigbee'), deps: zbEnts, render: () => this._rZigbee() },
+      { el: $('zblist'), deps: zbEnts, render: () => this._rZbList() },
       { el: $('lab'), deps: all(Object.values(E.lab).filter(x => typeof x === 'string'), Object.values(E.lab.byNode || {}).map(o => Object.values(o)), this._labGuestIds().map(g => [`binary_sensor.${g}_status`, `sensor.${g}_status`, `sensor.${g}_cpu_used`, `sensor.${g}_memory_used_percentage`])), render: () => this._rLab() },
       { el: $('devices'), deps: all(E.devices.map(d => [d.bat, d.chg, d.trk, d.chgState]), E.persons), render: () => this._rDevices() },
       { el: $('irrigation'), deps: all(E.irrigation.valves.map(v => v[0]), E.irrigation.every, E.irrigation.day, E.irrigation.tomorrow, E.irrigation.next, E.irrigation.notify, E.irrigation.time, E.irrigation.durations), render: () => this._rIrrigation() },
@@ -384,6 +392,8 @@ export class SweetHomeCard extends HTMLElement {
       water: offP('water') || !(E.water.tank || E.water.pumps.length || E.water.entities.length), irrigation: offP('irrigation') || !(E.irrigation.valves.length || E.irrigation.every || E.irrigation.day || E.irrigation.tomorrow || E.irrigation.next), media: !E.media.tv || MODEL.E && this._config?.panels?.media === false,
       mserver: !MODEL.hasMS || this._config?.panels?.media_server === false, lab: !E.lab.cpu || this._config?.panels?.homelab === false, devices: offP('devices') || !E.devices.length,
       energy: true, ehist: true, alerts: this._config?.panels?.attention === false,
+      // Zigbee: switched off, no Zigbee2MQTT / ZHA devices, or the view not picked (panels.zigbee.views)
+      zigbee: !E.zigbee.on || !this._zb()?.source || !E.zigbee.views.includes('summary'), zblist: !E.zigbee.on || !this._zb()?.source || !E.zigbee.views.includes('list'),
     };
     if (this._solo) for (const sec of this._sections) if (sec.el.id !== 'drawer') off[sec.el.id] = true; // Sweet Home 3D: the room pop-up only
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
@@ -507,7 +517,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'zigbee' ? tr('Zigbee') : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind.startsWith('wanted') && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || this._wanted.n !== String(this._wantedCount().tv))) this._loadWanted();
@@ -543,6 +553,8 @@ export class SweetHomeCard extends HTMLElement {
       html = this._queueHTML(head);
     } else if (this._info === 'swap') {
       html = this._swapHTML(head);
+    } else if (this._info === 'zigbee') {
+      html = this._zbSheet(head);
     } else if (this._info.startsWith('mup:')) {
       html = this._mupHTML(head);
     } else if (this._info.startsWith('jf')) {
@@ -943,6 +955,9 @@ export class SweetHomeCard extends HTMLElement {
       case 'rnsec': if (!this._editing) break; this._pendNames = null; this._rnIds = null; this._openInfo('rename:' + t.dataset.sec); break;
       case 'rnsave': { const pend = this._pendNames; this._closeSheet(); this._pendNames = pend; this._saveNames(null); break; }
       case 'sheetclose': if (t.id === 'sheet' && e.target !== t) return; this._closeSheet(); break;
+      case 'zbopen': this._zbOpen(t.dataset.dev, t.dataset.f); break; // Zigbee: the sheet (a device opened, or a filter)
+      case 'zbf': this._zbF.f = t.dataset.k; this._zbF.open = null; this._renderInfo(); break;
+      case 'zbrow': this._zbF.open = this._zbF.open === t.dataset.dev ? null : t.dataset.dev; this._renderInfo(); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
       case 'labnode': this._labNode = t.dataset.node === E.lab.node ? null : t.dataset.node; this._rerender('lab'); break; // Home Lab: another Proxmox node
       case 'labgrip': break; // dragged, see _labDragSetup
@@ -1156,7 +1171,7 @@ export class SweetHomeCard extends HTMLElement {
 }
 
 // the panels and tools, kept in src/panels/: their methods become the card's own
-for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels])
+for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels, ZigbeePanels])
   for (const k of Object.getOwnPropertyNames(P.prototype)) if (k !== 'constructor') Object.defineProperty(SweetHomeCard.prototype, k, Object.getOwnPropertyDescriptor(P.prototype, k));
 
 // every method of the card and the scene works on its own instance's model (several cards / the editor preview)

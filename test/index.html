@@ -64,6 +64,31 @@ const lang = new URLSearchParams(location.search).get('lang') || 'en';
 const hass = { states, entities, devices: { ac1: { id: 'ac1', name: 'Bedroom AC' }, ds1: { id: 'ds1', name: 'Door Sensor' }, pump1: { id: 'pump1', name: 'Well Pump' }, ipad1: { id: 'ipad1', name: 'Mousa’s iPad', model: 'iPad Air' }, px1: { id: 'px1', name: 'Pixel 8', model: 'Pixel 8' }, gw1: { id: 'gw1', name: 'Galaxy Watch', model: 'Galaxy Watch6' } }, areas, floors, locale: { language: lang }, language: lang, user: { name: 'Test', is_admin: true }, themes: { darkMode: true },
   callService: async () => {}, callWS: async m => { (window.ws ||= []).push(m); return m.type === 'energy/get_prefs' ? { energy_sources: [], device_consumption: [] } : []; }, callApi: async () => [],
   connection: { subscribeEvents: async () => () => {}, subscribeMessage: async () => () => {} }, formatEntityState: s => s.state };
+// ?zigbee=1: a small made-up Zigbee2MQTT network (a bridge, two routers, two battery sensors: one offline, one weak).
+// MQTT is faked too: the card's mqtt/subscribe calls are kept in window.mqttSubs and window.mqttSend(topic, payload) plays a message.
+if (new URLSearchParams(location.search).get('zigbee')) {
+  const ago = m => new Date(Date.now() - m * 60e3).toISOString();
+  const zst = (id, state, attrs = {}, m = 2) => { states[id] = { ...st(id, state, attrs), last_changed: ago(m), last_updated: ago(m) }; };
+  const zent = (id, dev, area = null) => { entities[id] = { entity_id: id, device_id: dev, area_id: null, platform: 'mqtt' }; };
+  const zdev = (id, ieee, name, area, model) => { hass.devices[id] = { id, name, area_id: area, model, manufacturer: 'Made-up', identifiers: [['mqtt', `zigbee2mqtt_${ieee}`]] }; };
+  hass.devices.z2mb = { id: 'z2mb', name: 'Zigbee2MQTT Bridge', identifiers: [['mqtt', 'zigbee2mqtt_bridge_0x00124b0024c1aa01']] };
+  zst('binary_sensor.zigbee2mqtt_bridge_connection_state', 'on', { device_class: 'connectivity' }); zent('binary_sensor.zigbee2mqtt_bridge_connection_state', 'z2mb');
+  zst('sensor.zigbee2mqtt_bridge_version', '2.1.1'); zent('sensor.zigbee2mqtt_bridge_version', 'z2mb');
+  zdev('zb1', '0x00158d0001a2b301', 'Kitchen Plug', 'kitchen', 'TRETAKT'); zdev('zb2', '0x00158d0001a2b302', 'Garage Relay', null, 'ZBMINI-L2');
+  zdev('zb3', '0x00158d0001a2b303', 'Garden Temperature', 'balcony', 'SNZB-02'); zdev('zb4', '0x00158d0001a2b304', 'Hallway Motion', 'living_room', 'RTCGQ11LM');
+  const lq = { unit_of_measurement: 'lqi', state_class: 'measurement' }, bat = { device_class: 'battery', unit_of_measurement: '%' };
+  zst('switch.kitchen_plug', 'on'); zst('sensor.kitchen_plug_linkquality', '182', lq); zent('switch.kitchen_plug', 'zb1'); zent('sensor.kitchen_plug_linkquality', 'zb1');
+  zst('switch.garage_relay', 'unavailable', {}, 184); zst('sensor.garage_relay_linkquality', 'unavailable', lq, 184); zent('switch.garage_relay', 'zb2'); zent('sensor.garage_relay_linkquality', 'zb2');
+  zst('sensor.garden_temperature', '18.2', { device_class: 'temperature', unit_of_measurement: '°C' }, 55); zst('sensor.garden_temperature_battery', '58', bat, 55); zst('sensor.garden_temperature_linkquality', '38', lq, 55);
+  for (const id of ['sensor.garden_temperature', 'sensor.garden_temperature_battery', 'sensor.garden_temperature_linkquality']) zent(id, 'zb3');
+  zst('binary_sensor.hallway_motion', 'off', { device_class: 'motion' }, 30); zst('sensor.hallway_motion_battery', '64', bat, 30); zst('sensor.hallway_motion_linkquality', '150', lq, 30); zst('sensor.hallway_motion_last_seen', ago(4), { device_class: 'timestamp' });
+  for (const id of ['binary_sensor.hallway_motion', 'sensor.hallway_motion_battery', 'sensor.hallway_motion_linkquality', 'sensor.hallway_motion_last_seen']) zent(id, 'zb4');
+}
+{ // fake MQTT (mqtt/subscribe): topics with + match one level
+  const subs = window.mqttSubs = [], match = (f, t) => { const a = f.split('/'), b = t.split('/'); return a.length === b.length && a.every((x, i) => x === '+' || x === b[i]); };
+  hass.connection.subscribeMessage = async (cb, m) => { if (m?.type !== 'mqtt/subscribe') return () => {}; const s = { topic: m.topic, cb }; subs.push(s); return () => { const i = subs.indexOf(s); if (i >= 0) subs.splice(i, 1); }; };
+  window.mqttSend = (topic, payload, retain = false) => { for (const s of [...subs]) if (match(s.topic, topic)) s.cb({ topic, payload: typeof payload === 'string' ? payload : JSON.stringify(payload), qos: 0, retain }); };
+}
 const demo = { title: 'Demo Home', modes: ['input_boolean.guests', { entity: 'input_boolean.motion_stop', icon: 'mdi:motion-sensor-off' }, 'scene.good_night'], panels: { security: { gate: { relay: 'switch.gate_relay', sensor: 'binary_sensor.gate', name: 'Main Gate' } }, car: { name: 'Model Y', color: '#dc2626', charging: 'switch.ev_charger', power: 'sensor.ev_power', battery: 'sensor.ev_battery', range: 'sensor.ev_range',
   status: 'sensor.ev_status', energy_per_charge: 'sensor.ev_charge_energy', energy_month: 'sensor.ev_month_energy' }, water: { pumps: ['switch.well_pump'], entities: ['sensor.water_flow', 'valve.garden'] }, irrigation: { zones: [{ entity: 'valve.garden', name: 'Front lawn', duration: 'sensor.water_flow' }, 'switch.drip_zone'], interval: 'input_select.irrigate_every', next: 'sensor.next_irrigation' } }, house: { auto_furniture: true, rooms: [
   { area: 'living_room', rects: [[0, 0, 6, 5]], names: { 'sensor.living_room_temperature': 'Lounge Temp' }, light_fx: { 'light.living_room': 'strip' }, strip_mode: 'walls', entities: ['script.movie_night', 'cover.living_room_blinds'], furniture: [

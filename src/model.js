@@ -5,6 +5,8 @@
  * Nothing here is specific to one house: every entity is either configured or discovered.
  */
 
+import { zbConfig } from './zigbee.js';
+
 const BAD = ['unavailable', 'unknown', 'none', 'None', ''];
 export const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'room';
 export const arr = v => (v == null ? [] : Array.isArray(v) ? v : [v]);
@@ -985,6 +987,8 @@ export function buildModel(cfg = {}, hass) {
     },
     mserver,
     lab,
+    // Zigbee (System tab): Zigbee2MQTT or ZHA; `panels.zigbee`: source, base_topic, views, alerts, lqi_min (zigbee.js)
+    zigbee: zbConfig(P.zigbee),
     // Devices panel: battery level sensors (`entity_id`, or {battery, name, icon, charging, charging_state, tracker}); for
     // a plain id the device's name, its charging sensor and its location tracker are found on the same device
     devices: arr(P.devices?.entities || cfg.devices).filter(d => typeof d === 'string' || (d && typeof d.battery === 'string')).map(d => batDevice(typeof d === 'string' ? { battery: d } : d)),
