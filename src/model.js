@@ -1049,3 +1049,27 @@ export function movePiece(f, dx, dz) {
   if (f.from && f.to) { f.from = [r2(f.from[0] + dx), r2(f.from[1] + dz)]; f.to = [r2(f.to[0] + dx), r2(f.to[1] + dz)]; }
   else { f.x = r2(N(f.x, 0) + dx); f.z = r2(N(f.z, 0) + dz); }
 }
+
+// Tank trend: % per hour from [time ms, level %] points (oldest first), fitted only over the latest run — since the last
+// turn (a peak or a trough) — so a tank that filled earlier in the window and is now draining reads as draining.
+// `tol`: how far (in level points) the level must move back before it counts as a turn (sensor noise). null: too little data.
+export function tankRate(pts, tol = 1) {
+  if (!pts || pts.length < 2) return null;
+  const n = pts.length, last = pts[n - 1][1];
+  let hi = n - 1, lo = n - 1, cut = 0;
+  for (let i = n - 2; i >= 0; i--) {
+    const v = pts[i][1];
+    if (v > pts[hi][1]) hi = i;
+    if (v < pts[lo][1]) lo = i;
+    // a peak inside [i..end]: higher than both this older point and now → it rose to it, then fell
+    if (pts[hi][1] - v > tol && pts[hi][1] - last > tol) { cut = hi; break; }
+    // a trough inside: lower than both → it fell to it, then rose
+    if (v - pts[lo][1] > tol && last - pts[lo][1] > tol) { cut = lo; break; }
+  }
+  const seg = pts.slice(cut);
+  if (seg.length < 2) return null;
+  const t0 = seg[0][0], xs = seg.map(p => (p[0] - t0) / 36e5), ys = seg.map(p => p[1]), m = xs.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / m, my = ys.reduce((a, b) => a + b, 0) / m;
+  const sxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0), sxy = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0);
+  return sxx > 0.01 ? sxy / sxx : null;
+}

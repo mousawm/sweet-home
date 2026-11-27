@@ -1,6 +1,6 @@
 // Sweet Home — Water and irrigation.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
-import { arr } from '../model.js';
+import { arr, tankRate } from '../model.js';
 import { t as tr } from '../i18n.js';
 import { E, esc, ic, clamp, BAD, pumpTime, bidi, whenText } from '../core.js';
 
@@ -10,7 +10,8 @@ export class WaterPanels {
     const lvl = clamp(this.n(W.tank) ?? 0, 0, 100);
     const col = lvl < 20 ? '#f43f5e' : lvl < 40 ? '#fbbf24' : '#38bdf8';
     const sw = (id, n, i, sub, id2) => this.s(id) ? `<button class="tile wide ${this.on(id) ? 'on' : ''}" data-act="${i.includes('pump') ? 'pump' : 'toggle'}" data-id="${id}"${id2 ? ` data-id2="${id2}"` : ''}>${ic(i, this.on(id) && i.includes('pump') ? 'pulse' : '')}<span>${esc(n)}</span><em class="sub">${sub || (this.on(id) ? 'On' : tr("Off"))}</em></button>` : '';
-    if (W.tank && (!this._tankTr || this._tankTr.hours !== W.trendHours || Date.now() - this._tankTr.at > 5 * 60e3)) setTimeout(() => this._loadTankTrend(), 0);
+    if (W.tank && (!this._tankTr || this._tankTr.hours !== W.trendHours || Date.now() - this._tankTr.at > 5 * 60e3
+      || (Math.abs(lvl - (this._tankTr.lvl ?? lvl)) >= 1 && Date.now() - this._tankTr.at > 60e3))) setTimeout(() => this._loadTankTrend(), 0);
     return `<div class="ch">${ic('mdi:water')}<h3>${tr("Water")}</h3>${W.tank ? this._tankPill(lvl) : ''}</div>
       <div class="water ${W.tank ? '' : 'notank'}">
         ${!W.tank ? '' : `<div class="tank" data-act="more" data-id="${W.tank}" data-id2="${W.quality}" style="--lvl:${lvl}%;--c:${col}">
@@ -24,7 +25,7 @@ export class WaterPanels {
       ${W.entities.length ? `<div class="wents">${W.entities.map(e => this._entRow(e.id, e)).join('')}</div>` : ''}`;
   }
 
-  // Water tag: instead of repeating the level, the trend over the last `trend_hours` (6 h by default) and the time left —
+  // Water tag: instead of repeating the level, the trend of the latest fill or drain within the last `trend_hours` (6 h by default) and the time left —
   // "↓ 1.1%/h · empty in ~28 h" (amber < 12 h, red < 4 h), "↑ 4%/h · full in 3 h", or "Steady".
   async _loadTankTrend() {
     if (this._tankBusy || !this._hass) return; this._tankBusy = true;
@@ -33,15 +34,9 @@ export class WaterPanels {
       const r = await this._hass.callWS({ type: 'history/history_during_period', start_time: new Date(now - win).toISOString(), end_time: new Date(now).toISOString(), entity_ids: [id], minimal_response: true, no_attributes: true, significant_changes_only: false });
       const pts = (r[id] || []).map(p => [((p.lu ?? p.lc) * 1000), parseFloat(p.s)]).filter(p => !isNaN(p[1]));
       const cur = this.n(id); if (cur != null) pts.push([now, cur]);
-      let rate = null;
-      if (pts.length >= 2) { // least-squares slope, % per hour
-        const t0 = pts[0][0], xs = pts.map(p => (p[0] - t0) / 36e5), ys = pts.map(p => p[1]), n = xs.length;
-        const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
-        const sxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0), sxy = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0);
-        if (sxx > 0.01) rate = sxy / sxx;
-      }
-      this._tankTr = { at: Date.now(), rate, hours };
-    } catch (e) { this._tankTr = { at: Date.now(), rate: null, hours }; }
+      const rate = tankRate(pts); // only the latest run (since the last fill or drain began), not the whole window
+      this._tankTr = { at: Date.now(), rate, hours, lvl: cur };
+    } catch (e) { this._tankTr = { at: Date.now(), rate: null, hours, lvl: this.n(id) }; }
     this._tankBusy = false; this._rerender('water');
   }
   // what a running pump shows (its `show` option): how long it has been on (a live timer, from when it turned on),

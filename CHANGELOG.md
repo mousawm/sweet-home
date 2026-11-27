@@ -6,6 +6,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
+- Water tank trend: a tank that is draining now no longer shows as filling because the pump filled it earlier in the trend window; the rate and time left follow the latest fill or drain only.
 - Zigbee device list: a long status such as “Router offline · 3 h” is no longer cut off.
 - Zigbee mode on the 3D view: the coordinator no longer carries a name that could cover a device's name next to it (it is the big teal dot; its name shows on hover).
 
