@@ -1141,7 +1141,7 @@ export class HouseScene {
         pos[n.id] = { x, y, z, lvl };
         const el = document.createElement('div'); el.className = `zbd ${n.st} ${n.id === 'coord' ? 'co' : n.role === 'R' ? 'ro' : ''}`;
         el.dataset.act = 'zbopen'; if (n.id !== 'coord') el.dataset.dev = n.id; el.title = n.name;
-        if (n.st !== 'ok' || n.id === 'coord') el.innerHTML = `<span>${esc(n.name)}</span>`;
+        if (n.st !== 'ok') el.innerHTML = `<span>${esc(n.name)}</span>`; // problems are named; the coordinator is the big teal dot (its name on hover)
         this.lblLayer.appendChild(el); this.zbNodes.push({ el, x, y, z, lvl });
       });
     }
