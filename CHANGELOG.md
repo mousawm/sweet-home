@@ -8,6 +8,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+
+### Added
+
+## v0.6.63-beta.2 — 2026-11-27
+
+_Beta (pre-release): shown in HACS only with “Show beta versions” turned on for Sweet Home. Adds to v0.6.63-beta.1 below._
+
+### Changed
 - Zigbee: the Zigbee pop-up (devices and network map) is much wider on desktops and taller on tablets and phones, so the map is easier to read.
 
 ### Added
