@@ -302,6 +302,15 @@ const AR = {
   'Card order': 'ترتيب البطاقات', 'The order of the cards on each tab': 'ترتيب البطاقات في كل تبويب', Reset: 'إعادة الضبط', 'Move up': 'تحريك لأعلى', 'Move down': 'تحريك لأسفل',
   'Energy history': 'سجل الطاقة',
   'Modes on the 3D view (it opens on the first one; with one, no buttons)': 'الأوضاع في العرض ثلاثي الأبعاد (يفتح على أولها؛ مع وضع واحد لا تظهر الأزرار)',
+  'View only': 'للعرض فقط', 'View only: ask an admin to change this': 'للعرض فقط: اطلب من المسؤول تغيير ذلك', 'Enter the PIN': 'أدخل الرمز', 'This dashboard is view only': 'هذه اللوحة للعرض فقط',
+  'Wrong PIN, try again': 'رمز خاطئ، حاول مجددًا', 'Too many tries: wait {0} s': 'محاولات كثيرة: انتظر {0} ث', 'Unlocked for {0} s after your last tap': 'مفتوح لمدة {0} ث بعد آخر لمسة',
+  'Unlocked · {0} s': 'مفتوح · {0} ث', 'Lock again': 'القفل مجددًا', 'Unlock with the PIN': 'فتح بالرمز', State: 'الحالة', Changed: 'تغيّر',
+  'Off: everyone can control': 'إيقاف: الجميع يتحكّم', 'Everyone who is not an admin': 'كل من ليس مسؤولًا', 'Only the people picked below': 'الأشخاص المختارون أدناه فقط',
+  'Switches and helpers': 'المفاتيح والمساعدات', 'Climate (AC, fans)': 'المناخ (المكيفات والمراوح)', 'Media (TV, speakers)': 'الوسائط (التلفاز والسماعات)', 'Blinds, covers and valves': 'الستائر والأغطية والصمامات',
+  Alarm: 'الإنذار', 'Scenes and scripts': 'المشاهد والسكربتات', Buttons: 'الأزرار', 'Everything else (selectors, vacuums…)': 'كل ما سوى ذلك (المحددات والمكانس…)',
+  'System (restart, updates, reboots, Zigbee scan)': 'النظام (إعادة التشغيل والتحديثات وفحص زيجبي)', 'View only (look, don’t control)': 'للعرض فقط (مشاهدة دون تحكّم)', 'People who only view': 'الأشخاص الذين يشاهدون فقط',
+  'They can still control': 'ما يمكنهم التحكم به', 'The PIN pad closes after (seconds without a key)': 'تُغلق لوحة الرمز بعد (ثوانٍ دون ضغط)', 'PIN to unlock everything else (digits; empty: no unlocking)': 'رمز لفتح الباقي (أرقام؛ فارغ: دون فتح)', 'Stays unlocked for (seconds after the last tap)': 'يبقى مفتوحًا لمدة (ثوانٍ بعد آخر لمسة)',
+  'View only locks the controls of this card only: those people can still control their devices from the Home Assistant app or another dashboard. The PIN is kept in the dashboard’s settings, which any signed-in user can read, so use it to keep little hands off, not as a password.': 'وضع العرض فقط يقفل أزرار هذه البطاقة وحدها: يظل بإمكان هؤلاء الأشخاص التحكم بأجهزتهم من تطبيق Home Assistant أو من لوحة أخرى. يُحفظ الرمز في إعدادات اللوحة التي يستطيع أي مستخدم مسجّل قراءتها، فاستخدمه لإبعاد الأيدي الصغيرة لا ككلمة مرور.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

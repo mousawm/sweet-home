@@ -1490,6 +1490,19 @@ try {
       out.modes = JSON.stringify(editor._config.view_modes) === '["zigbee"]';
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('card editor: Panels → Card order moves cards and resets; Look → Modes on the 3D view', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // Look → View only: who, what they can still control, the PIN (digits only) and its times; defaults not stored
+      const f = n => editor.querySelector(`ha-form [name=${n}]`), put = (n, v) => { const s = f(n); s.value = v; s.dispatchEvent(new Event('change')); }, out = {};
+      editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 50));
+      out.off = !f('view_allow') && !f('view_pin');
+      put('view_only', 'non_admins'); await new Promise(r => setTimeout(r, 50));
+      out.on = editor._config.view_only === 'non_admins' && !!f('view_allow') && !!f('view_pin') && !!f('view_pin_close_seconds') && !f('view_users');
+      put('view_allow', 'lights'); put('view_pin', '12a34'); put('view_pin_seconds', '60'); put('view_pin_close_seconds', '15');
+      const C = editor._config; out.saved = JSON.stringify([C.view_allow, C.view_pin, C.view_pin_seconds, C.view_pin_close_seconds]) === '[["lights"],"1234",60,null]';
+      put('view_only', 'users'); await new Promise(r => setTimeout(r, 50)); out.users = Array.isArray(editor._config.view_only) && !!f('view_users');
+      put('view_only', ''); await new Promise(r => setTimeout(r, 50)); out.cleared = !('view_only' in editor._config) && !f('view_pin');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('card editor: Look → View only (who, allowed kinds, PIN digits only, its times)', r === true, r); }
   check('no page errors (zigbee editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
   // Zigbee network map: Scan network asks Zigbee2MQTT for the map over MQTT; its answer draws the links and routes
@@ -1555,6 +1568,35 @@ try {
       card._closeSheet();
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('view_modes picks the 3D view\'s modes (one: no buttons), card_order orders each tab\'s cards, the Zigbee sheet is wide on a desktop', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // View only: a non-admin looks but only controls what is allowed; the PIN unlocks the rest until the card is left
+      // alone for view_pin_seconds; the PIN pad closes by itself after view_pin_close_seconds without a key
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), c0 = card._config, H = card._hass._raw || card._hass, out = {};
+      const as = async (user, extra) => { card.setConfig({ ...c0, view_only: 'non_admins', view_allow: ['lights'], view_pin: '1234', view_pin_seconds: 2, view_pin_close_seconds: 1, ...extra }); await wait(1300); card.hass = { ...H, user }; await wait(200); };
+      const n = () => (window.calls || []).length, last = () => JSON.stringify((window.calls || []).at(-1));
+      const pad = () => R.querySelector('#sheet .keypad #voDots'), key = k => R.querySelector(`#sheet [data-act=vopin][data-k="${k}"]`).click();
+      await as({ id: 'u1', name: 'Kids', is_admin: false }); card._setTab('home'); await wait(200);
+      out.chip = R.getElementById('voChip')?.textContent.includes('View only');
+      let c = n(); await card.call('homeassistant', 'toggle', { entity_id: 'light.kitchen' }); out.allowed = n() === c + 1;
+      c = n(); const p1 = card.call('homeassistant', 'toggle', { entity_id: 'switch.coffee_machine' }); await wait(100);
+      out.asks = !!pad() && n() === c;
+      for (const k of '9999') key(k); await wait(50); out.wrong = n() === c && R.getElementById('voMsg')?.textContent.includes('Wrong');
+      for (const k of '1234') key(k); await p1; await wait(100);
+      out.unlocked = n() === c + 1 && last().includes('switch.coffee_machine') && !pad() && R.getElementById('voChip')?.dataset.on === '1';
+      c = n(); await card.call('lock', 'unlock', { entity_id: 'lock.front_door' }); out.stays = n() === c + 1; // still unlocked
+      await wait(2300); out.relocked = !card._unlocked();
+      c = n(); const p2 = card.call('lock', 'unlock', { entity_id: 'lock.front_door' }); await wait(100); out.again = !!pad();
+      await wait(1200); out.padCloses = !pad() && (await p2) === false && n() === c; // no key for 1 s: the pad closes, nothing done
+      let ev = 0; const h = () => ev++; card.addEventListener('hass-more-info', h);
+      card.more('lock.front_door'); await wait(100); out.readOnly = ev === 0 && card._info === 'ro:lock.front_door' && R.querySelector('#sheet').textContent.includes('View only'); card._closeSheet();
+      card.more('light.kitchen'); await wait(50); out.moreAllowed = ev === 1;
+      await as({ id: 'u1', name: 'Kids', is_admin: false }, { view_pin: '' }); c = n();
+      await card.call('switch', 'turn_on', { entity_id: 'switch.coffee_machine' }); out.noPin = n() === c && !pad();
+      await as({ id: 'a1', name: 'Me', is_admin: true }); c = n(); await card.call('lock', 'unlock', { entity_id: 'lock.front_door' }); out.admin = n() === c + 1 && !R.getElementById('voChip');
+      await as({ id: 'a1', name: 'Tablet', is_admin: true }, { view_only: ['tablet'] }); out.byName = card._viewOnly();
+      card.removeEventListener('hass-more-info', h); card.setConfig(c0); await wait(1300); card.hass = H;
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('view only: allowed kinds work, the rest asks for the PIN, unlocked until left alone, the PIN pad closes by itself, read-only details', r === true, r); }
   check('no page errors (zigbee map)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

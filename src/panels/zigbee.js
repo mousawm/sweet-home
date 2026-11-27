@@ -221,6 +221,7 @@ export class ZigbeePanels {
   // busy, so only when asked); ZHA scans its neighbour tables in the background and its device list is read again
   async _zbScan() {
     const m = this._zb(); if (!m?.source || this._zbScanning) return;
+    if (!this._mayAct('system')) return this._gate('system', () => this._zbScan()); // view only: the PIN first
     this._zbScanning = Date.now(); this._zbBump();
     clearTimeout(this._zbScanT);
     if (m.source === 'z2m') {

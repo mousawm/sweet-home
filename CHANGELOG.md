@@ -11,6 +11,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Zigbee: the Zigbee pop-up (devices and network map) is much wider on desktops and taller on tablets and phones, so the map is easier to read.
 
 ### Added
+- View only: pick who can look but not control (everyone who is not an admin, or chosen people), what they can still control (lights, media…), and an optional PIN that unlocks the rest until the card is left alone; the PIN pad closes by itself after a while. A long press shows a device's details without its controls (card editor: Look → View only).
 - Card order: put the cards of each tab in the order you want (card editor: Panels → Card order, or `card_order` in YAML).
 - 3D view: choose which mode buttons it shows (Lights, Climate, Presence, Zigbee) and which one it opens on (card editor: Look → Modes on the 3D view, or `view_modes`).
 
