@@ -1405,6 +1405,80 @@ try {
     }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();
+  // Zigbee (System tab): a made-up Zigbee2MQTT network (?zigbee=1) and a fake MQTT feed (window.mqttSend)
+  console.log('zigbee');
+  p = await open('?zigbee=1');
+  await p.evaluate(() => card._setTab('system')); await p.waitForTimeout(400);
+  { const r = await p.evaluate(() => {
+      const R = card.shadowRoot, t = id => R.getElementById(id)?.textContent || '', al = R.getElementById('alerts');
+      const out = {
+        subs: ['zigbee2mqtt/bridge/devices', 'zigbee2mqtt/bridge/info', 'zigbee2mqtt/bridge/state', 'zigbee2mqtt/+/availability', 'zigbee2mqtt/+'].every(x => mqttSubs.some(s => s.topic === x)),
+        summary: t('zigbee').includes('3/4') && t('zigbee').includes('1/2') && t('zigbee').includes('2/4') && t('zigbee').includes('Garden Temperature'),
+        offline: t('alerts').includes('Zigbee Offline') && !!al.querySelector('.mrow.open[data-act=zbopen][data-dev=zb2]'),
+        weak: t('alerts').includes('Weak Zigbee') && !!al.querySelector('.mrow.zbw[data-dev=zb3]'),
+        once: !al.querySelector('[data-id="switch.garage_relay"]'), // not under Unavailable as well
+        list: [...R.querySelectorAll('#zblist [data-dev]')].map(x => x.dataset.dev).join() === 'zb2,zb3,zb4,zb1', // problems first
+      };
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee: Summary, Device list and Needs Attention from the Zigbee2MQTT devices in Home Assistant', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), sh = () => R.getElementById('sheet'), rows = () => [...sh().querySelectorAll('[data-act=zbrow]')].map(x => x.dataset.dev).join();
+      R.querySelector('#alerts [data-dev=zb3]').click(); await wait(200);
+      const out = { open: sh().classList.contains('open') && !!sh().querySelector('.zbitem.on [data-dev=zb3]') && sh().textContent.includes('0x00158d0001a2b303') };
+      sh().querySelector('[data-act=zbf][data-k=problems]').click(); await wait(100); out.problems = rows() === 'zb2,zb3';
+      sh().querySelector('[data-act=zbf][data-k=routers]').click(); await wait(100); out.routers = rows() === 'zb2,zb1';
+      sh().querySelector('[data-act=zbf][data-k=all]').click(); await wait(100);
+      const s = sh().querySelector('[data-zbsel=sort]'); s.value = 'lqi'; s.dispatchEvent(new Event('change', { bubbles: true })); await wait(100); out.byLqi = rows() === 'zb3,zb4,zb1,zb2';
+      const a = sh().querySelector('[data-zbsel=room]'); a.value = 'Kitchen'; a.dispatchEvent(new Event('change', { bubbles: true })); await wait(100); out.area = rows() === 'zb1';
+      sh().querySelector('[data-act=zbrow][data-dev=zb1]').click(); await wait(100); out.details = !!sh().querySelector('.zbdet [data-act=more][data-id="sensor.kitchen_plug_linkquality"]');
+      card._closeSheet();
+      R.querySelector('#zigbee .ring[data-f=problems]').click(); await wait(200); out.ring = rows().split(',').sort().join() === 'zb2,zb3' && sh().querySelector('[data-zbsel=sort]').value === 'lqi'; // the sort picked stays
+      card._closeSheet();
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee: the sheet lists every device, with filters, sort, area and details', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), t = id => R.getElementById(id)?.textContent || '';
+      mqttSend('zigbee2mqtt/bridge/devices', [{ ieee_address: '0x00124b0024c1aa01', type: 'Coordinator' }, { ieee_address: '0x00158d0001a2b301', type: 'Router', friendly_name: 'Kitchen Plug', power_source: 'Mains (single phase)' },
+        { ieee_address: '0x00158d0001a2b304', type: 'EndDevice', friendly_name: 'Hallway Motion', power_source: 'Battery' }], true);
+      mqttSend('zigbee2mqtt/bridge/info', { version: '2.1.1', coordinator: { type: 'EmberZNet' }, network: { channel: 25 }, config: { availability: { enabled: true }, advanced: { last_seen: 'ISO_8601' } } }, true);
+      mqttSend('zigbee2mqtt/Kitchen Plug/availability', { state: 'offline' }, true);
+      await wait(900);
+      const out = { coord: t('zigbee').includes('EmberZNet') && t('zigbee').includes('ch 25'), offline: !!R.querySelector('#alerts .mrow.open[data-dev=zb1]') };
+      mqttSend('zigbee2mqtt/Kitchen Plug/availability', 'online'); mqttSend('zigbee2mqtt/Hallway Motion', { occupancy: false, linkquality: 22 });
+      await wait(3600);
+      out.back = !R.querySelector('#alerts [data-dev=zb1]'); out.weakLive = !!R.querySelector('#alerts .zbw[data-dev=zb4]');
+      mqttSend('zigbee2mqtt/bridge/state', { state: 'offline' }); await wait(900);
+      out.bridge = t('alerts').includes('Bridge offline') && !R.querySelector('#alerts [data-dev=zb2]') && t('zigbee').includes('Zigbee2MQTT · Offline');
+      mqttSend('zigbee2mqtt/bridge/state', 'online'); await wait(900);
+      out.again = !!R.querySelector('#alerts [data-dev=zb2]');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee: what Zigbee2MQTT says on MQTT (coordinator, availability, link quality, bridge state) shows within seconds', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), c0 = card._config, vis = id => R.getElementById(id).style.display !== 'none';
+      const cfg = async z => { card.setConfig({ ...c0, panels: { zigbee: z } }); await wait(900); card._setTab('system'); await wait(300); };
+      await cfg({ views: ['list'] }); const out = { listOnly: !vis('zigbee') && vis('zblist') };
+      await cfg({ alerts: ['weak'] }); out.noOffline = !R.querySelector('#alerts [data-dev=zb2]') && !!R.querySelector('#alerts [data-id="switch.garage_relay"]') && vis('zigbee') && vis('zblist');
+      await cfg({ lqi_min: 160 }); out.limit = !!R.querySelector('#alerts .zbw[data-dev=zb4]') && !R.querySelector('#alerts .zbw[data-dev=zb1]'); // 150 is weak now, 182 is not
+      await cfg(false); out.off = !vis('zigbee') && !vis('zblist') && !R.querySelector('#alerts .zbw') && !!R.querySelector('#alerts [data-id="switch.garage_relay"]');
+      card.setConfig(c0); await wait(900);
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee: panels.zigbee picks the views and alerts, the LQI limit, or switches it all off', r === true, r); }
+  check('no page errors (zigbee)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+  p = await open('?zigbee=1&editor=1');
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  { const r = await p.evaluate(() => {
+      const d = () => [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Zigbee2MQTT or ZHA')), out = { panel: !!d() };
+      const put = (n, v) => { const s = d().querySelector(`ha-form [name=${n}]`); s.value = v; s.dispatchEvent(new Event('change')); };
+      out.defaults = !editor._config.panels?.zigbee && d().querySelector('ha-form [name=base_topic]')?.value === 'zigbee2mqtt';
+      put('views', 'list'); out.views = JSON.stringify(editor._config.panels?.zigbee) === '{"views":["list"]}';
+      put('lqi_min', '80'); out.lqi = editor._config.panels.zigbee.lqi_min === 80;
+      put('lqi_min', '60'); out.lqiDefault = !('lqi_min' in editor._config.panels.zigbee);
+      put('source', 'zha'); out.zha = editor._config.panels.zigbee.source === 'zha' && !d().querySelector('ha-form [name=base_topic]');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('zigbee: the card editor sets the integration, views, alerts and LQI limit (defaults not stored)', r === true, r); }
+  check('no page errors (zigbee editor)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
 } finally { await browser.close(); server.close(); }
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

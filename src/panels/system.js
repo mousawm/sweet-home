@@ -75,7 +75,10 @@ export class SystemPanels {
     // so the list and the System tab's counter follow within a second instead of on the 30 s refresh (_update / _tick)
     this._alDeps = all.filter(st => { const id = st.entity_id, d = id.split('.')[0], dc = st.attributes.device_class;
       return d === 'update' || /^sensor\..*tunnel/.test(id) || (d === 'sensor' && (dc === 'battery' || dc === 'signal_strength')) || A.batteryExtra[id]
-        || A.unavailDomains.includes(d) || A.unavailPlatforms.includes(h.entities?.[id]?.platform); }).map(st => st.entity_id);
+        || A.unavailDomains.includes(d) || A.unavailPlatforms.includes(h.entities?.[id]?.platform); }).map(st => st.entity_id).concat(this._zbEnts());
+    // Zigbee: offline and weak devices in their own sections (panels/zigbee.js); with Zigbee Offline on, its devices
+    // are left out of the plain Unavailable list below so they don't show twice
+    const [zbOff, zbWeak, zbCov] = this._zbAlerts(hide);
     // CloudFlare tunnels that are not healthy — named by the tunnel only ("Cloudflare Tunnels Cloudflare Tunnel pbs" → "PBS")
     const tunName = st => (st.attributes.friendly_name || st.entity_id).replace(/^(\s*cloudflare\s+tunnels?\b)+\s*/i, '').replace(/[-_]+/g, ' ').trim()
       .split(/\s+/).map((w, i, a) => a.length === 1 && w.length <= 3 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') || nm(st);
@@ -83,7 +86,7 @@ export class SystemPanels {
       .map(st => `<div class="mrow open" data-act="more" data-id="${st.entity_id}">${ic('mdi:cloud-alert')}<span>${esc(tunName(st))}</span><b>${esc(tc(pretty(st.state)))}</b></div>`);
     // unavailable switches / lights + entities of the watched integrations
     const DI = { switch: 'mdi:toggle-switch-off-outline', light: 'mdi:lightbulb-off-outline' };
-    const unRaw = all.filter(st => st.state === 'unavailable' && !A.excludeEntities.includes(st.entity_id) && !exDev(st.entity_id)
+    const unRaw = all.filter(st => st.state === 'unavailable' && !A.excludeEntities.includes(st.entity_id) && !exDev(st.entity_id) && !zbCov.has(h.entities?.[st.entity_id]?.device_id)
       && (A.unavailDomains.includes(st.entity_id.split('.')[0]) || A.unavailPlatforms.includes(h.entities?.[st.entity_id]?.platform)))
       .sort((a, b) => a.entity_id.localeCompare(b.entity_id));
     // one row per device: "Front Door Lock" with "Auto Lock, Lock Sound" under it, not a row per entity
@@ -132,7 +135,7 @@ export class SystemPanels {
       return `<div class="mrow ${i.severity === 'error' || i.severity === 'critical' ? 'open' : ''}" data-act="repairs">${ic(restart ? 'mdi:restart-alert' : 'mdi:wrench-outline')}<span class="m2">${esc(nm)}<small>${esc(what)}${i.domain && i.domain !== i.issue_domain ? ` · ${esc(tc(i.domain))}` : ''}</small></span></div>`;
     });
     if (needRestart && rep.length) rep[rep.length - 1] += (`<div class="mrow wrow"><span class="m2">${tr("Restart Home Assistant")}<small>${tr('to apply the changes above')}</small></span><button class="rbtn" data-act="harestart" data-id="homeassistant.restart">${ic('mdi:restart')}${tr("Restart")}</button></div>`); // attached to the last row so the count is the number of repairs
-    return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
+    return [['tun', 'Tunnels', 'mdi:cloud-alert', tun], ['rep', 'Repairs', 'mdi:wrench', rep], ['un', 'Unavailable', 'mdi:lan-disconnect', un], ['zboff', 'Zigbee Offline', 'mdi:zigbee', zbOff], ['zbweak', 'Weak Zigbee', 'mdi:signal-cellular-1', zbWeak], ['upd', 'Updates', 'mdi:package-up', upd], ['bat', 'Low Batteries', 'mdi:battery-alert', bat], ['wifi', 'Weak WiFi', 'mdi:wifi-alert', weak]].filter(x => x[3].length);
   }
   async _loadRepairs() {
     if (this._repBusy || !this._hass) return; this._repBusy = true;

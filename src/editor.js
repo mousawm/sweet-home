@@ -9,6 +9,7 @@
  * added in the code editor and is kept untouched.
  */
 import { t, setLang, isRTL } from './i18n.js';
+import { ZB_VIEWS, ZB_ALERTS, ZB_LQI_MIN } from './zigbee.js';
 import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
@@ -49,6 +50,7 @@ const PANELS = [
   ['media_server', 'Media Server', 'Jellyfin, Sonarr, Radarr, qBittorrent'],
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
+  ['zigbee', 'Zigbee', 'Zigbee2MQTT or ZHA: offline devices, weak signal, last seen (System tab)'],
   ['modes', 'Modes', 'One-tap buttons on the Home tab: guests, holiday, scenes, scripts'],
   ['devices', 'Devices', 'Batteries of phones, tablets, watches and other devices (System tab)'],
   ['people', 'People', 'Who shows at the top, and each person’s phone panel (long press their picture)'],
@@ -1779,6 +1781,11 @@ class SweetHomeCardEditor extends HTMLElement {
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
+      // Zigbee: which integration (found on its own), the views on the System tab and the Needs Attention sections
+      zigbee: [{ name: 'source', selector: sel([['', 'Found on its own'], ['z2m', 'Zigbee2MQTT'], ['zha', 'ZHA']]) }, { name: 'base_topic', selector: { text: {} } },
+        { name: 'views', selector: { select: { multiple: true, mode: 'list', options: [['summary', 'Summary'], ['list', 'Device list'], ['map', 'Network map (coming soon)']].map(([value, label]) => ({ value, label })) } } },
+        { name: 'alerts', selector: { select: { multiple: true, mode: 'list', options: [['offline', 'Zigbee offline'], ['weak', 'Weak Zigbee signal']].map(([value, label]) => ({ value, label })) } } },
+        { name: 'lqi_min', selector: { number: { min: 10, max: 200, step: 5, mode: 'slider' } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
         { name: 'battery_exclude_devices', selector: { device: { multiple: true } } }, { name: 'battery_exclude', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } },
         { name: 'unavailable_domains', selector: { select: { multiple: true, mode: 'list', options: UNAVAIL_DOMAINS.map(d => ({ value: d, label: d })) } } },
@@ -1872,6 +1879,10 @@ class SweetHomeCardEditor extends HTMLElement {
           const opts = [...new Set([...plats, ...arr(cur.unavailable_integrations)])].map(v => ({ value: v, label: v }));
           schema = schema.map(f => (f.name === 'unavailable_integrations' ? { ...f, selector: { select: { ...f.selector.select, options: opts } } } : f));
         }
+        if (k === 'zigbee') { // shown with their defaults when not set; the base topic is only asked for Zigbee2MQTT
+          Object.assign(data, { source: cur.source || '', views: arr(cur.views ?? ZB_VIEWS), alerts: arr(cur.alerts ?? ZB_ALERTS), lqi_min: cur.lqi_min ?? ZB_LQI_MIN, base_topic: cur.base_topic || 'zigbee2mqtt' });
+          if (cur.source === 'zha') { schema = schema.filter(f => f.name !== 'base_topic'); delete data.base_topic; }
+        }
         if (k === 'homelab') { // which Proxmox node shows first: only asked with several nodes
           const nodes = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)?.[1]).filter(Boolean))];
           if (nodes.length > 1) { schema = schema.map(f => (f.name === 'node' ? { ...f, selector: sel([['', 'The first one'], ...[...new Set([...nodes, ...(cur.node ? [cur.node] : [])])].map(n => [n, n])]) } : f)); data.node = cur.node || ''; }
@@ -1912,6 +1923,16 @@ class SweetHomeCardEditor extends HTMLElement {
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
             if (k === 'water' && kk === 'trend_hours') { const h = Number(vv); val = [2, 12, 24].includes(h) ? h : null; } // 6 h is the default: not stored
             if (k === 'security' && kk === 'doors_hours') { const h = Number(vv); val = [6, 12, 18].includes(h) ? h : null; } // 24 h is the default: not stored
+            if (k === 'zigbee') { // the defaults are not stored: every view, both alert kinds, LQI 60, topic zigbee2mqtt
+              if (kk === 'source' && (vv || '') !== (next.source || '')) { if (vv) next.source = vv; else delete next.source; set(k, next); this._render(); return; } // the base topic field comes and goes
+              if (kk === 'views' || kk === 'alerts') {
+                const all = kk === 'views' ? ZB_VIEWS : ZB_ALERTS, v2 = (Array.isArray(vv) ? vv : String(vv || '').split(',').map(x => x.trim())).filter(x => all.includes(x));
+                if ([...v2].sort().join() === [...all].sort().join()) delete next[kk]; else next[kk] = v2; // none picked: [] (nothing shown)
+                continue;
+              }
+              if (kk === 'lqi_min') { const n = Number(vv); if (!isFinite(n) || n === ZB_LQI_MIN || vv === '' || vv == null) delete next[kk]; else next[kk] = n; continue; }
+              if (kk === 'base_topic') { const b = String(vv || '').trim().replace(/^\/+|\/+$/g, ''); if (!b || b === 'zigbee2mqtt') delete next[kk]; else next[kk] = b; continue; }
+            }
             if (k === 'attention' && /^unavailable_/.test(kk)) { // a multiple select (a comma list in plain forms); the default domains are not stored
               val = Array.isArray(vv) ? vv : String(vv || '').split(',').map(x => x.trim()).filter(Boolean);
               if (kk === 'unavailable_domains') { if ([...val].sort().join() === [...UNAVAIL_DEFAULT].sort().join()) { delete next[kk]; continue; } if (!val.length) { next[kk] = []; continue; } } // none picked: no domain is listed
@@ -1928,6 +1949,7 @@ class SweetHomeCardEditor extends HTMLElement {
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
           extra: 'More rows on the Energy card', exclude: 'Meters to leave out (e.g. a charger that is not behind the house meter)',
           cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
+          source: 'Integration', base_topic: 'Zigbee2MQTT base topic', views: 'Show on the System tab', alerts: 'Needs Attention: list', lqi_min: 'Weak signal below (LQI)',
           node: 'Node shown first', battery_exclude: 'Batteries hidden from low batteries',
           unavailable_domains: 'Unavailable: list these kinds of entities', unavailable_integrations: 'Unavailable: also list everything from these integrations',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',

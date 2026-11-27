@@ -22,7 +22,7 @@ export function useModel(m) {
 // sections shown on each tab
 // panels whose entities can be renamed for this dashboard (pencil in edit mode)
 export const RN_SECS = ['glance', 'modes', 'security', 'cams', 'climate', 'energy', 'car', 'ehist', 'water', 'irrigation', 'media', 'mserver', 'tvlight', 'alerts', 'lab', 'devices'];
-export const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], climate: ['climate'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'lab', 'devices'] };
+export const TAB_SECS = { home: ['glance'], security: ['security', 'cams'], climate: ['climate'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'zigbee', 'zblist', 'lab', 'devices'] };
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                             */

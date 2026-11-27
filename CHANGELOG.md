@@ -12,6 +12,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Water: the tank trend (rate and “empty in / full in”) now looks at the last 6 hours by default instead of 2, for a steadier estimate.
 
 ### Added
+- Zigbee (System tab): your Zigbee2MQTT or ZHA network at a glance. A Summary (online devices, routers, healthy devices, coordinator, weakest link, quietest device, lowest battery), a Device list with problems first, and a sheet with every device, its link quality, last seen, power and details; Needs Attention gets *Zigbee Offline* and *Weak Zigbee* sections. Choose the views, the alerts and the weak-signal limit in the card editor (Panels → Zigbee).
 - Water: a *Tank trend from the last* option (`trend_hours`: 2, 6, 12 or 24 hours) sets how much history the tank trend uses.
 - Card editor: options that were YAML only can now be set in the editor: each lock's name, kind and icon, and each gate's name and kind (Panels → Security), each irrigation zone's name and watering time (Panels → Irrigation), extra rows and meters to leave out on the Energy card (Panels → Energy), and the card's language (Look → Language).
 - Card editor: each device's name, icon, charging sensor and tracker (Panels → Devices), the Proxmox node shown first when there are several (Panels → Home Lab), and which kinds of entities and integrations count as unavailable, plus batteries to leave out (Panels → Needs Attention).

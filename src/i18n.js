@@ -272,6 +272,21 @@ const AR = {
   'State that means parked (empty: on, home, parked…; the sensor reads “{0}” now)': 'الحالة التي تعني أنها مركونة (فارغ: on، home، parked…؛ يقرأ الحساس الآن «{0}»)',
   'Words that mean open (comma-separated)': 'كلمات تعني مفتوح (مفصولة بفواصل)', 'Words that mean closed (comma-separated)': 'كلمات تعني مغلق (مفصولة بفواصل)',
   'The sensor reads “{0}” now.': 'يقرأ الحساس الآن «{0}».', 'Empty: open, opened, ajar… and closed, shut… are understood on their own.': 'فارغ: تُفهم open وopened وajar… وclosed وshut… تلقائيًا.',
+  // Zigbee (System tab, Needs Attention, card editor)
+  Zigbee: 'زيجبي', 'Zigbee Devices': 'أجهزة زيجبي', 'Zigbee Offline': 'زيجبي غير متصل', 'Weak Zigbee': 'إشارة زيجبي ضعيفة',
+  Router: 'موجّه', 'End device': 'جهاز طرفي', Routers: 'الموجّهات', Healthy: 'سليمة', Coordinator: 'المنسّق', 'Weakest link': 'أضعف اتصال',
+  'Quietest device': 'أطول صمت', 'Lowest battery': 'أدنى بطارية', 'ch {0}': 'قناة {0}', 'Open Zigbee': 'فتح زيجبي', '{0} devices · {1} routers': '{0} أجهزة · {1} موجّهات',
+  'No Zigbee devices found yet': 'لم يُعثر على أجهزة زيجبي بعد', 'Show all {0} devices': 'عرض كل الأجهزة ({0})', '{0} devices': '{0} أجهزة', '{0} need a look': '{0} تحتاج إلى مراجعة',
+  All: 'الكل', Problems: 'المشكلات', Area: 'المنطقة', 'All areas': 'كل المناطق', 'Sort by': 'الترتيب حسب', 'Problems first': 'المشكلات أولًا', 'Quietest first': 'الأطول صمتًا أولًا',
+  'Weakest signal first': 'الأضعف إشارة أولًا', 'Nothing matches these filters.': 'لا شيء يطابق هذه التصفية.', Details: 'التفاصيل', 'Hide from Needs Attention': 'إخفاء من «يحتاج إلى انتباه»',
+  '(from its power source)': '(حسب مصدر طاقته)', Mains: 'الكهرباء', 'Link quality': 'جودة الاتصال', 'Last seen': 'آخر ظهور', 'Last change': 'آخر تغيير', Model: 'الطراز', 'IEEE address': 'عنوان IEEE',
+  'Bridge offline: no Zigbee device can be reached': 'الجسر غير متصل: لا يمكن الوصول إلى أي جهاز زيجبي',
+  '{0} is offline: the devices can’t be reached until it is back.': '{0} غير متصل: لا يمكن الوصول إلى الأجهزة حتى يعود.',
+  'Times show the last change. Turn on Last seen in Zigbee2MQTT (Settings → Advanced) for exact check-ins.': 'الأوقات تعرض آخر تغيير. فعّل Last seen في Zigbee2MQTT (الإعدادات ← متقدم) لمعرفة آخر اتصال بدقة.',
+  'Signal strength shows once the devices’ link quality (LQI) entities are enabled in Home Assistant.': 'تظهر قوة الإشارة بعد تفعيل كيانات جودة الاتصال (LQI) للأجهزة في Home Assistant.',
+  'Integration': 'التكامل', 'Found on its own': 'يُكتشف تلقائيًا', 'Zigbee2MQTT base topic': 'الموضوع الأساسي لـ Zigbee2MQTT', 'Show on the System tab': 'العرض في تبويب النظام',
+  Summary: 'الملخص', 'Device list': 'قائمة الأجهزة', 'Network map (coming soon)': 'خريطة الشبكة (قريبًا)', 'Needs Attention: list': '«يحتاج إلى انتباه»: اعرض',
+  'Zigbee offline': 'زيجبي غير متصل', 'Weak Zigbee signal': 'إشارة زيجبي ضعيفة', 'Weak signal below (LQI)': 'إشارة ضعيفة أقل من (LQI)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

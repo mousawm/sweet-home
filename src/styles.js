@@ -812,4 +812,29 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 :host([look=light]) :is(.mlib .warn b,.wtei b){color:#b45309}
 :host([look=light]) :is(.wrow .ubtn,.wrow .ubtn ha-icon,.pwgo,.ehnow){color:#0f766e}
 :host([look=light]) :is(.alsec i,.wrow .rbtn,.swr .rbtn,.wrow .rbtn ha-icon,.swr .rbtn ha-icon){color:#be123c}
+/* Zigbee (System tab): Summary, Device list, the Zigbee sheet; weak-signal rows in amber */
+.mrow.zbw{border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.09)}.mrow.zbw ha-icon,.mrow.zbw b{color:var(--amber)}
+.zbhint{display:flex;gap:8px;align-items:flex-start;padding:9px 11px;margin-bottom:10px;border-radius:12px;font-size:11.5px;line-height:1.45;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.35)}
+.zbhint ha-icon{--mdc-icon-size:16px;color:var(--blue);flex:none}
+.zbfacts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
+.zbfact{min-width:0;padding:9px 11px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);text-align:start;cursor:pointer}
+.zbfact small{display:block;font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px}
+.zbfact b{display:block;margin-top:3px;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.zbfact b i{font-style:normal;font-weight:400;color:var(--mu)}
+.zbgo{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:11px 14px;border-radius:12px;font-weight:600;color:var(--teal);background:rgba(45,212,191,.12);border:1px solid rgba(45,212,191,.42)}
+.zbgo span{font-size:11.5px;font-weight:500;color:var(--mu)}
+.zbrow .zbr{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:96px}
+.zbrow .zbr b{white-space:nowrap;font-variant-numeric:tabular-nums}
+.zbbar{display:block;width:100%;height:4px;border-radius:2px;background:rgba(var(--ink),.08);overflow:hidden}.zbbar i{display:block;height:100%;border-radius:2px}
+.zbitem.on>.zbrow{margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.zbdet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;padding:10px 12px 12px;margin-bottom:6px;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:var(--panel2)}
+.zbdet small{display:block;font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px}.zbdet b{display:block;margin-top:2px;font-size:12px;font-weight:600;overflow-wrap:anywhere}.zbdet b i{font-style:normal;font-weight:400;color:var(--mu)}
+.zbdet .zbwide{grid-column:span 2}
+.zbacts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.zbacts .rbtn{display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:9px;font-size:11.5px;font-weight:600;background:rgba(var(--ink),.06);border:1px solid var(--line)}.zbacts .rbtn ha-icon{--mdc-icon-size:15px}
+.zbacts .ubtn{color:var(--teal);background:rgba(45,212,191,.12);border-color:rgba(45,212,191,.42)}
+.zbsels{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 10px}
+.zbsels select{font:inherit;font-size:12px;color:var(--tx);padding:6px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}.zbsels option{background:var(--sheet);color:var(--tx)}
+@media (max-width:480px){.zbdet{grid-template-columns:repeat(2,minmax(0,1fr))}.zbrow .zbr{width:84px}}
+:host([look=light]) :is(.mrow.zbw ha-icon,.mrow.zbw b){color:#b45309}
+:host([look=light]) :is(.zbgo,.zbacts .ubtn){color:#0f766e}
 `;

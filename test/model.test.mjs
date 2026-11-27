@@ -1,5 +1,6 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
+import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey } from '../src/zigbee.js';
 import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
@@ -346,8 +347,6 @@ test('TV backlight: a light set as the TV backlight glows around the room\'s TV 
   assert.ok(own && !own.auto && own.w === 1, 'a glow placed by hand is kept');
 });
 
-if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
-console.log('\nall model tests passed');
 
 test('"Found from" switches: Jellyfin / Sonarr / Radarr / qBittorrent / Forecast.Solar off leave their part out', () => {
   const h = JSON.parse(JSON.stringify(hass));
@@ -401,3 +400,85 @@ test('several instances: Sonarr / Radarr / qBittorrent per config entry, every P
   assert.equal(M({ homelab: { node: 'pve2' } }).lab.cpu, 'sensor.node_pve2_cpu_used', 'homelab.node: the node shown first');
   assert.deepEqual(M({ media_server: { radarr: false } }).mserver.radarr.more, [], 'switched off: none of its instances');
 });
+
+// Zigbee: Zigbee2MQTT / ZHA devices as one list (src/zigbee.js)
+{
+  const now = Date.parse('2026-11-27T12:00:00Z'), at = m => new Date(now - m * 60e3).toISOString();
+  const zh = () => {
+    const S = {}, Ent = {}, D = {};
+    const put = (id, state, attributes, dev, m = 2) => { S[id] = { entity_id: id, state, attributes: attributes || {}, last_changed: at(m), last_updated: at(m) }; Ent[id] = { entity_id: id, device_id: dev, platform: 'mqtt' }; };
+    D.br = { id: 'br', name: 'Zigbee2MQTT Bridge', identifiers: [['mqtt', 'zigbee2mqtt_bridge_0x00124b0024c1aa01']] };
+    put('binary_sensor.zigbee2mqtt_bridge_connection_state', 'on', { device_class: 'connectivity' }, 'br');
+    D.a = { id: 'a', name: 'Kitchen Plug', area_id: 'kitchen', model: 'TRETAKT', identifiers: [['mqtt', 'zigbee2mqtt_0x00158d0001a2b301']] };
+    put('switch.kitchen_plug', 'on', {}, 'a'); put('sensor.kitchen_plug_linkquality', '182', { unit_of_measurement: 'lqi' }, 'a');
+    D.b = { id: 'b', name: 'Garage Relay', identifiers: [['mqtt', 'zigbee2mqtt_0x00158d0001a2b302']] };
+    put('switch.garage_relay', 'unavailable', {}, 'b', 180); put('sensor.garage_relay_linkquality', 'unavailable', { unit_of_measurement: 'lqi' }, 'b', 180);
+    D.c = { id: 'c', name: 'Garden Temp', name_by_user: 'Garden Temperature', identifiers: [['mqtt', 'zigbee2mqtt_0x00158d0001a2b303']] };
+    put('sensor.garden_temp_battery', '58', { device_class: 'battery', unit_of_measurement: '%' }, 'c', 55); put('sensor.garden_temp_linkquality', '38', { unit_of_measurement: 'lqi' }, 'c', 55);
+    put('sensor.garden_temp_last_seen', at(7), { device_class: 'timestamp' }, 'c', 7);
+    D.x = { id: 'x', name: 'Not Zigbee', identifiers: [['hue', '123']] }; put('light.not_zigbee', 'on', {}, 'x');
+    return { states: S, entities: Ent, devices: D, areas: { kitchen: { area_id: 'kitchen', name: 'Kitchen' } } };
+  };
+  test('zigbee: Zigbee2MQTT devices from the registry (online from availability, LQI, battery, last seen)', () => {
+    const m = zigbeeModel(zh(), {}, {}, now);
+    assert.equal(m.source, 'z2m');
+    assert.equal(m.bridge.online, true);
+    assert.deepEqual(m.devices.map(d => [d.id, d.name, d.role, d.power, d.online, d.lqi]), [
+      ['b', 'Garage Relay', 'R', 'mains', false, null], ['c', 'Garden Temperature', 'E', 'battery', true, 38], ['a', 'Kitchen Plug', 'R', 'mains', true, 182]]);
+    const c = m.devices.find(d => d.id === 'c'), a = m.devices.find(d => d.id === 'a');
+    assert.deepEqual([c.battery, c.exact, c.lastSeen, c.roleKnown], [58, true, now - 7 * 60e3, false], 'its last_seen sensor: exact');
+    assert.deepEqual([a.exact, a.lastSeen, a.area, a.ieee, a.entity], [false, now - 2 * 60e3, 'Kitchen', '0x00158d0001a2b301', 'sensor.kitchen_plug_linkquality'], 'no last_seen: the last change');
+    assert.deepEqual(m.devices.map(d => zbStatus(d, 60)), ['off', 'weak', 'ok']);
+    const S = zbSummary(m, 60);
+    assert.deepEqual([S.total, S.online, S.healthy, S.routers, S.routersOnline, S.weakest.id, S.lowestBattery.id], [3, 2, 1, 2, 1, 'c', 'c']);
+    assert.equal(zbStatus(c, 30), 'ok', 'the LQI limit');
+  });
+  test('zigbee: what Zigbee2MQTT says on MQTT wins (role, power, availability, link quality, coordinator)', () => {
+    const live = {
+      devices: [{ ieee_address: '0x00124B0024C1AA01', type: 'Coordinator' }, { ieee_address: '0x00158d0001a2b302', type: 'EndDevice', friendly_name: 'Garage Relay', power_source: 'Battery' },
+        { ieee_address: '0x00158d0001a2b3ff', type: 'Router', friendly_name: 'Only In Z2M', power_source: 'Mains (single phase)', definition: { model: 'X1', vendor: 'Acme' } },
+        { ieee_address: '0x00158d0001a2b301', type: 'Router', friendly_name: 'Kitchen Plug', disabled: true }],
+      info: { version: '2.1.1', coordinator: { type: 'EmberZNet', meta: { revision: '7.4' } }, network: { channel: 25 }, config: { availability: { enabled: true }, advanced: { last_seen: 'disable' } } },
+      avail: { 'Garage Relay': true }, seen: { 'Garden Temperature': { lqi: 90, at: now - 60e3 } },
+    };
+    const m = zigbeeModel(zh(), {}, live, now), d = id => m.devices.find(x => x.id === id);
+    assert.deepEqual([m.bridge.coordinator, m.bridge.channel, m.bridge.version, m.bridge.lastSeenOff], ['EmberZNet 7.4', 25, '2.1.1', true]);
+    assert.deepEqual([d('b').role, d('b').power, d('b').online, d('b').roleKnown], ['E', 'battery', true, true]);
+    assert.ok(!d('a'), 'disabled in Zigbee2MQTT: left out');
+    assert.deepEqual([d('0x00158d0001a2b3ff').name, d('0x00158d0001a2b3ff').model, d('0x00158d0001a2b3ff').role], ['Only In Z2M', 'X1', 'R'], 'a device only Zigbee2MQTT has');
+    assert.deepEqual([d('c').lqi, d('c').lastSeen], [90, now - 60e3], 'a newer message: its LQI and time');
+    assert.equal(zigbeeModel(zh(), {}, { state: 'offline' }, now).devices.every(x => x.online === null), true, 'bridge offline: nothing known about the devices');
+    assert.equal(zigbeeModel(zh(), {}, { state: 'offline' }, now).bridge.online, false);
+  });
+  test('zigbee: availability off in Zigbee2MQTT: offline after 25 h of silence (nothing is pinged, so a quiet plug is not offline)', () => {
+    const info = { config: { availability: { enabled: false } } };
+    const m = zigbeeModel(zh(), {}, { info, seen: { 'Kitchen Plug': { at: now - 11 * 60e3 }, 'Garden Temperature': { at: now - 24 * 3600e3 } } }, now), d = id => m.devices.find(x => x.id === id);
+    assert.deepEqual([d('a').online, d('c').online], [true, true]);
+    assert.equal(zigbeeModel(zh(), {}, { info, seen: { 'Kitchen Plug': { at: now - 26 * 3600e3 } } }, now).devices.find(x => x.id === 'a').online, false);
+    assert.equal(zigbeeModel(zh(), {}, { info: { config: { availability: { enabled: true } } }, seen: { 'Kitchen Plug': { at: now - 26 * 3600e3 } } }, now).devices.find(x => x.id === 'a').online, true, 'availability on: Zigbee2MQTT decides');
+    const m2 = zigbeeModel(zh(), {}, { info, seen: { 'Garden Temperature': { at: now - 26 * 3600e3 } } }, now);
+    assert.equal(m2.devices.find(x => x.id === 'c').online, true, 'a newer last_seen sensor wins over an older message');
+  });
+  test('zigbee: ZHA devices, with ZHA\'s own list', () => {
+    const h = { states: { 'sensor.porch_temp': { entity_id: 'sensor.porch_temp', state: '20', attributes: {}, last_updated: at(3) } }, entities: { 'sensor.porch_temp': { device_id: 'p' } },
+      devices: { p: { id: 'p', name: 'Porch Sensor', identifiers: [['zha', '00:15:8d:00:01:a2:b3:c4']] }, co: { id: 'co', name: 'Coordinator', identifiers: [['zha', '00:12:4b:00:24:c1:aa:01']] } }, areas: {} };
+    const zha = [{ ieee: '00:12:4b:00:24:c1:aa:01', device_type: 'Coordinator', manufacturer: 'Silicon Labs', model: 'EZSP', available: true },
+      { ieee: '00:15:8D:00:01:A2:B3:C4', device_type: 'EndDevice', power_source: 'Battery or Unknown', lqi: 120, rssi: -70, last_seen: at(5), available: false }];
+    assert.equal(zbSource(h), 'zha');
+    const m = zigbeeModel(h, {}, { zha }, now);
+    assert.deepEqual([m.bridge.coordinator, m.bridge.online], ['Silicon Labs EZSP', true]);
+    assert.deepEqual(m.devices.map(d => [d.id, d.role, d.power, d.lqi, d.rssi, d.online, d.exact]), [['p', 'E', 'battery', 120, -70, false, true]], 'the coordinator is not a device');
+    assert.deepEqual(zigbeeModel(h, {}, {}, now).devices.map(d => [d.id, d.role, d.online]), [['p', 'R', true]], 'without ZHA\'s list: from the entities');
+  });
+  test('zigbee: no Zigbee in Home Assistant, ieeeKey, and panels.zigbee defaults', () => {
+    assert.equal(zigbeeModel({ states: {}, devices: {} }).source, null);
+    assert.equal(ieeeKey('0x00158D0001A2B3C4'), ieeeKey('00:15:8d:00:01:a2:b3:c4'));
+    assert.deepEqual(zbConfig(undefined), { on: true, source: null, base: 'zigbee2mqtt', views: ['summary', 'list', 'map'], alerts: ['offline', 'weak'], lqiMin: 60 });
+    assert.deepEqual(zbConfig({ source: 'zha', base_topic: '/z2m/', views: ['list', 'nope'], alerts: [], lqi_min: '80' }), { on: true, source: 'zha', base: 'z2m', views: ['list'], alerts: [], lqiMin: 80 });
+    assert.equal(zbConfig(false).on, false);
+    assert.deepEqual(buildModel({ panels: { zigbee: { views: 'summary' } } }, hass).E.zigbee.views, ['summary']);
+  });
+}
+
+if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
+console.log('\nall model tests passed');

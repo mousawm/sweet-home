@@ -460,6 +460,20 @@ listed below).
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
 - **tv_light**: `light` (the TV backlight) and `selects` (its mode / effect selectors: `select` or `input_select`, as IDs or `{entity, name, icon}`). Pick them in the card editor under Panels → TV light; switching the panel off hides its card
 - **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices, where each one also takes its own name, icon, charging sensor and tracker. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
+- **zigbee** (System tab): your Zigbee network from **Zigbee2MQTT** or **ZHA**, found on its own from Home Assistant's
+  devices. A **Summary** (online devices, routers, healthy devices, the coordinator, the weakest link, the quietest device
+  and the lowest battery), a **Device list** with problems first, and a sheet with every device (filters: problems,
+  routers, battery; by area; sorted by problems, silence, signal or name; each device's kind, power, link quality, last
+  seen, model and IEEE address). Needs Attention gets **Zigbee Offline** and **Weak Zigbee** sections; offline Zigbee
+  devices are then no longer listed again under Unavailable. Options (card editor: Panels → Zigbee):
+  - `source`: `z2m` or `zha` (not set: whichever Home Assistant has); `base_topic` (Zigbee2MQTT, default `zigbee2mqtt`)
+  - `views`: what shows on the System tab, any of `summary`, `list`, `map` (default: all; the network map is coming)
+  - `alerts`: any of `offline`, `weak` (default: both); `lqi_min`: weak below this link quality (default 60)
+  - Offline is what Zigbee2MQTT or ZHA says (their own availability), so the card matches Home Assistant. With
+    Zigbee2MQTT's availability switched off, a device is offline after 25 h without a word.
+  - For admins, the card also listens to Zigbee2MQTT over MQTT (router or end device, coordinator and channel, link
+    quality as devices report it, bridge online / offline) or reads ZHA's own device list. Everyone else sees what the
+    entities show: turn on Zigbee2MQTT's *Last seen* setting and the devices' link quality entities to get those.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
   - `unavailable_domains` (default: `light`, `switch`, `lock`, `climate`, `cover`, `fan`), `unavailable_integrations`: which unavailable entities are listed (card editor: Panels → Needs Attention)
