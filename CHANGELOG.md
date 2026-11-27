@@ -8,6 +8,14 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+
+### Added
+
+## v0.6.63-beta.1 — 2026-11-27
+
+_Beta (pre-release): shown in HACS only with “Show beta versions” turned on for Sweet Home._
+
+### Changed
 - Sweet Home is now in the Home Assistant Marketplace's default store: search for it there, no custom repository needed.
 - Water: the tank trend (rate and “empty in / full in”) now looks at the last 6 hours by default instead of 2, for a steadier estimate.
 
