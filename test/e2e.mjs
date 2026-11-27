@@ -1432,7 +1432,7 @@ try {
       const a = sh().querySelector('[data-zbsel=room]'); a.value = 'Kitchen'; a.dispatchEvent(new Event('change', { bubbles: true })); await wait(100); out.area = rows() === 'zb1';
       sh().querySelector('[data-act=zbrow][data-dev=zb1]').click(); await wait(100); out.details = !!sh().querySelector('.zbdet [data-act=more][data-id="sensor.kitchen_plug_linkquality"]');
       card._closeSheet();
-      R.querySelector('#zigbee .ring[data-f=problems]').click(); await wait(200); out.ring = rows() === 'zb2,zb3';
+      R.querySelector('#zigbee .ring[data-f=problems]').click(); await wait(200); out.ring = rows().split(',').sort().join() === 'zb2,zb3' && sh().querySelector('[data-zbsel=sort]').value === 'lqi'; // the sort picked stays
       card._closeSheet();
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('zigbee: the sheet lists every device, with filters, sort, area and details', r === true, r); }
