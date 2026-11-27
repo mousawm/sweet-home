@@ -516,6 +516,7 @@ test('view_modes and card_order: the 3D view\'s modes (all by default, unknown o
   assert.deepEqual(M({ view_modes: [] }).viewModes, []);
   assert.deepEqual(M({ card_order: { system: ['devices', 'alerts'] } }).cardOrder, { system: ['devices', 'alerts'] });
   assert.deepEqual([M({}).cardOrder, M({ card_order: ['x'] }).cardOrder], [{}, {}]);
+  assert.deepEqual([M({}).headerChips.length, M({ header_chips: ['power', 'x', 'weather'] }).headerChips, M({ header_chips: [] }).headerChips], [8, ['power', 'weather'], []]);
 });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }

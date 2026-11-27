@@ -1,7 +1,7 @@
 // Sweet Home — Header, tabs, At a glance, Climate, Modes, the room panel.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM, alarmInfo, bidi } from '../core.js';
+import { E, MODEL, ROOMS, ROOM, DOOR_INFO, FURN, tc, ago, agoShort, esc, ic, BAD, FAHR, tempRGB, rgb, skl, pretty, TOGGLE_DOMAINS, BIN_LABEL, DC_ICON, NAMED_DOMAINS, SMART, nameIcon, plugCharger, plugIcon, domIcon, furnName, furnIcon, fmtW, wxName, WEATHER_ICON, HVAC_ICON, HVAC_COLOR, ALARM, alarmInfo, bidi } from '../core.js';
 
 export class HomePanels {
   // Weather sheet: replaces HA's weather more-info (still on long press). Daily + hourly forecasts
@@ -92,16 +92,20 @@ export class HomePanels {
     const grid = this.n(E.energy.grid) ?? 0, solar = this.n(E.energy.solar) ?? 0;
     const temps = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
     const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+    // the chips picked in Look → Header chips (all by default); a chip also goes with its panel switched off in Panels:
+    // alarm, doors and locks with Security, the inside temperature with Climate, power with Energy
+    const P = this._config?.panels || {}, show = k => MODEL.headerChips.includes(k)
+      && !(['alarm', 'doors', 'locks'].includes(k) && P.security === false) && !(k === 'temperature' && P.climate === false) && !(k === 'power' && P.energy === false);
     return `
       ${this._voChip()}
-      ${wx}
-      ${!E.alarm || this.v(E.alarm) === 'disarmed' ? '' : `<div class="chip" style="--c:${al[2]}" data-act="more" data-id="${E.alarm}">${ic(al[1])}<span>${tr(al[0])}</span></div>`}
-      ${!E.doors.length ? '' : `<div class="chip ${open.length ? 'warn' : 'good'}">${ic(open.length ? 'mdi:door-open' : 'mdi:door-closed-lock')}<span>${open.length ? tr('{0} open', open.map(d => d.name).join('، ')) : tr('All doors closed')}</span></div>`}
-      ${unlocked.length ? `<div class="chip warn">${ic('mdi:lock-open-variant')}<span>${tr('{0} unlocked', unlocked.map(l => l.name).join(', '))}</span></div>` : ''}
-      ${lit ? `<div class="chip" style="--c:${lit ? '#fbbf24' : '#94a3b8'}" data-act="info" data-kind="lights">${ic(lit ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline')}<span>${lit === 1 ? tr('1 light on') : tr('{0} lights on', lit)}</span></div>` : ''}
-      ${avg == null ? '' : `<div class="chip" style="--c:${avg != null ? rgb(tempRGB(avg)) : '#94a3b8'}" data-act="info" data-kind="temps">${ic('mdi:home-thermometer')}<span>${avg != null ? tr('{0}° inside', avg.toFixed(1)) : '—'}</span></div>`}
-      ${!(E.energy.grid || E.energy.solar) ? '' : `<div class="chip" data-act="info" data-kind="power" data-id="${E.energy.grid || E.energy.solar}"${E.energy.solar && E.energy.grid ? ` data-id2="${E.energy.solar}"` : ''} style="--c:#fbbf24">${ic('mdi:flash')}<span>${tr('{0} now', fmtW(grid + solar).replace(/<\/?small>/g, ''))}</span></div>`}
-      <div class="persons">${persons}</div>`;
+      ${show('weather') ? wx : ''}
+      ${!show('alarm') || !E.alarm || this.v(E.alarm) === 'disarmed' ? '' : `<div class="chip" style="--c:${al[2]}" data-act="more" data-id="${E.alarm}">${ic(al[1])}<span>${tr(al[0])}</span></div>`}
+      ${!show('doors') || !E.doors.length ? '' : `<div class="chip ${open.length ? 'warn' : 'good'}">${ic(open.length ? 'mdi:door-open' : 'mdi:door-closed-lock')}<span>${open.length ? tr('{0} open', open.map(d => d.name).join('، ')) : tr('All doors closed')}</span></div>`}
+      ${show('locks') && unlocked.length ? `<div class="chip warn">${ic('mdi:lock-open-variant')}<span>${tr('{0} unlocked', unlocked.map(l => l.name).join(', '))}</span></div>` : ''}
+      ${show('lights') && lit ? `<div class="chip" style="--c:${lit ? '#fbbf24' : '#94a3b8'}" data-act="info" data-kind="lights">${ic(lit ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline')}<span>${lit === 1 ? tr('1 light on') : tr('{0} lights on', lit)}</span></div>` : ''}
+      ${!show('temperature') || avg == null ? '' : `<div class="chip" style="--c:${avg != null ? rgb(tempRGB(avg)) : '#94a3b8'}" data-act="info" data-kind="temps">${ic('mdi:home-thermometer')}<span>${avg != null ? tr('{0}° inside', avg.toFixed(1)) : '—'}</span></div>`}
+      ${!show('power') || !(E.energy.grid || E.energy.solar) ? '' : `<div class="chip" data-act="info" data-kind="power" data-id="${E.energy.grid || E.energy.solar}"${E.energy.solar && E.energy.grid ? ` data-id2="${E.energy.solar}"` : ''} style="--c:#fbbf24">${ic('mdi:flash')}<span>${tr('{0} now', fmtW(grid + solar).replace(/<\/?small>/g, ''))}</span></div>`}
+      ${show('people') ? `<div class="persons">${persons}</div>` : ''}`;
   }
 
   _rTabs() {

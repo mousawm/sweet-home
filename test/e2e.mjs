@@ -1412,6 +1412,16 @@ try {
       const out = { had: ['lab', 'cams', 'media'].every(k => before.includes(k)), gone: !['lab', 'water', 'cams', 'media'].some(k => after.includes(k)), kept: after.includes('security') };
       return Object.values(out).every(Boolean) || JSON.stringify({ ...out, before, after });
     }); check('at a glance: switching a panel off in the card editor takes its tile away (Home Lab, Water, Cameras, TV)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // header chips: header_chips picks them; a chip also goes with its panel (doors / locks / alarm with Security…)
+      const R = card.shadowRoot, c0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms));
+      const kinds = () => { const h = R.getElementById('hdr'); return { weather: !!h.querySelector('[data-kind=weather]'), lights: !!h.querySelector('[data-kind=lights]'), temps: !!h.querySelector('[data-kind=temps]'), people: !!h.querySelector('.persons'), doors: !!h.querySelector('.chip [icon^="mdi:door"]') || /door/i.test([...h.querySelectorAll('.chip')].map(c => c.innerHTML).join()) }; };
+      const cfg = async c => { card.setConfig({ ...c0, ...c }); await wait(1300); card._setTab('home'); await wait(200); return kinds(); };
+      const all = await cfg({}), some = await cfg({ header_chips: ['lights'] }), off = await cfg({ panels: { ...(c0.panels || {}), security: false, climate: false } });
+      card.setConfig(c0); await wait(1300);
+      const out = { all: all.weather && all.lights && all.temps && all.people && all.doors, some: some.lights && !some.weather && !some.people && !some.doors && !some.temps, off: !off.doors && !off.temps && off.weather && off.lights };
+      return Object.values(out).every(Boolean) || JSON.stringify({ out, all, some, off });
+    }); check('header chips: header_chips picks them, and a chip goes with its panel switched off', r === true, r); }
   check('no Zigbee button on the 3D view without Zigbee devices', await p.evaluate(() => !card.shadowRoot.querySelector('#modeSeg [data-mode=zigbee]')));
   check('no page errors (arabic)', !p.errors.length, p.errors.join(' | '));
   await p.close();

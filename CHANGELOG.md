@@ -7,10 +7,12 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Fixed
 - At a glance: the Home Lab, Water Tank, Cameras and TV tiles no longer show when their panel is switched off in the card editor.
+- Header: the alarm, doors and locks chips no longer show with Security switched off, the inside temperature with Climate off, and power with Energy off.
 
 ### Changed
 
 ### Added
+- Header chips: choose which chips show at the top of the card (weather, alarm, doors, locks, lights, inside temperature, power, people; card editor: Look → Header chips, or `header_chips`).
 
 ## v0.6.63-beta.2 — 2026-11-27
 
