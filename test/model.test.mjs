@@ -1,6 +1,6 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
-import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey } from '../src/zigbee.js';
+import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey, z2mMap, zbRoute } from '../src/zigbee.js';
 import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
@@ -469,6 +469,33 @@ test('several instances: Sonarr / Radarr / qBittorrent per config entry, every P
     assert.deepEqual([m.bridge.coordinator, m.bridge.online], ['Silicon Labs EZSP', true]);
     assert.deepEqual(m.devices.map(d => [d.id, d.role, d.power, d.lqi, d.rssi, d.online, d.exact]), [['p', 'E', 'battery', 120, -70, false, true]], 'the coordinator is not a device');
     assert.deepEqual(zigbeeModel(h, {}, {}, now).devices.map(d => [d.id, d.role, d.online]), [['p', 'R', true]], 'without ZHA\'s list: from the entities');
+  });
+  test('zigbee: the network map (Zigbee2MQTT raw map): links, parents, hops, routes, and devices behind an offline router', () => {
+    const C = '0x00124b0024c1aa01', K = '0x00158d0001a2b301', G = '0x00158d0001a2b302', T = '0x00158d0001a2b303';
+    const resp = { status: 'ok', data: { type: 'raw', value: {
+      nodes: [{ ieeeAddr: C, type: 'Coordinator' }, { ieeeAddr: K, type: 'Router' }, { ieeeAddr: G, type: 'Router' }, { ieeeAddr: T, type: 'EndDevice' }],
+      links: [{ source: { ieeeAddr: K }, target: { ieeeAddr: C }, linkquality: 182, relationship: 1 }, { source: { ieeeAddr: C }, target: { ieeeAddr: K }, linkquality: 170, relationship: 0 },
+        { source: { ieeeAddr: G }, target: { ieeeAddr: K }, linkquality: 71, relationship: 2 }, { source: { ieeeAddr: G }, target: { ieeeAddr: C }, linkquality: 40, relationship: 2 },
+        { source: { ieeeAddr: T }, target: { ieeeAddr: G }, linkquality: 90, relationship: 1 }, { source: { ieeeAddr: '0xdeadbeef00000000' }, target: { ieeeAddr: C }, linkquality: 9, relationship: 1 }] } } };
+    const mp = z2mMap(resp, now);
+    assert.deepEqual([mp.coord, mp.entries.length, mp.at, mp.entries[0]], [C, 6, now, { reporter: C, neighbor: K, lqi: 182, rel: 'child' }]);
+    assert.equal(z2mMap({ status: 'error', error: 'busy' }), null);
+    const m = zigbeeModel(zh(), {}, { map: mp }, now), d = id => m.devices.find(x => x.id === id);
+    assert.deepEqual(m.links.map(l => [...[l.a, l.b].sort(), l.lqi].join()).sort(), ['a,b,71', 'a,coord,182', 'b,c,90', 'b,coord,40'], 'one link per pair, its best LQI; unknown devices left out');
+    assert.deepEqual([d('a').parent, d('a').hops, d('b').parent, d('b').hops, d('c').parent], ['coord', 1, 'coord', 1, 'b'], 'routers: fewest hops, then best LQI; end devices: the parent their router names');
+    assert.deepEqual(zbRoute(m, 'c'), ['c', 'b', 'coord']);
+    assert.deepEqual([d('c').parentOff, zbStatus(d('c'), 30), zbStatus(d('c'), 60)], [true, 'orphan', 'weak'], 'behind the offline Garage Relay (weak signal still comes first)');
+    assert.equal(zbSummary(m, 30).healthy, 1);
+  });
+  test('zigbee: ZHA neighbour tables make the map too', () => {
+    const h = { states: {}, entities: {}, devices: { r: { id: 'r', name: 'Plug', identifiers: [['zha', '00:15:8d:00:00:00:00:01']] }, e: { id: 'e', name: 'Sensor', identifiers: [['zha', '00:15:8d:00:00:00:00:02']] } }, areas: {} };
+    const zha = [{ ieee: '00:12:4b:00:00:00:00:00', device_type: 'Coordinator', neighbors: [{ ieee: '00:15:8d:00:00:00:00:01', relationship: 'Child', lqi: '200' }] },
+      { ieee: '00:15:8d:00:00:00:00:01', device_reg_id: 'r', device_type: 'Router', available: true, neighbors: [{ ieee: '00:15:8d:00:00:00:00:02', relationship: 'Child', lqi: 150 }] },
+      { ieee: '00:15:8d:00:00:00:00:02', device_reg_id: 'e', device_type: 'EndDevice', available: true, neighbors: [] }];
+    const m = zigbeeModel(h, {}, { zha }, now);
+    assert.deepEqual(m.devices.map(d => [d.id, d.parent, d.hops]), [['r', 'coord', 1], ['e', 'r', 2]]);
+    assert.deepEqual(m.links.map(l => l.lqi).sort(), [150, 200]);
+    assert.equal(m.map.at, null, 'when ZHA last scanned is not known');
   });
   test('zigbee: no Zigbee in Home Assistant, ieeeKey, and panels.zigbee defaults', () => {
     assert.equal(zigbeeModel({ states: {}, devices: {} }).source, null);

@@ -285,8 +285,19 @@ const AR = {
   'Times show the last change. Turn on Last seen in Zigbee2MQTT (Settings → Advanced) for exact check-ins.': 'الأوقات تعرض آخر تغيير. فعّل Last seen في Zigbee2MQTT (الإعدادات ← متقدم) لمعرفة آخر اتصال بدقة.',
   'Signal strength shows once the devices’ link quality (LQI) entities are enabled in Home Assistant.': 'تظهر قوة الإشارة بعد تفعيل كيانات جودة الاتصال (LQI) للأجهزة في Home Assistant.',
   'Integration': 'التكامل', 'Found on its own': 'يُكتشف تلقائيًا', 'Zigbee2MQTT base topic': 'الموضوع الأساسي لـ Zigbee2MQTT', 'Show on the System tab': 'العرض في تبويب النظام',
-  Summary: 'الملخص', 'Device list': 'قائمة الأجهزة', 'Network map (coming soon)': 'خريطة الشبكة (قريبًا)', 'Needs Attention: list': '«يحتاج إلى انتباه»: اعرض',
+  Summary: 'الملخص', 'Device list': 'قائمة الأجهزة', 'Network map': 'خريطة الشبكة', 'Needs Attention: list': '«يحتاج إلى انتباه»: اعرض',
   'Zigbee offline': 'زيجبي غير متصل', 'Weak Zigbee signal': 'إشارة زيجبي ضعيفة', 'Weak signal below (LQI)': 'إشارة ضعيفة أقل من (LQI)',
+  'Router offline': 'الموجّه غير متصل', 'Show on map': 'عرض على الخريطة', 'Connected through': 'متصل عبر', Map: 'الخريطة', 'Zigbee Network': 'شبكة زيجبي',
+  'Network map updated': 'تم تحديث خريطة الشبكة', 'Zigbee2MQTT could not draw the map: {0}': 'تعذّر على Zigbee2MQTT رسم الخريطة: {0}', 'No answer from Zigbee2MQTT. Try again in a minute.': 'لا رد من Zigbee2MQTT. حاول مجددًا بعد دقيقة.',
+  'No area': 'بلا منطقة', 'Scanning… this can take a minute or two': 'جارٍ الفحص… قد يستغرق دقيقة أو دقيقتين', 'Map from {0}': 'خريطة من {0}', 'From ZHA’s last scan': 'من آخر فحص في ZHA', 'No map yet': 'لا توجد خريطة بعد',
+  Mesh: 'الشبكة', 'By area': 'حسب المنطقة', 'All links': 'كل الروابط', 'Scanning…': 'جارٍ الفحص…', 'Scan network': 'فحص الشبكة', 'Zigbee network map': 'خريطة شبكة زيجبي',
+  'The links come from {0}, which needs an admin account.': 'الروابط تأتي من {0}، وهذا يتطلب حساب مسؤول.', 'Scan the network to draw its links. Until then the devices are placed by kind.': 'افحص الشبكة لرسم روابطها. حتى ذلك الحين تُرتَّب الأجهزة حسب نوعها.',
+  'Tap a device': 'اضغط على جهاز', 'See its way to the coordinator and the signal on each hop. Dashed lines lead to offline devices.': 'اعرض طريقه إلى المنسّق وقوة الإشارة في كل قفزة. الخطوط المتقطعة تؤدي إلى أجهزة غير متصلة.',
+  '{0} devices talk to it directly.': '{0} أجهزة تتصل به مباشرة.', '{0} reports it offline.': 'يُبلغ {0} أنه غير متصل.',
+  '{0} reports this router offline, so the {1} devices that go through it must find another way. Check its power, or the wall switch in front of it.': 'يُبلغ {0} أن هذا الموجّه غير متصل، لذا على الأجهزة التي تمر عبره ({1}) أن تجد طريقًا آخر. تحقّق من تغذيته الكهربائية أو من مفتاح الجدار قبله.',
+  'LQI {0} is below your limit of {1}. A router (a mains-powered plug or bulb) nearer to it would help.': 'قيمة LQI ‏{0} أقل من حدّك ({1}). وجود موجّه أقرب إليه (مقبس أو مصباح يعمل بالكهرباء) سيساعد.',
+  'The router it goes through is offline. It should find another one; until then its reports may not arrive.': 'الموجّه الذي يمر عبره غير متصل. يُفترض أن يجد موجّهًا آخر، وحتى ذلك الحين قد لا تصل تقاريره.',
+  '{0} hops to the coordinator.': '{0} قفزات إلى المنسّق.', 'Not in the last network map.': 'غير موجود في آخر خريطة للشبكة.',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

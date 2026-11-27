@@ -467,7 +467,15 @@ listed below).
   seen, model and IEEE address). Needs Attention gets **Zigbee Offline** and **Weak Zigbee** sections; offline Zigbee
   devices are then no longer listed again under Unavailable. Options (card editor: Panels → Zigbee):
   - `source`: `z2m` or `zha` (not set: whichever Home Assistant has); `base_topic` (Zigbee2MQTT, default `zigbee2mqtt`)
-  - `views`: what shows on the System tab, any of `summary`, `list`, `map` (default: all; the network map is coming)
+  - `views`: what shows on the System tab, any of `summary`, `list`, `map` (default: all)
+  - **Network map** (`map`, also a tab in the Zigbee sheet): the coordinator in the middle, routers around it, end
+    devices outside, each link coloured by its link quality (offline links dashed). Tap a device for its way to the
+    coordinator with the link quality of each hop, and what is wrong with it. **By area** puts the devices in one box
+    per Home Assistant area; **All links** off shows only each device's link to its parent. **Scan network** asks
+    Zigbee2MQTT for a new map (it takes a minute or two and keeps the mesh busy, so it only runs when you tap it; the
+    last one is kept in the browser). ZHA's map comes from its own neighbour tables. Devices whose router is offline
+    show under Zigbee Offline as *Router offline*. The map needs an admin account (it comes from Zigbee2MQTT over MQTT
+    or from ZHA).
   - `alerts`: any of `offline`, `weak` (default: both); `lqi_min`: weak below this link quality (default 60)
   - Offline is what Zigbee2MQTT or ZHA says (their own availability), so the card matches Home Assistant. With
     Zigbee2MQTT's availability switched off, a device is offline after 25 h without a word.
