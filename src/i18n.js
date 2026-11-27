@@ -299,6 +299,9 @@ const AR = {
   'The router it goes through is offline. It should find another one; until then its reports may not arrive.': 'الموجّه الذي يمر عبره غير متصل. يُفترض أن يجد موجّهًا آخر، وحتى ذلك الحين قد لا تصل تقاريره.',
   '{0} hops to the coordinator.': '{0} قفزات إلى المنسّق.', 'Not in the last network map.': 'غير موجود في آخر خريطة للشبكة.',
   Weak: 'ضعيفة', '{0} without a room': '{0} بلا غرفة',
+  'Card order': 'ترتيب البطاقات', 'The order of the cards on each tab': 'ترتيب البطاقات في كل تبويب', Reset: 'إعادة الضبط', 'Move up': 'تحريك لأعلى', 'Move down': 'تحريك لأسفل',
+  'Energy history': 'سجل الطاقة',
+  'Modes on the 3D view (it opens on the first one; with one, no buttons)': 'الأوضاع في العرض ثلاثي الأبعاد (يفتح على أولها؛ مع وضع واحد لا تظهر الأزرار)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

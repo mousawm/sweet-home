@@ -2,7 +2,8 @@
  * Sweet Home — shared helpers and the current model (rooms, walls, furniture, entity map) for the card, its panels
  * and the 3D scene.
  */
-import { FURN_TYPES } from './model.js';
+import { FURN_TYPES, CARD_ORDER } from './model.js';
+export { CARD_ORDER };
 import { t as tr, uiLang as cardLang } from './i18n.js';
 
 export const VERSION = typeof __SH_VERSION__ !== 'undefined' ? __SH_VERSION__ : 'dev';

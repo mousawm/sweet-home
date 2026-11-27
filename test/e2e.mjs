@@ -1478,6 +1478,18 @@ try {
       put('source', 'zha'); out.zha = editor._config.panels.zigbee.source === 'zha' && !d().querySelector('ha-form [name=base_topic]');
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('zigbee: the card editor sets the integration, views, alerts and LQI limit (defaults not stored)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // Panels → Card order (↑ / ↓, Reset) and Look → Modes on the 3D view
+      const out = {}, co = () => [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Card order'));
+      out.panel = !!co();
+      co().querySelector('[data-co=system][data-i="1"][data-d="-1"]').click();
+      out.up = JSON.stringify(editor._config.card_order) === '{"system":["zigbee","alerts","zblist","zbmap","lab","devices"]}';
+      co().querySelector('[data-co-reset=system]').click(); out.reset = !editor._config.card_order;
+      editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 50));
+      const s = editor.querySelector('ha-form [name=view_modes]'); s.value = 'zigbee'; s.dispatchEvent(new Event('change'));
+      out.modes = JSON.stringify(editor._config.view_modes) === '["zigbee"]';
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('card editor: Panels → Card order moves cards and resets; Look → Modes on the 3D view', r === true, r); }
   check('no page errors (zigbee editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
   // Zigbee network map: Scan network asks Zigbee2MQTT for the map over MQTT; its answer draws the links and routes
@@ -1525,6 +1537,24 @@ try {
       out.gone = !R.querySelector('.zbd') && !card._three.zbLines.length;
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('zigbee mode on the 3D view: devices in their rooms, arcs for the links, a dot opens its device', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // the 3D view's modes (view_modes), each tab's card order (card_order), and the wide Zigbee sheet on a desktop
+      const R = card.shadowRoot, wait = ms => new Promise(r => setTimeout(r, ms)), c0 = card._config, out = {};
+      const cfg = async c => { card.setConfig({ ...c0, ...c }); await wait(1300); };
+      await cfg({ view_modes: ['climate', 'zigbee'] }); card._setTab('home'); await wait(200);
+      out.modes = [...R.querySelectorAll('#modeSeg button')].map(b => b.dataset.mode).join() === 'climate,zigbee' && card._mode === 'climate' && card._three.mode === 'climate' && !R.getElementById('modeSeg').hidden;
+      await cfg({ view_modes: ['presence'] }); out.one = R.getElementById('modeSeg').hidden && getComputedStyle(R.getElementById('modeSeg')).display === 'none' && card._mode === 'presence';
+      await cfg({ card_order: { system: ['devices', 'zbmap', 'alerts'] } }); card._setTab('system'); await wait(300);
+      const ord = id => R.getElementById(id).style.order;
+      out.order = [ord('devices'), ord('zbmap'), ord('alerts'), ord('zigbee'), ord('lab')].join() === '0,1,2,4,7';
+      const top = id => R.getElementById(id).getBoundingClientRect().top;
+      out.shown = top('devices') <= top('alerts') && top('zbmap') < top('alerts');
+      await cfg({}); out.reset = R.getElementById('alerts').style.order === '' && card._mode === 'presence'; // the mode picked stays while it is offered
+      card._setTab('system'); await wait(200); card._zbOpen(); await wait(300);
+      const sh = R.querySelector('#sheet .sheet'); out.wide = sh.classList.contains('wide') && sh.getBoundingClientRect().width > 800;
+      card._closeSheet();
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('view_modes picks the 3D view\'s modes (one: no buttons), card_order orders each tab\'s cards, the Zigbee sheet is wide on a desktop', r === true, r); }
   check('no page errors (zigbee map)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 } finally { await browser.close(); server.close(); }

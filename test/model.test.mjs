@@ -1,6 +1,7 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
 import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey, z2mMap, zbRoute } from '../src/zigbee.js';
+import { VIEW_MODES, CARD_ORDER } from '../src/model.js';
 import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
@@ -506,6 +507,16 @@ test('several instances: Sonarr / Radarr / qBittorrent per config entry, every P
     assert.deepEqual(buildModel({ panels: { zigbee: { views: 'summary' } } }, hass).E.zigbee.views, ['summary']);
   });
 }
+
+test('view_modes and card_order: the 3D view\'s modes (all by default, unknown ones left out) and each tab\'s card order', () => {
+  const M = c => buildModel(c, hass);
+  assert.deepEqual(M({}).viewModes, ['lights', 'climate', 'presence', 'zigbee']);
+  assert.deepEqual(M({ view_modes: ['zigbee', 'nope', 'climate'] }).viewModes, ['zigbee', 'climate']);
+  assert.deepEqual(M({ view_modes: 'presence' }).viewModes, ['presence']);
+  assert.deepEqual(M({ view_modes: [] }).viewModes, []);
+  assert.deepEqual(M({ card_order: { system: ['devices', 'alerts'] } }).cardOrder, { system: ['devices', 'alerts'] });
+  assert.deepEqual([M({}).cardOrder, M({ card_order: ['x'] }).cardOrder], [{}, {}]);
+});
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
 console.log('\nall model tests passed');

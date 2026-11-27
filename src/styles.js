@@ -867,4 +867,10 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .zbd.off span{color:#fecdd3}.zbd.weak span{color:#fde68a}
 .dot.rose{background:var(--rose);box-shadow:0 0 6px var(--rose)}
 :host([look=light]) .zbd span{background:rgba(255,255,255,.92)}:host([look=light]) .zbd.off span{color:#be123c}:host([look=light]) .zbd.weak span{color:#b45309}
+/* the 3D view's mode buttons: hidden with one mode or none (Look → Modes on the 3D view) */
+#modeSeg[hidden]{display:none}
+/* a wide sheet (Zigbee: the device list and the network map): bigger on desktops and tablets */
+.sheet.wide{width:min(920px,calc(100% - 48px));max-height:88vh;padding:18px 20px}
+.sheet.wide .zbmap svg{max-width:none;max-height:64vh}
+@media (max-width:860px){.sheet.wide{width:100%;max-height:92vh}}
 `;
