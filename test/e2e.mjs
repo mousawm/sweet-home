@@ -1338,6 +1338,31 @@ try {
   }); check('Arabic: swipe right for the next tab, Arabic comma, values and option names keep their own direction, weekdays / lock states translated', r === true, r); }
   { const vs = p.viewportSize(); await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);
     const r = await p.evaluate(async () => {
+      const R = card.shadowRoot, main = R.querySelector('main'), out = {}, ids = card._tabList().map(x => x[0]);
+      const mt = () => parseFloat(getComputedStyle(main).scrollMarginTop) || 0, wait = ms => new Promise(r => setTimeout(r, ms));
+      card._setTab('home'); await wait(200);
+      // tapping a later tab in the bar, scrolled far down: it slides in like a swipe and the page goes back to the top of its cards
+      window.scrollTo(0, document.documentElement.scrollHeight); await wait(100);
+      out.scrolled = main.getBoundingClientRect().top < mt() - 50;
+      R.querySelector(`#tabs .tb[data-tab="${ids[2]}"]`).click(); await wait(600);
+      out.tab = card._tab === ids[2];
+      out.slide = R.querySelector(`.tab[data-tab="${ids[2]}"]`)?.classList.contains('from-next');
+      out.top = Math.abs(main.getBoundingClientRect().top - mt()) < 3 || main.getBoundingClientRect().top >= mt() - 1;
+      // an earlier tab slides in from the other side
+      window.scrollTo(0, document.documentElement.scrollHeight); await wait(100);
+      R.querySelector(`#tabs .tb[data-tab="${ids[1]}"]`).click(); await wait(600);
+      out.back = card._tab === ids[1] && R.querySelector(`.tab[data-tab="${ids[1]}"]`)?.classList.contains('from-prev') && main.getBoundingClientRect().top >= mt() - 1;
+      // the open tab tapped again: just back to the top
+      window.scrollTo(0, document.documentElement.scrollHeight); await wait(100);
+      R.querySelector(`#tabs .tb[data-tab="${ids[1]}"]`).click(); await wait(600);
+      out.same = card._tab === ids[1] && main.getBoundingClientRect().top >= mt() - 1;
+      card._setTab('home');
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    });
+    await p.setViewportSize(vs); await p.waitForTimeout(200);
+    check('tab bar: tapping a tab slides it in like a swipe and goes back to the top of its cards', r === true, r); }
+  { const vs = p.viewportSize(); await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);
+    const r = await p.evaluate(async () => {
       card._setTab('home'); card._select('living_room'); await new Promise(r => setTimeout(r, 600));
       const R = card.shadowRoot, d = R.getElementById('drawer').getBoundingClientRect(), v = R.getElementById('viewport').getBoundingClientRect();
       const sl = R.querySelector('#drawer .sl'), out = {};
