@@ -958,7 +958,7 @@ export function buildModel(cfg = {}, hass) {
       monthly: EN.energy_dashboard_totals === false ? EN.month_sensor || null : null, yearly: EN.energy_dashboard_totals === false ? EN.year_sensor || null : null,
       stored: EN.stored_sensor || null,
       consumers: arr(EN.consumers).map(c => [c.entity, c.name || R.name(c.entity), c.icon || 'mdi:flash']),
-      extra: arr(EN.extra).map(c => ({ id: c.entity, name: c.name || R.name(c.entity), icon: c.icon || 'mdi:flash' })),
+      extra: arr(EN.extra).map(c => (typeof c === 'string' ? { entity: c } : c || {})).filter(c => c.entity).map(c => ({ id: c.entity, name: c.name || R.name(c.entity), icon: c.icon || 'mdi:flash' })), // entity_id or {entity, name, icon}
       exclude: arr(EN.exclude),
     },
     // pumps: `entity_id` or {entity, name, power, timer, show, presses}; their power sensor is found on the same device

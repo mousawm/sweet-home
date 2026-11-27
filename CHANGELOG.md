@@ -13,6 +13,8 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 - Water: a *Tank trend from the last* option (`trend_hours`: 2, 6, 12 or 24 hours) sets how much history the tank trend uses.
+- Card editor: options that were YAML only can now be set in the editor: each lock's name, kind and icon, and each gate's name and kind (Panels → Security), each irrigation zone's name and watering time (Panels → Irrigation), extra rows and meters to leave out on the Energy card (Panels → Energy), and the card's language (Look → Language).
+- Card editor: each device's name, icon, charging sensor and tracker (Panels → Devices), the Proxmox node shown first when there are several (Panels → Home Lab), and which kinds of entities and integrations count as unavailable, plus batteries to leave out (Panels → Needs Attention).
 
 ## v0.6.62 — 2026-11-25
 

@@ -257,6 +257,17 @@ const AR = {
   "Couldn't reach Sonarr / Radarr": 'تعذّر الوصول إلى Sonarr / Radarr', 'Sonarr / Radarr did not answer.': 'لم يستجب Sonarr / Radarr.',
   'Everything monitored that is out is downloaded.': 'تم تنزيل كل ما هو مُراقَب وصدر بالفعل.',
   "Released, monitored movies Radarr hasn't downloaded yet. Radarr keeps searching for them automatically.": 'أفلام مُراقَبة صدرت ولم ينزّلها Radarr بعد. يواصل Radarr البحث عنها تلقائيًا.',
+  // card editor: locks, entrances, irrigation zones, energy rows, language
+  'Automatic (from its name)': 'تلقائي (من اسمه)', Padlock: 'قفل', 'Garage door': 'باب المرآب', Barrier: 'حاجز', Shutter: 'شتر',
+  'Sliding door': 'باب منزلق', Safe: 'خزنة', Locker: 'خزانة', 'What it locks': 'ما الذي يقفله', 'Icon (empty: from what it locks)': 'الأيقونة (فارغ: حسب ما يقفله)',
+  'Name (empty: the lock’s name)': 'الاسم (فارغ: اسم القفل)', 'Name (empty: the entity’s name)': 'الاسم (فارغ: اسم الكيان)', 'Kind (sets the icon)': 'النوع (يحدد الأيقونة)',
+  Zones: 'المناطق', 'Name (empty: the valve’s name)': 'الاسم (فارغ: اسم الصمام)', 'Watering time (a number in seconds, shown in minutes)': 'مدة الري (رقم بالثواني، يُعرض بالدقائق)',
+  'More rows on the Energy card': 'صفوف إضافية في بطاقة الطاقة', 'Meters to leave out (e.g. a charger that is not behind the house meter)': 'عدادات تُستبعد (مثل شاحن غير موصول بعداد المنزل)',
+  Language: 'اللغة', 'Home Assistant’s language': 'لغة Home Assistant', English: 'English',
+  'Node shown first': 'العقدة المعروضة أولًا', 'The first one': 'الأولى', 'Batteries hidden from low batteries': 'بطاريات مخفية من البطاريات المنخفضة',
+  'Unavailable: list these kinds of entities': 'غير المتاح: اعرض هذه الأنواع من الكيانات', 'Unavailable: also list everything from these integrations': 'غير المتاح: اعرض أيضًا كل ما يأتي من هذه التكاملات',
+  'Leave a field empty and it is found on the device.': 'اترك الحقل فارغًا ليُكتشف من الجهاز.', 'Name (empty: the device’s name)': 'الاسم (فارغ: اسم الجهاز)',
+  'Icon (empty: from the kind of device)': 'الأيقونة (فارغ: حسب نوع الجهاز)', 'Charging sensor': 'حساس الشحن', 'Where it is (tracker)': 'مكانه (المتتبع)',
 };
 const DICTS = { ar: AR };
 let DICT = null, LANG = 'en';

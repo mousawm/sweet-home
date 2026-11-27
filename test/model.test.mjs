@@ -313,6 +313,12 @@ test('Energy Month / Year: from Home Assistant\'s Energy data by default; the pi
   assert.deepEqual([E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).monthly, E({ energy_dashboard_totals: false, month_sensor: 'sensor.m', year_sensor: 'sensor.y' }).yearly], ['sensor.m', 'sensor.y']);
 });
 
+test('Energy extra rows: plain entity IDs (as the card editor writes them) or {entity, name, icon}', () => {
+  const x = buildModel({ panels: { energy: { extra: ['sensor.a', { entity: 'sensor.b', name: 'B', icon: 'mdi:car' }, null] } } }, hass).E.energy.extra;
+  assert.deepEqual(x.map(r => [r.id, r.icon]), [['sensor.a', 'mdi:flash'], ['sensor.b', 'mdi:car']]);
+  assert.equal(x[1].name, 'B');
+});
+
 test('Home Lab: each sensor found from the Proxmox node or picked; servers listed automatically unless auto_guests is off', () => {
   const h = JSON.parse(JSON.stringify(hass));
   h.states['sensor.node_pve_cpu_used'] = st('11'); h.entities['sensor.node_pve_cpu_used'] = { platform: 'proxmoxve' };

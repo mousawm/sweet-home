@@ -946,6 +946,33 @@ try {
   check('…picking batteries in the editor (Panels → Devices)', await p.evaluate(() => JSON.stringify(editor._config.panels.devices) === '{"entities":["sensor.ipad_battery_level","sensor.door_sensor_battery"]}'));
   await p.waitForTimeout(1500);
   check('…the card shows them: the iPad as before and the door sensor by its device name', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('Door Sensor'); }));
+  // a device's own name, icon, charging sensor and tracker (Panels → Devices)
+  await p.evaluate(() => { editor._render(); const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Batteries of phones'));
+    const n = [...d.querySelectorAll('ha-form input[name=name]')][1]; n.value = 'Front door'; n.dispatchEvent(new Event('change'));
+    const c = [...d.querySelectorAll('ha-form input[name=charging]')][0]; c.value = 'sensor.ipad_battery_state'; c.dispatchEvent(new Event('change')); });
+  check('…a device gets a name, and a text sensor as its charging state', await p.evaluate(() => JSON.stringify(editor._config.panels.devices.entities) === '[{"battery":"sensor.ipad_battery_level","charging_state":"sensor.ipad_battery_state"},{"battery":"sensor.door_sensor_battery","name":"Front door"}]'));
+  await p.waitForTimeout(1500);
+  check('…and the card shows the new name', await p.evaluate(() => { card._setTab('system'); return (card.shadowRoot.getElementById('devices')?.textContent || '').includes('Front door'); }));
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Batteries of phones'));
+    const n = [...d.querySelectorAll('ha-form input[name=name]')][1]; n.value = ''; n.dispatchEvent(new Event('change')); });
+  check('…clearing the name gives back the plain ID', await p.evaluate(() => editor._config.panels.devices.entities[1] === 'sensor.door_sensor_battery'));
+  // Needs Attention: which kinds of entities and integrations count as unavailable, and batteries left out
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const s = d.querySelector('ha-form [name=unavailable_domains]'); s.value = 'camera'; s.dispatchEvent(new Event('change')); });
+  check('Needs Attention: the unavailable domains are picked in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.attention?.unavailable_domains) === '["camera"]'));
+  check('…integrations to pick from are the ones Home Assistant has', await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const o = [...d.querySelectorAll('[name=unavailable_integrations] option')].map(x => x.value); return o.includes('mobile_app'); }));
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const s = d.querySelector('ha-form [name=unavailable_integrations]'); s.value = 'mobile_app'; s.dispatchEvent(new Event('change'));
+    const b = d.querySelector('ha-form input[name=battery_exclude]'); b.value = 'sensor.watch_battery_level'; b.dispatchEvent(new Event('change')); });
+  check('…and the integrations and the hidden batteries are stored', await p.evaluate(() => { const a = editor._config.panels.attention; return JSON.stringify(a.unavailable_integrations) === '["mobile_app"]' && JSON.stringify(a.battery_exclude) === '["sensor.watch_battery_level"]' && JSON.stringify(a.unavailable_domains) === '["camera"]'; }));
+  await p.evaluate(() => { delete editor._config.panels.attention; delete editor._config.panels.devices; editor._emit(); });
+  // Home Lab: with several Proxmox nodes, the one shown first is picked in the editor
+  check('Home Lab: no node to pick with one Proxmox node', await p.evaluate(() => { editor._render(); return !editor.querySelector('ha-form [name=node]'); }));
+  await p.evaluate(() => { const h = editor._hass; editor.hass = { ...h, states: { ...h.states, 'sensor.node_pve2_cpu_used': { entity_id: 'sensor.node_pve2_cpu_used', state: '5', attributes: {} } } }; editor._render();
+    const s = editor.querySelector('ha-form [name=node]'); s.value = 'pve2'; s.dispatchEvent(new Event('change')); });
+  check('…with two, the node shown first is stored', await p.evaluate(() => editor._config.panels.homelab?.node === 'pve2'));
+  await p.evaluate(() => { delete editor._config.panels.homelab.node; if (!Object.keys(editor._config.panels.homelab).length) delete editor._config.panels.homelab; editor._emit(); const h = editor._hass; const st = { ...h.states }; delete st['sensor.node_pve2_cpu_used']; editor.hass = { ...h, states: st }; });
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
   // People: the phone panel found on the person's phone, then set up in the editor (name, more rows, buttons)
   check('a person\'s phone panel is found on their phone', await p.evaluate(async () => { card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent; card._closeSheet(); return t.includes('Mousa’s iPad') && t.includes('30%'); }));
@@ -1022,6 +1049,32 @@ try {
   await p.waitForTimeout(1500);
   check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // options that used to be YAML only: a zone's name and watering time, a lock's kind, a gate's name and kind,
+  // the Energy card's extra rows and left-out meters, and the card's language
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  await p.evaluate(() => { const r = [...editor.querySelectorAll('ha-form input[name=duration]')]; r[1].value = 'number.drip_time'; r[1].dispatchEvent(new Event('change')); });
+  check('a zone gets a watering time in the editor, and the others stay', await p.evaluate(() => JSON.stringify(editor._config.panels.irrigation.zones) === '[{"entity":"valve.garden","name":"Front lawn","duration":"sensor.water_flow"},{"entity":"switch.drip_zone","duration":"number.drip_time"},"switch.well_pump"]'));
+  await p.evaluate(() => { const r = [...editor.querySelectorAll('ha-form input[name=duration]')]; r[1].value = ''; r[1].dispatchEvent(new Event('change')); });
+  check('…clearing it gives back the plain ID', await p.evaluate(() => editor._config.panels.irrigation.zones[1] === 'switch.drip_zone'));
+  await p.evaluate(() => { editor._config.panels = { ...editor._config.panels, security: { locks: [{ entity: 'lock.front_door', name: 'Front' }], entrances: ['switch.gate_relay'] } }; editor._render(); });
+  check('the security form shows locks written with a name as plain IDs', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=locks]')].some(i => i.value === 'lock.front_door')));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=kind]'); i.value = 'safe'; i.dispatchEvent(new Event('change')); });
+  check('…a lock gets a kind, and keeps its name', await p.evaluate(() => JSON.stringify(editor._config.panels.security.locks) === '[{"entity":"lock.front_door","name":"Front","kind":"safe"}]'));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=locks]')][0]; i.value = 'lock.front_door,lock.back_door'; i.dispatchEvent(new Event('change')); });
+  check('…adding a lock keeps the first one as it was', await p.evaluate(() => JSON.stringify(editor._config.panels.security.locks) === '[{"entity":"lock.front_door","name":"Front","kind":"safe"},"lock.back_door"]'));
+  await p.evaluate(() => { editor._render(); const k = [...editor.querySelectorAll('ha-form [name=kind]')]; const n = [...editor.querySelectorAll('ha-form input[name=name]')];
+    k[2].value = 'garage'; k[2].dispatchEvent(new Event('change')); n[2].value = 'Back garage'; n[2].dispatchEvent(new Event('change')); });
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=sensor]'); i.value = 'binary_sensor.gate'; i.dispatchEvent(new Event('change')); });
+  check('a gate gets a name and a kind, kept when its sensor is picked after', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '[{"entity":"switch.gate_relay","kind":"garage","name":"Back garage","sensor":"binary_sensor.gate"}]'));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=extra]'); i.value = 'sensor.water_flow'; i.dispatchEvent(new Event('change'));
+    const x = editor.querySelector('ha-form input[name=exclude]'); x.value = 'sensor.ev_power'; x.dispatchEvent(new Event('change')); });
+  check('the Energy panel takes extra rows and meters to leave out', await p.evaluate(() => JSON.stringify(editor._config.panels.energy?.extra) === '["sensor.water_flow"]' && JSON.stringify(editor._config.panels.energy?.exclude) === '["sensor.ev_power"]'));
+  await p.evaluate(() => { delete editor._config.panels.energy.extra; delete editor._config.panels.energy.exclude; if (!Object.keys(editor._config.panels.energy).length) delete editor._config.panels.energy; editor._emit(); editor._step = 'look'; editor._render(); });
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=language]'); i.value = 'ar'; i.dispatchEvent(new Event('change')); });
+  check('Look → Language sets the card\'s language, and the editor follows', await p.evaluate(() => editor._config.language === 'ar' && editor.textContent.includes('داكن')));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=language]'); i.value = ''; i.dispatchEvent(new Event('change')); });
+  check('…and back to Home Assistant\'s language', await p.evaluate(() => !('language' in editor._config) && !editor.textContent.includes('داكن')));
+  await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // turning furniture: the robot vacuum, a cabinet at its default size, stairs (they climb the other way); round pieces have no Turn
   check('Turn works for every piece that has a front or a long side', await p.evaluate(async () => {
     const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }];
