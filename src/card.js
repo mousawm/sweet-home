@@ -7,7 +7,7 @@ import { THREE_LIB } from './three.js'; // the parts of three.js the scene uses
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
 import { buildModel, cleanConfig, movePiece } from './model.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
-import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart, bidi } from './core.js';
+import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, CARD_ORDER, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart, bidi } from './core.js';
 import { HouseScene } from './scene.js';
 import { CSS } from './styles.js';
 import { MediaPanels } from './panels/media.js';
@@ -263,6 +263,12 @@ export class SweetHomeCard extends HTMLElement {
     // Arabic uses the device's own Arabic font (SF Arabic on Apple, Noto on Android, Segoe UI on Windows): nothing loaded from outside
     // card-mod puts its own <card-mod> element (the card_mod styles) inside the card: kept through the redraw, in its place
     const cmods = [...this.shadowRoot.children].filter(el => el.localName === 'card-mod').map(el => [el, el === this.shadowRoot.firstElementChild]);
+    // the 3D view's mode buttons (Look → Modes on the 3D view; Zigbee only with Zigbee devices in rooms): it opens on the
+    // first one, keeps the one picked while it is still offered; with one mode or none, no buttons
+    const MI = { lights: ['mdi:lightbulb-group', 'Lights'], climate: ['mdi:thermometer', 'Climate'], presence: ['mdi:motion-sensor', 'Presence'], zigbee: ['mdi:zigbee', 'Zigbee'] };
+    const VM = MODEL.viewModes.filter(m => m !== 'zigbee' || this._zb3d?.());
+    if (!VM.includes(this._mode)) this._mode = VM[0] || 'lights';
+    const modeBar = `<div class="seg" id="modeSeg"${VM.length < 2 ? ' hidden' : ''}>${VM.map(m => `<button data-act="mode" data-mode="${m}"${m === this._mode ? ' class="on"' : ''}>${ic(MI[m][0])}<span>${tr(MI[m][1])}</span></button>`).join('')}</div>`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style>
     ${this._solo ? '<ha-card class="sh-card">' : ''}<div class="app${this._solo ? ' solo' : ''}" dir="${isRTL() ? 'rtl' : 'ltr'}" lang="${esc(this._hass?.locale?.language || 'en')}">
       <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
@@ -281,12 +287,7 @@ export class SweetHomeCard extends HTMLElement {
         <section class="stage card">
           <div class="stage-top">
             <div class="title">${ic('mdi:home-modern')}<div><b>${esc(MODEL.title)}</b><span>${this._config?.hint === false ? tr('Live 3D view') : tr('Live 3D view · tap a room')}</span></div></div>
-            <div class="seg" id="modeSeg">
-              <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
-              <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>
-              <button data-act="mode" data-mode="presence">${ic('mdi:motion-sensor')}<span>${tr('Presence')}</span></button>
-              ${this._zb3d?.() ? `<button data-act="mode" data-mode="zigbee">${ic('mdi:zigbee')}<span>${tr('Zigbee')}</span></button>` : ''}
-            </div>
+            ${modeBar}
             <div class="tools">
               <button class="ibtn" data-act="view" data-view="top" data-lp="view" title="${tr('Top view')} · ${tr('long press: the default on this device')}">${ic('mdi:floor-plan')}</button>
               <button class="ibtn" data-act="view" data-view="reset" data-lp="view" title="${tr('3D view')} · ${tr('long press: the default on this device')}">${ic('mdi:rotate-3d-variant')}</button>
@@ -400,6 +401,11 @@ export class SweetHomeCard extends HTMLElement {
     };
     if (this._solo) for (const sec of this._sections) if (sec.el.id !== 'drawer') off[sec.el.id] = true; // Sweet Home 3D: the room pop-up only
     for (const sec of this._sections) if (off[sec.el.id]) { sec.off = true; sec.el.style.display = 'none'; }
+    // the cards' order on each tab (card_order): the named ones first, in that order, then the rest as they were
+    for (const [tab, ids] of Object.entries(CARD_ORDER)) {
+      const o = Array.isArray(MODEL.cardOrder[tab]) ? MODEL.cardOrder[tab] : [];
+      ids.forEach((id, i) => { const el = $(id); if (el) el.style.order = o.length ? String(o.includes(id) ? o.indexOf(id) : o.length + i) : ''; });
+    }
     const kt = this._keepTab; this._keepTab = null;
     this._setTab(this._solo ? 'home' : kt && this._tabOn(kt) ? kt : MODEL.startTab && this._tabOn(MODEL.startTab) ? MODEL.startTab : 'home');
     const L = MODEL.levels || [{ level: 0 }];
@@ -520,7 +526,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'zigbee' ? tr('Zigbee') : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet${kind === 'zigbee' ? ' wide' : ''}" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'zigbee' ? tr('Zigbee') : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind.startsWith('wanted') && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || this._wanted.n !== String(this._wantedCount().tv))) this._loadWanted();

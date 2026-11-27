@@ -8,8 +8,11 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+- Zigbee: the Zigbee pop-up (devices and network map) is much wider on desktops and taller on tablets and phones, so the map is easier to read.
 
 ### Added
+- Card order: put the cards of each tab in the order you want (card editor: Panels → Card order, or `card_order` in YAML).
+- 3D view: choose which mode buttons it shows (Lights, Climate, Presence, Zigbee) and which one it opens on (card editor: Look → Modes on the 3D view, or `view_modes`).
 
 ## v0.6.63-beta.1 — 2026-11-27
 

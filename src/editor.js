@@ -10,7 +10,7 @@
  */
 import { t, setLang, isRTL } from './i18n.js';
 import { ZB_VIEWS, ZB_ALERTS, ZB_LQI_MIN } from './zigbee.js';
-import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig } from './model.js';
+import { movePiece, buildModel, registry, discoverRoom, roleOf, SINGLE_ROLES, roomIdOf, autoFurnitureConfig, wallsFromRooms, FURN_TYPES, furnEntities, arr, floorLevels, areaLevel, roomOutline, polyRects, polyArea, inPoly, lineOf, extraWalls, cutNear, cleanConfig, VIEW_MODES, CARD_ORDER } from './model.js';
 
 // a room's shape as the card sees it: its outline (from `points`, bends cut into pieces) or null, and its rectangles
 const shapeOf = r => { const poly = roomOutline(r); return { poly, rects: poly ? polyRects(poly) : arr(r.rects).map(q => q.map(Number)) }; };
@@ -339,6 +339,7 @@ class SweetHomeCardEditor extends HTMLElement {
       .sh-intr{display:flex;align-items:center;gap:10px;min-height:40px}.sh-intr ha-icon{--mdc-icon-size:20px;color:#22c55e}.sh-intr.no ha-icon{color:var(--disabled-text-color,#9ca3af)}
       .sh-intr>span{flex:1;display:flex;flex-direction:column;font-size:14px}.sh-intr>span small{font-size:12px;color:var(--secondary-text-color)}.sh-intr.no>span b{color:var(--secondary-text-color);font-weight:500}
       .sh-rooms{display:flex;flex-wrap:wrap;gap:6px}
+      .sh-co-tab{display:flex;align-items:center;justify-content:space-between;margin:12px 0 4px;font-size:13px}.sh-co{display:flex;align-items:center;gap:6px;padding:5px 8px;margin:4px 0;border:1px solid var(--divider-color);border-radius:10px;font-size:13px}.sh-co span{flex:1}.sh-co .sh-chip{padding:3px 10px}.sh-co .sh-chip[disabled]{opacity:.35;cursor:default}
       .sh-rooms button,.sh-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--divider-color);background:none;color:var(--primary-text-color);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
       .sh-rooms button.on{border-color:var(--primary-color);box-shadow:0 0 0 1px var(--primary-color) inset}
       .sh-rooms i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -1747,6 +1748,7 @@ class SweetHomeCardEditor extends HTMLElement {
     const P = this._config.panels = this._config.panels || {};
     body.innerHTML = `<div class="sh-ed"><div class="sh-hint">Panels show up when Home Assistant has something for them (found by integration and device class). Switch off what you don't want, or pick the entities yourself.</div><div class="sh-pl sh-ed"></div></div>`;
     const list = body.querySelector('.sh-pl');
+    if (!this.solo) this._cardOrder(list);
     const set = (k, v) => { if (v === undefined || (typeof v === 'object' && !Object.keys(v).length)) delete P[k]; else P[k] = v; if (!Object.keys(P).length) delete this._config.panels; this._emit(); };
     const schemas = {
       security: [{ name: 'alarm', selector: { entity: { domain: 'alarm_control_panel' } } }, { name: 'locks', selector: { entity: { domain: 'lock', multiple: true } } }, { name: 'entrances', selector: { entity: { domain: ['cover', 'switch', 'button', 'input_button', 'input_boolean', 'script'], multiple: true } } }, { name: 'doors', selector: { entity: { domain: 'binary_sensor', device_class: ['door', 'garage_door'], multiple: true } } }, { name: 'doors_view', selector: { select: { mode: 'dropdown', options: [['both', 'Timeline, Show details opens more'], ['timeline', 'Timeline only (last 24 h)'], ['list', 'List only (last opened)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'doors_timeline', selector: { select: { mode: 'dropdown', options: [['fill', 'Fill each row'], ['aligned', 'Aligned, with hour labels']].map(([value, label]) => ({ value, label: t(label) })) } } },
@@ -1967,12 +1969,41 @@ class SweetHomeCardEditor extends HTMLElement {
     }
   }
 
+  // Panels → Card order: the cards of each tab with ↑ / ↓ (config `card_order`: { tab: [card ids] }; the usual order is
+  // not stored, and Reset goes back to it)
+  _cardOrder(list) {
+    const C = this._config, det = document.createElement('details'); det.className = 'sh-panel';
+    det.open = !!this._coOpen; det.addEventListener('toggle', () => { this._coOpen = det.open; });
+    const TAB = { home: 'Home', security: 'Security', energy: 'Energy', water: 'Water & Garden', media: 'Media', system: 'System' };
+    const NAME = { glance: 'At a glance', modes: 'Modes', security: 'Security', cams: 'Cameras', energy: 'Energy', car: 'Electric car', ehist: 'Energy history', water: 'Water',
+      irrigation: 'Irrigation', media: 'Media', mserver: 'Media Server', tvlight: 'TV light', alerts: 'Needs Attention', zigbee: 'Zigbee', zblist: 'Zigbee Devices', zbmap: 'Zigbee Network', lab: 'Home Lab', devices: 'Devices' };
+    const cur = tab => { const ids = CARD_ORDER[tab], o = arr(C.card_order?.[tab]).filter(x => ids.includes(x)); return [...o, ...ids.filter(x => !o.includes(x))]; };
+    det.innerHTML = `<summary><span><b>${t('Card order')}</b><br><small>${t('The order of the cards on each tab')}</small></span></summary>`
+      + Object.keys(CARD_ORDER).map(tab => {
+        const L = cur(tab), custom = Array.isArray(C.card_order?.[tab]);
+        return `<div class="sh-co-tab"><b>${esc(t(TAB[tab]))}</b>${custom ? `<button class="sh-chip" data-co-reset="${tab}">${t('Reset')}</button>` : ''}</div>`
+          + L.map((id, i) => `<div class="sh-co"><span>${esc(t(NAME[id]))}</span><button class="sh-chip" data-co="${tab}" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'} aria-label="${t('Move up')}">↑</button><button class="sh-chip" data-co="${tab}" data-i="${i}" data-d="1" ${i < L.length - 1 ? '' : 'disabled'} aria-label="${t('Move down')}">↓</button></div>`).join('');
+      }).join('');
+    const save = (tab, L) => {
+      const o = { ...(C.card_order || {}) };
+      if (!L || L.join() === CARD_ORDER[tab].join()) delete o[tab]; else o[tab] = L;
+      if (Object.keys(o).length) C.card_order = o; else delete C.card_order;
+      this._emit(); this._render();
+    };
+    det.querySelectorAll('[data-co]').forEach(b => b.addEventListener('click', e => {
+      e.preventDefault(); const tab = b.dataset.co, i = Number(b.dataset.i), j = i + Number(b.dataset.d), L = cur(tab);
+      if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(tab, L);
+    }));
+    det.querySelectorAll('[data-co-reset]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); save(b.dataset.coReset, null); }));
+    list.appendChild(det);
+  }
+
   /* ================================================================ */
   /* Look step                                                         */
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
+    const data = { view_modes: arr(C.view_modes ?? VIEW_MODES), title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -1990,6 +2021,8 @@ class SweetHomeCardEditor extends HTMLElement {
         : [{ name: 'appearance', selector: { select: { mode: 'dropdown', options: [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Follow Home Assistant (light or dark theme)']].map(([value, label]) => ({ value, label: t(label) })) } } }, { name: 'start_tab', selector: { select: { mode: 'dropdown', options: ['home', 'security', 'climate', 'energy', 'water', 'media', 'system'].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1) })) } } }]),
       { name: 'type', selector: { select: { mode: 'list', options: [{ value: 'floorplan', label: 'Drawn floor plan (rooms)' }, { value: 'gltf', label: '3D file (.glb) from /config/www' }] } } },
       ...(data.type === 'gltf' ? [{ name: 'url', selector: { text: {} } }] : [{ name: 'wall_height', selector: { number: { min: 0.4, max: 3, step: 0.05, unit_of_measurement: 'm', mode: 'slider' } } }, { name: 'auto_furniture', selector: { boolean: {} } }]),
+      // the 3D view's mode buttons; it opens on the first one of them
+      { name: 'view_modes', selector: { select: { multiple: true, mode: 'list', options: [['lights', 'Lights'], ['climate', 'Climate'], ['presence', 'Presence'], ['zigbee', 'Zigbee']].map(([value, label]) => ({ value, label })) } } },
       { name: 'hide_hint', selector: { boolean: {} } },
       ...(this.solo ? [] : [{ name: 'room_backdrop', selector: { boolean: {} } }]),
       { name: 'smart_icons', selector: { boolean: {} } },
@@ -2006,6 +2039,8 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.wall_height != null && v.wall_height !== 1.35) H.wall_height = v.wall_height; else delete H.wall_height;
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
       if (!this.solo) { if (v.room_backdrop === false) C.room_backdrop = false; else delete C.room_backdrop; } // off = no blur behind a room on phones; a tap switches rooms
+      { const m = (Array.isArray(v.view_modes) ? v.view_modes : String(v.view_modes ?? '').split(',').map(x => x.trim())).filter(x => VIEW_MODES.includes(x)); // every mode: not stored
+        const o = VIEW_MODES.filter(x => m.includes(x)); if (o.length === VIEW_MODES.length) delete C.view_modes; else C.view_modes = o; }
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
       if (v.smart_icons === false) C.smart_icons = false; else delete C.smart_icons; // off = the icons set in Home Assistant
       // where the 3D view starts, per kind of device (only what is picked is kept)
@@ -2016,7 +2051,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', view_modes: 'Modes on the 3D view (it opens on the first one; with one, no buttons)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }

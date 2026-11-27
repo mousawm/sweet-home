@@ -8,6 +8,11 @@
 import { zbConfig } from './zigbee.js';
 
 const BAD = ['unavailable', 'unknown', 'none', 'None', ''];
+// the modes of the 3D view, in their usual order (`view_modes` picks which show and the first is the one it opens on)
+export const VIEW_MODES = ['lights', 'climate', 'presence', 'zigbee'];
+// the cards that can be put in another order on each tab, in their usual order (config `card_order`; card editor:
+// Panels → Card order)
+export const CARD_ORDER = { home: ['glance', 'modes'], security: ['security', 'cams'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'zigbee', 'zblist', 'zbmap', 'lab', 'devices'] };
 export const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'room';
 export const arr = v => (v == null ? [] : Array.isArray(v) ? v : [v]);
 const num = (v, d) => (v == null || v === '' || isNaN(Number(v)) ? d : Number(v));
@@ -1026,6 +1031,10 @@ export function buildModel(cfg = {}, hass) {
     title: cfg.title || 'My Home', auto, has, hasMS,
     gltf: house.type === 'gltf' ? { url: house.url, scale: num(house.scale, 1), rotation: num(house.rotation, 0), offset: house.offset || [0, 0, 0], rooms: house.mesh_rooms || {} } : null,
     tabsOrder: arr(cfg.tabs),
+    // the 3D view's mode buttons (`view_modes`; not set: all of them) and the order of the cards on each tab
+    // (`card_order`: { tab: [card ids] }; cards it doesn't name keep their place after the named ones)
+    viewModes: cfg.view_modes == null ? [...VIEW_MODES] : arr(cfg.view_modes).filter(m => VIEW_MODES.includes(m)),
+    cardOrder: cfg.card_order && typeof cfg.card_order === 'object' && !Array.isArray(cfg.card_order) ? cfg.card_order : {},
     startTab: cfg.start_tab || 'home',
   };
 }
