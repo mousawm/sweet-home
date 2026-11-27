@@ -946,6 +946,33 @@ try {
   check('…picking batteries in the editor (Panels → Devices)', await p.evaluate(() => JSON.stringify(editor._config.panels.devices) === '{"entities":["sensor.ipad_battery_level","sensor.door_sensor_battery"]}'));
   await p.waitForTimeout(1500);
   check('…the card shows them: the iPad as before and the door sensor by its device name', await p.evaluate(() => { card._setTab('system'); const t = card.shadowRoot.getElementById('devices')?.textContent || ''; return t.includes('Mousa’s iPad') && t.includes('Door Sensor'); }));
+  // a device's own name, icon, charging sensor and tracker (Panels → Devices)
+  await p.evaluate(() => { editor._render(); const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Batteries of phones'));
+    const n = [...d.querySelectorAll('ha-form input[name=name]')][1]; n.value = 'Front door'; n.dispatchEvent(new Event('change'));
+    const c = [...d.querySelectorAll('ha-form input[name=charging]')][0]; c.value = 'sensor.ipad_battery_state'; c.dispatchEvent(new Event('change')); });
+  check('…a device gets a name, and a text sensor as its charging state', await p.evaluate(() => JSON.stringify(editor._config.panels.devices.entities) === '[{"battery":"sensor.ipad_battery_level","charging_state":"sensor.ipad_battery_state"},{"battery":"sensor.door_sensor_battery","name":"Front door"}]'));
+  await p.waitForTimeout(1500);
+  check('…and the card shows the new name', await p.evaluate(() => { card._setTab('system'); return (card.shadowRoot.getElementById('devices')?.textContent || '').includes('Front door'); }));
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Batteries of phones'));
+    const n = [...d.querySelectorAll('ha-form input[name=name]')][1]; n.value = ''; n.dispatchEvent(new Event('change')); });
+  check('…clearing the name gives back the plain ID', await p.evaluate(() => editor._config.panels.devices.entities[1] === 'sensor.door_sensor_battery'));
+  // Needs Attention: which kinds of entities and integrations count as unavailable, and batteries left out
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const s = d.querySelector('ha-form [name=unavailable_domains]'); s.value = 'camera'; s.dispatchEvent(new Event('change')); });
+  check('Needs Attention: the unavailable domains are picked in the editor', await p.evaluate(() => JSON.stringify(editor._config.panels.attention?.unavailable_domains) === '["camera"]'));
+  check('…integrations to pick from are the ones Home Assistant has', await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const o = [...d.querySelectorAll('[name=unavailable_integrations] option')].map(x => x.value); return o.includes('mobile_app'); }));
+  await p.evaluate(() => { const d = [...editor.querySelectorAll('details.sh-panel')].find(x => x.textContent.includes('Unavailable devices'));
+    const s = d.querySelector('ha-form [name=unavailable_integrations]'); s.value = 'mobile_app'; s.dispatchEvent(new Event('change'));
+    const b = d.querySelector('ha-form input[name=battery_exclude]'); b.value = 'sensor.watch_battery_level'; b.dispatchEvent(new Event('change')); });
+  check('…and the integrations and the hidden batteries are stored', await p.evaluate(() => { const a = editor._config.panels.attention; return JSON.stringify(a.unavailable_integrations) === '["mobile_app"]' && JSON.stringify(a.battery_exclude) === '["sensor.watch_battery_level"]' && JSON.stringify(a.unavailable_domains) === '["camera"]'; }));
+  await p.evaluate(() => { delete editor._config.panels.attention; delete editor._config.panels.devices; editor._emit(); });
+  // Home Lab: with several Proxmox nodes, the one shown first is picked in the editor
+  check('Home Lab: no node to pick with one Proxmox node', await p.evaluate(() => { editor._render(); return !editor.querySelector('ha-form [name=node]'); }));
+  await p.evaluate(() => { const h = editor._hass; editor.hass = { ...h, states: { ...h.states, 'sensor.node_pve2_cpu_used': { entity_id: 'sensor.node_pve2_cpu_used', state: '5', attributes: {} } } }; editor._render();
+    const s = editor.querySelector('ha-form [name=node]'); s.value = 'pve2'; s.dispatchEvent(new Event('change')); });
+  check('…with two, the node shown first is stored', await p.evaluate(() => editor._config.panels.homelab?.node === 'pve2'));
+  await p.evaluate(() => { delete editor._config.panels.homelab.node; if (!Object.keys(editor._config.panels.homelab).length) delete editor._config.panels.homelab; editor._emit(); const h = editor._hass; const st = { ...h.states }; delete st['sensor.node_pve2_cpu_used']; editor.hass = { ...h, states: st }; });
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
   // People: the phone panel found on the person's phone, then set up in the editor (name, more rows, buttons)
   check('a person\'s phone panel is found on their phone', await p.evaluate(async () => { card._openInfo('phone:person.alex'); await new Promise(r => setTimeout(r, 100)); const t = card.shadowRoot.getElementById('sheet').textContent; card._closeSheet(); return t.includes('Mousa’s iPad') && t.includes('30%'); }));

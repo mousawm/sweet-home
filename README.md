@@ -450,7 +450,7 @@ listed below).
   A section also hides by itself when its integration isn't installed.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
-- **homelab**: found from the Proxmox VE custom integration. With several Proxmox nodes, the card shows one chip per node to switch its gauges; `node` sets the one shown first (default: the first). Options (all in the card editor under Panels → Home Lab):
+- **homelab**: found from the Proxmox VE custom integration. With several Proxmox nodes, the card shows one chip per node to switch its gauges; `node` sets the one shown first (default: the first; card editor: Panels → Home Lab). Options (all in the card editor under Panels → Home Lab):
   - `cpu`, `memory`, `disk`, `swap`, `temperature`, `containers`, `vms`, `updates`: your own sensors in place of the
     node's (empty: found from the Proxmox node). With no Proxmox node, picking them still gives a Home Lab card
   - `auto_guests` (on by default): every container and VM is listed (the `pinned` ones first, the rest behind
@@ -459,12 +459,12 @@ listed below).
   To arrange the servers, edit the dashboard and drag a server by its grip (it replaces the icon while editing); the
   order is saved as `order` (Proxmox ids). **Reset the order** under the list goes back to the automatic order.
 - **tv_light**: `light` (the TV backlight) and `selects` (its mode / effect selectors: `select` or `input_select`, as IDs or `{entity, name, icon}`). Pick them in the card editor under Panels → TV light; switching the panel off hides its card
-- **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
+- **devices** (System tab): `entities`: battery level sensors to show, as `entity_id` or `{battery, name, icon, charging, charging_state, tracker}`. Pick them in the card editor: Panels → Devices, where each one also takes its own name, icon, charging sensor and tracker. For each one the device's name, a matching icon (phone, tablet, watch, laptop, lock…), its charging sensor and where it is (Home / Away / zone) are found on the same device. Not set: every phone, tablet and watch with the Home Assistant Companion app.
 - **attention**:
   - `battery_threshold`, `wifi_threshold`, `tunnels`
-  - `unavailable_domains`, `unavailable_integrations`
+  - `unavailable_domains` (default: `light`, `switch`, `lock`, `climate`, `cover`, `fan`), `unavailable_integrations`: which unavailable entities are listed (card editor: Panels → Needs Attention)
   - `exclude_devices` (device IDs or names), `exclude_entities`, `battery_exclude_devices` (only left out of low
-    batteries), `battery_exclude`
+    batteries), `battery_exclude` (battery sensors left out of low batteries)
   - While the dashboard is edited, admins can hide a device straight from its row (the eye button, tap twice). It is added to these
     lists; the card editor (Panels → Needs Attention) shows them and puts a device back.
   - An update being installed shows its progress ("Updating to 2026.12.0", a bar and its percentage, or a moving bar

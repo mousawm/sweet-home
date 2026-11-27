@@ -89,6 +89,9 @@ const PART_COLORS = {
 const DIRS = ['n', 'e', 's', 'w'];
 // Security: what a gate / entrance is (its icon), and what a lock locks ('': found from its name)
 const ENTRANCE_KINDS = [['', 'Automatic (from its name)'], ['gate', 'Gate'], ['garage', 'Garage door'], ['barrier', 'Barrier'], ['shutter', 'Shutter'], ['door', 'Door']];
+// Needs Attention: the domains whose unavailable entities are listed (the default when none are picked)
+const UNAVAIL_DEFAULT = ['light', 'switch', 'lock', 'climate', 'cover', 'fan'];
+const UNAVAIL_DOMAINS = [...UNAVAIL_DEFAULT, 'media_player', 'camera', 'sensor', 'binary_sensor', 'vacuum', 'valve', 'humidifier', 'water_heater', 'alarm_control_panel', 'device_tracker', 'number', 'select', 'button'];
 const LOCK_KINDS = [['', 'Automatic (from its name)'], ['padlock', 'Padlock'], ['door', 'Door'], ['sliding', 'Sliding door'], ['gate', 'Gate'], ['garage', 'Garage door'], ['window', 'Window'], ['safe', 'Safe'], ['car', 'Car'], ['locker', 'Locker']];
 // pieces with a front (`facing`) and a size given as w (x) × d (z): a quarter turn swaps the two
 const FRONTED = ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'towel'];
@@ -1387,6 +1390,31 @@ class SweetHomeCardEditor extends HTMLElement {
       box.appendChild(row);
     });
   }
+  // Devices → each battery picked: its name and icon on the panel, its charging sensor (a binary sensor, or a text
+  // sensor such as "Charging" / "Not Charging") and its tracker; each found on the device when empty.
+  // Kept on the entry in `entities` ({battery, name, icon, charging | charging_state, tracker}).
+  _deviceOptions(det, P) {
+    const D = typeof P.devices === 'object' && P.devices ? P.devices : null, list = arr(D?.entities);
+    if (!list.length) return;
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Devices')}</div><div class="sh-hint">${t('Leave a field empty and it is found on the device.')}</div>`;
+    det.appendChild(box);
+    list.forEach((e, i) => {
+      const id = typeof e === 'string' ? e : e?.battery; if (!id) return;
+      const o = typeof e === 'object' ? e : { battery: id };
+      const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+      row.innerHTML = `<span class="nm">${esc(this._reg.name(id))}<small>${esc(id)}</small></span>`;
+      row.appendChild(this._form([{ type: 'grid', name: '', schema: [{ name: 'name', selector: { text: {} } }, { name: 'icon', selector: { icon: {} } }] },
+        { name: 'charging', selector: { entity: { domain: ['binary_sensor', 'sensor'] } } }, { name: 'tracker', selector: { entity: { domain: 'device_tracker' } } }],
+        { name: o.name || '', icon: o.icon || '', charging: o.charging || o.charging_state || '', tracker: o.tracker || '' }, (v, typing) => {
+          const x = D.entities[i], obj = { ...(typeof x === 'object' && x ? x : {}), battery: id }; delete obj.charging; delete obj.charging_state;
+          for (const kk of ['name', 'icon', 'tracker']) { if (v[kk]) obj[kk] = v[kk]; else delete obj[kk]; }
+          if (v.charging) obj[v.charging.startsWith('sensor.') ? 'charging_state' : 'charging'] = v.charging; // a text sensor is read for its words
+          D.entities[i] = Object.keys(obj).length === 1 ? id : obj; this._emit(typing);
+        }, { name: 'Name (empty: the device’s name)', icon: 'Icon (empty: from the kind of device)', charging: 'Charging sensor', tracker: 'Where it is (tracker)' }, true));
+      box.appendChild(row);
+    });
+  }
   _pumpOptions(det, P) {
     const W = typeof P.water === 'object' && P.water ? P.water : null, list = arr(W?.pumps);
     if (!list.length) return;
@@ -1724,12 +1752,14 @@ class SweetHomeCardEditor extends HTMLElement {
       // gets its options below
       homelab: [...[['cpu'], ['memory'], ['disk'], ['swap'], ['temperature', 'temperature'], ['containers'], ['vms'], ['updates']]
         .map(([name, dc]) => ({ name, selector: { entity: { domain: 'sensor', ...(dc ? { device_class: dc } : {}) } } })),
-        { name: 'auto_guests', selector: { boolean: {} } }, { name: 'pinned', selector: { select: { multiple: true, mode: 'list', options: [] } } }],
+        { name: 'node', selector: { select: { mode: 'dropdown', options: [] } } }, { name: 'auto_guests', selector: { boolean: {} } }, { name: 'pinned', selector: { select: { multiple: true, mode: 'list', options: [] } } }],
       people: [{ name: 'persons', selector: { entity: { domain: 'person', multiple: true } } }],
       devices: [{ name: 'entities', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } }],
       modes: [{ name: 'modes', selector: { entity: { domain: ['input_boolean', 'switch', 'scene', 'script', 'automation', 'input_button', 'button', 'light', 'fan'], multiple: true } } }],
       attention: [{ name: 'exclude_devices', selector: { device: { multiple: true } } }, { name: 'exclude_entities', selector: { entity: { multiple: true } } },
-        { name: 'battery_exclude_devices', selector: { device: { multiple: true } } },
+        { name: 'battery_exclude_devices', selector: { device: { multiple: true } } }, { name: 'battery_exclude', selector: { entity: { domain: 'sensor', device_class: 'battery', multiple: true } } },
+        { name: 'unavailable_domains', selector: { select: { multiple: true, mode: 'list', options: UNAVAIL_DOMAINS.map(d => ({ value: d, label: d })) } } },
+        { name: 'unavailable_integrations', selector: { select: { multiple: true, mode: 'dropdown', custom_value: true, options: [] } } },
         { name: 'battery_threshold', selector: { number: { min: 1, max: 50, unit_of_measurement: '%', mode: 'slider' } } }, { name: 'wifi_threshold', selector: { number: { min: -95, max: -50, unit_of_measurement: 'dBm', mode: 'slider' } } }, { name: 'tunnels', selector: { boolean: {} } }],
     };
     for (const [k, n, d] of PANELS) {
@@ -1813,6 +1843,17 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'security' && cur.doors_view === 'list') schema = schema.filter(f => !['doors_timeline', 'doors_hours'].includes(f.name)); // the bars' layout and span are for the timeline
         if (k === 'security') data.doors_hours = String(cur.doors_hours || 24); // shown as the default (24 h) when not set
         if (k === 'water') data.trend_hours = String(cur.trend_hours || 6); // shown as the default (6 h) when not set
+        if (k === 'attention') { // shown as the default list when none are picked; the integrations to pick from: the ones Home Assistant has
+          data.unavailable_domains = arr(cur.unavailable_domains ?? UNAVAIL_DEFAULT);
+          const plats = [...new Set(Object.values(this._hass.entities || {}).map(e => e.platform).filter(Boolean))].sort();
+          const opts = [...new Set([...plats, ...arr(cur.unavailable_integrations)])].map(v => ({ value: v, label: v }));
+          schema = schema.map(f => (f.name === 'unavailable_integrations' ? { ...f, selector: { select: { ...f.selector.select, options: opts } } } : f));
+        }
+        if (k === 'homelab') { // which Proxmox node shows first: only asked with several nodes
+          const nodes = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^sensor\.node_(.+)_cpu_used$/)?.[1]).filter(Boolean))];
+          if (nodes.length > 1) { schema = schema.map(f => (f.name === 'node' ? { ...f, selector: sel([['', 'The first one'], ...[...new Set([...nodes, ...(cur.node ? [cur.node] : [])])].map(n => [n, n])]) } : f)); data.node = cur.node || ''; }
+          else { schema = schema.filter(f => f.name !== 'node'); delete data.node; } // one node: nothing to pick (a node set in YAML stays)
+        }
         if (k === 'homelab') { // the Proxmox guests Home Assistant has (sensor / binary_sensor <lxc|qemu>_…_status), by name
           const keys = [...new Set(Object.keys(this._hass.states).map(id => id.match(/^(?:binary_)?sensor\.((?:lxc|qemu)_.+)_status$/)?.[1]).filter(Boolean))];
           const nm = g => (this._reg.name(`sensor.${g}_status`) || this._reg.name(`binary_sensor.${g}_status`) || g).replace(/\s*status$/i, '');
@@ -1848,6 +1889,10 @@ class SweetHomeCardEditor extends HTMLElement {
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
             if (k === 'water' && kk === 'trend_hours') { const h = Number(vv); val = [2, 12, 24].includes(h) ? h : null; } // 6 h is the default: not stored
             if (k === 'security' && kk === 'doors_hours') { const h = Number(vv); val = [6, 12, 18].includes(h) ? h : null; } // 24 h is the default: not stored
+            if (k === 'attention' && /^unavailable_/.test(kk)) { // a multiple select (a comma list in plain forms); the default domains are not stored
+              val = Array.isArray(vv) ? vv : String(vv || '').split(',').map(x => x.trim()).filter(Boolean);
+              if (kk === 'unavailable_domains') { if ([...val].sort().join() === [...UNAVAIL_DEFAULT].sort().join()) { delete next[kk]; continue; } if (!val.length) { next[kk] = []; continue; } } // none picked: no domain is listed
+            }
             if (k === 'attention' && /devices$/.test(kk)) val = [...arr(next[kk]).filter(x => !this._hass.devices?.[x] && !arr(vv).includes(x)), ...arr(vv)]; // names stay
             if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete next[kk]; else next[kk] = val;
           }
@@ -1860,6 +1905,8 @@ class SweetHomeCardEditor extends HTMLElement {
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
           extra: 'More rows on the Energy card', exclude: 'Meters to leave out (e.g. a charger that is not behind the house meter)',
           cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
+          node: 'Node shown first', battery_exclude: 'Batteries hidden from low batteries',
+          unavailable_domains: 'Unavailable: list these kinds of entities', unavailable_integrations: 'Unavailable: also list everything from these integrations',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',
           pinned: k === 'homelab' && cur.auto_guests === false ? 'Servers to show' : 'Servers pinned at the top',
           player: 'TV', speakers: 'Speakers', watch_timer: 'Screen time: watched today (H:MM:SS)', watch_limit: 'Screen time: daily limit (H:MM:SS)', limit_select: 'Screen time: daily limit picker',
@@ -1869,6 +1916,7 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'security') { this._lockOptions(det, P); this._entranceSensors(det, P); }
         if (k === 'irrigation') this._zoneOptions(det, P);
         if (k === 'water') this._pumpOptions(det, P);
+        if (k === 'devices') this._deviceOptions(det, P);
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
     }
