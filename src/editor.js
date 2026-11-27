@@ -1450,6 +1450,7 @@ class SweetHomeCardEditor extends HTMLElement {
     list.forEach((e, i) => {
       const id = entityId(e); if (!id) return;
       const o = typeof e === 'object' ? e : { entity: id }, cur = arr(o.sensor);
+      const isText = x => /^(sensor|select|input_select|input_text|text)\./.test(x || '');
       // the entry as it is now (the name / kind form and the sensors form each change part of it)
       const now = () => { const x = S.entrances[i]; return typeof x === 'object' && x ? { ...x } : { entity: id }; };
       const put = obj => { S.entrances[i] = Object.keys(obj).length === 1 ? id : obj; };
@@ -1470,7 +1471,24 @@ class SweetHomeCardEditor extends HTMLElement {
           const nx = [v.sensor, v.sensor_2].filter(Boolean), obj = { ...now(), entity: id }; delete obj.sensor_2;
           if (nx.length) obj.sensor = nx.length > 1 ? nx : nx[0]; else delete obj.sensor;
           put(obj); this._emit();
+          if (nx.some(isText) !== cur.some(isText)) this._render(); // the open / closed words come and go with a text sensor
         }, { sensor: 'Open / closed sensor', sensor_2: 'Second sensor (backup)' }));
+      // a text sensor (Frigate's state classification…): the words it uses for open and closed, when they aren't the
+      // usual ones (open, opened, ajar… / closed, shut…). Written as lists: open_states / closed_states.
+      const txt = cur.filter(isText);
+      if (txt.length) {
+        const reads = txt.map(x => this._hass.states[x]?.state).filter(x => x != null && !['unknown', 'unavailable'].includes(x));
+        const list = x => String(x || '').split(',').map(w => w.trim()).filter(Boolean);
+        row.appendChild(this._form([{ type: 'grid', name: '', schema: [{ name: 'open_states', selector: { text: {} } }, { name: 'closed_states', selector: { text: {} } }] }],
+          { open_states: arr(o.open_states).join(', '), closed_states: arr(o.closed_states).join(', ') }, (v, typing) => {
+            const obj = { ...now(), entity: id };
+            for (const kk of ['open_states', 'closed_states']) { const w = list(v[kk]); if (w.length) obj[kk] = w; else delete obj[kk]; }
+            put(obj); this._emit(typing);
+          }, { open_states: 'Words that mean open (comma-separated)', closed_states: 'Words that mean closed (comma-separated)' }, true));
+        const h = document.createElement('div'); h.className = 'sh-hint'; h.style.margin = '2px 0 4px';
+        h.textContent = (reads.length ? t('The sensor reads “{0}” now.', reads.join(' / ')) + ' ' : '') + t('Empty: open, opened, ajar… and closed, shut… are understood on their own.');
+        row.appendChild(h);
+      }
       row.querySelectorAll('[data-sg]').forEach(b => b.addEventListener('click', () => {
         const nx = [...cur, b.dataset.sg].slice(0, 2), obj = { ...now(), entity: id, sensor: nx.length > 1 ? nx : nx[0] };
         put(obj); this._emit(); this._render();
@@ -1620,8 +1638,12 @@ class SweetHomeCardEditor extends HTMLElement {
     for (const [k, , d] of parts) data['c_' + k] = hex2rgb(typeof f[k] === 'string' ? f[k] : d);
     for (const [k] of fields) if (f[k] !== undefined) data[k] = f[k];
     if (ty === 'nightstand') { data.lamp = f.lamp !== false; data.drawers ??= 2; }
+    // a car with a text sensor (a camera's state, "parked" / "away"…): the exact state that means parked
+    const carState = ty === 'car' && ents.length ? this._hass.states[ents[0]]?.state : undefined;
+    if (ty === 'car' && ents.length) data.parked_state = f.parked_state != null ? String(f.parked_state) : '';
     const schema = [
       { name: 'entities', selector: { entity: { multiple: true, ...(ENTITY_FILTER[ty] ? { filter: ENTITY_FILTER[ty] } : {}) } } },
+      ...(ty === 'car' && ents.length ? [{ name: 'parked_state', selector: { text: {} } }] : []),
       { name: 'name', selector: { text: {} } },
       ...(fields.length ? [{ type: 'grid', name: '', schema: fields.map(([name, selector]) => ({ name, selector })) }] : []),
       ...(['plant', 'stairs', 'vacuum'].includes(ty) ? [] : [{ name: 'color', selector: { color_rgb: {} } }]),
@@ -1640,6 +1662,7 @@ class SweetHomeCardEditor extends HTMLElement {
       delete f.entity; delete f.entities;
       if (ids.length === 1) f.entity = ids[0]; else if (ids.length > 1) f.entities = ids;
       if (v.name) f.name = v.name; else delete f.name;
+      if (ty === 'car') { const ps = String(v.parked_state ?? '').trim(); if (ps && ids.length) f.parked_state = ps; else delete f.parked_state; } // empty: on, home, parked… count as parked
       for (const [k] of fields) { if (v[k] !== undefined && v[k] !== '' && v[k] !== null) f[k] = v[k]; }
       for (const k of ['plug', 'power']) if (fields.some(([n]) => n === k) && !v[k]) delete f[k]; // a cleared entity is gone
       const hx = rgb2hex(v.color); if (hx) f[ck] = hx;
@@ -1648,7 +1671,7 @@ class SweetHomeCardEditor extends HTMLElement {
       const relink = (ids.length > 0) !== (ents.length > 0);
       this._emit(typing);
       if (relink) this._render(); else { const svg = this.querySelector('.sh-plan'); if (svg) this._drawPlan(svg); }
-    }, { ...PIECE_LABELS, entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', ...(ty === 'nightstand' ? { facing: 'Drawers face', entities: 'Linked entities (a light makes its lamp glow)' } : {}), ...(ty === 'tv' ? { facing: 'Screen faces' } : {}), ...(ENT_LABEL[ty] ? { entities: ENT_LABEL[ty] } : {}), ...(ty === 'ac' ? { facing: 'Blows towards', style: 'Type', entities: 'Climate entity (empty: the room\'s own)' } : {}), ...(ty === 'charger' ? { entities: 'Linked entities (tap the phone in 3D to control them)' } : {}), ...(f.plug && !f.power ? { power: this._reg.powerOf(f.plug) ? t('Charger power sensor (empty: uses {0})', this._reg.name(this._reg.powerOf(f.plug))) : 'Charger power sensor (none found: the phone shows while the plug is on)' } : {}), color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
+    }, { ...PIECE_LABELS, parked_state: carState != null ? t('State that means parked (empty: on, home, parked…; the sensor reads “{0}” now)', carState) : 'State that means parked (empty: on, home, parked…)', entities: ty === 'car' ? 'Car sensor (shows the car while it is parked)' : ty === 'sprinkler' ? 'Valve or switch (sprays water while it is on)' : 'Linked entities (tap the piece in 3D to control them)', badge: 'Show a badge over it in 3D', ...(ty === 'nightstand' ? { facing: 'Drawers face', entities: 'Linked entities (a light makes its lamp glow)' } : {}), ...(ty === 'tv' ? { facing: 'Screen faces' } : {}), ...(ENT_LABEL[ty] ? { entities: ENT_LABEL[ty] } : {}), ...(ty === 'ac' ? { facing: 'Blows towards', style: 'Type', entities: 'Climate entity (empty: the room\'s own)' } : {}), ...(ty === 'charger' ? { entities: 'Linked entities (tap the phone in 3D to control them)' } : {}), ...(f.plug && !f.power ? { power: this._reg.powerOf(f.plug) ? t('Charger power sensor (empty: uses {0})', this._reg.name(this._reg.powerOf(f.plug))) : 'Charger power sensor (none found: the phone shows while the plug is on)' } : {}), color: ty === 'sofa' ? 'Colour (frame and back)' : 'Colour', ...Object.fromEntries(parts.map(([k, l]) => ['c_' + k, l])) }, true));
   }
 
   /* ---------------- Doors & windows mode ---------------- */
