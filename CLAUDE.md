@@ -26,11 +26,13 @@
 ## Code layout
 
 - `src/card.js`: the card element (config, hass, build, tabs, clicks, room selection, sheets) and `SweetHome3DCard`.
-- `src/panels/*.js`: one file per area (home, security, energy, water, media, system, zigbee, rename). Each exports a class
+- `src/panels/*.js`: one file per area (home, security, energy, water, media, system, zigbee, access, rename). Each exports a class
   whose methods are installed on `SweetHomeCard.prototype` in `card.js`, so `this` is the card.
 - `src/scene.js`: the Three.js scene (`HouseScene`). `src/styles.js`: the stylesheet. `src/core.js`: shared helpers
   and the current model (`MODEL`, `E`, `ROOMS`…, switched with `useModel`); change `FAHR` / `SHARED` / `SMART` only
   through `setFahr` / `setShared` / `setSmart`.
+- `src/panels/access.js`: View only (`view_only`, `view_allow`, `view_pin`): every control goes through the card's `call()`,
+  which asks it (`_mayAct` / `_gate`); `more()` shows read-only details to a locked user.
 - `src/zigbee.js`: Zigbee2MQTT / ZHA devices → one list (pure, unit-tested); `src/panels/zigbee.js` draws it.
 - `src/model.js`: config + Home Assistant → model (pure, unit-tested). `src/editor.js`: the card editor. `src/i18n.js`:
   translations (`t()`).

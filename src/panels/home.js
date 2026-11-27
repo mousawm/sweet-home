@@ -93,6 +93,7 @@ export class HomePanels {
     const temps = ROOMS.filter(r => r.temp && !r.outdoor).map(r => this.n(r.temp)).filter(x => x != null);
     const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
     return `
+      ${this._voChip()}
       ${wx}
       ${!E.alarm || this.v(E.alarm) === 'disarmed' ? '' : `<div class="chip" style="--c:${al[2]}" data-act="more" data-id="${E.alarm}">${ic(al[1])}<span>${tr(al[0])}</span></div>`}
       ${!E.doors.length ? '' : `<div class="chip ${open.length ? 'warn' : 'good'}">${ic(open.length ? 'mdi:door-open' : 'mdi:door-closed-lock')}<span>${open.length ? tr('{0} open', open.map(d => d.name).join('، ')) : tr('All doors closed')}</span></div>`}

@@ -18,6 +18,7 @@ import { WaterPanels } from './panels/water.js';
 import { RenameTools } from './panels/rename.js';
 import { HomePanels } from './panels/home.js';
 import { ZigbeePanels } from './panels/zigbee.js';
+import { AccessPanels } from './panels/access.js';
 import './strategy.js';
 
 // The card editor is its own file (sweet-home-editor.js, next to this one): only someone editing the card downloads it.
@@ -135,6 +136,9 @@ export class SweetHomeCard extends HTMLElement {
   set hass(h) {
     h = this._withNames(h?._raw || h);
     this._hass = h;
+    // another user signed in on this device (a wall tablet): every panel again, for their view-only lock
+    if (this._uidSet && h?.user?.id !== this._uid && this._sections?.length) for (const sec of this._sections) sec.force = true;
+    this._uidSet = true; this._uid = h?.user?.id;
     setFahr(String(h?.config?.unit_system?.temperature || '').toUpperCase().includes('F'));
     this._applyLook();
     this._syncEditing();
@@ -234,7 +238,13 @@ export class SweetHomeCard extends HTMLElement {
   name() { return (this._hass?.user?.name || '').split(' ')[0]; }
 
   // resolves true on success, false on failure (and shows the error)
+  // every control of the card goes through here: a view-only user (panels/access.js) is asked for the PIN, or told no
   call(domain, service, data) {
+    const k = this._viewKind(domain, service, data);
+    if (!this._mayAct(k)) return this._gate(k, () => this._callNow(domain, service, data)).then(r => { if (r === false) this._rerender(); return r; }); // a slider moved back
+    return this._callNow(domain, service, data);
+  }
+  _callNow(domain, service, data) {
     return this._hass.callService(domain, service, data).then(() => true, e => { this.haptic('failure'); this._toast(e?.message || 'That action failed', true); return false; });
   }
   // Haptic feedback: the same window 'haptic' event HA's own buttons fire. HA forwards it to the Companion app
@@ -250,7 +260,7 @@ export class SweetHomeCard extends HTMLElement {
     return new Promise(res => { const t0 = Date.now(); const chk = () => { if (pred(this.v(id))) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(chk, 150); }; chk(); });
   }
   // HA's details dialog; nothing for a tile with no entity behind it (no "null" dialog with "Invalid entity_ids")
-  more(entityId) { if (!entityId || entityId === 'null' || entityId === 'undefined' || !this._hass?.states?.[entityId]) return; this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true })); }
+  more(entityId) { if (!entityId || entityId === 'null' || entityId === 'undefined' || !this._hass?.states?.[entityId]) return; if (this._moreGuard(entityId)) return; this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true })); }
 
   /* ---------- build ---------- */
   _build() {
@@ -344,6 +354,7 @@ export class SweetHomeCard extends HTMLElement {
     this._longPress();
     this._spkInput();
     this.shadowRoot.addEventListener('click', e => this._onClick(e));
+    this.shadowRoot.addEventListener('pointerdown', () => this._voTouch(), true); // view only: each tap keeps it unlocked
     this.shadowRoot.addEventListener('error', e => { if (e.target?.tagName === 'IMG' && e.target.closest('.jfimg')) e.target.remove(); }, true);
     this.shadowRoot.addEventListener('input', e => { if (e.target.matches?.('input[type=range],input[type=color]')) this._dragging = e.target; this._onSlide(e, false); });
     this.shadowRoot.addEventListener('change', e => { if (e.target.matches?.('[data-rename]')) { this._rename(e.target.dataset.rename, e.target.value); return; } });
@@ -526,7 +537,7 @@ export class SweetHomeCard extends HTMLElement {
   _openInfo(kind) {
     this._closeSheet();
     this._info = kind;
-    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet${kind === 'zigbee' ? ' wide' : ''}" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'zigbee' ? tr('Zigbee') : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
+    const sh = this.$('sheet'); sh.innerHTML = `<div class="sheet${kind === 'zigbee' ? ' wide' : ''}" role="dialog" aria-label="${kind.startsWith('rename:') ? tr('Rename devices') : kind === 'lights' ? tr("Lights") : kind === 'temps' ? tr("Temperatures") : kind === 'weather' ? tr("Weather") : kind === 'power' ? tr("Power") : kind.startsWith('jf') ? tr("Jellyfin library") : kind.startsWith('mup:') ? tr("Coming up") : kind === 'swap' ? tr("Swap usage") : kind === 'zigbee' ? tr('Zigbee') : kind.startsWith('ro:') ? tr('View only') : kind.startsWith('wanted') ? tr("Wanted") : kind.startsWith('queue') ? tr('Download queue') : tr("Phone")}"></div>`;
     sh.classList.add('open');
     if (kind === 'weather') this._wxSub();
     if (kind.startsWith('wanted') && (!this._wanted || Date.now() - this._wanted.at > 5 * 60e3 || this._wanted.n !== String(this._wantedCount().tv))) this._loadWanted();
@@ -564,6 +575,8 @@ export class SweetHomeCard extends HTMLElement {
       html = this._swapHTML(head);
     } else if (this._info === 'zigbee') {
       html = this._zbSheet(head);
+    } else if (this._info.startsWith('ro:')) { // view only: an entity's details without its controls
+      html = this._roSheet(head, this._info.slice(3));
     } else if (this._info.startsWith('mup:')) {
       html = this._mupHTML(head);
     } else if (this._info.startsWith('jf')) {
@@ -627,6 +640,7 @@ export class SweetHomeCard extends HTMLElement {
   _closeSheet() {
     const sh = this.$?.('sheet'); if (sh) { sh.classList.remove('open'); sh.innerHTML = ''; }
     this._pick = null; this._pin = null; this._pinSvc = null; this._info = null; this._rnIds = null;
+    if (this._vo) { const V = this._vo; this._vo = null; V.done?.(false); } // the PIN pad closed without the PIN
     if (this._wxUnsub) { this._wxUnsub.forEach(u => { try { u(); } catch (e) { /* closed */ } }); this._wxUnsub = null; }
     if (this._keyH) { window.removeEventListener('keydown', this._keyH); this._keyH = null; }
   }
@@ -773,6 +787,7 @@ export class SweetHomeCard extends HTMLElement {
     // progress, a battery, a device going offline…: _update marks it), at most once a second; and every 30 s (repairs, times)
     if (d.getSeconds() % 30 === 0 || this._alDirty) { this._alDirty = false; this._alertCount = null; this._rerender('alerts', 'tabs'); }
     if (d.getSeconds() === 0 && this._tab === 'security' && this.$('security')?.querySelector('.dv')) this._rerender('security'); // the 24-hour strips move with the clock
+    this._voTick(); // view only: the unlocked countdown in the header
     if (d.getSeconds() % 15 === 0) this.shadowRoot.querySelectorAll('[data-ago]').forEach(el => { el.textContent = el.dataset.short ? `${el.dataset.pre ? `${el.dataset.pre} · ` : ''}${agoShort(el.dataset.ago, lang)}` : `${el.dataset.pre} ${ago(el.dataset.ago, lang)}`; });
   }
 
@@ -863,7 +878,7 @@ export class SweetHomeCard extends HTMLElement {
         else { this._naming = this._sel; this._pendNames = null; this._rerender('drawer'); }
         break;
       }
-      case 'alarm': {
+      case 'alarm': { if (!this._mayAct('alarm')) { this._gate('alarm', () => t.isConnected && t.click()); break; } // view only: the PIN first, then the same button
         const svc = t.dataset.svc; const st = this.s(E.alarm);
         if (svc === 'alarm_disarm' && st?.state === 'disarmed') { this._toast(tr("The alarm is already off")); return; }
         // Alarmo needs the user's PIN to disarm; arming only needs it when code_arm_required is set
@@ -973,6 +988,10 @@ export class SweetHomeCard extends HTMLElement {
       case 'zbmode': this._zbMode = t.dataset.v; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
       case 'zball': this._zbAll = this._zbAll === false; this._rerender('zbmap'); if (this._info === 'zigbee') this._renderInfo(); break;
       case 'zbscan': this._zbScan(); break;
+      case 'vopin': this._voKey(t.dataset.k); break; // view only: the PIN pad, the header chip
+      case 'vocancel': this._voCancel(); break;
+      case 'vounlock': this._gate('system-unlock', () => true); break;
+      case 'volock': this._unlockUntil = 0; this._rerender('hdr'); this._toast(tr('Locked')); break;
       case 'labmore': this._labMore = !this._labMore; this._rerender('lab'); break;
       case 'labnode': this._labNode = t.dataset.node === E.lab.node ? null : t.dataset.node; this._rerender('lab'); break; // Home Lab: another Proxmox node
       case 'labgrip': break; // dragged, see _labDragSetup
@@ -1187,7 +1206,7 @@ export class SweetHomeCard extends HTMLElement {
 }
 
 // the panels and tools, kept in src/panels/: their methods become the card's own
-for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels, ZigbeePanels])
+for (const P of [MediaPanels, EnergyPanels, SecurityPanels, SystemPanels, WaterPanels, RenameTools, HomePanels, ZigbeePanels, AccessPanels])
   for (const k of Object.getOwnPropertyNames(P.prototype)) if (k !== 'constructor') Object.defineProperty(SweetHomeCard.prototype, k, Object.getOwnPropertyDescriptor(P.prototype, k));
 
 // every method of the card and the scene works on its own instance's model (several cards / the editor preview)

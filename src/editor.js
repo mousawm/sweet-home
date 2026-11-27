@@ -2003,7 +2003,13 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { view_modes: arr(C.view_modes ?? VIEW_MODES), title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
+    const voMode = C.view_only === 'non_admins' ? 'non_admins' : C.view_only && C.view_only !== true ? 'users' : '';
+    if (voMode === 'users' && !this._users && !this._usersBusy && this._hass.callWS) { // the people who can sign in (admins only can list them)
+      this._usersBusy = true;
+      this._hass.callWS({ type: 'config/auth/list' }).then(l => { this._users = (l || []).filter(u => !u.system_generated && u.is_active !== false).map(u => ({ value: u.id, label: u.name || u.id })); }, () => { this._users = []; })
+        .finally(() => { this._usersBusy = false; if (this._step === 'look') this._render(); });
+    }
+    const data = { view_only: voMode, view_users: voMode === 'users' ? arr(C.view_only) : [], view_allow: arr(C.view_allow), view_pin: C.view_pin != null ? String(C.view_pin) : '', view_pin_seconds: Number(C.view_pin_seconds) || 30, view_pin_close_seconds: Number(C.view_pin_close_seconds) || 15, view_modes: arr(C.view_modes ?? VIEW_MODES), title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -2024,6 +2030,12 @@ class SweetHomeCardEditor extends HTMLElement {
       // the 3D view's mode buttons; it opens on the first one of them
       { name: 'view_modes', selector: { select: { multiple: true, mode: 'list', options: [['lights', 'Lights'], ['climate', 'Climate'], ['presence', 'Presence'], ['zigbee', 'Zigbee']].map(([value, label]) => ({ value, label })) } } },
       { name: 'hide_hint', selector: { boolean: {} } },
+      // View only: who can look but not control, what they may still control, and the PIN that unlocks the rest
+      { name: 'view_only', selector: sel([['', 'Off: everyone can control'], ['non_admins', 'Everyone who is not an admin'], ['users', 'Only the people picked below']]) },
+      ...(voMode === 'users' ? [{ name: 'view_users', selector: { select: { multiple: true, mode: 'list', options: [...(this._users || []), ...arr(C.view_only).filter(x => !(this._users || []).some(u => u.value === x)).map(x => ({ value: x, label: x }))] } } }] : []),
+      ...(voMode ? [{ name: 'view_allow', selector: { select: { multiple: true, mode: 'list', options: [['lights', 'Lights'], ['switches', 'Switches and helpers'], ['climate', 'Climate (AC, fans)'], ['media', 'Media (TV, speakers)'], ['covers', 'Blinds, covers and valves'], ['locks', 'Locks'], ['alarm', 'Alarm'], ['scenes', 'Scenes and scripts'], ['buttons', 'Buttons'], ['other', 'Everything else (selectors, vacuums…)'], ['system', 'System (restart, updates, reboots, Zigbee scan)']].map(([value, label]) => ({ value, label })) } } },
+        { name: 'view_pin', selector: { text: { type: 'password' } } }, { name: 'view_pin_seconds', selector: { number: { min: 5, max: 600, step: 5, unit_of_measurement: 's', mode: 'box' } } },
+        { name: 'view_pin_close_seconds', selector: { number: { min: 5, max: 600, step: 5, unit_of_measurement: 's', mode: 'box' } } }] : []),
       ...(this.solo ? [] : [{ name: 'room_backdrop', selector: { boolean: {} } }]),
       { name: 'smart_icons', selector: { boolean: {} } },
       { type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'view_' + d, selector: VIEW })) },
@@ -2039,6 +2051,19 @@ class SweetHomeCardEditor extends HTMLElement {
       if (v.wall_height != null && v.wall_height !== 1.35) H.wall_height = v.wall_height; else delete H.wall_height;
       if (v.auto_furniture) H.auto_furniture = true; else delete H.auto_furniture;
       if (!this.solo) { if (v.room_backdrop === false) C.room_backdrop = false; else delete C.room_backdrop; } // off = no blur behind a room on phones; a tap switches rooms
+      { // View only (the mode field comes and goes with the others)
+        const was = voMode, mode = v.view_only || '';
+        if (mode === 'non_admins') C.view_only = 'non_admins';
+        else if (mode === 'users') { const u = (Array.isArray(v.view_users) ? v.view_users : String(v.view_users || '').split(',').map(x => x.trim())).filter(Boolean); C.view_only = u.length ? u : []; }
+        else delete C.view_only;
+        if (mode) {
+          const al = (Array.isArray(v.view_allow) ? v.view_allow : String(v.view_allow || '').split(',').map(x => x.trim())).filter(Boolean); if (al.length) C.view_allow = al; else delete C.view_allow;
+          const pin = String(v.view_pin ?? '').replace(/\D/g, ''); if (pin) C.view_pin = pin; else delete C.view_pin; // digits only: the PIN pad has no letters
+          const s = Number(v.view_pin_seconds); if (s > 0 && s !== 30) C.view_pin_seconds = s; else delete C.view_pin_seconds;
+          const c = Number(v.view_pin_close_seconds); if (c > 0 && c !== 15) C.view_pin_close_seconds = c; else delete C.view_pin_close_seconds;
+        }
+        if (mode !== was) { this._emit(); this._render(); return; }
+      }
       { const m = (Array.isArray(v.view_modes) ? v.view_modes : String(v.view_modes ?? '').split(',').map(x => x.trim())).filter(x => VIEW_MODES.includes(x)); // every mode: not stored
         const o = VIEW_MODES.filter(x => m.includes(x)); if (o.length === VIEW_MODES.length) delete C.view_modes; else C.view_modes = o; }
       if (v.hide_hint) C.hint = false; else delete C.hint; // on = the tip is not shown
@@ -2051,8 +2076,9 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', view_modes: 'Modes on the 3D view (it opens on the first one; with one, no buttons)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', view_modes: 'Modes on the 3D view (it opens on the first one; with one, no buttons)', view_only: 'View only (look, don’t control)', view_users: 'People who only view', view_allow: 'They can still control', view_pin: 'PIN to unlock everything else (digits; empty: no unlocking)', view_pin_seconds: 'Stays unlocked for (seconds after the last tap)', view_pin_close_seconds: 'The PIN pad closes after (seconds without a key)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
+    if (C.view_only != null) { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('View only locks the controls of this card only: those people can still control their devices from the Home Assistant app or another dashboard. The PIN is kept in the dashboard’s settings, which any signed-in user can read, so use it to keep little hands off, not as a password.'); body.appendChild(h); }
     this._mNames(body);
   }
   // Names on this dashboard: every entity renamed here, in a room or on a panel. Home Assistant keeps its own names.

@@ -122,7 +122,7 @@ const C = customElements.get(new URLSearchParams(location.search).get('card') ==
 class FakeRenderer { constructor(o) { this.domElement = o.canvas; this.shadowMap = {}; this.info = { render: {} }; this.capabilities = { isWebGL2: true }; }
   setPixelRatio() {} setSize() {} render() { window.frames3d = (window.frames3d || 0) + 1; } compileAsync() { return Promise.resolve(); } compile() {} dispose() {} getPixelRatio() { return 1; } setClearColor() {} }
 const fake = new URLSearchParams(location.search).get('gl') !== 'real';
-class TC extends C { constructor() { super(); if (fake) this._THREE = { ...C.THREE, WebGLRenderer: FakeRenderer }; } call(...a) { (window.calls ||= []).push(a); return Promise.resolve(true); } }
+class TC extends C { constructor() { super(); if (fake) this._THREE = { ...C.THREE, WebGLRenderer: FakeRenderer }; } _callNow(...a) { (window.calls ||= []).push(a); return Promise.resolve(true); } }
 customElements.define('t-card', TC);
 const q = new URLSearchParams(location.search).get('config');
 let cfg = q === 'demo' ? demo : {};
