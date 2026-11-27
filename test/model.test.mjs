@@ -1,7 +1,7 @@
 // Model tests: run with `node test/model.test.mjs` (part of `npm test`). No browser needed.
 import assert from 'node:assert/strict';
 import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey, z2mMap, zbRoute } from '../src/zigbee.js';
-import { VIEW_MODES, CARD_ORDER } from '../src/model.js';
+import { VIEW_MODES, CARD_ORDER, tankRate } from '../src/model.js';
 import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
@@ -518,6 +518,18 @@ test('view_modes and card_order: the 3D view\'s modes (all by default, unknown o
   assert.deepEqual(M({ card_order: { system: ['devices', 'alerts'] } }).cardOrder, { system: ['devices', 'alerts'] });
   assert.deepEqual([M({}).cardOrder, M({ card_order: ['x'] }).cardOrder], [{}, {}]);
   assert.deepEqual([M({}).headerChips.length, M({ header_chips: ['power', 'x', 'weather'] }).headerChips, M({ header_chips: [] }).headerChips], [8, ['power', 'weather'], []]);
+});
+
+test('tank trend: only the latest fill or drain counts', () => {
+  const H = 36e5, P = pts => pts.map(([h, v]) => [h * H, v]);
+  // filled from 60 to 95 over 2 h, then drained to 88 over 4 h: draining, ~-1.75 %/h (the whole-window fit was rising)
+  const r = tankRate(P([[0, 60], [1, 78], [2, 95], [3, 93], [4, 91], [5, 90], [6, 88]]));
+  assert.ok(r < -1.5 && r > -2, `rate ${r}`);
+  // drained, then the pump fills it: rising
+  assert.ok(tankRate(P([[0, 80], [2, 60], [3, 70], [4, 85]])) > 10);
+  // small noise is not a turn: a steady drain stays one run
+  assert.ok(Math.abs(tankRate(P([[0, 90], [1, 89.5], [2, 89.8], [3, 88.9], [4, 88.5]])) + 0.37) < 0.1);
+  assert.equal(tankRate(P([[0, 50]])), null);
 });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
