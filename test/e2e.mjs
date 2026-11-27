@@ -1022,6 +1022,32 @@ try {
   await p.waitForTimeout(1500);
   check('the card shows the added valve', await p.evaluate(() => { card._setTab('water'); return card.shadowRoot.querySelectorAll('#irrigation .valve').length === 3; }));
   await p.evaluate(() => { card._setTab('home'); editor._step = 'rooms'; editor._render(); });
+  // options that used to be YAML only: a zone's name and watering time, a lock's kind, a gate's name and kind,
+  // the Energy card's extra rows and left-out meters, and the card's language
+  await p.evaluate(() => { editor._step = 'panels'; editor._render(); });
+  await p.evaluate(() => { const r = [...editor.querySelectorAll('ha-form input[name=duration]')]; r[1].value = 'number.drip_time'; r[1].dispatchEvent(new Event('change')); });
+  check('a zone gets a watering time in the editor, and the others stay', await p.evaluate(() => JSON.stringify(editor._config.panels.irrigation.zones) === '[{"entity":"valve.garden","name":"Front lawn","duration":"sensor.water_flow"},{"entity":"switch.drip_zone","duration":"number.drip_time"},"switch.well_pump"]'));
+  await p.evaluate(() => { const r = [...editor.querySelectorAll('ha-form input[name=duration]')]; r[1].value = ''; r[1].dispatchEvent(new Event('change')); });
+  check('…clearing it gives back the plain ID', await p.evaluate(() => editor._config.panels.irrigation.zones[1] === 'switch.drip_zone'));
+  await p.evaluate(() => { editor._config.panels = { ...editor._config.panels, security: { locks: [{ entity: 'lock.front_door', name: 'Front' }], entrances: ['switch.gate_relay'] } }; editor._render(); });
+  check('the security form shows locks written with a name as plain IDs', await p.evaluate(() => [...editor.querySelectorAll('ha-form input[name=locks]')].some(i => i.value === 'lock.front_door')));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=kind]'); i.value = 'safe'; i.dispatchEvent(new Event('change')); });
+  check('…a lock gets a kind, and keeps its name', await p.evaluate(() => JSON.stringify(editor._config.panels.security.locks) === '[{"entity":"lock.front_door","name":"Front","kind":"safe"}]'));
+  await p.evaluate(() => { const i = [...editor.querySelectorAll('ha-form input[name=locks]')][0]; i.value = 'lock.front_door,lock.back_door'; i.dispatchEvent(new Event('change')); });
+  check('…adding a lock keeps the first one as it was', await p.evaluate(() => JSON.stringify(editor._config.panels.security.locks) === '[{"entity":"lock.front_door","name":"Front","kind":"safe"},"lock.back_door"]'));
+  await p.evaluate(() => { editor._render(); const k = [...editor.querySelectorAll('ha-form [name=kind]')]; const n = [...editor.querySelectorAll('ha-form input[name=name]')];
+    k[2].value = 'garage'; k[2].dispatchEvent(new Event('change')); n[2].value = 'Back garage'; n[2].dispatchEvent(new Event('change')); });
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=sensor]'); i.value = 'binary_sensor.gate'; i.dispatchEvent(new Event('change')); });
+  check('a gate gets a name and a kind, kept when its sensor is picked after', await p.evaluate(() => JSON.stringify(editor._config.panels.security.entrances) === '[{"entity":"switch.gate_relay","kind":"garage","name":"Back garage","sensor":"binary_sensor.gate"}]'));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form input[name=extra]'); i.value = 'sensor.water_flow'; i.dispatchEvent(new Event('change'));
+    const x = editor.querySelector('ha-form input[name=exclude]'); x.value = 'sensor.ev_power'; x.dispatchEvent(new Event('change')); });
+  check('the Energy panel takes extra rows and meters to leave out', await p.evaluate(() => JSON.stringify(editor._config.panels.energy?.extra) === '["sensor.water_flow"]' && JSON.stringify(editor._config.panels.energy?.exclude) === '["sensor.ev_power"]'));
+  await p.evaluate(() => { delete editor._config.panels.energy.extra; delete editor._config.panels.energy.exclude; if (!Object.keys(editor._config.panels.energy).length) delete editor._config.panels.energy; editor._emit(); editor._step = 'look'; editor._render(); });
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=language]'); i.value = 'ar'; i.dispatchEvent(new Event('change')); });
+  check('Look → Language sets the card\'s language, and the editor follows', await p.evaluate(() => editor._config.language === 'ar' && editor.textContent.includes('داكن')));
+  await p.evaluate(() => { const i = editor.querySelector('ha-form [name=language]'); i.value = ''; i.dispatchEvent(new Event('change')); });
+  check('…and back to Home Assistant\'s language', await p.evaluate(() => !('language' in editor._config) && !editor.textContent.includes('داكن')));
+  await p.evaluate(() => { editor._step = 'rooms'; editor._render(); });
   // turning furniture: the robot vacuum, a cabinet at its default size, stairs (they climb the other way); round pieces have no Turn
   check('Turn works for every piece that has a front or a long side', await p.evaluate(async () => {
     const r = editor._config.house.rooms[0]; r.furniture = [{ type: 'vacuum', x: 5, z: 4 }, { type: 'box', x: 1, z: 1 }, { type: 'stairs', x: 3, z: 2, w: 2, d: 1, axis: 'x' }, { type: 'table', x: 2, z: 3 }, { type: 'plant', x: 4, z: 4 }];

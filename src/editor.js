@@ -87,6 +87,9 @@ const PART_COLORS = {
   table: [['leg', 'Legs', '#b7a684']], sink: [['top', 'Countertop', '#f8fafc']], nightstand: [['top', 'Top', '#7c5a3c'], ['handle', 'Handles', '#d4b483']], chair: [['seat', 'Seat', '#334155']],
 };
 const DIRS = ['n', 'e', 's', 'w'];
+// Security: what a gate / entrance is (its icon), and what a lock locks ('': found from its name)
+const ENTRANCE_KINDS = [['', 'Automatic (from its name)'], ['gate', 'Gate'], ['garage', 'Garage door'], ['barrier', 'Barrier'], ['shutter', 'Shutter'], ['door', 'Door']];
+const LOCK_KINDS = [['', 'Automatic (from its name)'], ['padlock', 'Padlock'], ['door', 'Door'], ['sliding', 'Sliding door'], ['gate', 'Gate'], ['garage', 'Garage door'], ['window', 'Window'], ['safe', 'Safe'], ['car', 'Car'], ['locker', 'Locker']];
 // pieces with a front (`facing`) and a size given as w (x) × d (z): a quarter turn swaps the two
 const FRONTED = ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'towel'];
 const DIR_OPTS = [['n', 'North (up)'], ['e', 'East (right)'], ['s', 'South (down)'], ['w', 'West (left)']];
@@ -1340,6 +1343,50 @@ class SweetHomeCardEditor extends HTMLElement {
     det.appendChild(box);
   }
 
+  // Security → each lock: a name, what it locks (a door, a gate, a safe…: its icon, with a small padlock for the state)
+  // and an icon of its own. Kept on the lock's entry in `locks` ({entity, name, kind, icon}).
+  _lockOptions(det, P) {
+    const S = typeof P.security === 'object' && P.security ? P.security : null, list = arr(S?.locks);
+    if (!list.length) return;
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Locks')}</div>`;
+    det.appendChild(box);
+    list.forEach((e, i) => {
+      const id = entityId(e); if (!id) return;
+      const o = typeof e === 'object' ? e : { entity: id };
+      const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+      row.innerHTML = `<span class="nm">${esc(this._reg.name(id))}<small>${esc(id)}</small></span>`;
+      row.appendChild(this._form([{ type: 'grid', name: '', schema: [{ name: 'name', selector: { text: {} } }, { name: 'kind', selector: sel(LOCK_KINDS) }] }, { name: 'icon', selector: { icon: {} } }],
+        { name: o.name || '', kind: o.kind || '', icon: o.icon || '' }, (v, typing) => {
+          const x = S.locks[i], obj = { ...(typeof x === 'object' && x ? x : {}), entity: id }; delete obj.id;
+          for (const kk of ['name', 'kind', 'icon']) { if (v[kk]) obj[kk] = v[kk]; else delete obj[kk]; }
+          S.locks[i] = Object.keys(obj).length === 1 ? id : obj; this._emit(typing);
+        }, { name: 'Name (empty: the lock’s name)', kind: 'What it locks', icon: 'Icon (empty: from what it locks)' }, true));
+      box.appendChild(row);
+    });
+  }
+  // Irrigation → each zone: a name and the entity that holds how long it waters (a number helper in seconds, shown
+  // as minutes on its tile). Kept on the zone's entry in `zones` ({entity, name, duration}).
+  _zoneOptions(det, P) {
+    const I = typeof P.irrigation === 'object' && P.irrigation ? P.irrigation : null, key = I?.zones ? 'zones' : 'valves', list = arr(I?.[key]);
+    if (!list.length) return;
+    const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Zones')}</div>`;
+    det.appendChild(box);
+    list.forEach((e, i) => {
+      const id = entityId(e); if (!id) return;
+      const o = typeof e === 'object' ? e : { entity: id };
+      const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
+      row.innerHTML = `<span class="nm">${esc(this._reg.name(id))}<small>${esc(id)}</small></span>`;
+      row.appendChild(this._form([{ name: 'name', selector: { text: {} } }, { name: 'duration', selector: { entity: { domain: ['number', 'input_number', 'sensor'] } } }],
+        { name: o.name || '', duration: o.duration || '' }, (v, typing) => {
+          const x = I[key][i], obj = { ...(typeof x === 'object' && x ? x : {}), entity: id };
+          for (const kk of ['name', 'duration']) { if (v[kk]) obj[kk] = v[kk]; else delete obj[kk]; }
+          I[key][i] = Object.keys(obj).length === 1 ? id : obj; this._emit(typing);
+        }, { name: 'Name (empty: the valve’s name)', duration: 'Watering time (a number in seconds, shown in minutes)' }, true));
+      box.appendChild(row);
+    });
+  }
   _pumpOptions(det, P) {
     const W = typeof P.water === 'object' && P.water ? P.water : null, list = arr(W?.pumps);
     if (!list.length) return;
@@ -1370,26 +1417,35 @@ class SweetHomeCardEditor extends HTMLElement {
     if (!list.length) return;
     const R = this._reg, words = id => (this._reg.name(id) + ' ' + id).toLowerCase().split(/[^a-z0-9\u0600-\u06ff]+/).filter(w => w.length > 2 && !/^(cover|switch|button|script|relay|the|open|close|sensor|binary)$/.test(w));
     const box = document.createElement('div'); box.className = 'sh-ed'; box.style.marginTop = '10px';
-    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Open / closed sensors')}</div><div class="sh-hint">${t('Tell each gate whether it is open: a door or contact sensor, or a camera that recognises the gate’s state (Frigate state classification: a sensor that reads open / closed). Add a second one as a backup.')}</div>`;
+    box.innerHTML = `<div style="font-weight:600;margin-bottom:4px">${t('Gates, garage doors, barriers, shutters')}</div><div class="sh-hint">${t('Tell each gate whether it is open: a door or contact sensor, or a camera that recognises the gate’s state (Frigate state classification: a sensor that reads open / closed). Add a second one as a backup.')}</div>`;
     det.appendChild(box);
     list.forEach((e, i) => {
       const id = entityId(e); if (!id) return;
       const o = typeof e === 'object' ? e : { entity: id }, cur = arr(o.sensor);
+      // the entry as it is now (the name / kind form and the sensors form each change part of it)
+      const now = () => { const x = S.entrances[i]; return typeof x === 'object' && x ? { ...x } : { entity: id }; };
+      const put = obj => { S.entrances[i] = Object.keys(obj).length === 1 ? id : obj; };
       const row = document.createElement('div'); row.className = 'sh-ent'; row.style.display = 'block';
       // suggestions: contact sensors / text sensors on the same device, or sharing a word with the gate's name
       const ws = words(id), dev = R.ents[id]?.device_id;
       const sugg = Object.keys(this._hass.states).filter(x => (x.startsWith('binary_sensor.') && ['door', 'garage_door', 'opening', 'window'].includes(R.dc(x))) || (x.startsWith('sensor.') && (R.platform(x) === 'frigate' || /state|status|position/.test(x))))
         .filter(x => !cur.includes(x) && ((dev && R.ents[x]?.device_id === dev) || words(x).some(w => ws.includes(w)))).slice(0, 4);
       row.innerHTML = `<span class="nm">${esc(R.name(id))}<small>${esc(id)}</small></span>${sugg.length ? `<div class="sh-hint" style="margin:4px 0">${t('Suggested')}: ${sugg.map(x => `<button class="sh-chip" data-sg="${esc(x)}">${esc(R.name(x))}</button>`).join(' ')}</div>` : ''}`;
+      row.appendChild(this._form([{ type: 'grid', name: '', schema: [{ name: 'name', selector: { text: {} } }, { name: 'kind', selector: sel(ENTRANCE_KINDS) }] }],
+        { name: o.name || '', kind: o.kind || o.type || '' }, (v, typing) => {
+          const obj = { ...now(), entity: id }; delete obj.type;
+          for (const kk of ['name', 'kind']) { if (v[kk]) obj[kk] = v[kk]; else delete obj[kk]; }
+          put(obj); this._emit(typing);
+        }, { name: 'Name (empty: the entity’s name)', kind: 'Kind (sets the icon)' }, true));
       row.appendChild(this._form([{ name: 'sensor', selector: { entity: { domain: ['binary_sensor', 'sensor', 'select', 'input_select', 'cover', 'lock', 'input_boolean'] } } }, { name: 'sensor_2', selector: { entity: { domain: ['binary_sensor', 'sensor', 'select', 'input_select', 'cover', 'lock', 'input_boolean'] } } }],
         { sensor: cur[0] || '', sensor_2: cur[1] || '' }, v => {
-          const nx = [v.sensor, v.sensor_2].filter(Boolean), obj = { ...o, entity: id }; delete obj.sensor_2;
+          const nx = [v.sensor, v.sensor_2].filter(Boolean), obj = { ...now(), entity: id }; delete obj.sensor_2;
           if (nx.length) obj.sensor = nx.length > 1 ? nx : nx[0]; else delete obj.sensor;
-          S.entrances[i] = Object.keys(obj).length === 1 ? id : obj; this._emit();
+          put(obj); this._emit();
         }, { sensor: 'Open / closed sensor', sensor_2: 'Second sensor (backup)' }));
       row.querySelectorAll('[data-sg]').forEach(b => b.addEventListener('click', () => {
-        const nx = [...cur, b.dataset.sg].slice(0, 2), obj = { ...o, entity: id, sensor: nx.length > 1 ? nx : nx[0] };
-        S.entrances[i] = obj; this._emit(); this._render();
+        const nx = [...cur, b.dataset.sg].slice(0, 2), obj = { ...now(), entity: id, sensor: nx.length > 1 ? nx : nx[0] };
+        put(obj); this._emit(); this._render();
       }));
       box.appendChild(row);
     });
@@ -1645,7 +1701,8 @@ class SweetHomeCardEditor extends HTMLElement {
       climate: [{ name: 'entities', selector: { entity: { domain: 'climate', multiple: true } } }],
       energy: [{ name: 'grid_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'solar_power', selector: { entity: { domain: 'sensor', device_class: 'power' } } }, { name: 'current', label: 'Current (shown next to Home)', selector: { entity: { domain: 'sensor', device_class: 'current' } } },
         { name: 'stored_sensor', selector: { entity: { domain: 'sensor' } } },
-        { name: 'energy_dashboard_totals', selector: { boolean: {} } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } }],
+        { name: 'energy_dashboard_totals', selector: { boolean: {} } }, { name: 'month_sensor', selector: { entity: { domain: 'sensor' } } }, { name: 'year_sensor', selector: { entity: { domain: 'sensor' } } },
+        { name: 'extra', selector: { entity: { domain: 'sensor', multiple: true } } }, { name: 'exclude', selector: { entity: { domain: 'sensor', multiple: true } } }],
       car: [{ name: 'name', selector: { text: {} } }, { name: 'color', selector: { color_rgb: {} } },
         { name: 'charging', selector: { entity: { domain: ['binary_sensor', 'switch', 'input_boolean', 'sensor'] } } }, { name: 'power', selector: { entity: { domain: 'sensor', device_class: 'power' } } },
         { name: 'battery', selector: { entity: { domain: 'sensor' } } }, { name: 'range', selector: { entity: { domain: 'sensor' } } },
@@ -1690,6 +1747,8 @@ class SweetHomeCardEditor extends HTMLElement {
         if (k === 'water' && cur.pumps) data.pumps = arr(cur.pumps).map(entityId).filter(Boolean);
         if (k === 'water' && cur.entities) data.entities = arr(cur.entities).map(entityId).filter(Boolean);
         if (k === 'security' && cur.entrances) data.entrances = arr(cur.entrances).map(entityId).filter(Boolean);
+        if (k === 'security' && cur.locks) data.locks = arr(cur.locks).map(entityId).filter(Boolean);
+        if (k === 'energy' && cur.extra) data.extra = arr(cur.extra).map(entityId).filter(Boolean);
         if (k === 'tv_light' && cur.selects) data.selects = arr(cur.selects).map(entityId).filter(Boolean);
         if (k === 'devices') data.entities = arr(cur.entities).map(d => (typeof d === 'string' ? d : d?.battery)).filter(Boolean);
         this._integrations(det, k, cur, set);
@@ -1782,6 +1841,8 @@ class SweetHomeCardEditor extends HTMLElement {
             if (k === 'water' && (kk === 'pumps' || kk === 'entities')) val = arr(vv).map(id => arr(next[kk]).find(o => typeof o === 'object' && entityId(o) === id) || id);
             if (k === 'devices' && kk === 'entities') val = arr(vv).map(id => arr(next.entities).find(o => typeof o === 'object' && o.battery === id) || id); // a device's name / icon stay
             if (k === 'tv_light' && kk === 'selects') val = arr(vv).map(id => arr(next.selects).find(o => typeof o === 'object' && entityId(o) === id) || id); // a selector's name / icon stay
+            if (k === 'security' && kk === 'locks') val = arr(vv).map(id => arr(next.locks).find(o => typeof o === 'object' && entityId(o) === id) || id); // a lock's name, kind and icon stay
+            if (k === 'energy' && kk === 'extra') val = arr(vv).map(id => arr(next.extra).find(o => typeof o === 'object' && entityId(o) === id) || id); // a row's name and icon stay
             if (k === 'security' && kk === 'entrances') val = arr(vv).map(id => arr(next.entrances).find(o => typeof o === 'object' && entityId(o) === id) || id); // a gate's sensor and name stay
             if (k === 'irrigation' && kk === 'zones') { val = arr(vv).map(id => arr(next.zones ?? next.valves).find(o => typeof o === 'object' && entityId(o) === id) || id); delete next.valves; } // a zone's name and duration are kept
             if (k === 'car' && kk === 'color') val = rgb2hex(vv);
@@ -1797,6 +1858,7 @@ class SweetHomeCardEditor extends HTMLElement {
           cost_month: 'This month: cost', energy_year: 'This year: energy', cost_year: 'This year: cost',
           energy_dashboard_totals: 'Month and Year from Home Assistant’s Energy data (like Energy History); off: pick your own sensors', month_sensor: 'Month total sensor', year_sensor: 'Year total sensor',
           stored_sensor: 'Energy stored (shown as Stored on the Energy card; empty: not shown)',
+          extra: 'More rows on the Energy card', exclude: 'Meters to leave out (e.g. a charger that is not behind the house meter)',
           cpu: 'CPU', memory: 'Memory', disk: 'Disk', swap: 'Swap', containers: 'Containers running', vms: 'VMs running', updates: 'Updates',
           auto_guests: 'Show every container and VM automatically (off: only the servers picked below)',
           pinned: k === 'homelab' && cur.auto_guests === false ? 'Servers to show' : 'Servers pinned at the top',
@@ -1804,7 +1866,8 @@ class SweetHomeCardEditor extends HTMLElement {
           block_switch: 'Screen time: Block switch', unblock_switch: 'Screen time: Force Unblock switch', light: k === 'tv_light' ? 'TV backlight' : undefined, selects: 'Backlight modes / effects (selectors)',
           pumps: 'Pumps', entities: k === 'devices' ? 'Batteries to show (empty: every phone, tablet and watch with the Home Assistant app)' : 'Other entities (valves, flow, pressure…)', tank: 'Tank level', quality: 'Water quality', face: 'Face recognition: the last recognised face (badge on the Cameras card; empty: the cameras’ own face sensors)', temperature: k === 'homelab' ? 'CPU temperature' : 'Water temperature' }));
         if (['security', 'media', 'irrigation', 'energy'].includes(k)) det.insertAdjacentHTML('beforeend', `<div class="sh-hint" style="margin-top:6px">${t('Leave every field empty and they are found on their own. Once you pick one, only what you pick shows.')}</div>`);
-        if (k === 'security') this._entranceSensors(det, P);
+        if (k === 'security') { this._lockOptions(det, P); this._entranceSensors(det, P); }
+        if (k === 'irrigation') this._zoneOptions(det, P);
         if (k === 'water') this._pumpOptions(det, P);
       } else if (on) det.insertAdjacentHTML('beforeend', '<div class="sh-hint">Found automatically from the integrations.</div>');
       list.appendChild(det);
@@ -1816,7 +1879,7 @@ class SweetHomeCardEditor extends HTMLElement {
   /* ================================================================ */
   _rLook(body) {
     const C = this._config, H = C.house = C.house || {};
-    const data = { title: C.title || '', weather: C.weather || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
+    const data = { title: C.title || '', weather: C.weather || '', language: C.language || '', start_tab: C.start_tab || 'home', type: H.type === 'gltf' ? 'gltf' : 'floorplan', url: H.url || '', wall_height: H.wall_height ?? 1.35, auto_furniture: !!H.auto_furniture, hide_hint: C.hint === false, room_backdrop: C.room_backdrop !== false, smart_icons: C.smart_icons !== false, height: Number(C.height) || 0, room: C.room || '', appearance: C.appearance || 'dark' };
     for (const d of ['phone', 'tablet', 'pc']) { data['view_' + d] = C.default_view?.[d] || 'auto'; data['floor_' + d] = C.default_floor?.[d] != null ? String(C.default_floor[d]) : 'auto'; }
     // the floors to choose from: the ones the house has (Home Assistant floors, or the rooms' own levels)
     let floors = []; try { floors = buildModel(this._config, this._hass).levels || []; } catch (e) { /* not ready */ }
@@ -1826,6 +1889,8 @@ class SweetHomeCardEditor extends HTMLElement {
     body.appendChild(this._form([
       { name: 'title', selector: { text: {} } },
       { name: 'weather', selector: { entity: { domain: 'weather' } } },
+      // the card's language ('': Home Assistant's). Arabic is translated and laid out right to left; others fall back to English
+      { name: 'language', selector: sel([['', 'Home Assistant’s language'], ['en', 'English'], ['ar', 'العربية (Arabic)']]) },
       // Sweet Home 3D: the height of its 3D view (in a sections view, the size picked there wins); the full card: its first tab
       ...(this.solo ? [{ name: 'height', selector: { number: { min: 0, max: 1200, step: 10, unit_of_measurement: 'px', mode: 'box' } } },
         { name: 'room', selector: { select: { mode: 'dropdown', options: [{ value: '', label: t('Whole house') }, ...this._rooms.map((r, i) => ({ value: String(r.area || r.name || ''), label: this._roomName(r, i) })).filter(o => o.value)] } } }]
@@ -1839,6 +1904,8 @@ class SweetHomeCardEditor extends HTMLElement {
       ...(floors.length > 1 ? [{ type: 'grid', name: '', schema: ['phone', 'tablet', 'pc'].map(d => ({ name: 'floor_' + d, selector: FLOOR })) }] : []),
     ], data, (v, typing) => {
       for (const k of ['title', 'weather']) { if (v[k]) C[k] = v[k]; else delete C[k]; }
+      const langWas = C.language || ''; if (v.language) C.language = v.language; else delete C.language;
+      if ((C.language || '') !== langWas) { setLang(C.language || this._hass?.locale?.language || this._hass?.language); this._emit(); this._render(); return; } // the editor follows it at once
       if (!this.solo) { if (v.start_tab && v.start_tab !== 'home') C.start_tab = v.start_tab; else delete C.start_tab; if (['light', 'auto'].includes(v.appearance)) C.appearance = v.appearance; else delete C.appearance; }
       if (this.solo) { if (Number(v.height) > 0) C.height = Number(v.height); else delete C.height; if (v.room) C.room = v.room; else delete C.room; }
       const was = H.type;
@@ -1856,7 +1923,7 @@ class SweetHomeCardEditor extends HTMLElement {
       if (!Object.keys(H).length) delete C.house;
       this._emit(typing);
       if (was !== H.type) this._render();
-    }, { appearance: 'Appearance', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
+    }, { appearance: 'Appearance', language: 'Language', height: 'Height of the 3D view (empty: 420 px; in a sections view, the card’s size is used)', room: 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)', url: '3D file URL (e.g. /local/home.glb)', wall_height: 'Wall height', auto_furniture: 'Add furniture automatically to rooms without their own (bedrooms, kitchen, living room…)', hide_hint: 'Hide the “tap a room” tip', room_backdrop: 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it', smart_icons: 'Automatic icons: pick icons from names (a fan, a heater, a guest mode…). Off: the icons set in Home Assistant', view_phone: 'Start view on phones', view_tablet: 'Start view on tablets', view_pc: 'Start view on computers', floor_phone: 'Start floor on phones', floor_tablet: 'Start floor on tablets', floor_pc: 'Start floor on computers' }, true));
     { const h = document.createElement('div'); h.className = 'sh-hint'; h.textContent = t('One phone or tablet can start differently: long press a floor button, or the floor plan / 3D button, on the 3D view of that device. Long press it again to go back to these settings.'); body.appendChild(h); }
     this._mNames(body);
   }

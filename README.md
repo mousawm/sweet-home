@@ -240,7 +240,7 @@ Each 3D view uses the device's graphics. One or two on a dashboard is fine; it p
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
 | `room_backdrop` | Phones: the 3D view behind an open room is dimmed and blurred, and a tap outside the room closes it (default). `false`: no blur, and a tap on another room switches to it. Card editor: Look |
-| `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. |
+| `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. Card editor: Look → Language. |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
 
@@ -397,9 +397,9 @@ hides its part of the card; it is stored only when off, as `<integration>: false
 listed below).
 
 - **security**: `alarm`, `locks`, `entrances`, `doors`, `doors_view`, `doors_timeline`, `cameras` (`entity`, `person`, `car`, `motion`, `face`, `plate`), `gate` (`relay`, `sensor`; an older way to add one entrance), `face` (a sensor with the last face recognised, shown as a badge on the Cameras card: the name, or *No face*. Without it, the cameras' own face sensors are used; Frigate's `sensor.<camera>_last_recognized_face` is found by itself)
-  - `locks`: `entity_id` or `{entity, name, kind, icon}`. A lock shows a padlock (green locked, red unlocked, amber locking or jammed). To show what it locks instead, with a small padlock for the state, set `kind`: `door`, `sliding`, `gate`, `garage`, `window`, `safe`, `car`, `locker`, or an `icon`.
+  - `locks`: `entity_id` or `{entity, name, kind, icon}`. A lock shows a padlock (green locked, red unlocked, amber locking or jammed). To show what it locks instead, with a small padlock for the state, set `kind`: `door`, `sliding`, `gate`, `garage`, `window`, `safe`, `car`, `locker`, or an `icon`. A lock's name, kind and icon are set in the card editor under Panels → Security.
   - `doors`: door sensors (`binary_sensor` with the door or garage door class; not given: all of them). `doors_view`: `both` (default), `timeline` or `list`; `doors_timeline`: `fill` (default) or `aligned`; `doors_hours`: `6`, `12`, `18` or `24` (default); see [Doors](#doors-the-last-24-hours).
-  - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open (without one it shows as closed). The sensor can be a door / contact sensor (on = open), a cover or lock, or a text sensor such as a camera's Frigate state classification (`open`, `closed`, `opening`…; words of your own with `open_states` / `closed_states`). `sensor_2` (or a list) is a backup used when the first gives no clear reading. In the card editor, Panels → Security shows two sensor pickers per gate, with suggestions: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
+  - `entrances`: gates, garage doors, barriers and shutters next to the locks (pick them in the card editor under Panels → Security). A `cover` opens, closes, or stops while moving; a relay (`switch`, `button`, `script`) is pulsed, with an optional `sensor` that says whether it is open (without one it shows as closed). The sensor can be a door / contact sensor (on = open), a cover or lock, or a text sensor such as a camera's Frigate state classification (`open`, `closed`, `opening`…; words of your own with `open_states` / `closed_states`). `sensor_2` (or a list) is a backup used when the first gives no clear reading. In the card editor, Panels → Security shows two sensor pickers per gate, with suggestions: `{entity: switch.gate_relay, sensor: binary_sensor.gate, name: Main Gate, kind: gate}` (`kind`: `gate`, `garage`, `barrier`, `shutter`, `door`, for the icon; the name and kind are set there too). Every tap needs a second tap to confirm. Not given: every garage door and gate cover is shown.
 - **climate**: `entities`
 - **energy**: live power and history come from **Settings → Dashboards → Energy**. Options:
   - `grid_power`, `solar_power`: your own power sensors
@@ -410,8 +410,8 @@ listed below).
   - `month_sensor`, `year_sensor`: your own total sensors (with `energy_dashboard_totals: false`); `stored_sensor`: energy stored, shown as **Stored** next to Today / Month / Year (pick it in the card editor under Panels → Energy; not set: no Stored box)
   - `solar_forecast: false`: hides the **Solar Forecast** box (today, tomorrow, still to come, peak time). It is found
     from the Forecast.Solar integration, with nothing to set
-  - `extra`: more rows for the energy card
-  - `exclude`: meters to leave out
+  - `extra`: more rows for the energy card (`entity_id` or `{entity, name, icon}`)
+  - `exclude`: meters to leave out (both in the card editor under Panels → Energy)
   - `devices`: names and colours for the history chart
 - **water**: `tank`, `quality`, `temperature`, `pumps` (entity IDs, or `entity`, `name`, `power`, `timer`, `show`,
   `presses`; the power sensor is found on the pump's device when not given), `entities` (anything else on the Water
@@ -419,7 +419,7 @@ listed below).
   long it has been on) or `both`. `presses: 1` turns it on with one tap; the default is two (tap again to confirm).
   Turning it off is always one tap. Both are set per pump in the card editor under Panels → Water.
   `trend_hours`: how much tank history the trend pill (rate and “empty in / full in”) uses: 2, 6 (default), 12 or 24.
-- **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`; pick them in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
+- **irrigation**: `zones` (the valves: `valve`, `switch` or `input_boolean` entities, or `{entity, name, duration}`, where `duration` is a number entity in seconds shown in minutes; pick them, and each zone's name and watering time, in the card editor under Panels → Irrigation; not given: every `valve` entity), `interval`, `weekday`, `tomorrow`, `next`, `notification`, `time`. A zone starts and stops with a second tap (a valve opens / closes, a switch turns on / off).
 - **car** (electric car on the Energy tab; card editor → Panels → Electric car): `name`, `color` (the car drawing's
   colour, `#hex`), `charging`, `power`, `battery` (state of charge, %), `range`, `status`, `time`,
   `energy_per_charge`, `cost_per_charge`, `energy_month`, `cost_month`, `energy_year`, `cost_year`
