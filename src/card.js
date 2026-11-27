@@ -997,7 +997,12 @@ export class SweetHomeCard extends HTMLElement {
       case 'labnode': this._labNode = t.dataset.node === E.lab.node ? null : t.dataset.node; this._rerender('lab'); break; // Home Lab: another Proxmox node
       case 'labgrip': break; // dragged, see _labDragSetup
       case 'labreset': this._labSaveOrder(null); break;
-      case 'tab': this._setTab(t.dataset.tab); if (t.dataset.to) this._goCard(t.dataset.to); break;
+      case 'tab': { // a tab bar button swaps tabs like a swipe (slides in, back to the top); a tile jumps to its card instead
+        if (t.dataset.to) { this._setTab(t.dataset.tab); this._goCard(t.dataset.to); break; }
+        const ids = this._tabList().map(x => x[0]), i = ids.indexOf(this._tab || 'home'), j = ids.indexOf(t.dataset.tab);
+        if (j === i) this._scrollUp(); else this._setTab(t.dataset.tab, j > i ? 'next' : 'prev');
+        break;
+      }
       case 'cam': this.more(id); break;
     }
   }
