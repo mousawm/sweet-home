@@ -285,6 +285,7 @@ export class SweetHomeCard extends HTMLElement {
               <button data-act="mode" data-mode="lights" class="on">${ic('mdi:lightbulb-group')}<span>${tr('Lights')}</span></button>
               <button data-act="mode" data-mode="climate">${ic('mdi:thermometer')}<span>${tr('Climate')}</span></button>
               <button data-act="mode" data-mode="presence">${ic('mdi:motion-sensor')}<span>${tr('Presence')}</span></button>
+              ${this._zb3d?.() ? `<button data-act="mode" data-mode="zigbee">${ic('mdi:zigbee')}<span>${tr('Zigbee')}</span></button>` : ''}
             </div>
             <div class="tools">
               <button class="ibtn" data-act="view" data-view="top" data-lp="view" title="${tr('Top view')} · ${tr('long press: the default on this device')}">${ic('mdi:floor-plan')}</button>
@@ -1004,7 +1005,7 @@ export class SweetHomeCard extends HTMLElement {
   _setMode(m) {
     this._mode = m;
     this.shadowRoot.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
-    this._three?.setMode(m);
+    this._three?.setMode(m); this._three?.sync(); // Zigbee mode draws its devices on sync
     this._renderLegend();
   }
   // floor buttons on the 3D view (only with more than one floor)
@@ -1113,6 +1114,7 @@ export class SweetHomeCard extends HTMLElement {
   _renderLegend() {
     const el = this.$('legend');
     if (this._mode === 'climate') el.innerHTML = `<div class="lg-bar"></div><div class="lg-lbl"><span>16°</span><span>22°</span><span>29°</span></div>`;
+    else if (this._mode === 'zigbee') { const Z = this._zb3d?.(); el.innerHTML = `<span class="dot green"></span> ${tr('Online')} <span class="dot amber"></span> ${tr('Weak')} <span class="dot rose"></span> ${tr('Offline')}${Z?.missing ? ` · ${esc(tr('{0} without a room', Z.missing))}` : ''}`; }
     else if (this._mode === 'presence') el.innerHTML = `<span class="dot pulse teal"></span> ${tr('occupied')} <span class="dot gray"></span> ${tr('empty')}`;
     else el.innerHTML = `<span class="dot amber"></span> ${tr('lights on')} <span class="dot gray"></span> ${tr('off')}`;
   }

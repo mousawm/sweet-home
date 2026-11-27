@@ -477,6 +477,11 @@ listed below).
     show under Zigbee Offline as *Router offline*. The map needs an admin account (it comes from Zigbee2MQTT over MQTT
     or from ZHA).
   - `alerts`: any of `offline`, `weak` (default: both); `lqi_min`: weak below this link quality (default 60)
+  - **Zigbee mode on the 3D view** (a button next to Lights, Climate and Presence): each Zigbee device is a dot in the
+    room of its Home Assistant area (routers bigger, the coordinator in the room most of its direct devices are in),
+    each device's link to its router an arc over the walls coloured by its link quality, and rooms with an offline
+    device turn red (amber: a weak one). Offline and weak devices are named; tap a dot for the device. Devices with no
+    area are left out (the legend counts them).
   - Offline is what Zigbee2MQTT or ZHA says (their own availability), so the card matches Home Assistant. With
     Zigbee2MQTT's availability switched off, a device is offline after 25 h without a word.
   - For admins, the card also listens to Zigbee2MQTT over MQTT (router or end device, coordinator and channel, link

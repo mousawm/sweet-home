@@ -1120,6 +1120,43 @@ export class HouseScene {
   }
   toggleSpin() { this.spin = !this.spin; this.lastInput = 0; return this.spin; }
   setMode(m) { this.mode = m; this._dirty = true; }
+  // Zigbee mode: each Zigbee device as a dot in its room (tap: its details) and each device's link to its router or the
+  // coordinator as an arc over the walls, coloured by its link quality (dashed: an offline end). The card hands it
+  // { sig, nodes: [{ id, room, st, role, name }], links: [{ a, b, lqi, min, dead }], rooms: { roomId: 'off' | 'weak' } }
+  // (panels/zigbee.js `_zb3d`); built again only when that changes.
+  zbSet(Z) {
+    const sig = Z?.sig ?? null; if (sig === this._zbSig) return; this._zbSig = sig;
+    for (const n of this.zbNodes || []) n.el.remove();
+    for (const L of this.zbLines || []) { L.line.parent?.remove(L.line); L.line.geometry.dispose(); L.line.material.dispose(); }
+    this.zbNodes = []; this.zbLines = []; this.zbRooms = Z?.rooms || {}; this._dirty = true;
+    if (!Z) return;
+    const T = this.T, y0 = WALL_H * 0.7, pos = {}; // inside the room, under its name label
+    // the dots of one room in a small circle around its middle (the coordinator: in its room, else in the middle of the house)
+    const byRoom = new Map(); for (const n of Z.nodes) { const k = this.rooms[n.room] ? n.room : '-'; (byRoom.get(k) || byRoom.set(k, []).get(k)).push(n); }
+    for (const [rid, list] of byRoom) {
+      const R = this.rooms[rid], cx = R ? R.cx : 0, cz = R ? R.cz : 0, lvl = R ? R.r.level ?? 0 : 0;
+      const half = R ? Math.min(R.box[2] - R.box[0], R.box[3] - R.box[1]) / 2 : 1, rad = Math.min(0.7, half * 0.5);
+      list.forEach((n, i) => {
+        const a = (i / list.length) * Math.PI * 2 - Math.PI / 2, x = cx + rad * Math.cos(a), z = cz + rad * Math.sin(a), y = y0 + (n.id === 'coord' ? 0.25 : 0);
+        pos[n.id] = { x, y, z, lvl };
+        const el = document.createElement('div'); el.className = `zbd ${n.st} ${n.id === 'coord' ? 'co' : n.role === 'R' ? 'ro' : ''}`;
+        el.dataset.act = 'zbopen'; if (n.id !== 'coord') el.dataset.dev = n.id; el.title = n.name;
+        if (n.st !== 'ok' || n.id === 'coord') el.innerHTML = `<span>${esc(n.name)}</span>`;
+        this.lblLayer.appendChild(el); this.zbNodes.push({ el, x, y, z, lvl });
+      });
+    }
+    for (const l of Z.links) {
+      const A = pos[l.a], B = pos[l.b]; if (!A || !B || A.lvl !== B.lvl) continue;
+      const a = new T.Vector3(A.x, A.y, A.z), b = new T.Vector3(B.x, B.y, B.z), d = a.distanceTo(b);
+      const mid = a.clone().add(b).multiplyScalar(0.5); mid.y = Math.max(mid.y, WALL_H) + 0.35 + d * 0.15; // over the walls
+      const pts = []; for (let i = 0; i <= 28; i++) { const t = i / 28, u = 1 - t; pts.push(new T.Vector3(u * u * a.x + 2 * u * t * mid.x + t * t * b.x, u * u * a.y + 2 * u * t * mid.y + t * t * b.y, u * u * a.z + 2 * u * t * mid.z + t * t * b.z)); }
+      const geo = new T.BufferGeometry().setFromPoints(pts); // a curve over the walls (quadratic Bézier)
+      const col = l.dead || l.lqi == null ? 0x94a3b8 : l.lqi >= 120 ? 0x34d399 : l.lqi >= l.min ? 0xfbbf24 : 0xf43f5e;
+      const mat = l.dead ? new T.LineDashedMaterial({ color: col, dashSize: 0.12, gapSize: 0.1, transparent: true, opacity: 0.8 }) : new T.LineBasicMaterial({ color: col, transparent: true, opacity: 0.95 });
+      const line = new T.Line(geo, mat); if (l.dead) line.computeLineDistances();
+      line.renderOrder = 5; line.visible = false; this.scene.add(line); this.zbLines.push({ line, lvl: A.lvl });
+    }
+  }
   select(id) {
     this._dirty = true;
     this.sel = id;
@@ -1131,6 +1168,7 @@ export class HouseScene {
 
   sync() {
     const c = this.card; const T = this.T;
+    this.zbSet(this.mode === 'zigbee' ? c._zb3d?.() : null); // Zigbee mode: the devices and their links
     for (const id in this.rooms) {
       const R = this.rooms[id]; const r = R.r;
       R.motion = c.roomMotion(r) ? 1 : 0;
@@ -1287,6 +1325,10 @@ export class HouseScene {
       if (this.mode === 'climate') {
         const c = tempRGB(R.temp); target = R.temp == null ? new T.Color(0.45, 0.48, 0.55) : new T.Color(c[0] / 255, c[1] / 255, c[2] / 255);
         emis = target; ei = R.temp == null ? 0 : 0.35;
+      } else if (this.mode === 'zigbee') { // rooms with an offline Zigbee device in red, a weak one in amber
+        const zs = this.zbRooms?.[id];
+        target = zs === 'off' ? new T.Color(0.95, 0.45, 0.5) : zs === 'weak' ? new T.Color(0.98, 0.8, 0.45) : new T.Color(0.5, 0.55, 0.62);
+        emis = new T.Color(zs === 'off' ? 0xf43f5e : 0xfbbf24); ei = zs ? 0.25 : 0;
       } else if (this.mode === 'presence') {
         target = R.motion ? new T.Color(0.4, 0.95, 0.85) : new T.Color(0.5, 0.55, 0.62); emis = new T.Color(0x14b8a6); ei = R.motion ? 0.35 + 0.2 * Math.sin(tt * 4) : 0;
       } else {
@@ -1431,6 +1473,8 @@ export class HouseScene {
     this._busy = mv > 0.002; this._anim = anim;
     for (const s of this.stairDots) { s.m.material.opacity = s.on ? 0.6 + 0.4 * Math.sin(tt * 6) : 0.12; s.m.scale.setScalar(s.on ? 1.6 : 1); }
 
+    const zbOn = this.mode === 'zigbee';
+    for (const L of this.zbLines || []) L.line.visible = zbOn && L.lvl === this.level; // Zigbee mode: the arcs
     this.renderer.render(this.scene, this.cam);
     // labels
     const W = this.vp.clientWidth, H = this.vp.clientHeight; const v = new T.Vector3();
@@ -1440,6 +1484,12 @@ export class HouseScene {
       if (v.z > 1 || R.r.level !== this.level) { el.style.display = 'none'; continue; }
       el.style.display = '';
       el.style.transform = `translate(-50%,-100%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
+    }
+    for (const N of this.zbNodes || []) { // Zigbee mode: the devices' dots
+      v.set(N.x, N.y, N.z).project(this.cam);
+      if (!zbOn || v.z > 1 || N.lvl !== this.level) { N.el.style.display = 'none'; continue; }
+      N.el.style.display = '';
+      N.el.style.transform = `translate(-50%,-50%) translate(${((v.x + 1) / 2 * W).toFixed(1)}px,${((1 - v.y) / 2 * H).toFixed(1)}px)`;
     }
     for (const B of this.badges || []) { // lock badge names, just above the badge
       if (!B.el) continue;

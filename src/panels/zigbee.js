@@ -2,7 +2,7 @@
 // with filters, and the map), and the Zigbee rows of Needs Attention. The network itself is worked out in ../zigbee.js.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
-import { E, esc, ic, agoShort, ago, bidi, tc } from '../core.js';
+import { E, ROOMS, esc, ic, agoShort, ago, bidi, tc } from '../core.js';
 import { zigbeeModel, zbStatus, zbSummary, zbRoute, z2mMap } from '../zigbee.js';
 
 const RANK = { off: 0, weak: 1, orphan: 2, ok: 3 };
@@ -88,6 +88,7 @@ export class ZigbeePanels {
       this._zbT = null; this._zbV = (this._zbV || 0) + 1; this._alertCount = null;
       if (this._sections?.length) this._rerender('zigbee', 'zblist', 'zbmap', 'alerts', 'tabs');
       if (this._info === 'zigbee') this._renderInfo();
+      if (this._mode === 'zigbee' && this._tab === 'home') { this._three?.sync(); this._renderLegend(); }
     }, chatter ? 3000 : 400);
   }
 
@@ -323,5 +324,30 @@ export class ZigbeePanels {
     return bar + (note ? `<div class="zbhint">${ic('mdi:information-outline')}<span>${esc(note)}</span></div>` : '')
       + `<div class="zbmap">${this._zbScanning ? '<i class="zbscanbar"></i>' : ''}<svg class="${sel ? 'dim' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${tr('Zigbee network map')}">${areas}<g>${lk}</g><g>${nodes}</g></svg></div>`
       + legend + det;
+  }
+
+  /* ---------- Zigbee mode on the 3D house ---------- */
+  // what the 3D view draws (scene.js zbSet): each device in the room of its Home Assistant area, the coordinator in the
+  // room most of its direct devices are in (else the middle of the house), each device's link to its parent, and the
+  // worst state of each room. null: no Zigbee devices in any room (no Zigbee button).
+  _zb3d() {
+    const m = this._zb(); if (!m?.source || !m.devices.length) return null;
+    const Z = E.zigbee, roomOfArea = new Map(ROOMS.filter(r => r.area).map(r => [r.area, r.id]));
+    const st = d => zbStatus(d, Z.lqiMin), nodes = [], rooms = {};
+    let missing = 0;
+    for (const d of m.devices) {
+      const room = d.areaId ? roomOfArea.get(d.areaId) : null; if (!room) { missing++; continue; }
+      const s = st(d); nodes.push({ id: d.id, room, st: s === 'orphan' ? 'weak' : s, role: d.role, name: d.name });
+      if (s === 'off') rooms[room] = 'off'; else if (s !== 'ok' && rooms[room] !== 'off') rooms[room] = 'weak';
+    }
+    if (!nodes.length) return null;
+    const placed = new Map(nodes.map(n => [n.id, n.room])), votes = {};
+    for (const d of m.devices) if (d.parent === 'coord' && placed.has(d.id)) votes[placed.get(d.id)] = (votes[placed.get(d.id)] || 0) + 1;
+    const cRoom = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    nodes.push({ id: 'coord', room: cRoom, st: m.bridge.online === false ? 'off' : 'ok', role: 'C', name: tr('Coordinator') });
+    const byId = new Map(m.devices.map(d => [d.id, d])), lq = (a, b) => m.links.find(l => (l.a === a && l.b === b) || (l.a === b && l.b === a))?.lqi ?? null;
+    const links = m.devices.filter(d => d.parent && placed.has(d.id)).map(d => ({ a: d.id, b: d.parent, lqi: lq(d.id, d.parent) ?? d.lqi, min: Z.lqiMin, dead: d.online === false || byId.get(d.parent)?.online === false }));
+    const sig = JSON.stringify([nodes.map(n => [n.id, n.room, n.st]), links.map(l => [l.a, l.b, l.lqi, l.dead]), Z.lqiMin]);
+    return { sig, nodes, links, rooms, missing };
   }
 }
