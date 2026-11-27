@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 - Zigbee mode on the 3D view: the coordinator no longer carries a name that could cover a device's name next to it (it is the big teal dot; its name shows on hover).
 
 ### Changed
+- Tapping a tab in the tab bar now swaps to it like a swipe does (it slides in) and takes you back to the top of its cards.
 - README: Zigbee, View only and the new choices in the overview, and new screenshots (the System tab with Zigbee, the Zigbee network map, Zigbee mode on the 3D house).
 
 ### Added
