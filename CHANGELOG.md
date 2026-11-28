@@ -6,9 +6,15 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ## Unreleased
 
 ### Fixed
-- Phones: a room with no temperature now keeps its label on the 3D view while its AC is on, a door is open, a lock is unlocked, a phone is charging or a plug is in use (before: only lights and motion).
 
 ### Changed
+
+### Added
+
+## v0.6.67 — 2026-11-28
+
+### Fixed
+- Phones: a room with no temperature now keeps its label on the 3D view while its AC is on, a door is open, a lock is unlocked, a phone is charging or a plug is in use (before: only lights and motion).
 
 ### Added
 - A “phone_badges” option (card editor: Look) to choose what keeps a room’s label on the 3D view on phones, including “always” for every room.
