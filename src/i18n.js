@@ -5,6 +5,7 @@
  * Arabic (and the other right-to-left languages) also turn the layout around.
  */
 const AR = {
+  'Shows and Movies count': 'عدد المسلسلات والأفلام', 'All in {0}, unreleased included': 'الكل في {0}، بما فيها غير الصادرة', 'Only what is in {0}': 'فقط الموجود في {0}', 'In {0} / all in {1}': 'في {0} / الكل في {1}', 'Only downloaded movies': 'الأفلام المحمّلة فقط', 'Downloaded / all movies': 'المحمّلة / كل الأفلام',
   // tabs, 3D view
   Home: 'الرئيسية', Security: 'الأمان', Climate: 'المناخ', Energy: 'الطاقة', 'Water & Garden': 'المياه والحديقة', Media: 'الوسائط', System: 'النظام',
   Lights: 'الإضاءة', Presence: 'التواجد', 'Live 3D view · tap a room': 'عرض ثلاثي الأبعاد مباشر · اضغط على أي غرفة', 'Live 3D view': 'عرض ثلاثي الأبعاد مباشر', 'Building your home…': 'جارٍ بناء منزلك…',

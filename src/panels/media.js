@@ -14,8 +14,32 @@ export class MediaPanels {
     // the same tree as Home Assistant's Media browser (media-source://jellyfin, or JellyHA's media-source://jellyha)
     this._hass.callWS({ type: 'media_source/browse_media', media_content_id: id })
       .then(r => { c[id].data = r; }, () => { c[id].data = { children: [], error: true }; })
-      .then(() => { if (this._info?.startsWith('jf')) this._renderInfo(); });
+      .then(() => { if (this._info?.startsWith('jf')) this._renderInfo(); if (this._jfCountOn) this._rerender('mserver'); });
     return null;
+  }
+  // the Jellyfin libraries of movies or of shows (browse nodes), as the Shows / Movies sheets list them; null while loading.
+  // JellyHA: JellyHA → a folder per server ("JellyHA (name)") → 📽️ Movies / 📺 TV Series (also Recently Added, Favorites…)
+  _jfLibs(movies) {
+    const isLib = c => movies ? /movie|film/i.test(c.title) : /series|shows?\b|\btv\b/i.test(c.title) && !/live/i.test(c.title);
+    if (E.mserver.jellyfin.view === 'jellyha') {
+      const top = this._jfBrowse('media-source://jellyha'); if (!top) return null;
+      const kids = top.children || []; if (kids.some(isLib)) return kids.filter(isLib);
+      const out = []; let busy = false;
+      for (const e of kids.filter(c => c.can_expand)) { const d = this._jfBrowse(e.media_content_id); if (!d) busy = true; else out.push(...(d.children || []).filter(isLib)); }
+      return busy ? null : out;
+    }
+    const root = this._jfBrowse('media-source://jellyfin'); if (!root) return null;
+    // shows: every library that is not movies, music, books or photos
+    return (root.children || []).filter(l => movies ? /movie/i.test(l.title) : !/movie|music|audio|book|photo|playlist/i.test(l.title));
+  }
+  // how many movies / shows Jellyfin (or JellyHA) has: what can be watched now; null while loading
+  _jfCount(movies) {
+    this._jfCountOn = true;
+    if (this._jfc && Date.now() - (this._jfcAt || 0) > 10 * 60e3 && !this._info?.startsWith('jf')) this._jfc = null; // refreshed every 10 min
+    const libs = this._jfLibs(movies); if (!libs) return null;
+    let n = 0;
+    for (const l of libs) { const d = this._jfBrowse(l.media_content_id); if (!d) return null; n += (d.children || []).length; }
+    return n;
   }
   // ---- playing on the TV: works with no setup ----
   // 1. The TV: `jellyfin_tv.app_player` if set, else any media player (not Jellyfin's own) whose source list has
@@ -175,19 +199,9 @@ export class MediaPanels {
     const img = (src, icon) => `<div class="jfimg">${ic(icon)}${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : ''}</div>`;
     if (k === 'jflib:movies' || k === 'jflib:shows') {
       const movies = k.endsWith('movies');
-      // JellyHA: JellyHA → a folder per server ("JellyHA (name)") → 📽️ Movies / 📺 TV Series (also Recently Added, Favorites…)
-      const isLib = c => movies ? /movie|film/i.test(c.title) : /series|shows?\b|\btv\b/i.test(c.title) && !/live/i.test(c.title);
-      const haLibs = () => {
-        const top = this._jfBrowse('media-source://jellyha'); if (!top) return null;
-        const kids = top.children || []; if (kids.some(isLib)) return { children: kids.filter(isLib) };
-        const out = []; let busy = false;
-        for (const e of kids.filter(c => c.can_expand)) { const d = this._jfBrowse(e.media_content_id); if (!d) busy = true; else out.push(...(d.children || []).filter(isLib)); }
-        return busy ? null : { children: out };
-      };
-      const root = ha ? haLibs() : this._jfBrowse('media-source://jellyfin');
+      const libs = this._jfLibs(movies);
       const H = t => head(movies ? 'mdi:movie-open' : 'mdi:television-classic', movies ? tr("Movies") : tr("Shows"), t);
-      if (!root) return H('Jellyfin') + wait;
-      const libs = ha ? root.children : (root.children || []).filter(l => /movie/i.test(l.title) === movies);
+      if (!libs) return H('Jellyfin') + wait;
       let n = 0, loading = false;
       const secs = libs.map(l => {
         const d = this._jfBrowse(l.media_content_id); if (!d) { loading = true; return ''; }
@@ -522,13 +536,28 @@ export class MediaPanels {
     }
     // the library tiles: Shows / Movies open the Jellyfin library (counts from Sonarr / Radarr); each one shows when its
     // integration is on (the "Found from" switches in the editor)
-    const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
+    const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${val?.html ?? esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
     // with no Sonarr / Radarr, Plex's library sensors give the counts, but only with no Jellyfin: with Jellyfin the
     // tiles open Jellyfin's library, so a Plex number would not match what they open
     const pxn = ids => { const v = ids.map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
     const pxS = PX.off || jfOn ? [] : PX.shows, pxM = PX.off || jfOn ? [] : PX.movies;
-    const lib = [(SO.shows || jfOn || pxS.length) && tile(jfOn ? 'jflib:shows' : null, SO.shows || pxS[0], 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows') ?? pxn(pxS)),
-      (RA.movies || jfOn || pxM.length) && tile(jfOn ? 'jflib:movies' : null, RA.movies || pxM[0], 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies') ?? pxn(pxM)),
+    // what the media server has (library_count library / both): Jellyfin or JellyHA (what the tiles open), else Plex's
+    // library sensors, else (movies only) Radarr's downloaded movies; the total is Sonarr's / Radarr's (unreleased ones too)
+    // (null: still loading, shown as "…"; undefined: nothing to count it from, so the total)
+    const owned = movies => {
+      if (jfOn) return this._jfCount(movies);
+      const px = PX.off ? [] : movies ? PX.movies : PX.shows; if (px.length) return pxn(px) ?? undefined;
+      if (movies && RA.movies) return this._mmeta ? Object.values(this._mmeta.movies).filter(m => m?.has_file).length : null;
+      return undefined;
+    };
+    const count = (movies, total) => {
+      if (S.count === 'total' || total == null) return total;
+      const have = owned(movies); if (have === undefined) return total;
+      if (S.count === 'library') return have ?? '…';
+      return { html: `${have == null ? '…' : esc(have)}<small>/${esc(total)}</small>` };
+    };
+    const lib = [(SO.shows || jfOn || pxS.length) && tile(jfOn ? 'jflib:shows' : null, SO.shows || pxS[0], 'mdi:television-classic', tr('Shows'), '', count(false, sum(SO, 'shows')) ?? pxn(pxS)),
+      (RA.movies || jfOn || pxM.length) && tile(jfOn ? 'jflib:movies' : null, RA.movies || pxM[0], 'mdi:movie-open', tr('Movies'), '', count(true, sum(RA, 'movies')) ?? pxn(pxM)),
       (SO.wanted || RA.movies) && (() => { const w = this._wantedCount(); return tile('wanted', SO.wanted || RA.movies, 'mdi:magnify', tr('Wanted'), (w.all ?? 0) > 0 ? 'warn' : '', w.all); })()].filter(Boolean);
     const pill = sessions.length ? [tr('{0} watching', sessions.length), '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>

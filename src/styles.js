@@ -333,7 +333,7 @@ main{scroll-margin-top:84px}
 .mut{min-width:0;display:flex;flex-direction:column}.mut b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mut span{font-size:11px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mlib{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
 .mlib div{display:flex;flex-direction:column;align-items:center;padding:8px 4px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);cursor:pointer}
-.mlib ha-icon{--mdc-icon-size:17px;color:var(--mu)}.mlib b{font-size:15px}.mlib span{font-size:10px;color:var(--mu)}.mlib .warn ha-icon,.mlib .warn b{color:#fbbf24}
+.mlib ha-icon{--mdc-icon-size:17px;color:var(--mu)}.mlib b{font-size:15px}.mlib b small{font-size:11px;font-weight:600;color:var(--mu);margin-left:1px}.mlib span{font-size:10px;color:var(--mu)}.mlib .warn ha-icon,.mlib .warn b{color:#fbbf24}
 .mdks{display:flex;flex-direction:column;gap:2px}
 .mdk{display:grid;grid-template-columns:18px 70px 1fr auto;align-items:center;gap:8px;font-size:12px;padding:4px 2px;cursor:pointer}
 .mdk ha-icon{--mdc-icon-size:16px;color:var(--mu)}.mdk span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mdk b{font-size:11.5px;color:var(--mu);font-weight:600}

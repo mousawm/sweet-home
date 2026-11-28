@@ -1854,6 +1854,21 @@ class SweetHomeCardEditor extends HTMLElement {
             const ms = { ...cur }; if (v.clients_sensor) ms.clients_sensor = v.clients_sensor; else delete ms.clients_sensor;
             set(k, Object.keys(ms).length ? ms : undefined);
           }, { clients_sensor: integ === 'hybrid' ? 'Clients count (empty: JellyHA’s active sessions)' : 'Clients count (empty: Jellyfin’s active clients)' }));
+          // the Shows / Movies numbers on the Library tiles: everything in Sonarr / Radarr (unreleased ones too), only what the
+          // media server has, or both; named after what this home has (Jellyfin, JellyHA, Plex; else Radarr's downloads)
+          const arrs = ['sonarr', 'radarr'].filter(p => cur[p] !== false && hasP(p)).map(p => ({ sonarr: 'Sonarr', radarr: 'Radarr' })[p]);
+          const jf0 = cur.jellyfin !== false && (hasP('jellyfin') || hasP('jellyha')), px0 = cur.plex !== false && hasP('plex');
+          if (arrs.length && (jf0 || px0 || arrs.includes('Radarr'))) {
+            const jf = cur.jellyfin !== false && (hasP('jellyfin') || hasP('jellyha')), px = cur.plex !== false && hasP('plex');
+            const srv = jf ? (integ === 'hybrid' ? 'JellyHA' : 'Jellyfin') : px ? 'Plex' : null, arr2 = arrs.join(' / ');
+            const opts = srv
+              ? [['total', t('All in {0}, unreleased included', arr2)], ['library', t('Only what is in {0}', srv)], ['both', t('In {0} / all in {1}', srv, arr2)]]
+              : [['total', t('All in {0}, unreleased included', arr2)], ['library', t('Only downloaded movies')], ['both', t('Downloaded / all movies')]];
+            det.appendChild(this._form([{ name: 'library_count', selector: sel(opts) }], { library_count: ['library', 'both'].includes(cur.library_count) ? cur.library_count : 'total' }, v => {
+              const ms = { ...cur }; if (['library', 'both'].includes(v.library_count)) ms.library_count = v.library_count; else delete ms.library_count;
+              set(k, Object.keys(ms).length ? ms : undefined);
+            }, { library_count: 'Shows and Movies count' }));
+          }
           // the TV's Jellyfin app: always an official Jellyfin player (playing goes through the official integration)
           const players = Object.keys(this._hass.states).filter(x => x.startsWith('media_player.') && this._reg.platform(x) === 'jellyfin');
           const pick = players.find(x => tv.session && new RegExp(tv.session.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(this._reg.name(x)));

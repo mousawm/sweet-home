@@ -905,6 +905,9 @@ export function buildModel(cfg = {}, hass) {
   // that part of the Media Server card (its entities are left out)
   const off = (o, k) => (MS[k] === false ? Object.fromEntries(Object.keys(o).map(x => [x, x === 'more' ? [] : null])) : o);
   const mserver = {
+    // the Shows / Movies numbers on the Library tiles (panels.media_server.library_count): total — everything in Sonarr /
+    // Radarr (unreleased ones too); library — only what the media server has (Jellyfin / JellyHA / Plex); both — "in library / total"
+    count: ['library', 'both'].includes(MS.library_count) ? MS.library_count : 'total',
     jellyfin: MS.jellyfin === false ? { kind: 'off', view: null, clients: null, playClients: null, tv: MS.jellyfin_tv || null, off: true } : jfIntegration(),
     sonarr: off(perInstance('sonarr', f => ({ upcoming: f(/_upcoming$/), wanted: f(/_wanted$/), queue: f(/^sensor\..*_queue$/), shows: f(/_shows$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'sonarr'),
     radarr: off(perInstance('radarr', f => ({ movies: f(/_movies$/), queue: f(/^sensor\..*_queue$/), health: f(/^binary_sensor\..*_health$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'radarr'),
