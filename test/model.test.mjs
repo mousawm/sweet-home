@@ -287,6 +287,18 @@ test('room icons: a bathroom or laundry room is not a bedroom', () => {
   assert.deepEqual(['Bathroom', 'Laundry room', 'Master bedroom', 'Guest room', 'Storage room'].map(ic), ['mdi:shower', 'mdi:washing-machine', 'mdi:bed', 'mdi:bed', 'mdi:archive']);
 });
 
+test('Plex: found by its integration, library sensors split into shows and movies, plex: false leaves it out', () => {
+  const h = JSON.parse(JSON.stringify(hass));
+  const add = (id, p, state = 'idle', attributes = {}) => { h.states[id] = { ...st(state), attributes }; h.entities[id] = { platform: p }; };
+  assert.equal(buildModel({}, h).E.mserver.plex.off, true, 'no Plex: off');
+  add('sensor.plex_server', 'plex', '1'); add('sensor.plex_server_library_films', 'plex', '120', { library_type: 'movie' });
+  add('sensor.plex_server_library_tv_shows', 'plex', '35', { library_type: 'show' }); add('media_player.plex_plex_web_chrome', 'plex', 'playing');
+  const m = buildModel({}, h), P = m.E.mserver.plex;
+  assert.deepEqual([P.off, P.movies, P.shows], [false, ['sensor.plex_server_library_films'], ['sensor.plex_server_library_tv_shows']]);
+  assert.ok(m.hasMS, 'the Media Server card shows with Plex alone');
+  assert.equal(buildModel({ panels: { media_server: { plex: false } } }, h).E.mserver.plex.off, true);
+});
+
 test('Jellyfin or Jellyfin + JellyHA (hybrid): playing through the official integration, the rest from JellyHA when picked', () => {
   const h = JSON.parse(JSON.stringify(hass));
   const add = (id, p, state = 'idle') => { h.states[id] = st(state); h.entities[id] = { platform: p }; };
