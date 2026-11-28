@@ -46,8 +46,13 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
 .tb ha-icon{--mdc-icon-size:19px}
 @media (hover:hover){.tb:hover{color:var(--tx);background:rgba(var(--ink),.05)}}
 .tb.on{color:var(--hi);background:linear-gradient(135deg,rgba(99,102,241,.42),rgba(20,184,166,.3));box-shadow:inset 0 0 0 1px rgba(var(--ink),.13),inset 0 1px 0 rgba(var(--ink),.1),0 2px 9px -4px rgba(99,102,241,.75)}
-.tb .bd{font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:#0b1222;background:#cbd5e1}
-.tb .bd ha-icon{--mdc-icon-size:12px}
+/* the tab's icon carries its signals: a counter on its corner (needs attention; the opposite corner in Arabic, with a
+   cut-out ring in the bar's colour) or a soft glow in the tab's colour (something running) */
+.tb .ti{position:relative;display:grid;place-items:center;line-height:0}
+.tb .bd{position:absolute;top:-8px;inset-inline-end:-10px;font-style:normal;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;display:grid;place-items:center;font-size:10px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;color:#0b1222;background:#cbd5e1;box-shadow:0 0 0 2px rgb(var(--s3));pointer-events:none}
+.tb.glow .ti ha-icon{color:var(--g);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--g) 45%,transparent))}
+.tb.glow:not(.on) .tl{color:color-mix(in srgb,var(--g) 70%,var(--mu))}
+:host([look=light]) .tb.glow .ti ha-icon{filter:none}
 .bd.warn{background:var(--rose);color:#fff}.bd.info{background:var(--blue)}.bd.good{background:var(--green)}.bd.pink{background:#f472b6}
 .tab{display:none;animation:tabin .35s ease}
 .tab.on{display:block}
@@ -872,4 +877,17 @@ ha-icon.pulse{animation:none;color:var(--teal)}
 .sheet.wide{width:min(920px,calc(100% - 48px));max-height:88vh;padding:18px 20px}
 .sheet.wide .zbmap svg{max-width:none;max-height:64vh}
 @media (max-width:860px){.sheet.wide{width:100%;max-height:92vh}}
+
+/* the tab bar's labels (\`tab_labels\`): icons: never; auto: not on phones; stacked: a small label under the icon on
+   phones. Without labels, or stacked, the tabs share the bar's width (no scrolling, every badge in view) */
+:host([tablabels=icons]) .tb .tl{display:none}
+:host([tablabels=icons]) .tb{flex:1 1 0;justify-content:center;min-height:44px;padding:10px 4px}
+@container app (max-width:760px){
+  :host([tablabels=auto]) .tb .tl{display:none}
+  :host([tablabels=auto]) .tb{flex:1 1 0;justify-content:center;min-height:44px;padding:10px 4px}
+  :host([tablabels=stacked]) .tb{flex:1 1 0;flex-direction:column;justify-content:center;gap:4px;min-width:0;min-height:52px;padding:8px 2px 6px;font-size:10px;font-weight:600}
+  :host([tablabels=stacked]) .tb .tl{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  :host([tablabels=auto]) .tabs,:host([tablabels=stacked]) .tabs{gap:2px;padding:5px}
+}
+:host([tablabels=icons]) .tabs{gap:2px}
 `;

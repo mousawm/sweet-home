@@ -109,17 +109,24 @@ export class HomePanels {
   }
 
   _rTabs() {
-    const badge = {};
+    // two kinds of signal: a counter on the icon's corner = needs attention (doors open, tank low, alerts); the icon
+    // glowing in its colour = something is running (AC, car charging, TV playing). Each also goes in the tab's name for
+    // screen readers and in its tooltip (the label is hidden on phones).
+    const badge = {}, glow = {}, say = {};
     const open = E.doors.filter(d => this.doorOpen(d)).length + E.locks.filter(l => this.v(l.id) === 'unlocked').length + E.entrances.filter(g => this.entState(g) === 'open').length;
-    if (open) badge.security = ['warn', open];
-    const acOn = E.acs.filter(a => this.climOn(a.id)).length; if (acOn) badge.climate = ['info', acOn];
-    if (this.on(E.car.charging)) badge.energy = ['good', ic('mdi:lightning-bolt')];
-    const tank = this.n(E.water.tank); if (tank != null && tank < 25) badge.water = ['warn', '!'];
-    if (this.v(E.media.tv) === 'playing') badge.media = ['pink', ic('mdi:play')];
+    if (open) { badge.security = open; say.security = tr('{0} open / unlocked', open); }
+    const acOn = E.acs.filter(a => this.climOn(a.id)).length; if (acOn) { glow.climate = '#22d3ee'; say.climate = tr('{0} AC running', acOn); }
+    if (this.on(E.car.charging)) { glow.energy = '#fbbf24'; say.energy = tr('Charging'); }
+    const tank = this.n(E.water.tank); if (tank != null && tank < 25) { badge.water = '!'; say.water = tr('Water tank low'); }
+    if (this.v(E.media.tv) === 'playing') { glow.media = '#f472b6'; say.media = tr('Playing'); }
     if (this._alertCount == null) this._alertCount = this._alertSections().reduce((n, x) => n + x[3].length, 0);
-    if (E.lab.status && this.s(E.lab.status) && !this.on(E.lab.status)) badge.system = ['warn', '!']; else if (this._alertCount) badge.system = ['warn', this._alertCount];
-    return this._tabList().map(([k, n, i]) => `<button class="tb ${this._tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}" role="tab" aria-selected="${this._tab === k}">
-      ${ic(i)}<span>${tr(n)}</span>${badge[k] ? `<i class="bd ${badge[k][0]}">${badge[k][1]}</i>` : ''}</button>`).join('');
+    if (E.lab.status && this.s(E.lab.status) && !this.on(E.lab.status)) { badge.system = '!'; say.system = tr('Offline'); }
+    else if (this._alertCount) { badge.system = this._alertCount; say.system = tr('{0} alerts', this._alertCount); }
+    return this._tabList().map(([k, n, i]) => {
+      const name = esc(tr(n) + (say[k] ? ' · ' + say[k] : ''));
+      return `<button class="tb${this._tab === k ? ' on' : ''}${glow[k] ? ' glow' : ''}" data-act="tab" data-tab="${k}" role="tab" aria-selected="${this._tab === k}" aria-label="${name}" title="${name}"${glow[k] ? ` style="--g:${glow[k]}"` : ''}>
+      <span class="ti">${ic(i)}${badge[k] != null ? `<i class="bd warn" aria-hidden="true">${badge[k]}</i>` : ''}</span><span class="tl">${tr(n)}</span></button>`;
+    }).join('');
   }
 
   _rGlance() {

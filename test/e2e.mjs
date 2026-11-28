@@ -1465,7 +1465,7 @@ try {
       // the dashboard left open on the Home tab: each tab's badge follows a live change within a second, no tab opened
       const H = card._hass._raw || card._hass, E = card._model.E, out = {};
       const set = async (id, state, attrs = id === 'sensor.x_live_battery' ? { device_class: 'battery', unit_of_measurement: '%', friendly_name: 'Live Battery' } : null) => { const h = card._hass._raw || card._hass; card.hass = { ...h, states: { ...h.states, [id]: { ...(h.states[id] || { entity_id: id, attributes: {} }), entity_id: id, state, last_changed: new Date().toISOString(), ...(attrs ? { attributes: attrs } : {}) } } }; await new Promise(r => setTimeout(r, 1300)); };
-      const bd = k => card.shadowRoot.querySelector(`.tb[data-tab="${k}"] .bd`)?.outerHTML ?? ''; // some badges are icons
+      const bd = k => { const t = card.shadowRoot.querySelector(`.tb[data-tab="${k}"]`); return (t?.classList.contains('glow') ? 'glow:' : '') + (t?.querySelector('.bd')?.outerHTML ?? ''); }; // a counter, or the icon glowing
       card._setTab('home'); card.hass = H; await new Promise(r => setTimeout(r, 300));
       const run = async (key, id, onSt, offSt) => { if (!id || !card.shadowRoot.querySelector(`.tb[data-tab="${key}"]`)) return; await set(id, offSt); const a = bd(key); await set(id, onSt); const b = bd(key); await set(id, offSt); const c = bd(key); out[key] = a !== b && a === c || [a, b, c]; };
       await run('security', E.doors[0]?.id, E.doors[0]?.open || 'on', 'off');
@@ -1476,7 +1476,19 @@ try {
       await run('system', 'sensor.x_live_battery', '4', '90'); // a battery going low
       card.hass = H; card._tab === 'home' || (out.tab = false); await new Promise(r => setTimeout(r, 300));
       return Object.keys(out).length >= 4 && Object.values(out).every(v => v === true) || JSON.stringify(out);
-    }); check('with the dashboard open, every tab badge follows a live change (no tab opened)', r === true, r); }
+    }); check('with the dashboard open, every tab badge or glow follows a live change (no tab opened)', r === true, r); }
+  { const r = await p.evaluate(async () => {
+      // the tab bar: the counter sits inside the icon, the name is on the button for screen readers; tab_labels sets the host attribute
+      const R = card.shadowRoot, cfg0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms)), out = {};
+      const b = R.querySelector('#tabs .tb[data-tab="security"]');
+      out.inIcon = !R.querySelector('#tabs .tb > .bd') && !!b.querySelector('.ti') && !!b.querySelector('.tl') && b.getAttribute('aria-label').startsWith(b.querySelector('.tl').textContent);
+      out.def = card.getAttribute('tablabels') === 'auto';
+      card.setConfig({ ...cfg0, tab_labels: 'icons' }); await wait(50);
+      out.icons = card.getAttribute('tablabels') === 'icons' && getComputedStyle(R.querySelector('#tabs .tb .tl')).display === 'none';
+      card.setConfig({ ...cfg0, tab_labels: 'nonsense' }); await wait(50); out.bad = card.getAttribute('tablabels') === 'auto';
+      card.setConfig(cfg0); await wait(900);
+      return Object.values(out).every(Boolean) || JSON.stringify(out);
+    }); check('tab bar: counters on the icon, a name for screen readers, tab_labels picks the labels', r === true, r); }
   { const r = await p.evaluate(async () => {
       // At a glance: a tile goes with its panel (switched off in the card editor), not only when its entities are missing
       const R = card.shadowRoot, c0 = card._config, wait = ms => new Promise(r => setTimeout(r, ms)), tiles = () => [...R.querySelectorAll('#glance .gl')].map(b => b.dataset.to);
