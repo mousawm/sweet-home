@@ -11,6 +11,16 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 
+## v0.6.68 — 2026-11-28
+
+### Changed
+- Tab bar: counters sit on the corner of the tab's icon, so tabs no longer change width when one appears. A counter now means something needs attention (doors open, water tank low, alerts). Something running (AC, car charging, TV playing) makes the icon glow in its colour instead.
+- Tab bar on phones: icons only by default, with the tabs sharing the bar's width, so every tab and its counter stays in view without scrolling.
+
+### Added
+- A “tab_labels” option (card editor: Look → Tab bar labels): icons and labels, icons only on phones (default), labels everywhere, icons only, or small labels under the icons on phones.
+- A “tab_badge” option (card editor: Look → Tab counters): show the tab counters on the top or the bottom corner of the icon.
+
 ## v0.6.67 — 2026-11-28
 
 ### Fixed

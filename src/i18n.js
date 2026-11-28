@@ -145,6 +145,9 @@ const AR = {
   'Partly Cloudy': 'غائم جزئيًا', Sunny: 'مشمس', Cloudy: 'غائم', Rainy: 'ممطر', 'Clear Night': 'صافٍ ليلًا', Fog: 'ضباب', Snowy: 'مثلج', Windy: 'عاصف', 'Windy Variant': 'عاصف', Lightning: 'برق',
   'Lightning Rainy': 'عاصفة رعدية', Pouring: 'أمطار غزيرة', Hail: 'برد', 'Snowy Rainy': 'ثلج ومطر', Exceptional: 'طقس استثنائي',
   'Whole house': 'المنزل بالكامل', 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)': 'التكبير على غرفة واحدة (تُخفى أزرار الطوابق، وعند إغلاق النافذة يعود العرض إليها)',
+  'Tab bar labels': 'أسماء الأقسام في شريط التبويب', 'Icons and labels; icons only on phones': 'أيقونات وأسماء، وأيقونات فقط على الهواتف', 'Icons and labels everywhere': 'أيقونات وأسماء على كل الأجهزة', 'Icons only': 'أيقونات فقط', 'Icons and labels; on phones, small labels under the icons': 'أيقونات وأسماء، وعلى الهواتف أسماء صغيرة تحت الأيقونات',
+  'Tab counters': 'عدّادات التبويب', 'Top corner of the icon': 'الزاوية العليا للأيقونة', 'Bottom corner of the icon': 'الزاوية السفلى للأيقونة',
+  'Water tank low': 'خزان المياه منخفض', '{0} alerts': '{0} تنبيهات',
   'Phones: show the label of a room with no temperature while': 'الهواتف: إظهار بطاقة الغرفة التي لا تحتوي على حساس حرارة عندما', 'Motion': 'حركة', 'AC on': 'المكيّف يعمل', 'Door open': 'باب مفتوح', 'Lock unlocked': 'قفل مفتوح', 'Phone charging': 'هاتف قيد الشحن', 'Plug in use': 'مقبس قيد الاستخدام', 'All locks locked': 'كل الأقفال مقفلة', 'Always (every room)': 'دائمًا (كل الغرف)',
   'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”', 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it': 'الهواتف: تمويه العرض ثلاثي الأبعاد خلف الغرفة المفتوحة (الضغط خارجها يغلقها). عند الإيقاف: اضغط على غرفة أخرى للانتقال إليها',
   // entrances
