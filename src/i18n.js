@@ -145,6 +145,7 @@ const AR = {
   'Partly Cloudy': 'غائم جزئيًا', Sunny: 'مشمس', Cloudy: 'غائم', Rainy: 'ممطر', 'Clear Night': 'صافٍ ليلًا', Fog: 'ضباب', Snowy: 'مثلج', Windy: 'عاصف', 'Windy Variant': 'عاصف', Lightning: 'برق',
   'Lightning Rainy': 'عاصفة رعدية', Pouring: 'أمطار غزيرة', Hail: 'برد', 'Snowy Rainy': 'ثلج ومطر', Exceptional: 'طقس استثنائي',
   'Whole house': 'المنزل بالكامل', 'Zoom on one room (its floor buttons are hidden; closing its pop-up comes back to it)': 'التكبير على غرفة واحدة (تُخفى أزرار الطوابق، وعند إغلاق النافذة يعود العرض إليها)',
+  'Phones: show the label of a room with no temperature while': 'الهواتف: إظهار بطاقة الغرفة التي لا تحتوي على حساس حرارة عندما', 'Motion': 'حركة', 'AC on': 'المكيّف يعمل', 'Door open': 'باب مفتوح', 'Lock unlocked': 'قفل مفتوح', 'Phone charging': 'هاتف قيد الشحن', 'Plug in use': 'مقبس قيد الاستخدام', 'All locks locked': 'كل الأقفال مقفلة', 'Always (every room)': 'دائمًا (كل الغرف)',
   'Hide the “tap a room” tip': 'إخفاء تلميح “اضغط على أي غرفة”', 'Phones: blur the 3D view behind an open room (a tap outside closes it). Off: tap another room to switch to it': 'الهواتف: تمويه العرض ثلاثي الأبعاد خلف الغرفة المفتوحة (الضغط خارجها يغلقها). عند الإيقاف: اضغط على غرفة أخرى للانتقال إليها',
   // entrances
   'Gates, garage doors, barriers, shutters': 'البوابات، أبواب المرآب، الحواجز، الأبواب الدوّارة', 'Tap again to open': 'اضغط مرة أخرى للفتح', 'Tap again to close': 'اضغط مرة أخرى للإغلاق', 'Tap again to stop': 'اضغط مرة أخرى للإيقاف',

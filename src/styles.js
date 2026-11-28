@@ -723,7 +723,7 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   .tb{padding:9px 12px;font-size:12px}
   .viewport{height:max(360px,60vh)}
   .lbl{font-size:10px;padding:3px 7px;gap:4px;border-radius:9px}.lbl .h{display:none}.lbl ha-icon{--mdc-icon-size:12px}
-  .lbl.nodata:not(.lit):not(.mo):not(.sel){display:none!important}
+  .lbl.nodata:not(.keep):not(.sel){display:none!important}
   .tools .ibtn{width:32px;height:32px}
   .top{gap:12px;margin-bottom:14px}
   .clock{gap:4px 10px}.clock #time{font-size:36px;letter-spacing:-1.5px}.clock .date{font-size:13px}

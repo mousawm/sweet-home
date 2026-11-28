@@ -1192,10 +1192,13 @@ export class HouseScene {
       const pIcs = [...new Set(plugOn.filter(p => !plugCharger(p) && (!p.power || (c.n(p.power) ?? 0) > 1.5)).map(p => plugIcon(c, p)))].slice(0, 2).join(',');
       const lk = (r.locks || []).map(l => c.v(l)); const unl = lk.includes('unlocked'), lkd = lk.length && lk.every(s => s === 'locked');
       const dOpen = (r.doors || []).some(d => c.v(d) === 'on');
-      const sig = [t, h, R.anyLit, R.motion, acm, chg, pIcs, unl, lkd, dOpen, this.mode, this.sel === id].join('|');
+      // phones: a room with no temperature keeps its label only while something picked in `phone_badges` is on
+      const pb = MODEL.phoneBadges || [];
+      const keep = pb.includes('always') || [['lights', R.anyLit], ['motion', R.motion], ['climate', ac], ['doors', dOpen], ['unlocked', unl], ['charging', chg], ['plugs', pIcs], ['locked', lkd]].some(([k, on]) => on && pb.includes(k));
+      const sig = [t, h, R.anyLit, R.motion, acm, chg, pIcs, unl, lkd, dOpen, keep, this.mode, this.sel === id].join('|');
       if (el._sig !== sig) {
         el._sig = sig;
-        el.className = `lbl ${R.anyLit ? 'lit' : ''} ${R.motion ? 'mo' : ''} ${this.sel === id ? 'sel' : ''} ${t == null ? 'nodata' : ''}`;
+        el.className = `lbl ${R.anyLit ? 'lit' : ''} ${R.motion ? 'mo' : ''} ${this.sel === id ? 'sel' : ''} ${t == null ? 'nodata' : ''} ${keep ? 'keep' : ''}`;
         el.innerHTML = `<b>${esc(r.name)}</b>${t != null ? `<span class="t" style="color:${rgb(tempRGB(t))}">${t.toFixed(1)}°</span>` : ''}${h != null ? `<span class="h">${Math.round(h)}%</span>` : ''}
           <span class="ics">${R.anyLit ? '<ha-icon icon="mdi:lightbulb-on"></ha-icon>' : ''}${ac ? acIcon(c.s(r.climate)) : ''}${R.motion ? '<ha-icon class="mo" icon="mdi:motion-sensor"></ha-icon>' : ''}${chg ? '<ha-icon class="chg" icon="mdi:battery-charging"></ha-icon>' : ''}${pIcs ? pIcs.split(',').map(i => `<ha-icon class="lplug" icon="${i}"></ha-icon>`).join('') : ''}${unl ? '<ha-icon class="unl" icon="mdi:lock-open-variant"></ha-icon>' : lkd ? '<ha-icon class="lkd" icon="mdi:lock"></ha-icon>' : ''}${dOpen ? '<ha-icon class="unl" icon="mdi:door-open"></ha-icon>' : ''}</span>`;
       }

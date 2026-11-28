@@ -12,6 +12,10 @@ const BAD = ['unavailable', 'unknown', 'none', 'None', ''];
 export const VIEW_MODES = ['lights', 'climate', 'presence', 'zigbee'];
 // the chips at the top of the card (`header_chips` picks which show)
 export const HEADER_CHIPS = ['weather', 'alarm', 'doors', 'locks', 'lights', 'temperature', 'power', 'people'];
+// on phones, a room with no temperature shows its label only while one of these is on (`phone_badges`; `always`: every room).
+// The default is everything but `locked` (the calm state) and `always`
+export const PHONE_BADGES = ['lights', 'motion', 'climate', 'doors', 'unlocked', 'charging', 'plugs', 'locked', 'always'];
+export const PHONE_BADGES_DEFAULT = ['lights', 'motion', 'climate', 'doors', 'unlocked', 'charging', 'plugs'];
 // the cards that can be put in another order on each tab, in their usual order (config `card_order`; card editor:
 // Panels → Card order)
 export const CARD_ORDER = { home: ['glance', 'modes'], security: ['security', 'cams'], energy: ['energy', 'car', 'ehist'], water: ['water', 'irrigation'], media: ['media', 'mserver', 'tvlight'], system: ['alerts', 'zigbee', 'zblist', 'zbmap', 'lab', 'devices'] };
@@ -1049,6 +1053,7 @@ export function buildModel(cfg = {}, hass) {
     // the 3D view's mode buttons (`view_modes`; not set: all of them) and the order of the cards on each tab
     // (`card_order`: { tab: [card ids] }; cards it doesn't name keep their place after the named ones)
     headerChips: cfg.header_chips == null ? [...HEADER_CHIPS] : arr(cfg.header_chips).filter(c => HEADER_CHIPS.includes(c)),
+    phoneBadges: cfg.phone_badges == null ? [...PHONE_BADGES_DEFAULT] : arr(cfg.phone_badges).filter(b => PHONE_BADGES.includes(b)),
     viewModes: cfg.view_modes == null ? [...VIEW_MODES] : arr(cfg.view_modes).filter(m => VIEW_MODES.includes(m)),
     cardOrder: cfg.card_order && typeof cfg.card_order === 'object' && !Array.isArray(cfg.card_order) ? cfg.card_order : {},
     startTab: cfg.start_tab || 'home',
