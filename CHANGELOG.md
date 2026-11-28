@@ -8,6 +8,12 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Fixed
 
 ### Changed
+
+### Added
+
+## v0.6.68 — 2026-11-28
+
+### Changed
 - Tab bar: counters sit on the corner of the tab's icon, so tabs no longer change width when one appears. A counter now means something needs attention (doors open, water tank low, alerts). Something running (AC, car charging, TV playing) makes the icon glow in its colour instead.
 - Tab bar on phones: icons only by default, with the tabs sharing the bar's width, so every tab and its counter stays in view without scrolling.
 
