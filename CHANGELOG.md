@@ -10,6 +10,10 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+
+## v0.6.66 — 2026-11-28
+
+### Added
 - Media Server: a “Shows and Movies count” option in the card editor: show everything in Sonarr / Radarr (unreleased included, as before), only what is in Jellyfin / JellyHA / Plex, or both as “in library / total”.
 
 ## v0.6.65 — 2026-11-28
