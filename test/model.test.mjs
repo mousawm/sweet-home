@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { zigbeeModel, zbStatus, zbSummary, zbSource, zbConfig, ieeeKey, z2mMap, zbRoute } from '../src/zigbee.js';
 import { VIEW_MODES, CARD_ORDER, tankRate } from '../src/model.js';
+import { t, setLang, uiLang, isRTL, DICTS } from '../src/i18n.js';
 import { buildModel, roleOf, registry, autoFurnitureConfig, furnEntities, floorLevels, roomOutline, polyRects, extraWalls, cleanConfig } from '../src/model.js';
 // is there a wall running beside the middle part of segment g (within 0.3 m, roughly its direction)?
 const wallBeside = (walls, [x1, z1, x2, z2], lvl = 0) => { const gx = x2 - x1, gz = z2 - z1, gl = Math.hypot(gx, gz); return [0.4, 0.5, 0.6].some(f => { const px = x1 + gx * f, pz = z1 + gz * f; return walls.some(w => { if ((w[5] ?? 0) !== lvl) return false; const dx = w[2] - w[0], dz = w[3] - w[1], L = Math.hypot(dx, dz); if (!L || Math.abs(dx * gx + dz * gz) / (L * gl) < 0.5) return false; const t = Math.max(0, Math.min(1, ((px - w[0]) * dx + (pz - w[1]) * dz) / (L * L))); return Math.hypot(w[0] + t * dx - px, w[1] + t * dz - pz) < 0.2; }); }); };
@@ -546,6 +547,25 @@ test('tank trend: only the latest fill or drain counts', () => {
   // small noise is not a turn: a steady drain stays one run
   assert.ok(Math.abs(tankRate(P([[0, 90], [1, 89.5], [2, 89.8], [3, 88.9], [4, 88.5]])) + 0.37) < 0.1);
   assert.equal(tankRate(P([[0, 50]])), null);
+});
+
+console.log('translations');
+test('French: fr and fr-* languages show the card in French, left to right', () => {
+  setLang('fr');
+  assert.equal(uiLang(), 'fr');
+  assert.equal(isRTL(), false);
+  assert.equal(t('Home'), 'Accueil');
+  assert.equal(t('{0} lights on', 3), '3 lumières allumées');
+  setLang('fr-CA');
+  assert.equal(t('Security'), 'Sécurité');
+  setLang('en');
+});
+test('French: every text translated to Arabic has a French translation too, with the same {0} placeholders', () => {
+  assert.deepEqual(Object.keys(DICTS.ar).filter(k => !(k in DICTS.fr)), [], 'missing in French');
+  assert.deepEqual(Object.keys(DICTS.fr).filter(k => !(k in DICTS.ar)), [], 'not in the Arabic dictionary');
+  const marks = x => (x.match(/\{\d+\}/g) || []).sort().join();
+  assert.deepEqual(Object.entries(DICTS.fr).filter(([k, v]) => marks(k) !== marks(v)).map(([k]) => k), [], 'placeholders differ');
+  assert.deepEqual(Object.entries(DICTS.fr).filter(([, v]) => !String(v).trim()).map(([k]) => k), [], 'empty translations');
 });
 
 if (failed) { console.log(`\n${failed} failed`); process.exit(1); }
