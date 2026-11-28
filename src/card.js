@@ -5,7 +5,7 @@
  */
 import { THREE_LIB } from './three.js'; // the parts of three.js the scene uses
 import INTER from './fonts/inter-latin-wght-normal.woff2'; // Inter (SIL Open Font License 1.1, see src/fonts/OFL-Inter.txt)
-import { buildModel, cleanConfig, movePiece, tabLabels } from './model.js';
+import { buildModel, cleanConfig, movePiece, tabLabels, tabBadge } from './model.js';
 import { t as tr, setLang, isRTL } from './i18n.js';
 import { VERSION, MODEL, E, ROOMS, ROOM, DOOR_INFO, FURN, useModel, RN_SECS, TAB_SECS, CARD_ORDER, tc, ago, agoShort, esc, ic, clamp, BAD, FAHR, tempRGB, rgb, morph, COLORS, COARSE, pumpTime, WHITES, PICK, pretty, devType, devGet, devSet, SHARED, dropShared, SMART, btnIcon, cleanLabel, domIcon, ALL_TABS, wxName, WEATHER_ICON, acIcon, HVAC_ICON, setFahr, setShared, setSmart, bidi } from './core.js';
 import { HouseScene } from './scene.js';
@@ -457,6 +457,7 @@ export class SweetHomeCard extends HTMLElement {
     const light = a === 'light' || (a === 'auto' && this._hass?.themes?.darkMode === false);
     if (this.getAttribute('look') !== (light ? 'light' : 'dark')) this.setAttribute('look', light ? 'light' : 'dark');
     const tl = tabLabels(this._config?.tab_labels); if (this.getAttribute('tablabels') !== tl) this.setAttribute('tablabels', tl); // the tab bar's labels
+    const tb = tabBadge(this._config?.tab_badge); if (this.getAttribute('tabbadge') !== tb) this.setAttribute('tabbadge', tb); // its counters: top or bottom corner
   }
   // Sweet Home 3D `room`: the room it is zoomed on (its id, Home Assistant area or name)
   _focusId() {

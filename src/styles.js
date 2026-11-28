@@ -50,6 +50,7 @@ small{font-size:.62em;font-weight:500;opacity:.7;margin-left:2px}
    cut-out ring in the bar's colour) or a soft glow in the tab's colour (something running) */
 .tb .ti{position:relative;display:grid;place-items:center;line-height:0}
 .tb .bd{position:absolute;top:-8px;inset-inline-end:-10px;font-style:normal;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;display:grid;place-items:center;font-size:10px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;color:#0b1222;background:#cbd5e1;box-shadow:0 0 0 2px rgb(var(--s3));pointer-events:none}
+:host([tabbadge=bottom]) .tb .bd{top:auto;bottom:-8px}
 .tb.glow .ti ha-icon{color:var(--g);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--g) 45%,transparent))}
 .tb.glow:not(.on) .tl{color:color-mix(in srgb,var(--g) 70%,var(--mu))}
 :host([look=light]) .tb.glow .ti ha-icon{filter:none}
@@ -887,6 +888,7 @@ ha-icon.pulse{animation:none;color:var(--teal)}
   :host([tablabels=auto]) .tb{flex:1 1 0;justify-content:center;min-height:44px;padding:10px 4px}
   :host([tablabels=stacked]) .tb{flex:1 1 0;flex-direction:column;justify-content:center;gap:4px;min-width:0;min-height:52px;padding:8px 2px 6px;font-size:10px;font-weight:600}
   :host([tablabels=stacked]) .tb .tl{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  :host([tablabels=stacked][tabbadge=bottom]) .tb{gap:8px}:host([tablabels=stacked][tabbadge=bottom]) .tb .bd{bottom:-6px} /* a counter under the icon clears the label below it */
   :host([tablabels=auto]) .tabs,:host([tablabels=stacked]) .tabs{gap:2px;padding:5px}
 }
 :host([tablabels=icons]) .tabs{gap:2px}

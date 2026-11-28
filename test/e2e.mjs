@@ -1486,6 +1486,9 @@ try {
       card.setConfig({ ...cfg0, tab_labels: 'icons' }); await wait(50);
       out.icons = card.getAttribute('tablabels') === 'icons' && getComputedStyle(R.querySelector('#tabs .tb .tl')).display === 'none';
       card.setConfig({ ...cfg0, tab_labels: 'nonsense' }); await wait(50); out.bad = card.getAttribute('tablabels') === 'auto';
+      out.top = card.getAttribute('tabbadge') === 'top';
+      card.setConfig({ ...cfg0, tab_badge: 'bottom' }); await wait(50); const bd = R.querySelector('#tabs .bd');
+      out.bottom = card.getAttribute('tabbadge') === 'bottom' && (!bd || getComputedStyle(bd).top === 'auto' || bd.getBoundingClientRect().bottom > bd.parentElement.getBoundingClientRect().bottom);
       card.setConfig(cfg0); await wait(900);
       return Object.values(out).every(Boolean) || JSON.stringify(out);
     }); check('tab bar: counters on the icon, a name for screen readers, tab_labels picks the labels', r === true, r); }

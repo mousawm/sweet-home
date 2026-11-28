@@ -13,6 +13,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 
 ### Added
 - A “tab_labels” option (card editor: Look → Tab bar labels): icons and labels, icons only on phones (default), labels everywhere, icons only, or small labels under the icons on phones.
+- A “tab_badge” option (card editor: Look → Tab counters): show the tab counters on the top or the bottom corner of the icon.
 
 ## v0.6.67 — 2026-11-28
 

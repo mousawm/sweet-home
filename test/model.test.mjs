@@ -534,6 +534,7 @@ test('view_modes and card_order: the 3D view\'s modes (all by default, unknown o
   assert.deepEqual([M({}).cardOrder, M({ card_order: ['x'] }).cardOrder], [{}, {}]);
   assert.deepEqual([M({}).headerChips.length, M({ header_chips: ['power', 'x', 'weather'] }).headerChips, M({ header_chips: [] }).headerChips], [8, ['power', 'weather'], []]);
   assert.deepEqual([M({}).tabLabels, M({ tab_labels: 'stacked' }).tabLabels, M({ tab_labels: 'x' }).tabLabels], ['auto', 'stacked', 'auto']);
+  assert.deepEqual([M({}).tabBadge, M({ tab_badge: 'bottom' }).tabBadge, M({ tab_badge: 'x' }).tabBadge], ['top', 'bottom', 'top']);
   assert.deepEqual([M({}).phoneBadges, M({ phone_badges: ['always', 'x', 'climate'] }).phoneBadges, M({ phone_badges: [] }).phoneBadges], [['lights', 'motion', 'climate', 'doors', 'unlocked', 'charging', 'plugs'], ['always', 'climate'], []]);
 });
 
