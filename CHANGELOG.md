@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- French: the card and its editor are translated. They follow a French Home Assistant, or pick it with `language: fr` (card editor: Look → Language).
 
 ## v0.6.67 — 2026-11-28
 

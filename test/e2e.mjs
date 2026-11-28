@@ -1223,6 +1223,12 @@ try {
     card.hass = h; editor._step = 'rooms'; editor._render();
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('editor, Look: Appearance dark (default, not saved) / light / auto (follows the Home Assistant theme)', r === true, r); }
+  check('editor, Look: French is one of the languages', await p.evaluate(async () => {
+    editor._step = 'look'; editor._render(); await new Promise(r => setTimeout(r, 30));
+    const s = editor.querySelector('ha-form select[name=language]'), ok = !!s && [...s.options].map(o => o.value).includes('fr');
+    editor._step = 'rooms'; editor._render();
+    return ok;
+  }));
   check('no page errors (editor)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
@@ -1328,6 +1334,28 @@ try {
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('Sweet Home 3D: inside an ha-card that follows the theme (light or dark), with a themed pop-up; card-mod ha-card styles apply', r === true, r); }
   check('no page errors (sweet home 3d)', !p.errors.length, p.errors.join(' | '));
+  await p.close();
+
+  console.log('french');
+  p = await open('?config=demo&lang=fr', { width: 1280, height: 900 });
+  check('French text, left to right', await p.evaluate(() => card.shadowRoot.querySelector('.app').dir === 'ltr' && card.shadowRoot.querySelector('#tabs').textContent.includes('Accueil')));
+  { const r = await p.evaluate(async () => {
+    // every panel, rendered in French: no text the dictionary can translate is left in English
+    const { t, setLang } = await import('/src/i18n.js'); setLang('fr');
+    const left = new Set(), R = card.shadowRoot;
+    for (const tab of ['home', 'security', 'climate', 'energy', 'water', 'media', 'system']) {
+      if (!card._tabOn(tab)) continue;
+      card._setTab(tab); await new Promise(r => setTimeout(r, 300));
+      const w = document.createTreeWalker(R, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const x = n.textContent.trim();
+        if (x && /[A-Za-z]/.test(x) && t(x) !== x && !n.parentElement.closest('.lbl, .sh-h, style')) left.add(x);
+      }
+    }
+    card._setTab('home');
+    return !left.size || JSON.stringify([...left]);
+  }); check('French: no translatable English text left on any tab', r === true, r); }
+  check('no page errors (french)', !p.errors.length, p.errors.join(' | '));
   await p.close();
 
   console.log('arabic');

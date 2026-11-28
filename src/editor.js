@@ -2036,8 +2036,8 @@ class SweetHomeCardEditor extends HTMLElement {
     body.appendChild(this._form([
       { name: 'title', selector: { text: {} } },
       { name: 'weather', selector: { entity: { domain: 'weather' } } },
-      // the card's language ('': Home Assistant's). Arabic is translated and laid out right to left; others fall back to English
-      { name: 'language', selector: sel([['', 'Home Assistant’s language'], ['en', 'English'], ['ar', 'العربية (Arabic)']]) },
+      // the card's language ('': Home Assistant's). French and Arabic are translated (Arabic laid out right to left); others fall back to English
+      { name: 'language', selector: sel([['', 'Home Assistant’s language'], ['en', 'English'], ['fr', 'Français (French)'], ['ar', 'العربية (Arabic)']]) },
       // Sweet Home 3D: the height of its 3D view (in a sections view, the size picked there wins); the full card: its first tab
       ...(this.solo ? [{ name: 'height', selector: { number: { min: 0, max: 1200, step: 10, unit_of_measurement: 'px', mode: 'box' } } },
         { name: 'room', selector: { select: { mode: 'dropdown', options: [{ value: '', label: t('Whole house') }, ...this._rooms.map((r, i) => ({ value: String(r.area || r.name || ''), label: this._roomName(r, i) })).filter(o => o.value)] } } }]

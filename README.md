@@ -39,7 +39,7 @@ security, climate, energy, water, media, your home lab and your Zigbee network.
   Assistant theme.
 - **Live counters**: each tab shows what needs you (open doors, ACs running, alerts…) and follows changes within a
   second.
-- **English and Arabic**, with a right-to-left layout for Arabic.
+- **English, French and Arabic**, with a right-to-left layout for Arabic.
 - **Made for phones**:
   - Swipe between tabs. Haptics. Long press opens more-info; double tap opens the second entity.
   - Popups don't scroll the page behind them. Skeleton loaders while data arrives.
@@ -255,7 +255,7 @@ Each 3D view uses the device's graphics. One or two on a dashboard is fine; it p
 | `devices` | Phones and tablets with battery and charging state (default: every Companion app battery sensor) |
 | `hint` | `false` hides the "tap a room" tip shown on first use |
 | `room_backdrop` | Phones: the 3D view behind an open room is dimmed and blurred, and a tap outside the room closes it (default). `false`: no blur, and a tap on another room switches to it. Card editor: Look |
-| `language` | Language of the card, such as `ar` (default: your Home Assistant language). Arabic is translated and laid out right to left; other languages fall back to English. Card editor: Look → Language. |
+| `language` | Language of the card, such as `fr` or `ar` (default: your Home Assistant language). French and Arabic are translated, Arabic laid out right to left; other languages fall back to English. Card editor: Look → Language. |
 | `house` | The 3D model, described below |
 | `panels` | The panels, described below. `panels.<name>: false` hides one. |
 
