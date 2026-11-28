@@ -10,6 +10,7 @@ A release is cut once or twice a week (or on request): the Unreleased notes move
 ### Changed
 
 ### Added
+- Media Server: Plex support. What's playing on your Plex apps shows under Now Watching (alongside Jellyfin), Shows / Movies counts come from Plex's library sensors when there's no Sonarr / Radarr, and Plex has its own switch under Found from in the card editor.
 
 ## v0.6.64 — 2026-11-27
 

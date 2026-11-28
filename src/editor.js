@@ -47,7 +47,7 @@ const PANELS = [
   ['irrigation', 'Irrigation', 'Valves and schedule'],
   ['media', 'Media', 'TV, speakers, screen-time limits'],
   ['tv_light', 'TV light', 'The TV backlight and its mode / effect selectors (Media tab)'],
-  ['media_server', 'Media Server', 'Jellyfin, Sonarr, Radarr, qBittorrent'],
+  ['media_server', 'Media Server', 'Jellyfin, Plex, Sonarr, Radarr, qBittorrent'],
   ['homelab', 'Home Lab', 'Proxmox VE node and guests'],
   ['attention', 'Needs Attention', 'Unavailable devices, low batteries, repairs, updates'],
   ['zigbee', 'Zigbee', 'Zigbee2MQTT or ZHA: offline devices, weak signal, last seen (System tab)'],
@@ -1323,6 +1323,7 @@ class SweetHomeCardEditor extends HTMLElement {
       media_server: [
         ['jellyfin', 'Jellyfin', 'Now Watching, playing on the TV', of('jellyfin').length > 0, n('jellyfin'), 'Add the Jellyfin integration'],
         [null, 'JellyHA', hybrid ? 'Now Watching, clients and library (Jellyfin + JellyHA)' : 'Used with “Jellyfin + JellyHA”', of('jellyha').length > 0, n('jellyha'), 'Optional (HACS)'],
+        ['plex', 'Plex', 'Now Watching, library counts', of('plex').length > 0, n('plex'), 'Add the Plex integration'],
         ['sonarr', 'Sonarr', 'Shows, Wanted, Coming Up, storage', of('sonarr').length > 0, n('sonarr'), 'Add the Sonarr integration'],
         ['radarr', 'Radarr', 'Movies, Coming Up', of('radarr').length > 0, n('radarr'), 'Add the Radarr integration'],
         ['qbittorrent', 'qBittorrent', 'Downloads', of('qbittorrent').length > 0, n('qbittorrent'), 'Add the qBittorrent integration'],

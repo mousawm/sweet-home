@@ -871,7 +871,7 @@ export function buildModel(cfg = {}, hass) {
       swapTotal: nd(['sensor', 'swap_total']), update: nd(['update', 'software_update']), temp: null }];
   }).filter(([, v]) => v));
 
-  // media server: Jellyfin / Sonarr / Radarr / qBittorrent are found by their integration
+  // media server: Jellyfin / Plex / Sonarr / Radarr / qBittorrent are found by their integration
   const plat = (p, re) => R.ofPlatform(p, re)[0] || null;
   // the instances of an integration: its entities grouped by config entry (two Radarr servers, two qBittorrents…)
   const instances = p => {
@@ -908,13 +908,23 @@ export function buildModel(cfg = {}, hass) {
     jellyfin: MS.jellyfin === false ? { kind: 'off', view: null, clients: null, playClients: null, tv: MS.jellyfin_tv || null, off: true } : jfIntegration(),
     sonarr: off(perInstance('sonarr', f => ({ upcoming: f(/_upcoming$/), wanted: f(/_wanted$/), queue: f(/^sensor\..*_queue$/), shows: f(/_shows$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'sonarr'),
     radarr: off(perInstance('radarr', f => ({ movies: f(/_movies$/), queue: f(/^sensor\..*_queue$/), health: f(/^binary_sensor\..*_health$/), disk: f(/_disk_space/), cal: f(/^calendar\./) })), 'radarr'),
+    // Plex (the official integration): Now Watching from its client players, Shows / Movies counts from its library
+    // sensors (library_type show / movie; they are off by default in Home Assistant)
+    plex: (() => {
+      if (MS.plex === false) return { off: true, shows: [], movies: [] };
+      const sens = R.ofPlatform('plex', /^sensor\./), lt = id => R.states[id]?.attributes?.library_type;
+      const libs = sens.filter(id => lt(id) || /_library_/.test(id));
+      return { off: !R.ofPlatform('plex').length,
+        shows: libs.filter(id => lt(id) === 'show' || (!lt(id) && /_(tv|shows?|series)$/.test(id))),
+        movies: libs.filter(id => lt(id) === 'movie' || (!lt(id) && /_(movies?|films?)$/.test(id))) };
+    })(),
     qbt: off(perInstance('qbittorrent', f => ({
       down: f(/_download_speed$/), up: f(/_upload_speed$/), status: f(/_status$/), conn: f(/_connection_status$/),
       active: f(/_active_torrents$/), all: f(/_all_torrents$/), errored: f(/_errored_torrents$/), ratio: f(/_global_ratio$/),
       alt: f(/^switch\..*_alternative_speed$/),
     })), 'qbittorrent'),
   };
-  const hasMS = !!((!mserver.jellyfin.off && (mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.view, /^media_player\./).length || R.ofPlatform('jellyfin', /^media_player\./).length)) || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
+  const hasMS = !!((!mserver.plex.off) || (!mserver.jellyfin.off && (mserver.jellyfin.clients || R.ofPlatform(mserver.jellyfin.view, /^media_player\./).length || R.ofPlatform('jellyfin', /^media_player\./).length)) || mserver.sonarr.upcoming || mserver.radarr.movies || mserver.qbt.down);
 
   // solar forecast (Forecast.Solar)
   const fs = re => ((P.energy || {}).solar_forecast === false ? null : plat('forecast_solar', re)); // off in the editor: hidden

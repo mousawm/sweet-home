@@ -850,6 +850,24 @@ try {
     return (out.all === 'Now Watching,Library,Coming Up,Downloads' && out.some === 'Library' && out.noWanted) || JSON.stringify(out);
   }); check('Media Server: Jellyfin / Sonarr / qBittorrent switched off hide Now Watching and Downloads (Wanted stays for Radarr)', r === true, r); }
   { const r = await p.evaluate(async () => {
+    const h = card._hass._raw || card._hass, cfg0 = card._config, made = [];
+    const add = (id, pl, v, attributes = {}) => { made.push(id); h.states[id] = { entity_id: id, state: v, attributes }; h.entities[id] = { entity_id: id, platform: pl }; };
+    add('sensor.plex_server_library_movies', 'plex', '120', { library_type: 'movie' }); add('sensor.plex_server_library_tv_shows', 'plex', '35', { library_type: 'show' });
+    add('media_player.plex_shield', 'playing', 'playing', {}); h.entities['media_player.plex_shield'].platform = 'plex';
+    h.states['media_player.plex_shield'].attributes = { friendly_name: 'Plex (Plex for Android (TV) - SHIELD)', media_title: 'Pilot', media_series_title: 'Severance', media_season: 1, media_episode: 1, media_duration: 3000, media_position: 600 };
+    const jf = Object.keys(h.entities).filter(id => ['jellyfin', 'jellyha', 'sonarr', 'radarr'].includes(h.entities[id].platform)), saved = jf.map(id => [id, h.entities[id]]);
+    for (const id of jf) delete h.entities[id]; // a Plex-only home
+    const show = async ms => { const c = JSON.parse(JSON.stringify(cfg0)); c.panels = { ...(c.panels || {}), media_server: ms }; card.setConfig(c); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 800)); card._mcal = { at: Date.now(), items: [] }; return card._rMServer(); };
+    const html = await show({}), out = {};
+    out.watching = /Severance/.test(html) && /S01E01 · Pilot/.test(html) && /Plex for Android \(TV\) - SHIELD/i.test(html) && !/>Plex \(/.test(html) && !/· Jellyfin|· Plex</.test(html);
+    out.lib = /<b>120<\/b><span>Movies/.test(html) && /<b>35<\/b><span>Shows/.test(html) && !/data-kind="jflib/.test(html);
+    out.pill = /1 watching/.test(html);
+    const offH = await show({ plex: false }); out.off = !/Severance/.test(offH);
+    for (const id of made) { delete h.states[id]; delete h.entities[id]; } for (const [id, e] of saved) h.entities[id] = e;
+    card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 500));
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Media Server with Plex only: Now Watching from Plex players, Shows / Movies counts from its library sensors, plex: false hides it', r === true, r); }
+  { const r = await p.evaluate(async () => {
     // the queue rows open a Download queue sheet, the Wanted tile a Wanted sheet; each has Shows / Movies tabs, and a
     // tab with nothing in it is left out
     const h = card._hass._raw || card._hass, cfg0 = card._config, out = {}, R = card.shadowRoot;

@@ -21,7 +21,7 @@ security, climate, energy, water, media, your home lab and your Zigbee network.
   - **Energy**: live power flow and a chart of today, plus history by day, week, month and year from your Energy
     settings, an electric car and the Forecast.Solar forecast
   - **Water & Irrigation**: tank trend, pumps, valves, schedule
-  - **Media**: TV and speakers, plus a media server card from Jellyfin (or Jellyfin + JellyHA), Sonarr, Radarr and
+  - **Media**: TV and speakers, plus a media server card from Jellyfin (or Jellyfin + JellyHA), Plex, Sonarr, Radarr and
     qBittorrent: now watching, the library, coming up, downloads and storage. Tap a movie or episode to play it on your TV
   - **Home Lab**: Proxmox VE node and guests
   - **Zigbee**: your Zigbee2MQTT or ZHA network: a summary, a device list with problems first, and a network map with
@@ -440,7 +440,7 @@ listed below).
 - **media**:
   - `player`, `speakers`
   - optional screen-time limits: `watch_timer` (watched today) and `watch_limit` (the daily limit), both as H:MM:SS, `limit_select` (a select to change the limit), `block_switch`, `unblock_switch` (Force Unblock). Pick them in the card editor under Panels → Media
-- **media_server**: found from the Jellyfin, Sonarr, Radarr and qBittorrent integrations. Tap a movie or an episode
+- **media_server**: found from the Jellyfin, Plex, Sonarr, Radarr and qBittorrent integrations. Tap a movie or an episode
   in the Shows / Movies browser and it plays on your TV, with no setup: the card finds a TV whose source list has
   Jellyfin (Android TV, Google TV and Fire TV over the Android TV integration first, then Android TV Remote, webOS,
   Tizen, Roku …), opens the Jellyfin app there (over ADB it restarts the app, which avoids a crash of the Jellyfin
@@ -462,6 +462,10 @@ listed below).
   integration out. Jellyfin off hides Now Watching (Shows and Movies then show only their counts); Sonarr off hides
   Shows, Wanted and its Coming Up items; Radarr off hides Movies and its Coming Up items; qBittorrent off hides Downloads.
   A section also hides by itself when its integration isn't installed.
+  **Plex** (the official Plex integration) is found by itself too: what's playing on your Plex apps shows under Now
+  Watching (next to Jellyfin's, each row tagged with its server when you have both), and with no Sonarr / Radarr the
+  Shows and Movies counts come from Plex's library sensors (turn those sensors on in Home Assistant; they are off by
+  default). Playing from the Shows / Movies browser stays Jellyfin-only. `plex: false` leaves Plex out.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
 - **homelab**: found from the Proxmox VE custom integration. With several Proxmox nodes, the card shows one chip per node to switch its gauges; `node` sets the one shown first (default: the first; card editor: Panels → Home Lab). Options (all in the card editor under Panels → Home Lab):

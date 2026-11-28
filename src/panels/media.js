@@ -1,4 +1,4 @@
-// Sweet Home — Media and Media Server (Jellyfin, Sonarr, Radarr, qBittorrent), TV light.
+// Sweet Home — Media and Media Server (Jellyfin, Plex, Sonarr, Radarr, qBittorrent), TV light.
 // Methods of the card (installed on SweetHomeCard.prototype in card.js): `this` is the card.
 import { t as tr } from '../i18n.js';
 import { E, tc, esc, ic, clamp, BAD, skl, skPill, pretty, bidi } from '../core.js';
@@ -455,7 +455,7 @@ export class MediaPanels {
       ${m.overview ? `<p class="mupov">${esc(m.overview)}</p>` : (this._mmeta ? `<p class="mupov mu">${tr("No description yet.")}</p>` : `<p class="mupov">${skl('100%', 10)}${skl('92%', 10, 'margin-top:6px')}${skl('60%', 10, 'margin-top:6px')}</p>`)}`;
   }
   _rMServer() {
-    const S = E.mserver, J = S.jellyfin, Q = S.qbt, SO = S.sonarr, RA = S.radarr, lang = this._hass?.locale?.language || 'en';
+    const S = E.mserver, J = S.jellyfin, PX = S.plex, Q = S.qbt, SO = S.sonarr, RA = S.radarr, lang = this._hass?.locale?.language || 'en';
     if (!this._mcal || Date.now() - this._mcal.at > 30 * 60e3) setTimeout(() => this._loadMCal(), 0);
     // --- now watching: jellyfin players that are playing / paused
     const haJ = J.view === 'jellyha', seen = new Set();
@@ -464,7 +464,14 @@ export class MediaPanels {
       .sort((a, b) => haJ ? /jellyha_device_/.test(b) - /jellyha_device_/.test(a) : 0)
       .map(id => [id, this.s(id)]).filter(([, st]) => st && ['playing', 'paused'].includes(st.state) && st.attributes.media_title)
       .filter(([id, st]) => { const k = haJ ? st.attributes.session_id || id : id; if (seen.has(k)) return false; seen.add(k); return true; });
-    const watch = sessions.map(([id, st]) => {
+    // Plex: one player per client that is playing (the official integration names them "Plex (<app> - <device>)")
+    const ents = this._hass?.entities || {};
+    const plex = PX.off ? [] : Object.keys(ents).filter(id => id.startsWith('media_player.') && ents[id].platform === 'plex')
+      .map(id => [id, this.s(id)]).filter(([, st]) => st && ['playing', 'paused'].includes(st.state) && st.attributes.media_title);
+    // Jellyfin counts as there unless Plex is and Jellyfin has no entities (a Plex-only home: no Jellyfin labels or browser)
+    const jfOn = !J.off && (PX.off || !!(J.clients || this._jfPlayers().length || this._jfPlayers('jellyfin').length)), both = jfOn && !PX.off;
+    sessions.push(...plex.map(([id, st]) => [id, st, 'Plex']));
+    const watch = sessions.map(([id, st, from]) => {
       const a = st.attributes, play = st.state === 'playing';
       const dur = +a.media_duration || 0;
       let pos = +a.media_position || 0; if (play && a.media_position_updated_at) pos += (Date.now() - new Date(a.media_position_updated_at)) / 1000;
@@ -474,7 +481,7 @@ export class MediaPanels {
       return `<div class="jfs ${play ? 'play' : ''}" data-act="more" data-id="${id}">
         <div class="jfp">${a.entity_picture ? `<img src="${esc(a.entity_picture)}" alt="" loading="lazy">` : ic(series ? 'mdi:television-classic' : 'mdi:movie-open')}</div>
         <div class="jfi"><b>${esc(title)}</b><span>${esc(sub)}</span>
-          <em>${ic(play ? 'mdi:play' : 'mdi:pause')}${esc(tc(String(a.friendly_name || id).replace(/^JellyHA (Device|User)\s+/i, '')))}${left != null ? ` · ${tr('{0} min left', left)}` : ''}</em>
+          <em>${ic(play ? 'mdi:play' : 'mdi:pause')}${esc(tc(String(a.friendly_name || id).replace(/^JellyHA (Device|User)\s+/i, '').replace(/^Plex \((.*)\)$/, '$1')))}${both ? ` · ${from || 'Jellyfin'}` : ''}${left != null ? ` · ${tr('{0} min left', left)}` : ''}</em>
           <div class="jfbar"><i style="width:${pct.toFixed(1)}%"></i></div></div></div>`;
     }).join('');
     const clients = this.n(J.clients);
@@ -516,13 +523,16 @@ export class MediaPanels {
     // the library tiles: Shows / Movies open the Jellyfin library (counts from Sonarr / Radarr); each one shows when its
     // integration is on (the "Found from" switches in the editor)
     const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
-    const lib = [(SO.shows || !J.off) && tile(J.off ? null : 'jflib:shows', SO.shows, 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows')),
-      (RA.movies || !J.off) && tile(J.off ? null : 'jflib:movies', RA.movies, 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies')),
+    // with no Sonarr / Radarr, Plex's library sensors give the counts
+    const pxn = ids => { const v = ids.map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+    const pxS = PX.off ? [] : PX.shows, pxM = PX.off ? [] : PX.movies;
+    const lib = [(SO.shows || jfOn || pxS.length) && tile(jfOn ? 'jflib:shows' : null, SO.shows || pxS[0], 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows') ?? pxn(pxS)),
+      (RA.movies || jfOn || pxM.length) && tile(jfOn ? 'jflib:movies' : null, RA.movies || pxM[0], 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies') ?? pxn(pxM)),
       (SO.wanted || RA.movies) && (() => { const w = this._wantedCount(); return tile('wanted', SO.wanted || RA.movies, 'mdi:magnify', tr('Wanted'), (w.all ?? 0) > 0 ? 'warn' : '', w.all); })()].filter(Boolean);
     const pill = sessions.length ? [tr('{0} watching', sessions.length), '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
-      ${J.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null ? ` · ${clients === 1 ? tr('1 client') : tr('{0} clients', clients)}` : ''}</div>
-      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}${tr("Nobody is watching on Jellyfin")}</div>`}`}
+      ${!jfOn && PX.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null && jfOn ? ` · ${clients === 1 ? tr('1 client') : tr('{0} clients', clients)}` : ''}</div>
+      ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}${tr(both ? "Nobody is watching" : !jfOn ? "Nobody is watching on Plex" : "Nobody is watching on Jellyfin")}</div>`}`}
       ${lib.length ? `<div class="dsec">${tr("Library")}</div><div class="mlib">${lib.join('')}</div>` : ''}
       ${!SO.cal && !RA.cal ? '' : `<div class="dsec">${tr("Coming Up")}</div>
       ${upcoming || (this._mcal ? `<div class="mempty">${ic('mdi:calendar-blank')}${tr("Nothing in the next two weeks")}</div>`
