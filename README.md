@@ -464,8 +464,9 @@ listed below).
   A section also hides by itself when its integration isn't installed.
   **Plex** (the official Plex integration) is found by itself too: what's playing on your Plex apps shows under Now
   Watching (next to Jellyfin's, each row tagged with its server when you have both), and with no Sonarr / Radarr the
-  Shows and Movies counts come from Plex's library sensors (turn those sensors on in Home Assistant; they are off by
-  default). Playing from the Shows / Movies browser stays Jellyfin-only. `plex: false` leaves Plex out.
+  Shows and Movies counts come from Plex's library sensors in a home without Jellyfin (turn those sensors on in Home
+  Assistant; they are off by default). With both servers, Shows / Movies open Jellyfin's library and the client count
+  reads "N Jellyfin clients". Playing from the Shows / Movies browser stays Jellyfin-only. `plex: false` leaves Plex out.
   `clients_sensor`: the sensor for the "N clients" count next to Now Watching. Not set: `sensor.jellyfin_active_clients`
   with Jellyfin, `sensor.jellyha_active_sessions` with Jellyfin + JellyHA. Pick it in the card editor under Panels → Media Server.
 - **homelab**: found from the Proxmox VE custom integration. With several Proxmox nodes, the card shows one chip per node to switch its gauges; `node` sets the one shown first (default: the first; card editor: Panels → Home Lab). Options (all in the card editor under Panels → Home Lab):

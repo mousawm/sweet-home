@@ -523,15 +523,16 @@ export class MediaPanels {
     // the library tiles: Shows / Movies open the Jellyfin library (counts from Sonarr / Radarr); each one shows when its
     // integration is on (the "Found from" switches in the editor)
     const tile = (kind, id, icon, label, cls = '', val) => `<div class="go ${cls}" data-act="${kind ? 'info' : 'more'}"${kind ? ` data-kind="${kind}"` : ''} data-id="${id || ''}">${ic(icon)}<b>${esc(val ?? this.v(id) ?? '—')}</b><span>${label} ›</span></div>`;
-    // with no Sonarr / Radarr, Plex's library sensors give the counts
+    // with no Sonarr / Radarr, Plex's library sensors give the counts, but only with no Jellyfin: with Jellyfin the
+    // tiles open Jellyfin's library, so a Plex number would not match what they open
     const pxn = ids => { const v = ids.map(id => this.n(id)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
-    const pxS = PX.off ? [] : PX.shows, pxM = PX.off ? [] : PX.movies;
+    const pxS = PX.off || jfOn ? [] : PX.shows, pxM = PX.off || jfOn ? [] : PX.movies;
     const lib = [(SO.shows || jfOn || pxS.length) && tile(jfOn ? 'jflib:shows' : null, SO.shows || pxS[0], 'mdi:television-classic', tr('Shows'), '', sum(SO, 'shows') ?? pxn(pxS)),
       (RA.movies || jfOn || pxM.length) && tile(jfOn ? 'jflib:movies' : null, RA.movies || pxM[0], 'mdi:movie-open', tr('Movies'), '', sum(RA, 'movies') ?? pxn(pxM)),
       (SO.wanted || RA.movies) && (() => { const w = this._wantedCount(); return tile('wanted', SO.wanted || RA.movies, 'mdi:magnify', tr('Wanted'), (w.all ?? 0) > 0 ? 'warn' : '', w.all); })()].filter(Boolean);
     const pill = sessions.length ? [tr('{0} watching', sessions.length), '#a78bfa'] : down > 0.05 ? [tr("Downloading"), '#60a5fa'] : [tr("Idle"), '#94a3b8'];
     return `<div class="ch">${ic('mdi:server-network')}<h3>${tr("Media Server")}</h3><span class="pill" style="--c:${pill[1]}">${pill[0]}</span></div>
-      ${!jfOn && PX.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null && jfOn ? ` · ${clients === 1 ? tr('1 client') : tr('{0} clients', clients)}` : ''}</div>
+      ${!jfOn && PX.off ? '' : `<div class="dsec">${tr("Now Watching")}${clients != null && jfOn ? ` · ${both ? (clients === 1 ? tr('1 Jellyfin client') : tr('{0} Jellyfin clients', clients)) : clients === 1 ? tr('1 client') : tr('{0} clients', clients)}` : ''}</div>
       ${watch || `<div class="mempty">${ic('mdi:sofa-outline')}${tr(both ? "Nobody is watching" : !jfOn ? "Nobody is watching on Plex" : "Nobody is watching on Jellyfin")}</div>`}`}
       ${lib.length ? `<div class="dsec">${tr("Library")}</div><div class="mlib">${lib.join('')}</div>` : ''}
       ${!SO.cal && !RA.cal ? '' : `<div class="dsec">${tr("Coming Up")}</div>

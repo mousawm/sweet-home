@@ -868,6 +868,25 @@ try {
     return Object.values(out).every(Boolean) || JSON.stringify(out);
   }); check('Media Server with Plex only: Now Watching from Plex players, Shows / Movies counts from its library sensors, plex: false hides it', r === true, r); }
   { const r = await p.evaluate(async () => {
+    const h = card._hass._raw || card._hass, cfg0 = card._config, made = [];
+    const add = (id, pl, v, attributes = {}) => { made.push(id); h.states[id] = { entity_id: id, state: v, attributes }; h.entities[id] = { entity_id: id, platform: pl }; };
+    const ep = { media_title: 'Pilot', media_series_title: 'Severance', media_season: 1, media_episode: 1, media_duration: 3000, media_position: 600 };
+    add('sensor.plex_server_library_movies', 'plex', '120', { library_type: 'movie' }); add('sensor.plex_server_library_tv_shows', 'plex', '35', { library_type: 'show' });
+    add('media_player.plex_shield', 'plex', 'playing', { ...ep, friendly_name: 'Plex (Plex Web - Chrome)' });
+    add('media_player.jf_living_room', 'jellyfin', 'paused', { ...ep, media_series_title: 'Andor', friendly_name: 'Living Room' }); add('sensor.jellyfin_active_clients', 'jellyfin', '2');
+    const ar = Object.keys(h.entities).filter(id => ['sonarr', 'radarr', 'jellyha'].includes(h.entities[id].platform)), saved = ar.map(id => [id, h.entities[id]]);
+    for (const id of ar) delete h.entities[id]; // no Sonarr / Radarr: the counts would have come from Plex
+    const c = JSON.parse(JSON.stringify(cfg0)); c.panels = { ...(c.panels || {}), media_server: { integration: 'jellyfin' } }; card.setConfig(c);
+    card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 800)); card._mcal = { at: Date.now(), items: [] };
+    const html = card._rMServer(), out = {};
+    out.both = /Andor/.test(html) && /Severance/.test(html) && /Living Room · Jellyfin ·/.test(html) && /Plex Web - Chrome · Plex ·/i.test(html) && /2 watching/.test(html);
+    out.clients = /2 Jellyfin clients/.test(html);
+    out.lib = /data-kind="jflib:movies"/.test(html) && !/<b>120<\/b>/.test(html) && !/<b>35<\/b>/.test(html); // Jellyfin's browser, not Plex's numbers
+    for (const id of made) { delete h.states[id]; delete h.entities[id]; } for (const [id, e] of saved) h.entities[id] = e;
+    card.setConfig(cfg0); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 500));
+    return Object.values(out).every(Boolean) || JSON.stringify(out);
+  }); check('Media Server with Jellyfin and Plex: one Now Watching list tagged by server, "N Jellyfin clients", Shows / Movies open Jellyfin without Plex counts', r === true, r); }
+  { const r = await p.evaluate(async () => {
     // the queue rows open a Download queue sheet, the Wanted tile a Wanted sheet; each has Shows / Movies tabs, and a
     // tab with nothing in it is left out
     const h = card._hass._raw || card._hass, cfg0 = card._config, out = {}, R = card.shadowRoot;
