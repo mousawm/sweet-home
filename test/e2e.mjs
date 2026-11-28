@@ -196,6 +196,18 @@ try {
       rows: rows.length, rowTxt: rows[0]?.textContent.replace(/\s+/g, ' ').trim(), clients: /\b2 clients/.test(tpl.content.textContent) && !/38 clients/.test(tpl.content.textContent),
       // playing: only the official integration's players, never JellyHA's; the phone's app is not a target when there is a TV
       sessions: card._jfSessions().map(x => x.st.entity_id).join(), targets: card._jfTargets({ id: 'media_player.shield' }).map(x => x.st.entity_id).join() };
+    // library_count: the Shows / Movies numbers from what JellyHA has (2 movies, 1 show), or "in JellyHA / in Sonarr & Radarr"
+    const tiles = html => Object.fromEntries([...html.matchAll(/<b>(.*?)<\/b><span>(Shows|Movies) ›/g)].map(m => [m[2], m[1]]));
+    const arr = [['sensor.sonarr_shows', 'sonarr', '38'], ['sensor.radarr_movies', 'radarr', '24']].filter(([id]) => !h.states[id]);
+    for (const [id, pl, v] of arr) { h.states[id] = { entity_id: id, state: v, attributes: {} }; h.entities[id] = { entity_id: id, platform: pl }; }
+    for (const lc of ['total', 'library', 'both']) {
+      const c3 = JSON.parse(JSON.stringify(c2)); c3.panels.media_server.library_count = lc; card.setConfig(c3); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } };
+      for (let i = 0; i < 4; i++) { card._rMServer(); await new Promise(r => setTimeout(r, 250)); } out[lc] = tiles(card._rMServer());
+    }
+    out.count = out.library.Movies === '2' && out.library.Shows === '1' && /^2<small>\/\d+<\/small>$/.test(out.both.Movies) && /^1<small>\/\d+<\/small>$/.test(out.both.Shows)
+      && out.both.Movies === `2<small>/${out.total.Movies}</small>` && out.both.Shows === `1<small>/${out.total.Shows}</small>`;
+    for (const [id] of arr) { delete h.states[id]; delete h.entities[id]; }
+    card.setConfig(c2); card.hass = { ...h, states: { ...h.states }, entities: { ...h.entities } }; await new Promise(r => setTimeout(r, 400));
     card._openInfo('jflib:movies'); await new Promise(r => setTimeout(r, 300));
     const sh = () => card.shadowRoot.getElementById('sheet');
     out.items = [...sh().querySelectorAll('.jfpo')].map(b => [b.dataset.item, b.dataset.title]);
@@ -205,10 +217,10 @@ try {
     out.eps = [...sh().querySelectorAll('.jfep')].map(b => [b.dataset.item, b.querySelector('b')?.textContent]);
     card._closeSheet(); h.callWS = orig; window.jfCleanup();
     card.setConfig(cfg); card.hass = { ...h, states: { ...h.states } }; await new Promise(r => setTimeout(r, 1200)); card._jfc = {};
-    const ok = out.rows === 1 && /SHIELD/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.sessions === 'media_player.pixel_8' && out.targets === ''
+    const ok = out.count && out.rows === 1 && /SHIELD/.test(out.rowTxt) && !/JellyHA/.test(out.rowTxt) && out.clients && out.sessions === 'media_player.pixel_8' && out.targets === ''
       && JSON.stringify(out.items) === JSON.stringify([[G1, 'Heat (1995)'], [G2, 'No Year']]) && JSON.stringify(out.eps) === JSON.stringify([[EP, '1. Pilot']]);
     return ok || JSON.stringify(out);
-  }, jfSetup); check('Jellyfin + JellyHA: Now Watching, clients and Shows / Movies from JellyHA; only the official Jellyfin players play (never JellyHA\'s, never the phone)', r === true, r); }
+  }, jfSetup); check('Jellyfin + JellyHA: Now Watching, clients and Shows / Movies from JellyHA (library_count: in JellyHA, or in JellyHA / total); only the official Jellyfin players play (never JellyHA\'s, never the phone)', r === true, r); }
   for (const qc of [false, true]) { const r = await p.evaluate(async ([setup, qc]) => {
     // tapping a movie: Jellyfin is opened on the Shield, its official session appears, the movie is sent there with
     // play_media (the Jellyfin item id from JellyHA's library); no JellyHA service is used. Quick Connect: only after Play.

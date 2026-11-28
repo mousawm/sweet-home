@@ -297,6 +297,9 @@ test('Plex: found by its integration, library sensors split into shows and movie
   assert.deepEqual([P.off, P.movies, P.shows], [false, ['sensor.plex_server_library_films'], ['sensor.plex_server_library_tv_shows']]);
   assert.ok(m.hasMS, 'the Media Server card shows with Plex alone');
   assert.equal(buildModel({ panels: { media_server: { plex: false } } }, h).E.mserver.plex.off, true);
+  // library_count: the Library tiles' numbers (total by default; library / both; anything else: total)
+  assert.deepEqual(['total', 'library', 'both', 'x'].map(c => buildModel({ panels: { media_server: { library_count: c } } }, h).E.mserver.count), ['total', 'library', 'both', 'total']);
+  assert.equal(m.E.mserver.count, 'total');
 });
 
 test('Jellyfin or Jellyfin + JellyHA (hybrid): playing through the official integration, the rest from JellyHA when picked', () => {
